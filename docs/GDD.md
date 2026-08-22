@@ -1,0 +1,354 @@
+# LAST LINE — Game Design Document
+
+*Working title. Candidates: **Last Line**, Sovereign Soil, Fortress Doctrine, Front Line: American Theater.*
+
+**Genre:** Hybrid tower defense / base builder with idle systems
+**Platform:** Web (desktop-first, mobile-friendly), TypeScript + Phaser 3
+**Mode:** Single-player vs AI (PvP-lite via share-codes planned post-1.0)
+**Tone:** Gritty, grounded modern warfare — alternate history
+**Status:** Design v1 (M0). All numbers provisional until the balance harness exists (M5).
+
+---
+
+## 1. High concept
+
+An alternate-history modern war: North Korea, China, and Russia launch a coordinated attack on
+America and the United Nations. You command one nation's war effort from a single fortified
+settlement that grows into a hardened firebase.
+
+Your town **is** the battlefield. The walls you build to protect your economy form the maze that
+enemy assaults must fight through. Defending is a **real-time tower defense game** — the active,
+skill-driven half. Attacking is a **planning game**: scout an enemy base, compose your force,
+choose entry points and doctrines, and a deterministic simulator resolves the assault into a
+watchable replay — the strategic, idle-friendly half.
+
+### Design pillars
+
+1. **Defense is the action game.** When sirens sound, you play: placing field defenses and
+   calling fire missions mid-wave, Kingdom-Rush-style, on top of your permanent base.
+2. **Offense is the thinking game.** Recon, force composition, and entry planning decide raids.
+   No micro — your plan is your skill.
+3. **One deterministic simulator under everything.** Auto-raids, offline defense, and replays are
+   the same engine. The active TD mode is that engine running in real time with live commands.
+4. **Your town is the battlefield.** No separate TD maps. Economy layout, wall mazes, and kill
+   zones are one decision space.
+5. **Grounded tone.** Real hardware, terse radio-log briefings, the cost of war acknowledged.
+
+### Content guardrails
+
+The premise is explicitly alternate history and is framed as such in-game. Combatants are
+militaries, machines, and materiel — never peoples or ethnicities. No atrocity mechanics, no
+civilian targeting; where civilians appear in the campaign, the player protects and evacuates
+them. Tone is somber, not celebratory.
+
+---
+
+## 2. The three loops
+
+### 2.1 Active loop — Siege (minutes)
+
+An enemy assault arrives in waves at map-edge entry roads and paths through your maze toward
+your Command Center.
+
+- **Permanent layer** (built with town resources, persists between battles): buildings, walls,
+  gates, and a limited number of **emplacements** (permanent towers). This layer alone defends
+  you when you're offline — it has to be good.
+- **Battle layer** (exists only during a siege): you earn **Command Points (CP)** over time and
+  per kill, and spend them live on **field defenses** — deployable turrets, infantry in
+  foxholes, mines, barricades — plus **commander powers** (airstrikes, fire missions). Field
+  defenses expire when the siege ends.
+- Between waves: a short prep window to repair, reposition field defenses, and read the next
+  wave's composition.
+- **Lose conditions:** Command Center destroyed = defeat (full loot loss). Partial destruction =
+  proportional loot loss. Surviving with an intact base = salvage bonus.
+
+### 2.2 Strategic loop — Raids (sessions)
+
+- Spend **Intel** to scout a target on the Front Line — fog lifts, revealing their maze,
+  emplacements, and loot.
+- Plan: assign squads to entry points, give each a **doctrine** (*Hunt Defenses* / *Beeline HQ*
+  / *Raze Economy*), set timing offsets, and arm auto-trigger rules for your powers
+  (e.g., "fire mission when 3+ defenders cluster").
+- Launch: the deterministic sim resolves the raid. Watch at 1×/2×/4× or skip to the result.
+- Loot by destruction percentage; your surviving units return, your losses cost you.
+
+### 2.3 Idle loop — The war continues (hours)
+
+- **Offline resource generation:** depots keep producing while you're away, capped by storage.
+- **Build & research timers:** construction and tech complete in real time. Timers are short and
+  generous (minutes to a few hours) — there is no monetization pressure, only pacing.
+- **Offline probe raids:** AI factions test your base while you're gone. Resolved by the sim
+  against your permanent layer only. You return to a **defense log**: outcomes, losses, loot
+  changes, and watchable replays. Probes are frequency-capped and loss-capped (never punishing),
+  and a defeat grants a shield window.
+
+---
+
+## 3. Setting & campaign
+
+**The war:** 2027, alternate timeline. A coordinated offensive — the **Coalition of the Three**
+(China, Russia, North Korea) — strikes the American mainland and UN forces worldwide. The story
+is told through terse mission briefings, radio logs, and after-action reports. No cutscenes;
+the writing does the work.
+
+### Campaign arcs (one per faction, released over time)
+
+1. **USA — "Landfall"** (v0.1): China lands on the West Coast. You hold a headland town in
+   Oregon that becomes the last supply corridor south. Missions: found the base, first sieges,
+   civilian evacuation under fire, NK infiltration interlude, Russian armor probe, and a finale
+   siege — then the counterattack order arrives (unlocks offense, v0.2).
+2. **China — "Eastern Tide"** (v0.3): the mirror arc — establishing a beachhead economy under
+   USA counterattack.
+3. **Russia — "Iron Corridor"**, **North Korea — "Silent Tunnels"**, **UN — "Blue Line"**
+   (v0.5+): one arc per faction release.
+
+### The Front Line (endless ladder)
+
+A war map of AI bases in escalating difficulty tiers (DEFCON-style ranks). Raiding advances
+your position; between raids, counter-siege defense events target your base. Handcrafted base
+templates + procedural mutation keep layouts fresh. Leagues/events post-1.0.
+
+---
+
+## 4. Factions
+
+Five factions, each a full kit: buildings, walls, emplacements, field defenses, units, powers.
+USA and China ship first (elite-vs-swarm is the clearest balance axis). All content is
+data-driven so later factions are content drops, not engine work.
+
+### 4.1 USA — Quality & Response
+
+*Few, expensive, excellent. Air power and precision.*
+
+- **Strengths:** elite units, precision single-target emplacements, drone/air powers, fast
+  logistics (reduced build/repair times).
+- **Weaknesses:** low unit counts, every loss hurts, thin static line without active support.
+- **Signature mechanic:** **Rapid Response** — field defenses deploy instantly (no build-up
+  animation delay) and refund partial CP when they survive a wave.
+
+| Units (offense) | Role |
+|---|---|
+| Ranger Squad | Balanced infantry |
+| Javelin Team | Anti-armor infantry |
+| Humvee CROWS | Fast harasser, light gun |
+| M1 Abrams | Heavy breakthrough armor |
+| Stryker ICV | Mid armor, carries a squad |
+| Reaper Drone *(later)* | Air, precision strikes |
+
+| Emplacements (permanent) | Role |
+|---|---|
+| M2 MG Nest | Cheap anti-infantry |
+| 25mm Autocannon | Anti-light-vehicle |
+| TOW Battery | Slow, huge single-target anti-armor |
+| 120mm Mortar Pit | Long-range splash, min range |
+| Stinger Site | Anti-air *(when air arrives)* |
+| ECM Jammer | Slows/disrupts in radius |
+
+| Field defenses (CP) | Powers (CP) |
+|---|---|
+| Deployable MG turret | A-10 Gun Run (line strafe) |
+| Rifle squad foxhole | 155mm Fire Mission (AoE) |
+| Claymore field | Medevac (heal defenders) |
+| HESCO barricade | Reaper Loiter (auto-strikes, duration) |
+
+### 4.2 China — Mass & Production
+
+*Numbers are a quality of their own.*
+
+- **Strengths:** cheap fast-produced swarms, rapid-fire anti-swarm emplacements, saturation
+  artillery, storage-efficient economy at scale.
+- **Weaknesses:** individually fragile units, weak answers to elite heavy armor, needs wide
+  storage/production footprint (bigger base to defend).
+- **Signature mechanic:** **Production Surge** — barracks queue at double speed during and
+  immediately after any battle.
+
+| Units | Role |
+|---|---|
+| Militia Rush | Very cheap, very fast swarm |
+| PLA Rifle Squad | Standard infantry |
+| Sapper Team | Wall breacher (walls cost ~nothing to them) |
+| Grenadier | Ranged, shreds field defenses |
+| ZBD-04 IFV | Light armor, escorts infantry |
+| Type 99 Tank | Heavy, slow, building-buster |
+
+| Emplacements | Field defenses / Powers |
+|---|---|
+| Type 88 HMG Nest | Conscript wave (spawn defenders) |
+| QLZ Auto-Grenade (AoE anti-swarm) | Sandbag line |
+| HJ-8 ATGM Battery (anti-elite) | PLZ Saturation Barrage (huge AoE, long CD) |
+| PGZ Flak (anti-air later) | Smoke screen (towers miss, cover repairs) |
+
+### 4.3 Russia — Armor & Artillery *(v0.5+)*
+
+*Everything is heavier than it needs to be.*
+
+- **Strengths:** highest HP units and emplacements, thermobaric splash (TOS-1), cannon bunkers,
+  attacks that ignore partial cover.
+- **Weaknesses:** slow everything, poor AA coverage, expensive repairs, fuel-hungry.
+- **Signature mechanic:** **Overbuilt** — structures keep fighting at 25% effectiveness for a
+  while after "destruction" (burning hulk state).
+
+### 4.4 North Korea — Asymmetric & Tunnels *(v0.5+)*
+
+*The maze doesn't matter if you're under it.*
+
+- **Strengths:** tunnel entrances that bypass wall mazes (attackers emerge inside the
+  perimeter), ambush spawns, off-map artillery barrages, EMP/hacking to blind emplacements,
+  dirt-cheap infantry.
+- **Weaknesses:** low tech ceiling, collapses in sustained fights, fragile economy, tunnels are
+  destructible once discovered.
+- **Signature mechanic:** **Tunnel Network** — both offensive (raid insertion points) and
+  defensive (redeploy defenders between tunnel nodes instantly).
+
+### 4.5 UN Coalition — Support & Versatility *(v0.5+)*
+
+*Held together by paperwork and engineering corps.*
+
+- **Strengths:** engineering (fast repairs, temporary barricades anywhere), medics and shield
+  generators... field hospitals, logistics interdiction (debuff attacker spawn rates), one unit
+  borrowed from every member state (versatile roster).
+- **Weaknesses:** master of none, lowest raw damage, powers are utility-heavy.
+- **Signature mechanic:** **Mandate** — pre-battle, choose one temporary doctrine buff for the
+  whole engagement (defensive works, rapid deployment, humanitarian shield).
+
+---
+
+## 5. Systems
+
+### 5.1 Resources
+
+| Resource | Source | Spent on |
+|---|---|---|
+| **Supplies** | Supply Depots, raid loot | Buildings, walls, infantry, field defenses stockpile |
+| **Fuel** | Fuel Depots, raid loot | Vehicles, powers, emplacement ammo reserves |
+| **Intel** *(M6)* | Radar/Comms, defense victories | Research, scouting raid targets |
+| **Manpower** | Camps (soft cap, not a currency) | Army size limit |
+
+Offline accrual caps at storage capacity; default 8h of production banked.
+
+### 5.2 Buildings (USA names; every faction has analogues)
+
+Command Center (HQ; its level gates everything), Supply Depot, Storage Bunker, Fuel Depot,
+Barracks, Motor Pool, Research Lab, Engineering Bay (build/repair speed), Radar Station
+(Intel + scouting, M6), Airfield (M6+), Walls & Gates (gates let defenders through, close
+against attackers), Emplacement foundations.
+
+### 5.3 The maze rule (core mechanic)
+
+Attackers use **weighted pathfinding**: a wall tile's traversal cost = time to walk plus
+`wallHP / unitWallDPS`. Units with no wall damage treat walls as impassable; sappers treat them
+as nearly free; everyone else genuinely weighs "around vs through."
+
+Consequences, all intended:
+
+- Mazing works — most units prefer open paths, so serpentines buy real time.
+- Full enclosure is legal but not absolute — it trades wall HP for time against wall-chewers.
+- Sappers are the counter to turtling; anti-infantry kill zones are the counter to sappers.
+- Every wall you add is a routing decision, not just a stat.
+
+### 5.4 Combat math v1
+
+Deterministic, DPS-based. No damage RNG (randomness is cosmetic + spawn variance only) — this
+keeps replays exact and balance analyzable.
+
+Damage types × armor classes multiplier table (v1):
+
+| | None | Light | Heavy | Structure |
+|---|---|---|---|---|
+| **Small arms** | 1.0 | 0.6 | 0.2 | 0.15 |
+| **Kinetic (AP)** | 0.8 | 1.2 | 1.0 | 0.5 |
+| **Explosive** | 1.2 | 1.0 | 0.6 | 1.0 |
+| **Shaped (AT)** | 0.5 | 1.1 | 1.4 | 0.8 |
+
+Targeting is deterministic: nearest valid target, ties broken by lowest entity id.
+
+### 5.5 Command Points (siege battle economy)
+
+- Base income: ~1 CP/sec, +CP per kill (scaled by kill value).
+- Field defenses cost 5–40 CP; powers 30–80 CP with cooldowns.
+- Unspent CP partially converts to salvage (Supplies) on victory — hoarding is a choice.
+
+### 5.6 Raid planning & doctrines
+
+Each deployed squad gets: an entry point (revealed map-edge sectors), a launch delay (0–60s),
+and a doctrine — **Hunt Defenses** (prioritize emplacements), **Beeline HQ** (ignore
+everything possible, race the Command Center), **Raze Economy** (target depots/storage).
+Powers get auto-trigger rules from a small predicate list. The plan is saved with the replay,
+so you can iterate on a failed plan directly.
+
+### 5.7 Offline probes
+
+- Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).
+- Full-loss defeat grants a 12h shield. Probes scale to your Front Line tier, slightly soft.
+- Every probe produces a replay — offline losses must always be explainable.
+
+---
+
+## 6. Presentation
+
+### 6.1 Art direction — "the map table"
+
+Flat vector top-down, styled as a live tactical operations map: crisp geometric silhouettes,
+NATO-symbology-influenced iconography, subtle grid, blueprint overlays in build mode. Muted
+palette with faction accents:
+
+| Token | Hex | Use |
+|---|---|---|
+| `bg-field` | `#171a17` | Terrain base |
+| `bg-panel` | `#20241f` | UI panels |
+| `grid-line` | `#262b24` | Grid |
+| `olive` / `olive-dark` | `#6b7f43` / `#4a5a33` | USA structures/units |
+| `sand` / `sand-dark` | `#c2b280` / `#8a7f5c` | Walls, terrain accents |
+| `steel` | `#7d8a8f` | Neutral machinery |
+| `alarm` | `#c0392b` | Hostiles, alerts |
+| `signal` | `#d35400` | Fire/explosions, warnings |
+| `intel` | `#4a7fa5` | Intel, scanning, friendly UI |
+| `ink` | `#d8d5c7` | Text |
+
+Faction accent hues: USA olive, China crimson `#a83232`, Russia rust `#8c5a2b`, NK slate
+`#5c6670`, UN blue `#4a7fa5`.
+
+### 6.2 Audio (M6)
+
+Radio chatter and static as UI feedback; distant artillery ambience; sparse percussion-led
+score that only surfaces during sieges. Silence is part of the tone.
+
+### 6.3 Writing style
+
+Terse military register. Briefings are radio logs and after-action reports, 4–8 lines each.
+Casualty reports use numbers, not adjectives. The war is never cool; the craft is.
+
+---
+
+## 7. Technical design
+
+```
+src/sim/       Pure TypeScript, zero Phaser imports. Fixed-tick (20 tps) deterministic
+               engine: seeded PRNG, grid, weighted A*, combat, command queue.
+               Replay = initial state + seed + timestamped commands.
+src/game/      Phaser 3 rendering & input: scenes (Town, Siege, RaidPlanner, Replay),
+               HUD, interpolated rendering on top of sim ticks.
+src/content/   Data-driven definitions: units, emplacements, buildings, waves, missions.
+               Factions are data, not code.
+src/meta/      Saves (versioned JSON, localStorage + export/import file), timers,
+               offline resolution (accrue + fast-forward probes headlessly on load).
+```
+
+- **Determinism contract:** same seed + same command list ⇒ identical end state (hash-tested in
+  CI). All gameplay randomness flows through the seeded PRNG; iteration orders are canonical.
+- **Why it matters:** replays are tiny (commands, not frames); offline resolution is exact; and
+  a headless **balance harness** (M5) can run thousands of raids per minute to produce
+  win-rate matrices per faction/tier.
+- **Save format** is versioned with migrations from day one, and base layouts serialize to a
+  compact standalone form — the future share-code PvP format.
+
+---
+
+## 8. Scope guardrails
+
+- v0.1 ships **defense only** and must be fun with one faction defending.
+- Air units, Intel/tech tree, and factions 3–5 stay out until their milestone. No early nibbling.
+- All balance numbers are placeholder until the harness (M5); don't hand-tune before then.
+- No servers, accounts, or real-time PvP in any current milestone.
+
+See `ROADMAP.md` for milestones and `DECISIONS.md` for the ten locked design decisions.
