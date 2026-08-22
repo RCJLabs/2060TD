@@ -96,17 +96,33 @@ Carried to M3: a proper battle-report/defense-log screen (current: overlay + ban
 
 Carried to M4: mission-select map screen (M6), replaying cleared missions.
 
-## M4 — v0.2: offense + the Front Line *(~3 sessions)*
+## M4 — v0.2: offense + the Front Line ✅
 
-- [ ] AI base generator: handcrafted templates + procedural mutation, tier scaling
-- [ ] Intel scouting flow (flat cost pre-M6): fog-of-war reveal on target base
-- [ ] Raid planner: squad assignment to entry sectors, launch delays, doctrines
-      (Hunt Defenses / Beeline HQ / Raze Economy), power auto-trigger rules
-- [ ] Auto-resolve through the sim; loot by destruction %
-- [ ] Replay viewer: 1×/2×/4×, skip-to-result, saved with the plan for iteration
-- [ ] Front Line ladder v1: tiers, defense events interleaved with raids
-- [ ] Offline probe raids: frequency/loss caps, shield window, defense log with replays
-- [ ] Army management: Barracks/Motor Pool production queues, Manpower cap
+The other half of the game: the counterattack.
+
+- [x] AI base generator: three layout templates (compound, star, corridor) + seeded
+      mutation, tier-scaled towers/levels/loot, fully deterministic per (tier, variant)
+- [x] Scouting flow (Supplies cost pre-M6 Intel): unscouted targets are fogged;
+      scouting persists per target
+- [x] Raid planner: three squads with entry sectors (8 around the map), doctrines
+      (Assault / Hunt Defenses / Raze Economy — real unit-AI programs in the sim),
+      fixed per-squad launch stagger. Power auto-trigger rules deferred to M6 —
+      raids ship without commander powers for now
+- [x] Hands-off auto-resolve through the sim; loot per destroyed structure (caches pay
+      Supplies, dumps pay Fuel, the command post pays big); losses are permanent
+- [x] Replay viewer: ×1–×8 + skip-to-end, no-input playback of the exact battle
+      (the config IS the recording); last raid kept on the save
+- [x] Front Line ladder v1: tiers advance every 3 command posts; every 2nd cleared
+      post triggers a counterattack siege on YOUR base before the next raid
+- [x] Offline probe raids: 3-hour cadence capped at 3, loss caps (≤10% held / 15%
+      breached), 12h shield after a breach, defense log with watchable replays —
+      structures are never wrecked offline, walls lost stay lost
+- [x] Army management: Barracks + Motor Pool with 5-deep training queues (run while
+      offline), five USA units (Ranger, Engineer, Javelin, Humvee, Abrams), manpower
+      cap from facility levels
+
+Carried to M5: raid commander powers with auto-trigger rules; mission-select map (M6);
+replaying cleared missions.
 
 ## M5 — v0.3: China playable *(~2–3 sessions)*
 

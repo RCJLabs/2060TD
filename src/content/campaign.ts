@@ -47,10 +47,13 @@ export const ALL_UNLOCK_KEYS = [
   'cc2',
   'autocannon',
   'engBay',
+  'barracks',
+  'frontline',
   'mortar',
   'a10',
   'arty',
   'cc3',
+  'motorpool',
 ];
 
 const t = (col: number, row: number, atTick: number, kind: string): WaveEntry => ({
@@ -210,6 +213,8 @@ export const CAMPAIGN: MissionDef[] = [
     debriefVictory: [
       'AFTER ACTION — launcher teams broken in the open.',
       '25mm autocannons and an engineering bay authorized. Build faster. Hit harder.',
+      'And one more thing: CASCADE grants LIMITED COUNTER-RAID AUTHORITY.',
+      'Raise a barracks. The Front Line is yours to probe.',
     ],
     debriefDefeat: ['AFTER ACTION — they took the guns apart from four hundred meters. Range matters.'],
     waves: [
@@ -234,8 +239,8 @@ export const CAMPAIGN: MissionDef[] = [
       },
     ],
     siegeOverrides: { suppliesPerWave: 90 },
-    unlocks: ['autocannon', 'engBay'],
-    unlockNote: 'REQUISITION: 25MM AUTOCANNON, ENGINEERING BAY',
+    unlocks: ['autocannon', 'engBay', 'barracks', 'frontline'],
+    unlockNote: 'REQUISITION: 25MM AUTOCANNON, ENG BAY, BARRACKS · FRONT LINE OPEN',
     reward: { supplies: 500, fuel: 80 },
     bonus: { id: 'noStructuresLost', label: 'GUNS INTACT — no structures lost' },
   },
@@ -326,8 +331,8 @@ export const CAMPAIGN: MissionDef[] = [
       },
     ],
     siegeOverrides: { suppliesPerWave: 100, startingCp: 50 },
-    unlocks: ['arty', 'cc3'],
-    unlockNote: 'REQUISITION: 155MM FIRE MISSION · CC LEVEL 3 CLEARED',
+    unlocks: ['arty', 'cc3', 'motorpool'],
+    unlockNote: 'REQUISITION: 155MM MISSION, MOTOR POOL · CC LEVEL 3 CLEARED',
     reward: { supplies: 700, fuel: 150 },
     bonus: { id: 'noStructuresLost', label: 'ARMOR STOPPED COLD — no structures lost' },
   },

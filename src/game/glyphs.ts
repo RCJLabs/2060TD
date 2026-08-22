@@ -11,6 +11,8 @@ export interface StructureGlyphOptions {
   level?: number;
   wrecked?: boolean;
   inert?: boolean;
+  /** Enemy-held structure: crimson palette instead of olive/intel. */
+  hostile?: boolean;
 }
 
 /** Terrain base: field, grid lines, and the attacker entry strip. */
@@ -64,8 +66,13 @@ export function drawWallGlyph(
   }
 }
 
-function turretBase(g: Phaser.GameObjects.Graphics, px: number, py: number): void {
-  g.fillStyle(COLORS.oliveDark, 1);
+function turretBase(
+  g: Phaser.GameObjects.Graphics,
+  px: number,
+  py: number,
+  hostile = false,
+): void {
+  g.fillStyle(hostile ? COLORS.crimsonDark : COLORS.oliveDark, 1);
   g.fillRect(px - 11, py - 11, 22, 22);
   g.lineStyle(1, COLORS.gridLine, 1);
   g.strokeRect(px - 11, py - 11, 22, 22);
@@ -77,9 +84,10 @@ function buildingBase(
   py: number,
   cell: number,
   fill: number,
+  hostile = false,
 ): void {
   const half = cell - 3;
-  g.fillStyle(COLORS.oliveDark, 1);
+  g.fillStyle(hostile ? COLORS.crimsonDark : COLORS.oliveDark, 1);
   g.fillRect(px - half, py - half, half * 2, half * 2);
   g.lineStyle(1, COLORS.gridLine, 1);
   g.strokeRect(px - half, py - half, half * 2, half * 2);
@@ -100,15 +108,56 @@ export function drawStructureGlyph(
   cell: number,
   opts: StructureGlyphOptions = {},
 ): void {
+  const hostile = opts.hostile ?? false;
   switch (kind) {
     case 'cc': {
       const half = cell - 3;
-      g.fillStyle(COLORS.intel, 1);
+      g.fillStyle(hostile ? COLORS.crimson : COLORS.intel, 1);
       g.fillRect(px - half, py - half, half * 2, half * 2);
       g.lineStyle(2, COLORS.ink, 0.9);
       g.strokeRect(px - half, py - half, half * 2, half * 2);
       break;
     }
+    case 'hmgTower':
+      turretBase(g, px, py, hostile);
+      g.fillStyle(COLORS.crimson, 1);
+      g.fillCircle(px, py, 7);
+      g.lineStyle(3, COLORS.steel, 1);
+      g.lineBetween(px, py, px, py - 12);
+      break;
+    case 'qlzTower':
+      turretBase(g, px, py, hostile);
+      g.fillStyle(COLORS.crimson, 1);
+      g.fillCircle(px, py, 7);
+      g.lineStyle(5, COLORS.steel, 1);
+      g.lineBetween(px, py - 2, px, py - 10);
+      g.lineStyle(1, COLORS.signal, 0.9);
+      g.strokeCircle(px, py, 9);
+      break;
+    case 'atgmTower':
+      turretBase(g, px, py, hostile);
+      g.fillStyle(COLORS.crimson, 1);
+      g.fillRect(px - 7, py - 5, 14, 10);
+      g.lineStyle(2, COLORS.steel, 1);
+      g.lineBetween(px - 3, py - 5, px - 3, py - 12);
+      g.lineBetween(px + 3, py - 5, px + 3, py - 12);
+      break;
+    case 'supplyCache':
+      buildingBase(g, px, py, cell, COLORS.sandDark, hostile);
+      g.fillStyle(COLORS.sand, 1);
+      g.fillRect(px - 12, py - 8, 9, 7);
+      g.fillRect(px + 3, py - 8, 9, 7);
+      g.fillRect(px - 5, py + 2, 9, 7);
+      break;
+    case 'fuelDump':
+      buildingBase(g, px, py, cell, COLORS.steel, hostile);
+      g.fillStyle(COLORS.signal, 0.9);
+      g.fillCircle(px - 8, py, 6);
+      g.fillCircle(px + 8, py, 6);
+      g.lineStyle(1, COLORS.bgField, 1);
+      g.strokeCircle(px - 8, py, 6);
+      g.strokeCircle(px + 8, py, 6);
+      break;
     case 'supplyDepot':
       buildingBase(g, px, py, cell, COLORS.sandDark);
       g.fillStyle(COLORS.sand, 1); // crates
@@ -137,6 +186,22 @@ export function drawStructureGlyph(
       g.lineStyle(3, COLORS.ink, 0.85); // wrench chevron
       g.lineBetween(px - 8, py + 6, px, py - 6);
       g.lineBetween(px, py - 6, px + 8, py + 6);
+      break;
+    case 'barracks':
+      buildingBase(g, px, py, cell, COLORS.oliveDark);
+      g.fillStyle(COLORS.olive, 1); // bunk rows
+      g.fillRect(px - 12, py - 9, 24, 5);
+      g.fillRect(px - 12, py - 2, 24, 5);
+      g.fillRect(px - 12, py + 5, 24, 5);
+      break;
+    case 'motorpool':
+      buildingBase(g, px, py, cell, COLORS.steel);
+      g.fillStyle(COLORS.oliveDark, 1); // vehicle silhouette
+      g.fillRect(px - 10, py - 4, 20, 9);
+      g.fillCircle(px - 6, py + 6, 3);
+      g.fillCircle(px + 6, py + 6, 3);
+      g.lineStyle(2, COLORS.olive, 1);
+      g.lineBetween(px, py - 2, px + 13, py - 2);
       break;
     case 'm2nest':
       turretBase(g, px, py);
@@ -219,7 +284,16 @@ export function drawStructureGlyph(
   }
 }
 
-const BUILDING_KINDS = new Set(['supplyDepot', 'fuelDepot', 'storageBunker', 'engBay']);
+const BUILDING_KINDS = new Set([
+  'supplyDepot',
+  'fuelDepot',
+  'storageBunker',
+  'engBay',
+  'barracks',
+  'motorpool',
+  'supplyCache',
+  'fuelDump',
+]);
 const isBuildingKind = (kind: string): boolean => BUILDING_KINDS.has(kind);
 const isBigKind = (kind: string): boolean => kind === 'cc' || BUILDING_KINDS.has(kind);
 

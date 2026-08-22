@@ -142,6 +142,14 @@ export interface Catalog {
 
 // ---- siege definition ---------------------------------------------------------------
 
+/**
+ * Attacker behavior program:
+ * - assault: path to the Command Center and take it down (default)
+ * - hunt: destroy armed defensive structures first, then the CC
+ * - raze: destroy the economy first, then the CC
+ */
+export type Doctrine = 'assault' | 'hunt' | 'raze';
+
 export interface WaveEntry {
   /** Tick offset from the start of the wave. */
   atTick: number;
@@ -154,6 +162,8 @@ export interface WaveEntry {
    * Omit for the regular western entry strip.
    */
   col?: number;
+  /** Behavior program; defaults to assault. */
+  doctrine?: Doctrine;
 }
 
 export interface WaveDef {
@@ -232,7 +242,7 @@ export type Command =
   | { tick: number; type: 'removeWall'; cell: CellIndex }
   | { tick: number; type: 'placeStructure'; cell: CellIndex; kind: string; level?: number }
   | { tick: number; type: 'removeStructure'; cell: CellIndex }
-  | { tick: number; type: 'spawnAttacker'; cell: CellIndex; kind: string }
+  | { tick: number; type: 'spawnAttacker'; cell: CellIndex; kind: string; doctrine?: Doctrine }
   | { tick: number; type: 'startAssault' }
   | { tick: number; type: 'skipPrep' }
   | { tick: number; type: 'repairAll' }

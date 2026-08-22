@@ -47,6 +47,24 @@ export const ECONOMY_STRUCTURES: Record<string, StructureProfile> = {
     targetable: true,
     levels: [{ maxHp: 550 }, { maxHp: 650 }],
   },
+  barracks: {
+    kind: 'barracks',
+    name: 'Barracks',
+    maxHp: 500,
+    footprint: 2,
+    blocks: true,
+    targetable: true,
+    levels: [{ maxHp: 620 }, { maxHp: 750 }],
+  },
+  motorpool: {
+    kind: 'motorpool',
+    name: 'Motor Pool',
+    maxHp: 550,
+    footprint: 2,
+    blocks: true,
+    targetable: true,
+    levels: [{ maxHp: 680 }, { maxHp: 820 }],
+  },
 };
 
 // ---- town metadata ---------------------------------------------------------------
@@ -127,6 +145,24 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
     ],
     buildSpeed: [0.15, 0.25, 0.35],
   },
+  barracks: {
+    kind: 'barracks',
+    name: 'Barracks',
+    levels: [
+      { supplies: 300, fuel: 0, seconds: 30 },
+      { supplies: 700, fuel: 100, seconds: 80 },
+      { supplies: 1500, fuel: 300, seconds: 180 },
+    ],
+  },
+  motorpool: {
+    kind: 'motorpool',
+    name: 'Motor Pool',
+    levels: [
+      { supplies: 450, fuel: 50, seconds: 45 },
+      { supplies: 950, fuel: 200, seconds: 110 },
+      { supplies: 2000, fuel: 500, seconds: 220 },
+    ],
+  },
   m2nest: {
     kind: 'm2nest',
     name: 'M2 MG Nest',
@@ -162,6 +198,8 @@ export const BUILDABLE_KINDS = [
   'fuelDepot',
   'storageBunker',
   'engBay',
+  'barracks',
+  'motorpool',
   'm2nest',
   'autocannon',
   'mortar',
@@ -182,17 +220,26 @@ export const CC_GATING: CcGating[] = [
   {
     maxStructureLevel: 1,
     walls: 50,
-    counts: { supplyDepot: 2, fuelDepot: 1, storageBunker: 1, engBay: 0, m2nest: 2, autocannon: 1, mortar: 0 },
+    counts: {
+      supplyDepot: 2, fuelDepot: 1, storageBunker: 1, engBay: 0,
+      barracks: 1, motorpool: 0, m2nest: 2, autocannon: 1, mortar: 0,
+    },
   },
   {
     maxStructureLevel: 2,
     walls: 80,
-    counts: { supplyDepot: 3, fuelDepot: 2, storageBunker: 2, engBay: 1, m2nest: 3, autocannon: 2, mortar: 1 },
+    counts: {
+      supplyDepot: 3, fuelDepot: 2, storageBunker: 2, engBay: 1,
+      barracks: 1, motorpool: 1, m2nest: 3, autocannon: 2, mortar: 1,
+    },
   },
   {
     maxStructureLevel: 3,
     walls: 120,
-    counts: { supplyDepot: 4, fuelDepot: 3, storageBunker: 3, engBay: 1, m2nest: 4, autocannon: 3, mortar: 2 },
+    counts: {
+      supplyDepot: 4, fuelDepot: 3, storageBunker: 3, engBay: 1,
+      barracks: 2, motorpool: 1, m2nest: 4, autocannon: 3, mortar: 2,
+    },
   },
 ];
 

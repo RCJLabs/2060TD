@@ -15,7 +15,28 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.1 "LANDFALL": the campaign
+## Current state — v0.2: the counterattack
+
+Offense is in. After mission 5 grants counter-raid authority, the **FRONT LINE** opens:
+
+- **Raise an army:** Barracks and Motor Pool with real training queues (they keep
+  working while you're away) — Rangers, Combat Engineers, Javelin teams, Humvees, and
+  the M1 Abrams, capped by manpower from facility levels. **Losses are permanent.**
+- **Pick a target:** procedurally generated Chinese Front Line bases (three per tier,
+  deterministic layouts from compound/star/corridor templates). Scout with Supplies to
+  lift the fog, or raid blind.
+- **Plan, don't drive:** split the army into three squads, each with an entry sector
+  (eight around the map) and a doctrine — **Assault** the command post, **Hunt** the
+  towers, or **Raze** the economy. Doctrines are real unit-AI programs in the sim.
+- **Launch:** the raid resolves instantly and deterministically; loot per structure
+  destroyed, tier progress for command posts. Then **watch the replay** — the config is
+  the recording, at ×1–×8.
+- **The line pushes back:** every second post you clear triggers a counterattack siege
+  on *your* base, and while you're away the enemy runs **probe raids** against your
+  standing defenses — capped, shielded after a breach, and fully replayable from the
+  defense log.
+
+## v0.1 "LANDFALL": the campaign
 
 The first shareable build. **Operation Landfall** is a nine-mission defense campaign
 fought on your persistent base at Coos Bay, from the first militia probe (**DIG IN**)
@@ -44,10 +65,11 @@ commander powers, damage-type × armor counters, and weighted pathfinding where
 
 ```bash
 npm install
-npm run dev        # the game (town → siege loop)
+npm run dev        # the game (town → missions/raids loop)
                    # ?playground=1 sandbox maze lab · ?demo=1 scripted battle
-                   # ?demo=town showcase base (screenshot modes)
-npm test           # sim + meta suites (pathfinding, combat, siege, town, determinism)
+                   # ?demo=town showcase base · ?demo=raid Front Line planner
+npm test           # sim + meta suites (pathfinding, combat, siege, town,
+                   # doctrines, warfare, determinism)
 npm run build      # typecheck + production build
 npm run screenshot # headless screenshots into screenshots/
 ```

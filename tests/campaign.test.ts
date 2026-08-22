@@ -64,10 +64,10 @@ describe('campaign content', () => {
     const granted = CAMPAIGN.flatMap((m) => m.unlocks);
     expect([...granted].sort()).toEqual([...ALL_UNLOCK_KEYS].sort());
     for (const key of granted) {
-      const isCcTier = key === 'cc2' || key === 'cc3';
+      const isSpecial = key === 'cc2' || key === 'cc3' || key === 'frontline';
       const inCatalog =
         key in M1_CATALOG.structures || key in M1_CATALOG.walls || key in M1_CATALOG.powers;
-      expect(isCcTier || inCatalog, `unknown unlock key ${key}`).toBe(true);
+      expect(isSpecial || inCatalog, `unknown unlock key ${key}`).toBe(true);
     }
     for (const key of BASELINE_UNLOCKS) {
       expect(key in TOWN_META || key in M1_CATALOG.walls).toBe(true);
@@ -198,12 +198,15 @@ describe('save migration', () => {
     };
     const town = deserialize(JSON.stringify(legacy))!;
     expect(town).not.toBeNull();
-    expect(town.version).toBe(2);
+    expect(town.version).toBe(3); // migrated all the way forward
     expect(town.assaultLevel).toBe(4);
     expect(town.campaign.next).toBe(0);
     expect(town.campaign.difficulty).toBe('standard');
+    expect(town.frontline.tier).toBe(1);
+    expect(town.army).toEqual({});
+    expect(town.defenseLog).toEqual([]);
     for (const key of ALL_UNLOCK_KEYS) expect(isUnlocked(town, key)).toBe(true);
-    // And it round-trips at schema 2 from here on.
+    // And it round-trips at the current schema from here on.
     expect(deserialize(serialize(town))).toEqual(town);
   });
 });

@@ -9,7 +9,10 @@ import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleR
 import { COLORS, css } from '../palette';
 import { makeButton, mono, type Button } from '../ui';
 
-export type BattleTag = { type: 'mission'; missionId: string } | { type: 'skirmish' };
+export type BattleTag =
+  | { type: 'mission'; missionId: string }
+  | { type: 'skirmish' }
+  | { type: 'counter' };
 
 export interface SiegeLaunchData {
   /** Battle built from the town (meta/town). Absent = standalone. */

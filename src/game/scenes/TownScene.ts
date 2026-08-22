@@ -2,10 +2,13 @@ import Phaser from 'phaser';
 import { BUILDABLE_KINDS, CHARGE_CAP, CHARGE_PRICES, TOWN_META } from '../../content/buildings';
 import { CAMPAIGN, type MissionDef } from '../../content/campaign';
 import { clearSave, downloadSave, loadTown, pickAndImportSave, saveTown } from '../../meta/save';
+import { runOfflineProbes } from '../../meta/warfare';
 import {
+  applyCounterResult,
   applyMissionResult,
   applySiegeResult,
   buildSpeedFactor,
+  counterattackConfig,
   buyCharge,
   canPlace,
   canPlaceWall,
@@ -96,11 +99,24 @@ export class TownScene extends Phaser.Scene {
       this.town = makeShowcaseTown(now);
     } else if (!this.town) {
       const town = loadTown(now);
-      const before = Math.floor(town.supplies + town.fuel);
       const away = now - town.lastSeen;
+      // Probes hit BEFORE accrual: the war didn't pause while you were gone.
+      const probes = runOfflineProbes(town, now);
+      const before = Math.floor(town.supplies + town.fuel);
       tick(town, now);
       const gained = Math.floor(town.supplies + town.fuel) - before;
-      if (away > 5 * 60_000 && gained > 0) {
+      if (probes.length > 0) {
+        const held = probes.filter((p) => p.held).length;
+        const taken = probes.reduce((n, p) => n + p.suppliesLost + p.fuelLost, 0);
+        this.setBanner(
+          `${probes.length} PROBE${probes.length > 1 ? 'S' : ''} WHILE AWAY — ` +
+            `${held} HELD, ${probes.length - held} BREACHED` +
+            (taken > 0 ? `, −${taken} RESOURCES` : '') +
+            '. SEE THE LOG.',
+          16,
+        );
+        saveTown(town);
+      } else if (away > 5 * 60_000 && gained > 0) {
         this.setBanner(`WHILE YOU WERE GONE: +${gained} RESOURCES ACCRUED`, 12);
       }
       this.town = town;
@@ -130,6 +146,14 @@ export class TownScene extends Phaser.Scene {
             14,
           );
         }
+      } else if (data.battle?.type === 'counter') {
+        applyCounterResult(this.town, data.outcome, now);
+        this.setBanner(
+          data.outcome.victory
+            ? 'COUNTERATTACK REPELLED — THE FRONT LINE HOLDS. BOUNTY PAID.'
+            : 'THE COUNTERATTACK BROKE THROUGH. RAIDERS TOOK THEIR CUT.',
+          14,
+        );
       } else {
         const levelFought = this.town.assaultLevel;
         applySiegeResult(this.town, data.outcome, now);
@@ -191,6 +215,7 @@ export class TownScene extends Phaser.Scene {
     const kb = this.input.keyboard;
     kb?.on('keydown-ESC', () => this.setTool({ type: 'select' }));
     kb?.on('keydown-SPACE', () => this.launchPrimary());
+    kb?.on('keydown-F', () => this.openFrontline());
   }
 
   private handlePointer(pointer: Phaser.Input.Pointer, isFirstPress: boolean): void {
@@ -272,8 +297,82 @@ export class TownScene extends Phaser.Scene {
   }
 
   private launchPrimary(): void {
-    if (this.nextMission()) this.launchMission();
+    if (this.town.frontline.pendingCounterattack) this.launchCounterattack();
+    else if (this.nextMission()) this.launchMission();
     else this.launchSkirmish();
+  }
+
+  private launchCounterattack(): void {
+    if (this.demoMode || !this.town.frontline.pendingCounterattack) return;
+    saveTown(this.town);
+    this.scene.start('siege', {
+      config: counterattackConfig(this.town, Date.now() >>> 0),
+      fromTown: true,
+      battle: { type: 'counter' },
+    });
+  }
+
+  private openFrontline(): void {
+    if (this.demoMode || !isUnlocked(this.town, 'frontline')) return;
+    if (this.town.frontline.pendingCounterattack) {
+      this.launchCounterattack();
+      return;
+    }
+    saveTown(this.town);
+    this.scene.start('raid', { town: this.town });
+  }
+
+  /** Defense log overlay: offline probe history with replays. */
+  private showDefenseLog(): void {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const cx = (GRID_PX_W + PANEL_W) / 2;
+    objects.push(
+      this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.72).setOrigin(0).setDepth(60),
+      this.add
+        .text(cx, 170, 'DEFENSE LOG', mono(24, COLORS.ink, { fontStyle: 'bold' }))
+        .setOrigin(0.5)
+        .setDepth(61),
+    );
+    const close = () => objects.forEach((o) => o.destroy());
+    if (this.town.defenseLog.length === 0) {
+      objects.push(
+        this.add
+          .text(cx, 230, 'No probes on record. The wire has been quiet.', mono(13, COLORS.inkDim))
+          .setOrigin(0.5)
+          .setDepth(61),
+      );
+    }
+    this.town.defenseLog.forEach((entry, i) => {
+      const y = 220 + i * 64;
+      const when = new Date(entry.at).toISOString().slice(5, 16).replace('T', ' ');
+      objects.push(
+        this.add
+          .text(
+            cx - 250,
+            y,
+            `${when}Z · PROBE LV ${entry.level} — ${entry.held ? 'HELD' : 'BREACHED'}` +
+              `\n−${entry.suppliesLost} SUP · −${entry.fuelLost} FUEL`,
+            mono(12, entry.held ? COLORS.olive : COLORS.alarm, { lineSpacing: 4 }),
+          )
+          .setDepth(61),
+      );
+      const watch = makeButton(this, cx + 130, y, 120, 26, 'WATCH', () => {
+        close();
+        this.scene.start('replay', {
+          config: entry.config,
+          kind: 'defense',
+          title: `PROBE LV ${entry.level}`,
+          backTo: 'town',
+        });
+      });
+      watch.bg.setDepth(61);
+      watch.label.setDepth(61);
+      objects.push(watch.bg, watch.label);
+    });
+    const done = makeButton(this, cx - 60, 560, 120, 30, 'CLOSE', close);
+    done.bg.setDepth(61);
+    done.label.setDepth(61);
+    objects.push(done.bg, done.label);
   }
 
   /** First run: alternate-history framing and the difficulty commitment. */
@@ -512,18 +611,23 @@ export class TownScene extends Phaser.Scene {
     });
     y += 34;
 
-    this.buttons['mission'] = makeButton(this, x0 + pad, y, bw, 28, '', () => this.launchMission());
-    y += 32;
+    this.buttons['mission'] = makeButton(this, x0 + pad, y, bw, 26, '', () => this.launchMission());
+    y += 30;
     this.buttons['skirmish'] = makeButton(this, x0 + pad, y, bw, 22, '', () =>
       this.launchSkirmish(),
     );
-    y += 28;
+    y += 26;
+    this.buttons['frontline'] = makeButton(this, x0 + pad, y, bw, 22, '', () =>
+      this.openFrontline(),
+    );
+    y += 26;
 
-    const third = (bw - 12) / 3;
-    this.buttons['export'] = makeButton(this, x0 + pad, y, third, 22, 'EXPORT', () =>
+    const quarter = (bw - 18) / 4;
+    const savePos = (i: number) => x0 + pad + i * (quarter + 6);
+    this.buttons['export'] = makeButton(this, savePos(0), y, quarter, 22, 'EXPORT', () =>
       downloadSave(this.town),
     );
-    this.buttons['import'] = makeButton(this, x0 + pad + third + 6, y, third, 22, 'IMPORT', () => {
+    this.buttons['import'] = makeButton(this, savePos(1), y, quarter, 22, 'IMPORT', () => {
       void pickAndImportSave().then((imported) => {
         if (imported) {
           this.town = imported;
@@ -534,10 +638,13 @@ export class TownScene extends Phaser.Scene {
         }
       });
     });
-    this.buttons['reset'] = makeButton(this, x0 + pad + (third + 6) * 2, y, third, 22, 'RESET', () =>
+    this.buttons['reset'] = makeButton(this, savePos(2), y, quarter, 22, 'RESET', () =>
       this.onReset(),
     );
-    y += 30;
+    this.buttons['log'] = makeButton(this, savePos(3), y, quarter, 22, 'LOG', () =>
+      this.showDefenseLog(),
+    );
+    y += 28;
 
     this.bannerText = this.add.text(x0 + pad, y, '', mono(10, COLORS.signal, { lineSpacing: 3, wordWrap: { width: bw } }));
 
@@ -717,6 +824,17 @@ export class TownScene extends Phaser.Scene {
     } else {
       this.buttons['skirmish']?.setLabel('SKIRMISH — LOCKED (M2)');
       this.buttons['skirmish']?.setEnabled(false);
+    }
+    if (!isUnlocked(town, 'frontline')) {
+      const at = UNLOCK_MISSION['frontline'];
+      this.buttons['frontline']?.setLabel(`FRONT LINE — LOCKED${at !== undefined ? ` (M${at + 1})` : ''}`);
+      this.buttons['frontline']?.setEnabled(false);
+    } else if (town.frontline.pendingCounterattack) {
+      this.buttons['frontline']?.setLabel('⚠ COUNTERATTACK — DEFEND [F]');
+      this.buttons['frontline']?.setEnabled(!this.demoMode);
+    } else {
+      this.buttons['frontline']?.setLabel(`FRONT LINE — TIER ${town.frontline.tier} [F]`);
+      this.buttons['frontline']?.setEnabled(!this.demoMode);
     }
 
     if (Date.now() > this.resetArmedUntil && this.buttons['reset']) {

@@ -57,6 +57,7 @@ try {
 
   await shoot('demo=1', 9000, 'demo.png'); // mid-battle, past the fire mission
   await shoot('demo=town', 3000, 'town.png'); // showcase base
+  await shoot('demo=raid', 3000, 'raid.png'); // the Front Line planner
 
   await browser.close();
 
@@ -65,7 +66,7 @@ try {
     for (const err of errors) console.error(`  ${err}`);
     process.exitCode = 1;
   } else {
-    console.log('OK: screenshots/demo.png + town.png written, no page errors.');
+    console.log('OK: demo.png + town.png + raid.png written, no page errors.');
   }
 } finally {
   process.kill(-vite.pid, 'SIGTERM');

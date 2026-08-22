@@ -67,6 +67,29 @@ export const TEST_ATTACKERS: Record<string, AttackerProfile> = {
     cpValue: 15,
     speedJitter: 0,
   },
+  gunTank: {
+    kind: 'gunTank',
+    name: 'Gun Tank',
+    maxHp: 550,
+    speed: 1.6,
+    armor: 'heavy',
+    wallDps: 30,
+    hqDps: 25,
+    cpValue: 15,
+    weapon: { damageType: 'explosive', damage: 60, shotsPerSecond: 0.5, range: 4.0 },
+    speedJitter: 0,
+  },
+  bruiser: {
+    kind: 'bruiser',
+    name: 'Bruiser',
+    maxHp: 500,
+    speed: 2.5,
+    armor: 'none',
+    wallDps: 30,
+    hqDps: 100,
+    cpValue: 5,
+    speedJitter: 0,
+  },
 };
 
 export const TEST_CATALOG: Catalog = {

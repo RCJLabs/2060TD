@@ -8,6 +8,7 @@ import type {
   CellIndex,
   Command,
   DamageType,
+  Doctrine,
   Phase,
   SimConfig,
   SimEvent,
@@ -34,6 +35,12 @@ export interface Attacker {
   prevPos: Vec2;
   /** Unit direction of travel last tick (zero while stationary) — mortar lead. */
   lastDir: Vec2;
+  /** Behavior program: what this unit walks toward and melees. */
+  doctrine: Doctrine;
+  /** Current doctrine target (a structure id; the CC by default). */
+  targetId: number;
+  /** Perimeter cells of the current target — the path goals. */
+  goalCells: CellIndex[];
   path: CellIndex[] | null;
   pathIndex: number;
   pathVersion: number;
@@ -312,7 +319,7 @@ export class Engine {
       while (this.spawnCursor < wave.length && wave[this.spawnCursor]!.atTick <= this.waveTick) {
         const entry = wave[this.spawnCursor++]!;
         const column = entry.col ?? this.config.spawnColumn;
-        this.spawnAttackerAt(this.grid.idx(column, entry.row), entry.kind, events);
+        this.spawnAttackerAt(this.grid.idx(column, entry.row), entry.kind, events, entry.doctrine);
       }
       this.waveTick++;
 
@@ -374,7 +381,12 @@ export class Engine {
     return null;
   }
 
-  private spawnAttackerAt(cell: CellIndex, kind: string, events: SimEvent[]): boolean {
+  private spawnAttackerAt(
+    cell: CellIndex,
+    kind: string,
+    events: SimEvent[],
+    doctrine: Doctrine = 'assault',
+  ): boolean {
     const profile = this.catalog.attackers[kind];
     if (!profile || !this.grid.inBounds(cell)) return false;
     const spawnCell = this.findSpawnCell(cell);
@@ -391,6 +403,9 @@ export class Engine {
       pos,
       prevPos: { ...pos },
       lastDir: { x: 0, y: 0 },
+      doctrine,
+      targetId: -1, // resolved by doctrine on the first update
+      goalCells: this.goalCells,
       path: null,
       pathIndex: 0,
       pathVersion: -1,
@@ -488,7 +503,7 @@ export class Engine {
       }
       case 'spawnAttacker': {
         if (this.phase !== 'sandbox') return false;
-        return this.spawnAttackerAt(cmd.cell, cmd.kind, events);
+        return this.spawnAttackerAt(cmd.cell, cmd.kind, events, cmd.doctrine);
       }
       case 'startAssault': {
         if (this.phase !== 'setup' || !this.siege) return false;
@@ -725,17 +740,24 @@ export class Engine {
   }
 
   private updateAttackers(events: SimEvent[]): void {
-    const goalSet = new Set(this.goalCells);
-
     for (const attacker of this.attackers) {
       attacker.prevPos = { ...attacker.pos };
       attacker.lastDir = { x: 0, y: 0 };
       attacker.weaponCooldown = Math.max(0, attacker.weaponCooldown - DT);
 
+      // Keep the doctrine target alive; retarget (and re-path) when it falls.
+      let target = this.structureById(attacker.targetId);
+      if (!target || target.hp <= 0) {
+        target = this.pickDoctrineTarget(attacker);
+        attacker.targetId = target.id;
+        attacker.path = null;
+      }
+
       // Re-path when the battlefield topology changed since the path was made.
       if (attacker.path === null || attacker.pathVersion !== this.grid.version) {
+        attacker.goalCells = this.perimeterOf(target);
         const from = this.grid.cellAt(attacker.pos);
-        const result = findPath(this.pathView, from, this.goalCells, {
+        const result = findPath(this.pathView, from, attacker.goalCells, {
           speed: attacker.speed,
           wallDps: attacker.profile.wallDps,
         });
@@ -745,19 +767,31 @@ export class Engine {
         if (!result) attacker.state = 'stuck';
       }
 
-      // Ranged units stop and pound any targetable structure in reach (incl. the CC).
+      // Ranged units stop and pound targetable structures in reach, preferring
+      // their doctrine's class of target.
       if (attacker.profile.weapon) {
         const weapon = attacker.profile.weapon;
-        const target = this.acquireStructure(attacker.pos, weapon.range, weapon.minRange ?? 0);
-        if (target) {
+        const prefer =
+          attacker.doctrine === 'hunt'
+            ? 'defense'
+            : attacker.doctrine === 'raze'
+              ? 'economy'
+              : undefined;
+        const engageTarget = this.acquireStructure(
+          attacker.pos,
+          weapon.range,
+          weapon.minRange ?? 0,
+          prefer,
+        );
+        if (engageTarget) {
           attacker.state = 'engaging';
           if (attacker.weaponCooldown <= 0) {
             attacker.weaponCooldown = 1 / weapon.shotsPerSecond;
-            this.damageStructure(target, weapon.damage, weapon.damageType);
+            this.damageStructure(engageTarget, weapon.damage, weapon.damageType);
             events.push({
               type: 'shot',
               from: { ...attacker.pos },
-              to: { ...target.center },
+              to: { ...engageTarget.center },
               damageType: weapon.damageType,
             });
           }
@@ -767,10 +801,10 @@ export class Engine {
 
       if (!attacker.path) continue; // stuck: nothing to demolish, nowhere to go
 
-      // At the Command Center perimeter: melee assault.
-      if (attacker.path.length === 1 && goalSet.has(attacker.path[0]!)) {
+      // At the target's perimeter: melee it down.
+      if (attacker.path.length === 1 && attacker.goalCells.includes(attacker.path[0]!)) {
         attacker.state = 'assaulting';
-        this.cc.hp -= attacker.profile.hqDps * DT;
+        target.hp -= attacker.profile.hqDps * DT;
         continue;
       }
 
@@ -823,23 +857,92 @@ export class Engine {
     }
   }
 
-  private acquireStructure(origin: Vec2, range: number, minRange: number): Structure | null {
-    let best: Structure | null = null;
-    let bestDistSq = Infinity;
-    const rangeSq = range * range;
-    const minSq = minRange * minRange;
-    for (const structure of this.structures) {
-      if (structure.hp <= 0 || !structure.profile.targetable) continue;
-      const dx = structure.center.x - origin.x;
-      const dy = structure.center.y - origin.y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq > rangeSq || distSq < minSq) continue;
-      if (distSq < bestDistSq || (distSq === bestDistSq && structure.id < best!.id)) {
-        bestDistSq = distSq;
-        best = structure;
+  private isDefenseStructure(s: Structure): boolean {
+    return s.profile.targetable && s.profile.weapon !== undefined && !s.inert;
+  }
+
+  private isEconomyStructure(s: Structure): boolean {
+    return s.profile.targetable && s.profile.weapon === undefined && s.profile.kind !== 'cc';
+  }
+
+  private structureById(id: number): Structure | undefined {
+    for (const s of this.structures) {
+      if (s.id === id) return s;
+    }
+    return undefined;
+  }
+
+  /** Perimeter cells of a structure — the melee approach ring. */
+  private perimeterOf(structure: Structure): CellIndex[] {
+    if (structure.id === this.cc.id) return this.goalCells;
+    const cells = new Set<CellIndex>();
+    const scratch: CellIndex[] = [0, 0, 0, 0];
+    for (const cell of structure.cells) {
+      const n = this.grid.neighbors4(cell, scratch);
+      for (let i = 0; i < n; i++) {
+        const c = scratch[i]!;
+        if (!structure.cells.includes(c)) cells.add(c);
       }
     }
-    return best;
+    return [...cells].sort((a, b) => a - b);
+  }
+
+  /** Nearest structure matching the attacker's doctrine; the CC as fallback. */
+  private pickDoctrineTarget(attacker: Attacker): Structure {
+    if (attacker.doctrine === 'assault') return this.cc;
+    const wants =
+      attacker.doctrine === 'hunt'
+        ? (s: Structure) => this.isDefenseStructure(s)
+        : (s: Structure) => this.isEconomyStructure(s);
+    let best: Structure | null = null;
+    let bestDistSq = Infinity;
+    for (const s of this.structures) {
+      if (s.hp <= 0 || !wants(s)) continue;
+      const dx = s.center.x - attacker.pos.x;
+      const dy = s.center.y - attacker.pos.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < bestDistSq || (distSq === bestDistSq && s.id < best!.id)) {
+        bestDistSq = distSq;
+        best = s;
+      }
+    }
+    return best ?? this.cc;
+  }
+
+  private acquireStructure(
+    origin: Vec2,
+    range: number,
+    minRange: number,
+    prefer?: 'defense' | 'economy',
+  ): Structure | null {
+    const rangeSq = range * range;
+    const minSq = minRange * minRange;
+    const pick = (filter: ((s: Structure) => boolean) | null): Structure | null => {
+      let best: Structure | null = null;
+      let bestDistSq = Infinity;
+      for (const structure of this.structures) {
+        if (structure.hp <= 0 || !structure.profile.targetable) continue;
+        if (filter && !filter(structure)) continue;
+        const dx = structure.center.x - origin.x;
+        const dy = structure.center.y - origin.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > rangeSq || distSq < minSq) continue;
+        if (distSq < bestDistSq || (distSq === bestDistSq && structure.id < best!.id)) {
+          bestDistSq = distSq;
+          best = structure;
+        }
+      }
+      return best;
+    };
+    if (prefer) {
+      const preferred = pick(
+        prefer === 'defense'
+          ? (s) => this.isDefenseStructure(s)
+          : (s) => this.isEconomyStructure(s),
+      );
+      if (preferred) return preferred;
+    }
+    return pick(null);
   }
 
   private processStructureDeaths(events: SimEvent[]): void {
@@ -997,7 +1100,7 @@ export class Engine {
     }
     for (const a of this.attackers) {
       parts.push(
-        `a${a.id}:${a.profile.kind}:${a.hp.toFixed(6)}@${a.pos.x.toFixed(6)},${a.pos.y.toFixed(6)}:${a.state}:${a.weaponCooldown.toFixed(6)}`,
+        `a${a.id}:${a.profile.kind}:${a.doctrine[0]}${a.targetId}:${a.hp.toFixed(6)}@${a.pos.x.toFixed(6)},${a.pos.y.toFixed(6)}:${a.state}:${a.weaponCooldown.toFixed(6)}`,
       );
     }
     for (const p of this.projectiles) {

@@ -88,3 +88,19 @@ export function buildAssault(level: number): SiegeDef {
 export function assaultLoot(level: number): { supplies: number; fuel: number } {
   return { supplies: 250 + 150 * level, fuel: 60 + 40 * level };
 }
+
+/**
+ * Offline probe raids: the first two waves of a soft-scaled assault, with no
+ * defender economy — permanent defenses fight it alone (GDD §2.3).
+ */
+export function probeAssault(level: number): SiegeDef {
+  const base = buildAssault(Math.max(1, level));
+  return {
+    ...base,
+    name: `PROBE — LEVEL ${level}`,
+    waves: base.waves.slice(0, 2),
+    startingCp: 0,
+    cpPerSecond: 0,
+    suppliesPerWave: 0,
+  };
+}

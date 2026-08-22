@@ -43,14 +43,16 @@ export class BattleRenderer {
   private readonly scene: Phaser.Scene;
   private readonly engine: Engine;
   private readonly cell: number;
+  private readonly hostileStructures: boolean;
   private readonly staticLayer: Phaser.GameObjects.Graphics;
   private readonly dynLayer: Phaser.GameObjects.Graphics;
   private effects: Effect[] = [];
 
-  constructor(scene: Phaser.Scene, engine: Engine, cellPx: number) {
+  constructor(scene: Phaser.Scene, engine: Engine, cellPx: number, hostileStructures = false) {
     this.scene = scene;
     this.engine = engine;
     this.cell = cellPx;
+    this.hostileStructures = hostileStructures;
     this.staticLayer = scene.add.graphics();
     this.dynLayer = scene.add.graphics();
     this.drawStaticLayer();
@@ -172,7 +174,11 @@ export class BattleRenderer {
     for (const s of this.engine.structures) {
       const px = s.center.x * c;
       const py = s.center.y * c;
-      drawStructureGlyph(g, s.profile.kind, px, py, c, { level: s.level, inert: s.inert });
+      drawStructureGlyph(g, s.profile.kind, px, py, c, {
+        level: s.level,
+        inert: s.inert,
+        hostile: this.hostileStructures,
+      });
       if (s.profile.kind === 'claymore') {
         g.lineStyle(1, COLORS.signal, 0.35);
         g.strokeCircle(px, py, (s.profile.trigger?.radius ?? 0.8) * c);
@@ -191,7 +197,14 @@ export class BattleRenderer {
     for (const attacker of this.engine.attackers) {
       if (!attacker.path) continue;
       const heavyBreaker = attacker.profile.wallDps > 20;
-      g.lineStyle(1.5, heavyBreaker ? COLORS.signal : COLORS.crimson, 0.2);
+      const pathColor = this.hostileStructures
+        ? heavyBreaker
+          ? COLORS.tracer
+          : COLORS.intel
+        : heavyBreaker
+          ? COLORS.signal
+          : COLORS.crimson;
+      g.lineStyle(1.5, pathColor, 0.2);
       g.beginPath();
       const p = this.lerpPos(attacker, alpha);
       g.moveTo(p.x * c, p.y * c);
@@ -266,6 +279,51 @@ export class BattleRenderer {
         g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
         g.fillStyle(COLORS.signal, 1);
         g.fillCircle(px - 2, py, 2);
+        break;
+      // ---- USA raid roster: olive silhouettes -------------------------------
+      case 'ranger':
+        g.fillStyle(COLORS.olive, 1);
+        g.fillCircle(px, py, 7);
+        g.lineStyle(1, COLORS.oliveDark, 1);
+        g.strokeCircle(px, py, 7);
+        break;
+      case 'engineer':
+        g.fillStyle(COLORS.olive, 1);
+        g.fillPoints(
+          [
+            { x: px, y: py - 8 },
+            { x: px + 8, y: py },
+            { x: px, y: py + 8 },
+            { x: px - 8, y: py },
+          ],
+          true,
+        );
+        g.fillStyle(COLORS.tracer, 1);
+        g.fillCircle(px, py, 2);
+        break;
+      case 'javelin':
+        g.fillStyle(COLORS.olive, 1);
+        g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
+        g.fillStyle(COLORS.intel, 1);
+        g.fillCircle(px - 2, py, 2);
+        break;
+      case 'humvee':
+        g.fillStyle(COLORS.oliveDark, 1);
+        g.fillRect(px - 9, py - 6, 18, 12);
+        g.lineStyle(1, COLORS.olive, 1);
+        g.strokeRect(px - 9, py - 6, 18, 12);
+        g.lineStyle(2, COLORS.olive, 1);
+        g.lineBetween(px, py, px + 12, py);
+        break;
+      case 'abrams':
+        g.fillStyle(COLORS.oliveDark, 1);
+        g.fillRect(px - 12, py - 8, 24, 16);
+        g.lineStyle(2, COLORS.olive, 1);
+        g.strokeRect(px - 12, py - 8, 24, 16);
+        g.fillStyle(COLORS.olive, 1);
+        g.fillCircle(px, py, 5);
+        g.lineStyle(3, COLORS.olive, 1);
+        g.lineBetween(px, py, px + 16, py);
         break;
       case 'infiltrator':
         g.fillStyle(COLORS.nkSlate, 1);

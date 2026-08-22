@@ -6,23 +6,37 @@ import { newTown, unlockAll, type TownState } from './town';
  */
 
 export const SAVE_KEY = 'lastline_save_v1';
-export const SCHEMA = 2;
+export const SCHEMA = 3;
 
 export function serialize(town: TownState): string {
   return JSON.stringify({ schema: SCHEMA, savedAt: town.lastSeen, town });
 }
 
 /** Schema 1 towns predate the campaign: grant everything they already had. */
-function migrateV1(legacy: Record<string, unknown>): TownState | null {
+function migrateV1(legacy: Record<string, unknown>): Record<string, unknown> | null {
   if (legacy['version'] !== 1) return null;
   const town = {
-    ...(legacy as object),
+    ...legacy,
     version: 2,
     campaign: { next: 0, completed: [], difficulty: 'standard', bonuses: [] },
     unlocked: [],
-  } as unknown as TownState;
-  unlockAll(town);
+  };
+  unlockAll(town as unknown as TownState);
   return town;
+}
+
+/** Schema 2 towns predate the Front Line: empty army, tier 1, clean log. */
+function migrateV2(legacy: Record<string, unknown>): TownState | null {
+  if (legacy['version'] !== 2) return null;
+  return {
+    ...legacy,
+    version: 3,
+    army: {},
+    frontline: { tier: 1, wins: 0, totalWins: 0, pendingCounterattack: false, scouted: [] },
+    defenseLog: [],
+    shieldUntil: 0,
+    lastRaid: null,
+  } as unknown as TownState;
 }
 
 export function deserialize(json: string): TownState | null {
@@ -30,17 +44,20 @@ export function deserialize(json: string): TownState | null {
     const data = JSON.parse(json) as { schema?: number; town?: TownState };
     if (!data.town) return null;
 
+    let raw: Record<string, unknown> | null = data.town as unknown as Record<string, unknown>;
+    if (data.schema === 1) raw = migrateV1(raw);
     let town: TownState | null = null;
-    if (data.schema === 2 && data.town.version === 2) {
-      town = data.town;
-    } else if (data.schema === 1) {
-      town = migrateV1(data.town as unknown as Record<string, unknown>);
+    if (raw && (raw['version'] === 2 || data.schema === 2)) {
+      town = migrateV2(raw);
+    } else if (raw && raw['version'] === 3 && data.schema === SCHEMA) {
+      town = raw as unknown as TownState;
     }
     if (!town) return null;
 
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;
+    if (!town.frontline || typeof town.army !== 'object') return null;
     return town;
   } catch {
     return null;

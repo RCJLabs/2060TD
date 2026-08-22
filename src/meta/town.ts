@@ -1,4 +1,5 @@
-import { buildAssault, assaultLoot } from '../content/assaults';
+import { buildAssault, assaultLoot, probeAssault } from '../content/assaults';
+import { manpowerCap, TRAIN_META } from '../content/usaUnits';
 import {
   BASE_CAPS,
   CC_GATING,
@@ -49,6 +50,10 @@ export interface PlacedStructure {
   buildEndsAt?: number;
   /** Level being upgraded to while buildEndsAt runs. Absent on initial build. */
   upgradingTo?: number;
+  /** Unit kinds waiting to train here (barracks/motor pool), head first. */
+  trainQueue?: string[];
+  /** Epoch ms when the head of the queue finishes. */
+  trainEndsAt?: number;
 }
 
 export interface CampaignState {
@@ -61,8 +66,37 @@ export interface CampaignState {
   bonuses: string[];
 }
 
+export interface FrontlineState {
+  tier: number;
+  /** Command-post kills at the current tier; three advance the tier. */
+  wins: number;
+  totalWins: number;
+  /** A counterattack is inbound: raids pause until it's fought off. */
+  pendingCounterattack: boolean;
+  /** Scouted target keys, "t{tier}v{variant}". */
+  scouted: string[];
+}
+
+export interface DefenseLogEntry {
+  at: number;
+  level: number;
+  held: boolean;
+  suppliesLost: number;
+  fuelLost: number;
+  /** Full battle config — every offline probe is replayable. */
+  config: SimConfig;
+}
+
+export interface RaidRecord {
+  config: SimConfig;
+  baseName: string;
+  tier: number;
+  at: number;
+  cleared: boolean;
+}
+
 export interface TownState {
-  version: 2;
+  version: 3;
   supplies: number;
   fuel: number;
   structures: PlacedStructure[]; // includes the Command Center (kind 'cc')
@@ -71,6 +105,14 @@ export interface TownState {
   campaign: CampaignState;
   /** Content keys the campaign has granted (see content/campaign.ts). */
   unlocked: string[];
+  /** Standing army by unit kind. */
+  army: Record<string, number>;
+  frontline: FrontlineState;
+  defenseLog: DefenseLogEntry[];
+  /** No offline probes before this timestamp (post-breach grace). */
+  shieldUntil: number;
+  /** The last raid fought, kept for the replay viewer. */
+  lastRaid: RaidRecord | null;
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -80,7 +122,7 @@ export interface TownState {
 
 export function newTown(now: number): TownState {
   return {
-    version: 2,
+    version: 3,
     supplies: STARTING_SUPPLIES,
     fuel: STARTING_FUEL,
     structures: [
@@ -90,6 +132,11 @@ export function newTown(now: number): TownState {
     charges: { a10: 0, arty: 0 },
     campaign: { next: 0, completed: [], difficulty: null, bonuses: [] },
     unlocked: [...BASELINE_UNLOCKS],
+    army: {},
+    frontline: { tier: 1, wins: 0, totalWins: 0, pendingCounterattack: false, scouted: [] },
+    defenseLog: [],
+    shieldUntil: 0,
+    lastRaid: null,
     assaultLevel: 1,
     victories: 0,
     defeats: 0,
@@ -225,7 +272,87 @@ export function tick(town: TownState, now: number): void {
       delete s.buildEndsAt;
       delete s.upgradingTo;
     }
+    // Training lines keep rolling, including while offline (chained).
+    while (
+      s.trainQueue !== undefined &&
+      s.trainQueue.length > 0 &&
+      s.trainEndsAt !== undefined &&
+      s.trainEndsAt <= now &&
+      !s.wrecked
+    ) {
+      const kind = s.trainQueue.shift()!;
+      town.army[kind] = (town.army[kind] ?? 0) + 1;
+      const next = s.trainQueue[0];
+      if (next !== undefined) {
+        s.trainEndsAt = s.trainEndsAt + (TRAIN_META[next]?.seconds ?? 30) * 1000;
+      } else {
+        delete s.trainEndsAt;
+      }
+    }
   }
+}
+
+// ---- the army ---------------------------------------------------------------------
+
+export function armyManpower(town: TownState): number {
+  let total = 0;
+  for (const [kind, count] of Object.entries(town.army)) {
+    total += (TRAIN_META[kind]?.manpower ?? 0) * count;
+  }
+  return total;
+}
+
+export function queuedManpower(town: TownState): number {
+  let total = 0;
+  for (const s of town.structures) {
+    for (const kind of s.trainQueue ?? []) {
+      total += TRAIN_META[kind]?.manpower ?? 0;
+    }
+  }
+  return total;
+}
+
+export function manpowerCapOf(town: TownState): number {
+  let barracksLevels = 0;
+  let motorpoolLevels = 0;
+  for (const s of town.structures) {
+    if (s.wrecked || (s.buildEndsAt !== undefined && s.upgradingTo === undefined)) continue;
+    if (s.kind === 'barracks') barracksLevels += s.level;
+    if (s.kind === 'motorpool') motorpoolLevels += s.level;
+  }
+  return manpowerCap(barracksLevels, motorpoolLevels);
+}
+
+export function armySize(town: TownState): number {
+  return Object.values(town.army).reduce((a, b) => a + b, 0);
+}
+
+export type TrainError = 'unknown' | 'facility' | 'busy' | 'queue' | 'cost' | 'manpower' | null;
+
+export function canTrain(town: TownState, structureId: number, kind: string): TrainError {
+  const meta = TRAIN_META[kind];
+  if (!meta) return 'unknown';
+  const s = town.structures.find((x) => x.id === structureId);
+  if (!s || s.kind !== meta.facility) return 'facility';
+  if (s.wrecked || (s.buildEndsAt !== undefined && s.upgradingTo === undefined)) return 'busy';
+  if ((s.trainQueue?.length ?? 0) >= 5) return 'queue';
+  if (town.supplies < meta.supplies || town.fuel < meta.fuel) return 'cost';
+  if (armyManpower(town) + queuedManpower(town) + meta.manpower > manpowerCapOf(town)) {
+    return 'manpower';
+  }
+  return null;
+}
+
+export function queueTrain(town: TownState, structureId: number, kind: string, now: number): boolean {
+  if (canTrain(town, structureId, kind) !== null) return false;
+  const meta = TRAIN_META[kind]!;
+  const s = town.structures.find((x) => x.id === structureId)!;
+  town.supplies -= meta.supplies;
+  town.fuel -= meta.fuel;
+  s.trainQueue = s.trainQueue ?? [];
+  s.trainQueue.push(kind);
+  if (s.trainQueue.length === 1) s.trainEndsAt = now + meta.seconds * 1000;
+  return true;
 }
 
 // ---- construction -----------------------------------------------------------------------
@@ -457,6 +584,21 @@ export function missionConfig(town: TownState, mission: MissionDef, seed: number
   );
 }
 
+/** Battle config for a Front Line counterattack on the town. */
+export function counterattackConfig(town: TownState, seed: number): SimConfig {
+  const def = buildAssault(Math.max(2, town.frontline.tier + 1));
+  return battleConfig(town, seed, {
+    ...def,
+    name: `COUNTERATTACK — TIER ${town.frontline.tier}`,
+    startingSupplies: Math.floor(town.supplies),
+  });
+}
+
+/** Headless battle config for one offline probe raid. */
+export function probeConfig(town: TownState, level: number, seed: number): SimConfig {
+  return battleConfig(town, seed, { ...probeAssault(level), startingSupplies: 0 });
+}
+
 export interface SiegeOutcome {
   victory: boolean;
   supplies: number;
@@ -562,6 +704,19 @@ export function applySiegeResult(town: TownState, outcome: SiegeOutcome, now: nu
   } else {
     applyDefeat(town);
   }
+  clampToCaps(town);
+}
+
+/** Fold a fought-off (or lost) Front Line counterattack into the town. */
+export function applyCounterResult(town: TownState, outcome: SiegeOutcome, now: number): void {
+  foldBattle(town, outcome, now);
+  if (outcome.victory) {
+    town.supplies += 120 + 60 * town.frontline.tier;
+    town.victories++;
+  } else {
+    applyDefeat(town);
+  }
+  town.frontline.pendingCounterattack = false;
   clampToCaps(town);
 }
 

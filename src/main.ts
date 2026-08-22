@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { BriefingScene } from './game/scenes/BriefingScene';
 import { PlaygroundScene } from './game/scenes/PlaygroundScene';
+import { RaidScene } from './game/scenes/RaidScene';
+import { ReplayScene } from './game/scenes/ReplayScene';
 import { SiegeScene } from './game/scenes/SiegeScene';
 import { TownScene } from './game/scenes/TownScene';
 import { COLORS, css } from './game/palette';
@@ -15,8 +17,10 @@ const playground = params.has('playground');
 const scene: Phaser.Types.Scenes.SceneType[] = playground
   ? [PlaygroundScene]
   : demo === '1'
-    ? [SiegeScene, TownScene, BriefingScene]
-    : [TownScene, SiegeScene, BriefingScene];
+    ? [SiegeScene, TownScene, BriefingScene, RaidScene, ReplayScene]
+    : demo === 'raid'
+      ? [RaidScene, TownScene, SiegeScene, BriefingScene, ReplayScene]
+      : [TownScene, SiegeScene, BriefingScene, RaidScene, ReplayScene];
 
 new Phaser.Game({
   type: Phaser.AUTO,
