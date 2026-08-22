@@ -8,6 +8,18 @@ import type { AttackerProfile } from '../sim/types';
  * All numbers provisional until the balance harness (M5).
  */
 export const USA_UNITS: Record<string, AttackerProfile> = {
+  // Wave filler for China's campaign — mobilized National Guard. Not trainable.
+  guardsman: {
+    kind: 'guardsman',
+    name: 'Guard Rifle Squad',
+    maxHp: 55,
+    speed: 2.5,
+    armor: 'none',
+    wallDps: 3,
+    hqDps: 10,
+    cpValue: 2,
+    speedJitter: 0.07,
+  },
   ranger: {
     kind: 'ranger',
     name: 'Ranger Squad',

@@ -124,14 +124,32 @@ The other half of the game: the counterattack.
 Carried to M5: raid commander powers with auto-trigger rules; mission-select map (M6);
 replaying cleared missions.
 
-## M5 — v0.3: China playable *(~2–3 sessions)*
+## M5 — v0.3: China playable *(~2–3 sessions)* ✅
 
-- [ ] Faction content pipeline proven: China as pure data (buildings, emplacements, units,
+- [x] Faction content pipeline proven: China as pure data (buildings, emplacements, units,
       field defenses, powers, signature mechanic)
-- [ ] China campaign arc "Eastern Tide"
-- [ ] Faction select at new-game
-- [ ] **Headless balance harness**: batch-run raids/sieges, win-rate + time-to-kill matrices,
+      — *kinds are shared ROLE ids ('m2nest' = gun-nest role, 'a10' = strafe role…), so gating,
+      unlock keys, saves, and scenes needed zero plumbing changes; `content/factions.ts` is the
+      only switch (defense/raid catalogs, campaign, rosters, base kits, town names, flavor).
+      China's kit: Type 88 nests, shaped-charge HJ-8 posts (their war is anti-Abrams), PP-87
+      mortars, MLRS ripple + PLZ-05 saturation, and the M1 assault roster made trainable.*
+- [x] China campaign arc "Eastern Tide"
+      — *six missions (BEACHHEAD → THE TIDE BREAKS) holding Grays Harbor against Guard swarms,
+      Ranger teams, engineer breaches, Javelin overwatch, and Abrams spearheads; grants the same
+      16 requisition keys as Landfall. USA wave filler `guardsman` added (not trainable).*
+- [x] Faction select at new-game
+      — *two-step intro: pick your war, then the difficulty commitment; every scene reads
+      catalogs/labels through the faction layer; save schema v4 stores the faction (older saves
+      migrate to USA). Attacker rendering is allegiance-colored now (your units olive, theirs
+      crimson) with shapes by role.*
+- [x] **Headless balance harness**: batch-run raids/sieges, win-rate + time-to-kill matrices,
       first real balance pass
+      — *`npm run balance [-- --md]` (tsx): 1,380 seeded battles in ~12s → raid clear/destruction/
+      manpower-loss by tier for both factions + permanent-layer hold% matrices; snapshot in
+      docs/BALANCE.md. Pass 1 outcomes: deliberate demolition now uses the breacher stat vs
+      non-CC structures; USA firebases delay mortars to tier 3; HJ-8/Type 88 hit harder; PLA
+      manpower runs cheaper and vehicles tank level-2 gun lines. Deferred to M6: raid commander
+      powers with auto-trigger rules, mission-select map, replaying cleared missions.*
 
 ## M6 — v0.4: depth & polish *(~2–3 sessions)*
 

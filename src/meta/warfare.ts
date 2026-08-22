@@ -1,8 +1,9 @@
 import { generateBase, lootFor, MAP_H, MAP_W, type GeneratedBase } from '../content/bases';
-import { M1_CATALOG, RAID_CATALOG } from '../content/catalog';
-import { TRAINABLE } from '../content/usaUnits';
+import { RAID_CATALOG } from '../content/catalog';
+import { baseKitFor, defenseCatalogFor } from '../content/factions';
+import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
-import type { CellIndex, Doctrine, SimConfig, WaveDef, WaveEntry } from '../sim/types';
+import type { Catalog, CellIndex, Doctrine, SimConfig, WaveDef, WaveEntry } from '../sim/types';
 import { probeConfig, type DefenseLogEntry, type TownState } from './town';
 
 /**
@@ -70,14 +71,14 @@ export function planDeployment(squads: SquadPlan[]): Record<string, number> {
 }
 
 /** One wave: every squad's units, spread across their sectors, staggered. */
-export function raidWave(squads: SquadPlan[]): WaveDef {
+export function raidWave(squads: SquadPlan[], trainable: TrainMeta[] = TRAINABLE): WaveDef {
   const entries: WaveEntry[] = [];
   squads.forEach((squad, squadIndex) => {
     const cells = sectorCells(squad.sector);
     const baseTick = squadIndex * SQUAD_DELAY_TICKS;
     let unitIndex = 0;
-    // Deterministic composition order: TRAINABLE order, then count.
-    for (const meta of TRAINABLE) {
+    // Deterministic composition order: the faction's trainable order, then count.
+    for (const meta of trainable) {
       const count = squad.units[meta.kind] ?? 0;
       for (let i = 0; i < count; i++) {
         const spot = cells[(unitIndex * 3) % cells.length]!;
@@ -95,7 +96,12 @@ export function raidWave(squads: SquadPlan[]): WaveDef {
   return { entries };
 }
 
-export function raidConfig(base: GeneratedBase, squads: SquadPlan[], seed: number): SimConfig {
+export function raidConfig(
+  base: GeneratedBase,
+  squads: SquadPlan[],
+  seed: number,
+  trainable: TrainMeta[] = TRAINABLE,
+): SimConfig {
   return {
     width: MAP_W,
     height: MAP_H,
@@ -112,7 +118,7 @@ export function raidConfig(base: GeneratedBase, squads: SquadPlan[], seed: numbe
       cpPerSecond: 0,
       prepSeconds: 1,
       repairCostPerHp: 1,
-      waves: [raidWave(squads)],
+      waves: [raidWave(squads, trainable)],
     },
     layout: {
       walls: base.walls.map((w) => ({ ...w })),
@@ -142,8 +148,9 @@ export function resolveRaid(
   config: SimConfig,
   squads: SquadPlan[],
   tier: number,
+  catalog: Catalog = RAID_CATALOG,
 ): RaidResolution {
-  const engine = new Engine(config, RAID_CATALOG);
+  const engine = new Engine(config, catalog);
   engine.enqueue({ tick: 0, type: 'startAssault' });
 
   const initial = new Map<string, number>();
@@ -254,7 +261,7 @@ export function scoutTarget(town: TownState, tier: number, variant: number): boo
 }
 
 export function targetFor(town: TownState, variant: number): GeneratedBase {
-  return generateBase(town.frontline.tier, variant);
+  return generateBase(town.frontline.tier, variant, baseKitFor(town.faction));
 }
 
 // ---- offline probe raids -----------------------------------------------------------------
@@ -283,7 +290,7 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
   for (let i = 0; i < count; i++) {
     const seed = ((Math.floor(town.lastSeen / 60_000) + i * 7919) * 2654435761) >>> 0;
     const config = probeConfig(town, level, seed);
-    const engine = new Engine(config, M1_CATALOG);
+    const engine = new Engine(config, defenseCatalogFor(town.faction));
     engine.enqueue({ tick: 0, type: 'startAssault' });
     while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) {
       engine.step();

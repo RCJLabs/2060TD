@@ -13,44 +13,72 @@ import { entry, series } from './missions';
 const scaleCount = (base: number, level: number): number =>
   Math.max(1, Math.round(base * (1 + 0.18 * (level - 1))));
 
-export function buildAssault(level: number): SiegeDef {
+/** Wave-role → attacker kind, per enemy faction (China attacks by default). */
+export interface AssaultRoster {
+  swarm: string;
+  line: string;
+  breacher: string;
+  ranged: string;
+  lightVehicle: string;
+  heavy: string;
+}
+
+export const CHINA_ASSAULT_ROSTER: AssaultRoster = {
+  swarm: 'militia',
+  line: 'rifle',
+  breacher: 'sapper',
+  ranged: 'grenadier',
+  lightVehicle: 'zbd',
+  heavy: 'type99',
+};
+
+export const USA_ASSAULT_ROSTER: AssaultRoster = {
+  swarm: 'guardsman',
+  line: 'ranger',
+  breacher: 'engineer',
+  ranged: 'javelin',
+  lightVehicle: 'humvee',
+  heavy: 'abrams',
+};
+
+export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAULT_ROSTER): SiegeDef {
   const n = (base: number) => scaleCount(base, level);
   const waves: WaveDef[] = [];
 
-  // Wave 1 — probe: militia trickle with a rifle tail.
+  // Wave 1 — probe: a swarm trickle with a line tail.
   waves.push({
     entries: [
-      ...series(0, 40, n(6), 'militia', [8, 12, 16]),
-      ...series(300, 40, n(1), 'rifle', [12]),
+      ...series(0, 40, n(6), roster.swarm, [8, 12, 16]),
+      ...series(300, 40, n(1), roster.line, [12]),
     ],
   });
 
-  // Wave 2 — the breach lesson: a sapper leads, the swarm pours through.
+  // Wave 2 — the breach lesson: a breacher leads, the swarm pours through.
   waves.push({
     entries: [
-      entry(0, 'sapper', 12),
-      ...series(60, 36, n(7), 'militia', [4, 8, 16, 20]),
-      ...series(260, 40, n(2), 'rifle', [12]),
+      entry(0, roster.breacher, 12),
+      ...series(60, 36, n(7), roster.swarm, [4, 8, 16, 20]),
+      ...series(260, 40, n(2), roster.line, [12]),
     ],
   });
 
-  // Wave 3 — infantry push with flanking sappers.
+  // Wave 3 — infantry push with flanking breachers.
   waves.push({
     entries: [
-      ...series(0, 40, n(5), 'rifle', [8, 12, 16]),
-      ...series(160, 60, n(2), 'sapper', [4, 20]),
-      ...(level >= 2 ? series(240, 60, n(1), 'grenadier', [12]) : []),
+      ...series(0, 40, n(5), roster.line, [8, 12, 16]),
+      ...series(160, 60, n(2), roster.breacher, [4, 20]),
+      ...(level >= 2 ? series(240, 60, n(1), roster.ranged, [12]) : []),
     ],
   });
 
-  // Wave 4 (level 2+) — suppression: grenadiers stand off, militia screen.
+  // Wave 4 (level 2+) — suppression: standoff fire behind a screen.
   if (level >= 2) {
     waves.push({
       entries: [
-        ...series(0, 20, n(4), 'militia', [4, 6]),
-        ...series(0, 20, n(4), 'militia', [18, 20]),
-        ...series(220, 50, n(2), 'grenadier', [10, 14]),
-        ...(level >= 3 ? series(380, 40, n(1), 'zbd', [12]) : []),
+        ...series(0, 20, n(4), roster.swarm, [4, 6]),
+        ...series(0, 20, n(4), roster.swarm, [18, 20]),
+        ...series(220, 50, n(2), roster.ranged, [10, 14]),
+        ...(level >= 3 ? series(380, 40, n(1), roster.lightVehicle, [12]) : []),
       ],
     });
   }
@@ -60,11 +88,11 @@ export function buildAssault(level: number): SiegeDef {
     const tanks = 1 + Math.floor((level - 3) / 2);
     waves.push({
       entries: [
-        ...series(0, 40, n(2), 'zbd', [8, 16]),
-        ...series(80, 40, n(4), 'rifle', [6, 12, 18]),
-        ...series(280, 50, n(2), 'grenadier', [10, 14]),
-        ...series(380, 40, n(2), 'sapper', [8, 16]),
-        ...series(480, 80, tanks, 'type99', [12, 10, 14]),
+        ...series(0, 40, n(2), roster.lightVehicle, [8, 16]),
+        ...series(80, 40, n(4), roster.line, [6, 12, 18]),
+        ...series(280, 50, n(2), roster.ranged, [10, 14]),
+        ...series(380, 40, n(2), roster.breacher, [8, 16]),
+        ...series(480, 80, tanks, roster.heavy, [12, 10, 14]),
       ],
     });
   }
@@ -93,8 +121,8 @@ export function assaultLoot(level: number): { supplies: number; fuel: number } {
  * Offline probe raids: the first two waves of a soft-scaled assault, with no
  * defender economy — permanent defenses fight it alone (GDD §2.3).
  */
-export function probeAssault(level: number): SiegeDef {
-  const base = buildAssault(Math.max(1, level));
+export function probeAssault(level: number, roster: AssaultRoster = CHINA_ASSAULT_ROSTER): SiegeDef {
+  const base = buildAssault(Math.max(1, level), roster);
   return {
     ...base,
     name: `PROBE — LEVEL ${level}`,

@@ -14,7 +14,7 @@ export const CHINA_ATTACKERS: Record<string, AttackerProfile> = {
   militia: {
     kind: 'militia',
     name: 'Militia Rush',
-    maxHp: 30,
+    maxHp: 35,
     speed: 3.0,
     armor: 'none',
     wallDps: 2,
@@ -36,7 +36,7 @@ export const CHINA_ATTACKERS: Record<string, AttackerProfile> = {
   sapper: {
     kind: 'sapper',
     name: 'Sapper Team',
-    maxHp: 60,
+    maxHp: 70,
     speed: 2.4,
     armor: 'none',
     wallDps: 60,
@@ -55,16 +55,16 @@ export const CHINA_ATTACKERS: Record<string, AttackerProfile> = {
     cpValue: 5,
     weapon: {
       damageType: 'explosive',
-      damage: 20,
+      damage: 22,
       shotsPerSecond: 0.8,
-      range: 3.5,
+      range: 4.0,
     },
     speedJitter: 0.06,
   },
   zbd: {
     kind: 'zbd',
     name: 'ZBD-04 IFV',
-    maxHp: 260,
+    maxHp: 320,
     speed: 1.8,
     armor: 'light',
     wallDps: 15,
@@ -81,7 +81,7 @@ export const CHINA_ATTACKERS: Record<string, AttackerProfile> = {
   type99: {
     kind: 'type99',
     name: 'Type 99 MBT',
-    maxHp: 550,
+    maxHp: 700,
     speed: 1.2,
     armor: 'heavy',
     wallDps: 30,

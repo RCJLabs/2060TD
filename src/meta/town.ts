@@ -1,5 +1,11 @@
 import { buildAssault, assaultLoot, probeAssault } from '../content/assaults';
-import { manpowerCap, TRAIN_META } from '../content/usaUnits';
+import {
+  defenseCatalogFor,
+  enemyRosterFor,
+  trainMetaFor,
+  type FactionId,
+} from '../content/factions';
+import { manpowerCap } from '../content/usaUnits';
 import {
   BASE_CAPS,
   CC_GATING,
@@ -96,7 +102,9 @@ export interface RaidRecord {
 }
 
 export interface TownState {
-  version: 3;
+  version: 4;
+  /** Whose war this town fights (M5): decides catalogs, campaign, enemies. */
+  faction: FactionId;
   supplies: number;
   fuel: number;
   structures: PlacedStructure[]; // includes the Command Center (kind 'cc')
@@ -120,9 +128,10 @@ export interface TownState {
   nextId: number;
 }
 
-export function newTown(now: number): TownState {
+export function newTown(now: number, faction: FactionId = 'usa'): TownState {
   return {
-    version: 3,
+    version: 4,
+    faction,
     supplies: STARTING_SUPPLIES,
     fuel: STARTING_FUEL,
     structures: [
@@ -284,7 +293,7 @@ export function tick(town: TownState, now: number): void {
       town.army[kind] = (town.army[kind] ?? 0) + 1;
       const next = s.trainQueue[0];
       if (next !== undefined) {
-        s.trainEndsAt = s.trainEndsAt + (TRAIN_META[next]?.seconds ?? 30) * 1000;
+        s.trainEndsAt = s.trainEndsAt + (trainMetaFor(town.faction)[next]?.seconds ?? 30) * 1000;
       } else {
         delete s.trainEndsAt;
       }
@@ -295,18 +304,20 @@ export function tick(town: TownState, now: number): void {
 // ---- the army ---------------------------------------------------------------------
 
 export function armyManpower(town: TownState): number {
+  const meta = trainMetaFor(town.faction);
   let total = 0;
   for (const [kind, count] of Object.entries(town.army)) {
-    total += (TRAIN_META[kind]?.manpower ?? 0) * count;
+    total += (meta[kind]?.manpower ?? 0) * count;
   }
   return total;
 }
 
 export function queuedManpower(town: TownState): number {
+  const meta = trainMetaFor(town.faction);
   let total = 0;
   for (const s of town.structures) {
     for (const kind of s.trainQueue ?? []) {
-      total += TRAIN_META[kind]?.manpower ?? 0;
+      total += meta[kind]?.manpower ?? 0;
     }
   }
   return total;
@@ -330,7 +341,7 @@ export function armySize(town: TownState): number {
 export type TrainError = 'unknown' | 'facility' | 'busy' | 'queue' | 'cost' | 'manpower' | null;
 
 export function canTrain(town: TownState, structureId: number, kind: string): TrainError {
-  const meta = TRAIN_META[kind];
+  const meta = trainMetaFor(town.faction)[kind];
   if (!meta) return 'unknown';
   const s = town.structures.find((x) => x.id === structureId);
   if (!s || s.kind !== meta.facility) return 'facility';
@@ -345,7 +356,7 @@ export function canTrain(town: TownState, structureId: number, kind: string): Tr
 
 export function queueTrain(town: TownState, structureId: number, kind: string, now: number): boolean {
   if (canTrain(town, structureId, kind) !== null) return false;
-  const meta = TRAIN_META[kind]!;
+  const meta = trainMetaFor(town.faction)[kind]!;
   const s = town.structures.find((x) => x.id === structureId)!;
   town.supplies -= meta.supplies;
   town.fuel -= meta.fuel;
@@ -412,7 +423,7 @@ export function place(town: TownState, kind: string, cell: CellIndex, now: numbe
 }
 
 export function canPlaceWall(town: TownState, cell: CellIndex): PlaceError {
-  const def = M1_CATALOG.walls['wall']!;
+  const def = defenseCatalogFor(town.faction).walls['wall']!;
   if (town.walls.length >= gating(town).walls) return 'count';
   if (town.supplies < (def.supplyCost ?? 0)) return 'cost';
   return cellsFree(town, [cell]);
@@ -420,7 +431,7 @@ export function canPlaceWall(town: TownState, cell: CellIndex): PlaceError {
 
 export function placeWall(town: TownState, cell: CellIndex): boolean {
   if (canPlaceWall(town, cell) !== null) return false;
-  town.supplies -= M1_CATALOG.walls['wall']!.supplyCost ?? 0;
+  town.supplies -= defenseCatalogFor(town.faction).walls['wall']!.supplyCost ?? 0;
   town.walls.push({ cell, kind: 'wall' });
   return true;
 }
@@ -429,7 +440,7 @@ export function removeWall(town: TownState, cell: CellIndex): boolean {
   const index = town.walls.findIndex((w) => w.cell === cell);
   if (index === -1) return false;
   town.walls.splice(index, 1);
-  town.supplies += M1_CATALOG.walls['wall']!.supplyCost ?? 0;
+  town.supplies += defenseCatalogFor(town.faction).walls['wall']!.supplyCost ?? 0;
   return true;
 }
 
@@ -568,7 +579,7 @@ type SiegeDefWithSupplies = ReturnType<typeof buildAssault>;
 
 /** Battle config for the next SKIRMISH ladder assault. */
 export function siegeConfig(town: TownState, seed: number): SimConfig {
-  const def = buildAssault(town.assaultLevel);
+  const def = buildAssault(town.assaultLevel, enemyRosterFor(town.faction));
   return battleConfig(town, seed, { ...def, startingSupplies: Math.floor(town.supplies) });
 }
 
@@ -586,7 +597,7 @@ export function missionConfig(town: TownState, mission: MissionDef, seed: number
 
 /** Battle config for a Front Line counterattack on the town. */
 export function counterattackConfig(town: TownState, seed: number): SimConfig {
-  const def = buildAssault(Math.max(2, town.frontline.tier + 1));
+  const def = buildAssault(Math.max(2, town.frontline.tier + 1), enemyRosterFor(town.faction));
   return battleConfig(town, seed, {
     ...def,
     name: `COUNTERATTACK — TIER ${town.frontline.tier}`,
@@ -596,7 +607,10 @@ export function counterattackConfig(town: TownState, seed: number): SimConfig {
 
 /** Headless battle config for one offline probe raid. */
 export function probeConfig(town: TownState, level: number, seed: number): SimConfig {
-  return battleConfig(town, seed, { ...probeAssault(level), startingSupplies: 0 });
+  return battleConfig(town, seed, {
+    ...probeAssault(level, enemyRosterFor(town.faction)),
+    startingSupplies: 0,
+  });
 }
 
 export interface SiegeOutcome {

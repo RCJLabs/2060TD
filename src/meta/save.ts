@@ -6,7 +6,7 @@ import { newTown, unlockAll, type TownState } from './town';
  */
 
 export const SAVE_KEY = 'lastline_save_v1';
-export const SCHEMA = 3;
+export const SCHEMA = 4;
 
 export function serialize(town: TownState): string {
   return JSON.stringify({ schema: SCHEMA, savedAt: town.lastSeen, town });
@@ -26,7 +26,7 @@ function migrateV1(legacy: Record<string, unknown>): Record<string, unknown> | n
 }
 
 /** Schema 2 towns predate the Front Line: empty army, tier 1, clean log. */
-function migrateV2(legacy: Record<string, unknown>): TownState | null {
+function migrateV2(legacy: Record<string, unknown>): Record<string, unknown> | null {
   if (legacy['version'] !== 2) return null;
   return {
     ...legacy,
@@ -36,7 +36,13 @@ function migrateV2(legacy: Record<string, unknown>): TownState | null {
     defenseLog: [],
     shieldUntil: 0,
     lastRaid: null,
-  } as unknown as TownState;
+  };
+}
+
+/** Schema 3 towns predate factions: everyone was fighting the USA war. */
+function migrateV3(legacy: Record<string, unknown>): Record<string, unknown> | null {
+  if (legacy['version'] !== 3) return null;
+  return { ...legacy, version: 4, faction: 'usa' };
 }
 
 export function deserialize(json: string): TownState | null {
@@ -44,16 +50,15 @@ export function deserialize(json: string): TownState | null {
     const data = JSON.parse(json) as { schema?: number; town?: TownState };
     if (!data.town) return null;
 
-    let raw: Record<string, unknown> | null = data.town as unknown as Record<string, unknown>;
-    if (data.schema === 1) raw = migrateV1(raw);
-    let town: TownState | null = null;
-    if (raw && (raw['version'] === 2 || data.schema === 2)) {
-      town = migrateV2(raw);
-    } else if (raw && raw['version'] === 3 && data.schema === SCHEMA) {
-      town = raw as unknown as TownState;
-    }
-    if (!town) return null;
+    // Walk the migration chain by the town's own version field.
+    let raw = data.town as unknown as Record<string, unknown>;
+    if (raw['version'] === 1) raw = migrateV1(raw) ?? raw;
+    if (raw['version'] === 2) raw = migrateV2(raw) ?? raw;
+    if (raw['version'] === 3) raw = migrateV3(raw) ?? raw;
+    if (raw['version'] !== 4) return null;
+    const town = raw as unknown as TownState;
 
+    if (town.faction !== 'usa' && town.faction !== 'china') town.faction = 'usa';
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;

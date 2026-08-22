@@ -15,7 +15,31 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.2: the counterattack
+## Current state — v0.3: pick your war
+
+China is playable. The first screen now asks whose war you're fighting:
+
+- **UNITED STATES — Operation Landfall.** Hold Coos Bay through the nine-mission
+  campaign, then raid PLA Front Line bases. Fewer soldiers, better hardware.
+- **PLA EXPEDITIONARY FORCE — Operation Eastern Tide.** Hold the Grays Harbor
+  beachhead through six missions against Guard swarms, Ranger companies, engineer
+  breach teams, Javelin overwatch, and Abrams spearheads — then counter-raid US
+  firebases with militia tides, sappers, ZBD-04s, and the Type 99.
+- **One pipeline, two wars:** every structure kind is a shared *role* (gun nest,
+  anti-armor post, mortar, strafe tasking…), so the same gating, saves, unlock keys,
+  and scenes serve both sides — factions are pure data behind `content/factions.ts`.
+  China's kit answers different threats: shaped-charge HJ-8 posts because their armor
+  problem is the M1 Abrams, MLRS ripples instead of an A-10, PLZ-05 saturation
+  instead of precision 155s.
+- **Balance harness:** `npm run balance` fights ~1,400 seeded battles headlessly in
+  ~12 seconds — raid clear/destruction/loss matrices per tier and permanent-layer
+  hold% per stage, for both factions ([`docs/BALANCE.md`](docs/BALANCE.md)). The
+  first tuning pass shipped with it (real demolition for breachers, later mortars in
+  low-tier firebases, cheaper PLA manpower, tougher PLA vehicles).
+- Saves migrate: pre-v0.3 towns continue as USA. Resetting the base re-offers the
+  faction choice.
+
+## v0.2: the counterattack
 
 Offense is in. After mission 5 grants counter-raid authority, the **FRONT LINE** opens:
 
@@ -65,11 +89,13 @@ commander powers, damage-type × armor counters, and weighted pathfinding where
 
 ```bash
 npm install
-npm run dev        # the game (town → missions/raids loop)
+npm run dev        # the game (faction pick → town → missions/raids loop)
                    # ?playground=1 sandbox maze lab · ?demo=1 scripted battle
                    # ?demo=town showcase base · ?demo=raid Front Line planner
+                   # add &faction=china to demos for the Eastern Tide side
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
-                   # doctrines, warfare, determinism)
+                   # doctrines, warfare, factions, determinism)
+npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md)
 npm run build      # typecheck + production build
 npm run screenshot # headless screenshots into screenshots/
 ```
@@ -99,23 +125,24 @@ The sandbox (`?playground=1`): `1/2/3` wall/M2/erase, `W` militia, `B` sapper,
 ## Project layout
 
 ```
-docs/            Game design document, roadmap, locked decisions
+docs/            Game design document, roadmap, locked decisions, balance snapshot
 src/sim/         Pure-TS deterministic simulation (no Phaser imports):
                  fixed-tick engine, siege phase machine, weighted multi-goal A*,
                  combat resolution, structure levels, seeded PRNG, state hashing
-src/content/     Data, not code: damage table, China attackers, USA defenses &
-                 buildings with level tables, CC gating, the assault ladder
+src/content/     Data, not code: damage table, both factions' defenses, armies,
+                 campaigns, base kits, and the faction switch (factions.ts)
 src/meta/        The persistent layer: town state (timers, accrual, gating,
-                 wrecks), the siege bridge, versioned saves
+                 wrecks), the siege bridge, warfare/raids, versioned saves
 src/game/        Phaser 3 presentation: shared glyphs + BattleRenderer,
-                 TownScene, SiegeScene, sandbox PlaygroundScene, UI kit, palette
+                 Town/Siege/Briefing/Raid/Replay scenes, UI kit, palette
+src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
-                 assault ladder, damage table, determinism hashes
+                 assault ladder, doctrines, warfare, factions, determinism
 ```
 
 **Architecture rule:** `src/sim` never imports Phaser. Same seed + same commands ⇒
 identical outcome (hash-tested), which is what makes replays, offline raid resolution,
-and the future balance harness possible.
+and the balance harness possible.
 
 ## Deploying
 

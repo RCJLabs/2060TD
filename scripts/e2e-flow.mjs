@@ -1,12 +1,17 @@
 /**
- * E2E smoke of the v0.1 first-run flow: intro → difficulty pick → town →
- * SPACE → briefing → SPACE ×2 (skip reveal, commence) → mission siege.
+ * E2E smoke of the first-run flow (v0.3): intro → faction pick → difficulty
+ * pick → town → SPACE → briefing → SPACE ×2 (skip reveal, commence) →
+ * mission siege. Run with FACTION=china to smoke the Eastern Tide side.
+ *
+ * Uses ?demo=flow so headless Chromium gets the setTimeout game loop (any
+ * demo value forces it) while every scene still runs its real, non-demo path.
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const PORT = 5199;
+const FACTION = process.env.FACTION === 'china' ? 'china' : 'usa';
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
   stdio: 'ignore',
   detached: true,
@@ -32,36 +37,38 @@ try {
   } catch {
     browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   }
-  const page = await browser.newPage({ viewport: { width: 1300, height: 800 } });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 768 } });
   const errors = [];
-  page.on('pageerror', (e) => errors.push((e && e.stack) ? e.stack : String(e)));
+  page.on('pageerror', (e) => errors.push(e && e.stack ? e.stack : String(e)));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
   mkdirSync('screenshots', { recursive: true });
-  await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
-  await wait(2000);
-  await page.screenshot({ path: 'screenshots/e2e-intro.png' });
+  const shot = (name) => page.screenshot({ path: `screenshots/e2e-${FACTION}-${name}.png` });
 
-  // Pick STANDARD (left button at ~cx-250..cx-20, y 520..560; canvas is
-  // letterboxed inside 1300×800 — click via canvas coords scaled by FIT).
-  // The canvas fills 1300×(1300*768/1280)=780 → offsetY (800-780)/2 = 10, scale 1300/1280.
-  const scale = 1300 / 1280;
-  const cx = (1280 + 256) / 2 / 1; // game cx in game px... game width is 1280
-  const gx = 768 / 2; // unused
-  const clickGame = async (x, y) => page.mouse.click(x * scale, y * scale + 10);
-  await clickGame(1280 / 2 - 250 + 115, 520 + 20); // STANDARD
-  await wait(800);
-  await page.screenshot({ path: 'screenshots/e2e-town-fresh.png' });
+  await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });
+  await wait(2500);
+  await shot('intro');
+
+  // Viewport matches the 1280×768 game exactly, so game px == page px.
+  // Faction buttons: 580×42 at cx-290, y = 400 (USA) / 474 (CHINA).
+  await page.mouse.click(640, FACTION === 'china' ? 495 : 421);
+  await wait(900);
+  await shot('difficulty');
+
+  // STANDARD: 230×40 at cx-250, y 460.
+  await page.mouse.click(640 - 135, 480);
+  await wait(1500);
+  await shot('town-fresh');
 
   await page.keyboard.press('Space'); // MISSION 1 → briefing
-  await wait(1200);
-  await page.screenshot({ path: 'screenshots/e2e-briefing.png' });
+  await wait(1500);
+  await shot('briefing');
 
   await page.keyboard.press('Space'); // skip reveal
-  await wait(300);
+  await wait(400);
   await page.keyboard.press('Space'); // commence
-  await wait(2000);
-  await page.screenshot({ path: 'screenshots/e2e-mission.png' });
+  await wait(2500);
+  await shot('mission');
 
   await browser.close();
   if (errors.length) {
@@ -69,7 +76,9 @@ try {
     for (const e of errors) console.error(' ', e);
     process.exitCode = 1;
   } else {
-    console.log('E2E OK: intro → difficulty → town → briefing → mission siege, no page errors.');
+    console.log(
+      `E2E OK (${FACTION}): intro → faction → difficulty → town → briefing → mission siege, no page errors.`,
+    );
   }
 } finally {
   process.kill(-vite.pid, 'SIGTERM');

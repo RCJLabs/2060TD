@@ -198,7 +198,8 @@ describe('save migration', () => {
     };
     const town = deserialize(JSON.stringify(legacy))!;
     expect(town).not.toBeNull();
-    expect(town.version).toBe(3); // migrated all the way forward
+    expect(town.version).toBe(4); // migrated all the way forward
+    expect(town.faction).toBe('usa'); // pre-faction saves fought the USA war
     expect(town.assaultLevel).toBe(4);
     expect(town.campaign.next).toBe(0);
     expect(town.campaign.difficulty).toBe('standard');

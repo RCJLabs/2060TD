@@ -100,6 +100,8 @@ export interface StrafePower {
   type: 'strafe';
   kind: string;
   name: string;
+  /** Compact display name for tight UI slots (buttons); defaults to name. */
+  short?: string;
   cpCost: number;
   cooldownSeconds: number;
   delayTicks: number;
@@ -116,6 +118,8 @@ export interface BarragePower {
   type: 'barrage';
   kind: string;
   name: string;
+  /** Compact display name for tight UI slots (buttons); defaults to name. */
+  short?: string;
   cpCost: number;
   cooldownSeconds: number;
   delayTicks: number;

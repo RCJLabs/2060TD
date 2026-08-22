@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
-import { BUILDABLE_KINDS, CHARGE_CAP, CHARGE_PRICES, TOWN_META } from '../../content/buildings';
-import { CAMPAIGN, type MissionDef } from '../../content/campaign';
+import { BUILDABLE_KINDS, CHARGE_CAP, CHARGE_PRICES } from '../../content/buildings';
+import type { MissionDef } from '../../content/campaign';
+import {
+  campaignFor,
+  defenseCatalogFor,
+  FACTION_IDS,
+  flavorFor,
+  townMetaFor,
+  type FactionId,
+} from '../../content/factions';
 import { clearSave, downloadSave, loadTown, pickAndImportSave, saveTown } from '../../meta/save';
 import { runOfflineProbes } from '../../meta/warfare';
 import {
@@ -46,9 +54,11 @@ import { makeButton, mono, type Button } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
-const UNLOCK_MISSION: Record<string, number> = {};
-for (const mission of CAMPAIGN) {
-  for (const key of mission.unlocks) UNLOCK_MISSION[key] = mission.index;
+const UNLOCK_MISSION: Record<FactionId, Record<string, number>> = { usa: {}, china: {} };
+for (const faction of FACTION_IDS) {
+  for (const mission of campaignFor(faction)) {
+    for (const key of mission.unlocks) UNLOCK_MISSION[faction][key] = mission.index;
+  }
 }
 
 const CELL = 32;
@@ -125,7 +135,7 @@ export class TownScene extends Phaser.Scene {
     if (data?.outcome && !this.demoMode) {
       const mission =
         data.battle?.type === 'mission'
-          ? CAMPAIGN.find((m) => m.id === (data.battle as { missionId: string }).missionId)
+          ? this.missions().find((m) => m.id === (data.battle as { missionId: string }).missionId)
           : undefined;
       if (mission) {
         const result = applyMissionResult(this.town, mission, data.outcome, now);
@@ -136,8 +146,8 @@ export class TownScene extends Phaser.Scene {
               (result.bonusAchieved ? ' (BONUS ×1.5)' : ''),
           );
           if (result.unlocked.length > 0 && mission.unlockNote) parts.push(mission.unlockNote);
-          if (this.town.campaign.next >= CAMPAIGN.length) {
-            parts.push('CAMPAIGN COMPLETE — THE COUNTERATTACK COMES IN v0.2.');
+          if (this.town.campaign.next >= this.missions().length) {
+            parts.push('CAMPAIGN COMPLETE — THE FRONT LINE RUNS BOTH WAYS NOW.');
           }
           this.setBanner(parts.join(' '), 16);
         } else {
@@ -185,7 +195,7 @@ export class TownScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(5);
     this.add
-      .text(GRID_PX_W / 2, 6, 'FORWARD BASE — COOS BAY', mono(11, COLORS.inkDim))
+      .text(GRID_PX_W / 2, 6, flavorFor(this.town.faction).base, mono(11, COLORS.inkDim))
       .setOrigin(0.5, 0)
       .setDepth(5);
 
@@ -193,6 +203,19 @@ export class TownScene extends Phaser.Scene {
     this.bindInput();
 
     if (!this.demoMode && this.town.campaign.difficulty === null) this.showIntro();
+  }
+
+  /** The active faction's campaign, building meta, and unlock map. */
+  private missions(): MissionDef[] {
+    return campaignFor(this.town.faction);
+  }
+
+  private meta(kind: string) {
+    return townMetaFor(this.town.faction)[kind];
+  }
+
+  private unlockAt(key: string): number | undefined {
+    return UNLOCK_MISSION[this.town.faction][key];
   }
 
   // ---- input -------------------------------------------------------------------
@@ -269,7 +292,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   private nextMission(): MissionDef | null {
-    return CAMPAIGN[this.town.campaign.next] ?? null;
+    return this.missions()[this.town.campaign.next] ?? null;
   }
 
   private launchMission(): void {
@@ -279,11 +302,12 @@ export class TownScene extends Phaser.Scene {
     this.scene.start('briefing', {
       mission,
       config: missionConfig(this.town, mission, Date.now() >>> 0),
+      faction: this.town.faction,
     });
   }
 
   private skirmishUnlocked(): boolean {
-    return this.town.campaign.next >= 2 || this.town.campaign.next >= CAMPAIGN.length;
+    return this.town.campaign.next >= 2 || this.town.campaign.next >= this.missions().length;
   }
 
   private launchSkirmish(): void {
@@ -293,6 +317,7 @@ export class TownScene extends Phaser.Scene {
       config: siegeConfig(this.town, Date.now() >>> 0),
       fromTown: true,
       battle: { type: 'skirmish' },
+      faction: this.town.faction,
     });
   }
 
@@ -309,6 +334,7 @@ export class TownScene extends Phaser.Scene {
       config: counterattackConfig(this.town, Date.now() >>> 0),
       fromTown: true,
       battle: { type: 'counter' },
+      faction: this.town.faction,
     });
   }
 
@@ -362,6 +388,7 @@ export class TownScene extends Phaser.Scene {
           config: entry.config,
           kind: 'defense',
           title: `PROBE LV ${entry.level}`,
+          faction: this.town.faction,
           backTo: 'town',
         });
       });
@@ -375,20 +402,20 @@ export class TownScene extends Phaser.Scene {
     objects.push(done.bg, done.label);
   }
 
-  /** First run: alternate-history framing and the difficulty commitment. */
+  /** First run, screen 1: alternate-history framing and the faction choice. */
   private showIntro(): void {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const cx = (GRID_PX_W + PANEL_W) / 2;
     objects.push(
       this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.82).setOrigin(0).setDepth(60),
       this.add
-        .text(cx, 170, 'LAST LINE', mono(40, COLORS.ink, { fontStyle: 'bold' }))
+        .text(cx, 150, 'LAST LINE', mono(40, COLORS.ink, { fontStyle: 'bold' }))
         .setOrigin(0.5)
         .setDepth(61),
       this.add
         .text(
           cx,
-          230,
+          210,
           [
             'An alternate history. 2027.',
             '',
@@ -396,8 +423,63 @@ export class TownScene extends Phaser.Scene {
             'American mainland and UN forces worldwide. The fiction depicts',
             'militaries and machines, not peoples.',
             '',
-            'You hold a headland town on the Oregon coast: the last supply',
-            'corridor on Highway 101. Build the base. Hold the line.',
+            'Two commands are hiring. Pick your war:',
+          ].join('\n'),
+          mono(14, COLORS.ink, { lineSpacing: 7, align: 'center' }),
+        )
+        .setOrigin(0.5, 0)
+        .setDepth(61),
+    );
+    const pick = (faction: FactionId) => {
+      for (const obj of objects) obj.destroy();
+      // Intro only shows on a fresh save (difficulty === null), so a rebuild
+      // here throws nothing away.
+      if (faction !== this.town.faction) {
+        this.town = newTown(Date.now(), faction);
+        saveTown(this.town);
+      }
+      this.showDifficulty();
+    };
+    for (const [i, faction] of FACTION_IDS.entries()) {
+      const flavor = flavorFor(faction);
+      const button = makeButton(
+        this,
+        cx - 290,
+        400 + i * 74,
+        580,
+        42,
+        `${flavor.faction} — ${flavor.operation.split(' — ')[0]!.replace('OPERATION ', 'OP. ')}`,
+        () => pick(faction),
+      );
+      const blurb = this.add
+        .text(cx, 400 + i * 74 + 48, flavor.pitch, mono(11, COLORS.inkDim))
+        .setOrigin(0.5, 0)
+        .setDepth(61);
+      button.bg.setDepth(61);
+      button.label.setDepth(61);
+      objects.push(button.bg, button.label, blurb);
+    }
+  }
+
+  /** First run, screen 2: the difficulty commitment. */
+  private showDifficulty(): void {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const cx = (GRID_PX_W + PANEL_W) / 2;
+    const flavor = flavorFor(this.town.faction);
+    objects.push(
+      this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.82).setOrigin(0).setDepth(60),
+      this.add
+        .text(cx, 210, flavor.operation, mono(22, COLORS.ink, { fontStyle: 'bold' }))
+        .setOrigin(0.5)
+        .setDepth(61),
+      this.add
+        .text(
+          cx,
+          260,
+          [
+            this.town.faction === 'usa'
+              ? 'You hold a headland town on the Oregon coast: the last supply\ncorridor on Highway 101. Build the base. Hold the line.'
+              : 'You hold the beachhead at Grays Harbor: one pier, one HQ, and\nthe whole US Army working up the ridge. Hold the sand.',
             '',
             'CHOOSE YOUR COMMITMENT:',
           ].join('\n'),
@@ -410,11 +492,13 @@ export class TownScene extends Phaser.Scene {
       this.town.campaign.difficulty = difficulty;
       saveTown(this.town);
       for (const obj of objects) obj.destroy();
+      // Rebuild the scene so every faction-flavored label refreshes.
+      this.scene.restart({});
     };
-    const std = makeButton(this, cx - 250, 520, 230, 40, 'STANDARD — hold the line', () =>
+    const std = makeButton(this, cx - 250, 460, 230, 40, 'STANDARD — hold the line', () =>
       pick('standard'),
     );
-    const hard = makeButton(this, cx + 20, 520, 230, 40, 'HARD — +30% hostiles', () =>
+    const hard = makeButton(this, cx + 20, 460, 230, 40, 'HARD — +30% hostiles', () =>
       pick('hard'),
     );
     for (const b of [std, hard]) {
@@ -465,7 +549,7 @@ export class TownScene extends Phaser.Scene {
     }
 
     for (const s of this.town.structures) {
-      const footprint = s.kind === 'cc' || TOWN_META[s.kind]?.storage || isBig(s.kind) ? 2 : 1;
+      const footprint = footprintOf(s.kind);
       const center = this.cellCenterPx(s.cell, footprint);
       const building = s.buildEndsAt !== undefined;
       drawStructureGlyph(g, s.kind, center.x, center.y, CELL, {
@@ -474,7 +558,7 @@ export class TownScene extends Phaser.Scene {
         inert: building && s.upgradingTo === undefined,
       });
       if (building) {
-        const meta = TOWN_META[s.kind];
+        const meta = this.meta(s.kind);
         const target = s.upgradingTo ?? 1;
         const total = (meta?.levels[target - 1]?.seconds ?? 1) * buildSpeedFactor(this.town) * 1000;
         const remaining = Math.max(0, (s.buildEndsAt ?? now) - now);
@@ -553,7 +637,7 @@ export class TownScene extends Phaser.Scene {
     this.add.rectangle(x0, 0, 2, GRID_PX_H, COLORS.gridLine).setOrigin(0, 0);
 
     this.add.text(x0 + pad, 10, 'LAST LINE', mono(17, COLORS.ink, { fontStyle: 'bold' }));
-    this.add.text(x0 + pad, 32, 'M2 — FORWARD BASE', mono(10, COLORS.inkDim));
+    this.add.text(x0 + pad, 32, flavorFor(this.town.faction).faction, mono(10, COLORS.inkDim));
     this.warText = this.add.text(x0 + pad, 48, '', mono(12, COLORS.signal, { fontStyle: 'bold' }));
 
     this.suppliesText = this.add.text(x0 + pad, 70, '', mono(11));
@@ -693,8 +777,10 @@ export class TownScene extends Phaser.Scene {
     clearSave();
     this.town = newTown(now);
     this.selectedId = null;
-    this.buttons['reset']?.setLabel('RESET');
-    this.setBanner('BASE ABANDONED. A NEW COMMAND CENTER STANDS.', 8);
+    this.resetArmedUntil = 0;
+    this.setBanner('BASE ABANDONED. A NEW COMMAND STANDS.', 8);
+    // Fresh save: restart into the intro so the faction pick runs again.
+    this.scene.restart({});
   }
 
   private saveSoon(): void {
@@ -725,14 +811,14 @@ export class TownScene extends Phaser.Scene {
 
     const g = gating(town);
     for (const kind of BUILDABLE_KINDS) {
-      const meta = TOWN_META[kind]!;
+      const meta = this.meta(kind)!;
       const cost = meta.levels[0]!;
       const max = g.counts[kind] ?? 0;
       const have = countOf(town, kind);
       const costText = cost.fuel > 0 ? `${cost.supplies}S+${cost.fuel}F` : `${cost.supplies}S`;
       const button = this.buttons[kind]!;
       if (!isUnlocked(town, kind)) {
-        const at = UNLOCK_MISSION[kind];
+        const at = this.unlockAt(kind);
         button.setLabel(
           `${meta.name.toUpperCase()} — LOCKED${at !== undefined ? ` (M${at + 1})` : ''}`,
         );
@@ -750,7 +836,7 @@ export class TownScene extends Phaser.Scene {
     // Selected structure card.
     const s = this.selected();
     if (s) {
-      const meta = TOWN_META[s.kind];
+      const meta = this.meta(s.kind);
       const lines: string[] = [`${meta?.name.toUpperCase() ?? s.kind} — LV ${s.level}`];
       if (s.wrecked) {
         const cost = repairCost(s);
@@ -773,7 +859,7 @@ export class TownScene extends Phaser.Scene {
         const cost = meta!.levels[s.level]!;
         lines.push(`UPGRADE: ${cost.supplies}S+${cost.fuel}F, ${cost.seconds}s`);
       } else if (err === 'locked') {
-        const at = UNLOCK_MISSION[`cc${s.level + 1}`];
+        const at = this.unlockAt(`cc${s.level + 1}`);
         lines.push(`UPGRADE: REQUISITION${at !== undefined ? ` AT M${at + 1}` : ' PENDING'}`);
       } else if (err === 'max' && s.kind !== 'cc') {
         lines.push(ccLevel(town) < 3 ? 'UPGRADE: NEEDS CC LEVEL UP' : 'MAX LEVEL');
@@ -792,15 +878,17 @@ export class TownScene extends Phaser.Scene {
       }
     }
 
+    const powers = defenseCatalogFor(town.faction).powers;
     for (const [key, power] of [
       ['buyA10', 'a10'],
       ['buyArty', 'arty'],
     ] as const) {
       const stock = town.charges[power] ?? 0;
       const price = CHARGE_PRICES[power]!;
-      const name = power === 'a10' ? 'A-10 GUN RUN' : '155MM MISSION';
+      const def = powers[power]!;
+      const name = (def.short ?? def.name).toUpperCase();
       if (!isUnlocked(town, power)) {
-        const at = UNLOCK_MISSION[power];
+        const at = this.unlockAt(power);
         this.buttons[key]?.setLabel(`${name} — LOCKED${at !== undefined ? ` (M${at + 1})` : ''}`);
         this.buttons[key]?.setEnabled(false);
         continue;
@@ -813,7 +901,7 @@ export class TownScene extends Phaser.Scene {
       this.buttons['mission']?.setLabel(`MISSION ${mission.index + 1}: ${mission.codename} [SPACE]`);
       this.buttons['mission']?.setEnabled(!this.demoMode && town.campaign.difficulty !== null);
     } else {
-      this.buttons['mission']?.setLabel('CAMPAIGN COMPLETE — v0.2 SOON');
+      this.buttons['mission']?.setLabel('CAMPAIGN COMPLETE');
       this.buttons['mission']?.setEnabled(false);
     }
     if (this.skirmishUnlocked()) {
@@ -826,7 +914,7 @@ export class TownScene extends Phaser.Scene {
       this.buttons['skirmish']?.setEnabled(false);
     }
     if (!isUnlocked(town, 'frontline')) {
-      const at = UNLOCK_MISSION['frontline'];
+      const at = this.unlockAt('frontline');
       this.buttons['frontline']?.setLabel(`FRONT LINE — LOCKED${at !== undefined ? ` (M${at + 1})` : ''}`);
       this.buttons['frontline']?.setEnabled(false);
     } else if (town.frontline.pendingCounterattack) {
@@ -845,9 +933,16 @@ export class TownScene extends Phaser.Scene {
   }
 }
 
-const BIG_KINDS = new Set(['cc', 'supplyDepot', 'fuelDepot', 'storageBunker', 'engBay']);
-const isBig = (kind: string): boolean => BIG_KINDS.has(kind);
-const footprintOf = (kind: string): number => (isBig(kind) ? 2 : 1);
+const BIG_KINDS = new Set([
+  'cc',
+  'supplyDepot',
+  'fuelDepot',
+  'storageBunker',
+  'engBay',
+  'barracks',
+  'motorpool',
+]);
+const footprintOf = (kind: string): number => (BIG_KINDS.has(kind) ? 2 : 1);
 
 /** A prebuilt base for ?demo=town screenshots. Never touches the real save. */
 function makeShowcaseTown(now: number): TownState {

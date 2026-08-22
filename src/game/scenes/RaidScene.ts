@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 import { MAP_H, MAP_W, TARGETS_PER_TIER, type GeneratedBase } from '../../content/bases';
-import { TRAINABLE, TRAIN_META } from '../../content/usaUnits';
+import {
+  flavorFor,
+  raidCatalogFor,
+  trainableFor,
+  trainMetaFor,
+  type FactionId,
+} from '../../content/factions';
+import type { TrainMeta } from '../../content/usaUnits';
 import { saveTown } from '../../meta/save';
 import {
   armyManpower,
@@ -71,9 +78,12 @@ export class RaidScene extends Phaser.Scene {
   }
 
   init(data: { town?: TownState }): void {
-    this.demoMode = new URLSearchParams(window.location.search).get('demo') === 'raid';
+    const params = new URLSearchParams(window.location.search);
+    this.demoMode = params.get('demo') === 'raid';
     if (data?.town) this.town = data.town;
-    else if (this.demoMode || !this.town) this.town = makeRaidShowcase(Date.now());
+    else if (this.demoMode || !this.town) {
+      this.town = makeRaidShowcase(Date.now(), params.get('faction') === 'china' ? 'china' : 'usa');
+    }
     this.variant = 0;
     this.selectedSquad = 0;
     this.result = null;
@@ -134,6 +144,15 @@ export class RaidScene extends Phaser.Scene {
     this.scene.start('town', {});
   }
 
+  /** The player faction's raid roster, in muster order. */
+  private get trainable(): TrainMeta[] {
+    return trainableFor(this.town.faction);
+  }
+
+  private get trainMeta(): Record<string, TrainMeta> {
+    return trainMetaFor(this.town.faction);
+  }
+
   // ---- target handling ---------------------------------------------------------
 
   private scouted(): boolean {
@@ -165,7 +184,7 @@ export class RaidScene extends Phaser.Scene {
       drawWallGlyph(g, (wall.cell % MAP_W) * CELL, Math.floor(wall.cell / MAP_W) * CELL, CELL, wall.kind, 1);
     }
     const draw = (kind: string, cell: number, level: number) => {
-      const big = ['cc', 'supplyCache', 'fuelDump'].includes(kind);
+      const big = ['cc', 'supplyCache', 'fuelDump', 'supplyDepot', 'fuelDepot'].includes(kind);
       const half = big ? 1 : 0.5;
       drawStructureGlyph(
         g,
@@ -213,7 +232,7 @@ export class RaidScene extends Phaser.Scene {
   // ---- training ---------------------------------------------------------------------
 
   private facilityFor(kind: string): number | null {
-    const meta = TRAIN_META[kind];
+    const meta = this.trainMeta[kind];
     if (!meta) return null;
     for (const s of this.town.structures) {
       if (s.kind !== meta.facility || s.wrecked) continue;
@@ -234,8 +253,8 @@ export class RaidScene extends Phaser.Scene {
     if (this.result || planUnitCount(this.squads) === 0) return;
     if (this.town.frontline.pendingCounterattack) return;
     const squads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
-    const config = raidConfig(this.base, squads, Date.now() >>> 0);
-    const resolution = resolveRaid(config, squads, this.base.tier);
+    const config = raidConfig(this.base, squads, Date.now() >>> 0, this.trainable);
+    const resolution = resolveRaid(config, squads, this.base.tier, raidCatalogFor(this.town.faction));
     applyRaidResult(this.town, this.base, resolution, config, Date.now());
     this.saveSoon();
     this.result = resolution;
@@ -263,7 +282,7 @@ export class RaidScene extends Phaser.Scene {
       .setDepth(41);
 
     const lossLine = Object.entries(res.losses)
-      .map(([kind, n]) => `${n}× ${TRAIN_META[kind]?.short ?? kind}`)
+      .map(([kind, n]) => `${n}× ${this.trainMeta[kind]?.short ?? kind}`)
       .join('  ');
     const lines = [
       `Destruction: ${Math.round(res.destructionPct * 100)}%   Duration: ${Math.floor(res.ticks / 20)}s`,
@@ -287,6 +306,7 @@ export class RaidScene extends Phaser.Scene {
         config: this.lastConfig,
         kind: 'raid',
         title: this.base.name,
+        faction: this.town.faction,
         backTo: 'raid',
         backData: { town: this.town },
       });
@@ -309,7 +329,12 @@ export class RaidScene extends Phaser.Scene {
     this.add.rectangle(x0, 0, 2, GRID_PX_H, COLORS.gridLine).setOrigin(0, 0);
 
     this.add.text(x0 + pad, 10, 'FRONT LINE', mono(17, COLORS.ink, { fontStyle: 'bold' }));
-    this.add.text(x0 + pad, 32, 'M4 — COUNTER-RAID OPERATIONS', mono(10, COLORS.inkDim));
+    this.add.text(
+      x0 + pad,
+      32,
+      `COUNTER-RAID OPS — VS ${flavorFor(this.town.faction).enemy}`,
+      mono(10, COLORS.inkDim),
+    );
     this.armyText = this.add.text(x0 + pad, 48, '', mono(11, COLORS.ink, { lineSpacing: 3 }));
 
     let y = 92;
@@ -322,7 +347,7 @@ export class RaidScene extends Phaser.Scene {
 
     this.add.text(x0 + pad, y, 'MUSTER', mono(10, COLORS.inkDim));
     y += 14;
-    for (const meta of TRAINABLE) {
+    for (const meta of this.trainable) {
       this.buttons[`train_${meta.kind}`] = makeButton(this, x0 + pad, y, bw, 22, '', () =>
         this.train(meta.kind),
       );
@@ -347,13 +372,14 @@ export class RaidScene extends Phaser.Scene {
       this.cycleDoctrine(),
     );
     y += 25;
-    const fifth = (bw - 16) / 5;
-    TRAINABLE.forEach((meta, i) => {
+    const roster = this.trainable;
+    const addW = (bw - (roster.length - 1) * 4) / roster.length;
+    roster.forEach((meta, i) => {
       this.buttons[`add_${meta.kind}`] = makeButton(
         this,
-        x0 + pad + i * (fifth + 4),
+        x0 + pad + i * (addW + 4),
         y,
-        fifth,
+        addW,
         22,
         `+${meta.short.charAt(0)}`,
         () => this.addUnit(meta.kind),
@@ -395,7 +421,6 @@ export class RaidScene extends Phaser.Scene {
       [
         `TIER ${tier} · POSTS CLEARED ${town.frontline.wins}/3`,
         `MANPOWER ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)} · FUEL ${Math.floor(town.fuel)}`,
-        TRAINABLE.map((m) => `${m.short} ${town.army[m.kind] ?? 0}`).join('  '),
       ].join('\n'),
     );
 
@@ -404,7 +429,7 @@ export class RaidScene extends Phaser.Scene {
     this.buttons['scout']?.setLabel(scouted ? 'SCOUTED — LAYOUT KNOWN' : `SCOUT — ${scoutCost(tier)} SUP`);
     this.buttons['scout']?.setEnabled(!scouted && town.supplies >= scoutCost(tier));
 
-    for (const meta of TRAINABLE) {
+    for (const meta of this.trainable) {
       const cost = meta.fuel > 0 ? `${meta.supplies}S+${meta.fuel}F` : `${meta.supplies}S`;
       const button = this.buttons[`train_${meta.kind}`];
       button?.setLabel(`${meta.short} ×${town.army[meta.kind] ?? 0} — TRAIN ${cost} ${meta.seconds}s`);
@@ -414,14 +439,15 @@ export class RaidScene extends Phaser.Scene {
     for (const s of town.structures) {
       if (s.trainQueue && s.trainQueue.length > 0) {
         const secs = s.trainEndsAt !== undefined ? Math.max(0, Math.ceil((s.trainEndsAt - now) / 1000)) : 0;
-        queued.push(`${s.kind === 'barracks' ? 'BKS' : 'MTP'}: ${s.trainQueue.map((k) => TRAIN_META[k]?.short ?? k).join(' ')} (${secs}s)`);
+        queued.push(`${s.kind === 'barracks' ? 'BKS' : 'MTP'}: ${s.trainQueue.map((k) => this.trainMeta[k]?.short ?? k).join(' ')} (${secs}s)`);
       }
     }
     this.queueText.setText(queued.join('   ') || 'Training lines idle.');
 
     this.squads.forEach((squad, i) => {
       const count = Object.values(squad.units).reduce((a, b) => a + b, 0);
-      const composition = TRAINABLE.filter((m) => (squad.units[m.kind] ?? 0) > 0)
+      const composition = this.trainable
+        .filter((m) => (squad.units[m.kind] ?? 0) > 0)
         .map((m) => `${squad.units[m.kind]}${m.short.charAt(0)}`)
         .join(' ');
       this.buttons[`squad_${i}`]?.setLabel(
@@ -431,7 +457,7 @@ export class RaidScene extends Phaser.Scene {
     const squad = this.squads[this.selectedSquad]!;
     this.buttons['sector']?.setLabel(`SECTOR: ${squad.sector} ▸`);
     this.buttons['doctrine']?.setLabel(`DOCTRINE: ${DOCTRINE_LABEL[squad.doctrine]} ▸`);
-    for (const meta of TRAINABLE) {
+    for (const meta of this.trainable) {
       this.buttons[`add_${meta.kind}`]?.setEnabled(this.available(meta.kind) > 0 && !this.result);
     }
 
@@ -463,9 +489,9 @@ export class RaidScene extends Phaser.Scene {
   }
 }
 
-/** A mustered mid-game town for ?demo=raid screenshots. */
-function makeRaidShowcase(now: number): TownState {
-  const town = unlockAll(newTown(now));
+/** A mustered mid-game town for ?demo=raid screenshots (&faction=china flips sides). */
+function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
+  const town = unlockAll(newTown(now, faction));
   town.campaign.difficulty = 'standard';
   town.campaign.next = 6;
   town.supplies = 2400;
@@ -474,7 +500,10 @@ function makeRaidShowcase(now: number): TownState {
   town.frontline.wins = 1;
   town.frontline.totalWins = 4;
   town.frontline.scouted = ['t2v0', 't2v1', 't2v2'];
-  town.army = { ranger: 4, engineer: 2, javelin: 2, humvee: 1, abrams: 1 };
+  town.army =
+    faction === 'china'
+      ? { rifle: 4, sapper: 2, grenadier: 2, zbd: 1, type99: 1 }
+      : { ranger: 4, engineer: 2, javelin: 2, humvee: 1, abrams: 1 };
   const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
   place(town, 'barracks', idx(20, 5), now - 600_000);
   town.structures.find((s) => s.kind === 'cc')!.level = 2;
@@ -484,7 +513,7 @@ function makeRaidShowcase(now: number): TownState {
   structureAt(town, idx(20, 17))!.level = 2;
   const barracks = structureAt(town, idx(20, 5));
   if (barracks) {
-    barracks.trainQueue = ['ranger', 'javelin'];
+    barracks.trainQueue = faction === 'china' ? ['rifle', 'grenadier'] : ['ranger', 'javelin'];
     barracks.trainEndsAt = now + 9_000;
   }
   town.lastSeen = now;

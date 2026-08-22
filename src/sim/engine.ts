@@ -801,10 +801,16 @@ export class Engine {
 
       if (!attacker.path) continue; // stuck: nothing to demolish, nowhere to go
 
-      // At the target's perimeter: melee it down.
+      // At the target's perimeter: melee it down. hqDps is the anti-CC pace;
+      // any other structure is a demolition job, so breachers bring charges
+      // (same rule as path-blockers below — wallDps, armor ignored).
       if (attacker.path.length === 1 && attacker.goalCells.includes(attacker.path[0]!)) {
         attacker.state = 'assaulting';
-        target.hp -= attacker.profile.hqDps * DT;
+        const dps =
+          target === this.cc
+            ? attacker.profile.hqDps
+            : Math.max(attacker.profile.hqDps, attacker.profile.wallDps);
+        target.hp -= dps * DT;
         continue;
       }
 

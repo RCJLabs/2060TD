@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { bonusMet, CAMPAIGN, type MissionDef } from '../../content/campaign';
-import { M1_CATALOG } from '../../content/catalog';
+import { bonusMet, missionSiege, type MissionDef } from '../../content/campaign';
+import { campaignFor, defenseCatalogFor, flavorFor, type FactionId } from '../../content/factions';
 import { HOLD_THE_LINE } from '../../content/missions';
 import { outcomeFromEngine } from '../../meta/town';
 import { DT, Engine } from '../../sim/engine';
@@ -19,6 +19,8 @@ export interface SiegeLaunchData {
   config?: SimConfig;
   fromTown?: boolean;
   battle?: BattleTag;
+  /** Whose defense kit fights this battle (default 'usa'). */
+  faction?: FactionId;
 }
 
 const CELL = 32;
@@ -54,6 +56,7 @@ export class SiegeScene extends Phaser.Scene {
   private fromTown = false;
   private launchConfig: SimConfig | null = null;
   private battleTag: BattleTag | null = null;
+  private faction: FactionId = 'usa';
   private paused = false;
   private pausedText!: Phaser.GameObjects.Text;
 
@@ -75,12 +78,18 @@ export class SiegeScene extends Phaser.Scene {
     this.launchConfig = data?.config ?? null;
     this.fromTown = data?.fromTown ?? false;
     this.battleTag = data?.battle ?? null;
+    const urlFaction = new URLSearchParams(window.location.search).get('faction');
+    this.faction = data?.faction ?? (urlFaction === 'china' ? 'china' : 'usa');
     this.paused = false;
   }
 
   private get mission(): MissionDef | null {
     if (this.battleTag?.type !== 'mission') return null;
-    return CAMPAIGN.find((m) => m.id === (this.battleTag as { missionId: string }).missionId) ?? null;
+    return (
+      campaignFor(this.faction).find(
+        (m) => m.id === (this.battleTag as { missionId: string }).missionId,
+      ) ?? null
+    );
   }
 
   create(): void {
@@ -92,19 +101,29 @@ export class SiegeScene extends Phaser.Scene {
     this.overlayShown = false;
     this.buttons = {};
 
+    // Standalone battles fight the faction's own war: USA gets the tuned
+    // HOLD THE LINE demo, China gets an Eastern Tide mission at strength.
+    const standaloneSiege =
+      this.faction === 'china'
+        ? {
+            ...missionSiege(campaignFor('china')[4]!, 'standard'),
+            name: 'HOLD THE SAND (SANDBOX)',
+            startingSupplies: HOLD_THE_LINE.startingSupplies,
+          }
+        : HOLD_THE_LINE;
     const config: SimConfig = this.launchConfig ?? {
       width: GRID_W,
       height: GRID_H,
       seed: this.demoMode ? 1337 : Date.now() >>> 0,
       ccOrigin: 11 * GRID_W + 27,
       spawnColumn: 0,
-      siege: HOLD_THE_LINE,
+      siege: standaloneSiege,
     };
-    this.engine = new Engine(config, M1_CATALOG);
+    this.engine = new Engine(config, defenseCatalogFor(this.faction));
     this.battle = new BattleRenderer(this, this.engine, CELL);
 
     this.add
-      .text(GRID_PX_W / 2, 6, 'OPERATION LANDFALL — COOS BAY PERIMETER', mono(11, COLORS.inkDim))
+      .text(GRID_PX_W / 2, 6, flavorFor(this.faction).operation, mono(11, COLORS.inkDim))
       .setOrigin(0.5, 0)
       .setDepth(5);
 
@@ -427,20 +446,28 @@ export class SiegeScene extends Phaser.Scene {
       this.armPower('arty'),
     );
 
-    // Static labels for costs.
+    // Static labels for costs — names come from the faction's own catalog.
     const w = catalog.walls;
     const s = catalog.structures;
     const p = catalog.powers;
-    this.buttons['wall']!.setLabel(`WALL — ${w['wall']!.supplyCost} SUP [1]`);
-    this.buttons['m2nest']!.setLabel(`M2 MG NEST — ${s['m2nest']!.supplyCost} SUP [2]`);
-    this.buttons['autocannon']!.setLabel(`25MM AUTOCANNON — ${s['autocannon']!.supplyCost} [3]`);
-    this.buttons['mortar']!.setLabel(`120MM MORTAR — ${s['mortar']!.supplyCost} SUP [4]`);
-    this.buttons['depmg']!.setLabel(`DEPLOYABLE MG — ${s['depmg']!.cpCost} CP [1]`);
-    this.buttons['foxhole']!.setLabel(`RIFLE FOXHOLE — ${s['foxhole']!.cpCost} CP [2]`);
-    this.buttons['claymore']!.setLabel(`CLAYMORE FIELD — ${s['claymore']!.cpCost} CP [3]`);
-    this.buttons['hesco']!.setLabel(`HESCO BARRICADE — ${w['hesco']!.cpCost} CP [4]`);
-    this.buttons['a10']!.setLabel(`A-10 GUN RUN — ${p['a10']!.cpCost} CP [Q]`);
-    this.buttons['arty']!.setLabel(`155MM MISSION — ${p['arty']!.cpCost} CP [W]`);
+    const fit = (name: string, cost: number | undefined, unit: string, key: string): string => {
+      const full = `${name.toUpperCase()} — ${cost ?? 0} ${unit} [${key}]`;
+      return full.length <= 30 ? full : `${name.toUpperCase()} — ${cost ?? 0} [${key}]`;
+    };
+    this.buttons['wall']!.setLabel(fit(w['wall']!.name, w['wall']!.supplyCost, 'SUP', '1'));
+    this.buttons['m2nest']!.setLabel(fit(s['m2nest']!.name, s['m2nest']!.supplyCost, 'SUP', '2'));
+    this.buttons['autocannon']!.setLabel(
+      fit(s['autocannon']!.name, s['autocannon']!.supplyCost, 'SUP', '3'),
+    );
+    this.buttons['mortar']!.setLabel(fit(s['mortar']!.name, s['mortar']!.supplyCost, 'SUP', '4'));
+    this.buttons['depmg']!.setLabel(fit(s['depmg']!.name, s['depmg']!.cpCost, 'CP', '1'));
+    this.buttons['foxhole']!.setLabel(fit(s['foxhole']!.name, s['foxhole']!.cpCost, 'CP', '2'));
+    this.buttons['claymore']!.setLabel(fit(s['claymore']!.name, s['claymore']!.cpCost, 'CP', '3'));
+    this.buttons['hesco']!.setLabel(fit(w['hesco']!.name, w['hesco']!.cpCost, 'CP', '4'));
+    this.buttons['a10']!.setLabel(fit(p['a10']!.short ?? p['a10']!.name, p['a10']!.cpCost, 'CP', 'Q'));
+    this.buttons['arty']!.setLabel(
+      fit(p['arty']!.short ?? p['arty']!.name, p['arty']!.cpCost, 'CP', 'W'),
+    );
 
     this.add.text(x0 + pad, 386, 'INTEL', mono(10, COLORS.inkDim));
     this.intelText = this.add.text(x0 + pad, 402, '', mono(11, COLORS.ink, { lineSpacing: 4 }));
@@ -558,14 +585,13 @@ export class SiegeScene extends Phaser.Scene {
       if (!button) continue;
       const charges = e.powerChargesLeft(kind);
       const stock = charges !== null ? ` ×${charges}` : '';
+      const name = (def.short ?? def.name).toUpperCase();
       if (cd > 0) {
         button.setEnabled(false);
-        button.setLabel(`${def.name.toUpperCase()} — ${Math.ceil(cd)}s${stock}`);
+        button.setLabel(`${name} — ${Math.ceil(cd)}s${stock}`);
       } else {
         button.setEnabled(e.canCastPower(kind));
-        button.setLabel(
-          `${def.name.toUpperCase()} — ${def.cpCost} CP${stock} [${kind === 'a10' ? 'Q' : 'W'}]`,
-        );
+        button.setLabel(`${name} — ${def.cpCost} CP${stock} [${kind === 'a10' ? 'Q' : 'W'}]`);
       }
     }
     const repairCost = e.repairAllCost();
@@ -630,12 +656,8 @@ export class SiegeScene extends Phaser.Scene {
     if (mission) {
       lines.push(...(victory ? mission.debriefVictory : mission.debriefDefeat), '');
     } else {
-      lines.push(
-        victory
-          ? 'The perimeter held. Coos Bay stays on the map.'
-          : 'The line broke. Survivors are falling back inland.',
-        '',
-      );
+      const flavor = flavorFor(this.faction);
+      lines.push(victory ? flavor.heldLine : flavor.brokeLine, '');
     }
 
     lines.push(

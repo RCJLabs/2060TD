@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { M1_CATALOG, RAID_CATALOG } from '../../content/catalog';
+import { defenseCatalogFor, raidCatalogFor, type FactionId } from '../../content/factions';
 import { DT, Engine } from '../../sim/engine';
 import type { SimConfig } from '../../sim/types';
 import { BattleRenderer } from '../BattleRenderer';
@@ -8,9 +8,11 @@ import { makeButton, mono, type Button } from '../ui';
 
 export interface ReplayData {
   config: SimConfig;
-  /** raid = USA attacks a Chinese base; defense = a probe on your town. */
+  /** raid = your army hits an enemy base; defense = a probe on your town. */
   kind: 'raid' | 'defense';
   title: string;
+  /** Whose war this footage is from (picks the catalogs; default 'usa'). */
+  faction?: FactionId;
   /** Scene key to return to (with its restart payload). */
   backTo: 'town' | 'raid';
   backData?: object;
@@ -43,7 +45,9 @@ export class ReplayScene extends Phaser.Scene {
   }
 
   create(): void {
-    const catalog = this.replay.kind === 'raid' ? RAID_CATALOG : M1_CATALOG;
+    const faction = this.replay.faction ?? 'usa';
+    const catalog =
+      this.replay.kind === 'raid' ? raidCatalogFor(faction) : defenseCatalogFor(faction);
     this.engine = new Engine(this.replay.config, catalog);
     this.engine.enqueue({ tick: 0, type: 'startAssault' });
     this.battle = new BattleRenderer(this, this.engine, 32, this.replay.kind === 'raid');

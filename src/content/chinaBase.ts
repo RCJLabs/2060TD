@@ -28,10 +28,10 @@ export const CHINA_BASE: Record<string, StructureProfile> = {
     footprint: 1,
     blocks: true,
     targetable: true,
-    weapon: { damageType: 'smallArms', damage: 9, shotsPerSecond: 3.0, range: 4.5 },
+    weapon: { damageType: 'smallArms', damage: 11, shotsPerSecond: 3.0, range: 4.5 },
     levels: [
-      { maxHp: 330, weapon: { damageType: 'smallArms', damage: 12, shotsPerSecond: 3.0, range: 4.5 } },
-      { maxHp: 410, weapon: { damageType: 'smallArms', damage: 15, shotsPerSecond: 3.0, range: 4.5 } },
+      { maxHp: 330, weapon: { damageType: 'smallArms', damage: 14, shotsPerSecond: 3.0, range: 4.5 } },
+      { maxHp: 410, weapon: { damageType: 'smallArms', damage: 18, shotsPerSecond: 3.0, range: 4.5 } },
     ],
   },
   qlzTower: {
@@ -81,10 +81,10 @@ export const CHINA_BASE: Record<string, StructureProfile> = {
     footprint: 1,
     blocks: true,
     targetable: true,
-    weapon: { damageType: 'shaped', damage: 52, shotsPerSecond: 0.35, range: 5.5 },
+    weapon: { damageType: 'shaped', damage: 60, shotsPerSecond: 0.35, range: 5.5 },
     levels: [
-      { maxHp: 350, weapon: { damageType: 'shaped', damage: 66, shotsPerSecond: 0.35, range: 5.5 } },
-      { maxHp: 430, weapon: { damageType: 'shaped', damage: 82, shotsPerSecond: 0.35, range: 5.7 } },
+      { maxHp: 350, weapon: { damageType: 'shaped', damage: 76, shotsPerSecond: 0.35, range: 5.5 } },
+      { maxHp: 430, weapon: { damageType: 'shaped', damage: 94, shotsPerSecond: 0.35, range: 5.7 } },
     ],
   },
 

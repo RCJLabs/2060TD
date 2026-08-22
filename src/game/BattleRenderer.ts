@@ -251,17 +251,29 @@ export class BattleRenderer {
     px: number,
     py: number,
   ): void {
+    // Color is allegiance, shape is role: in raids (hostileStructures) the
+    // attacking units are the player's own — olive; defending, they're the
+    // enemy — crimson. Faction cameos (NK, RU) keep their own tints.
+    const friendly = this.hostileStructures;
+    const body = friendly ? COLORS.olive : COLORS.crimson;
+    const dark = friendly ? COLORS.oliveDark : COLORS.crimsonDark;
+
     switch (attacker.profile.kind) {
+      // ---- swarm infantry: small plain circles --------------------------------
       case 'militia':
-        g.fillStyle(COLORS.crimson, 1);
+      case 'guardsman':
+        g.fillStyle(body, 1);
         g.fillCircle(px, py, 5);
         break;
+      // ---- line infantry: ringed circles --------------------------------------
       case 'rifle':
-        g.fillStyle(COLORS.crimson, 1);
+      case 'ranger':
+        g.fillStyle(body, 1);
         g.fillCircle(px, py, 7);
-        g.lineStyle(1, COLORS.crimsonDark, 1);
+        g.lineStyle(1, dark, 1);
         g.strokeCircle(px, py, 7);
         break;
+      // ---- breachers: diamonds (sapper reads as pure alarm) --------------------
       case 'sapper':
         g.fillStyle(COLORS.signal, 1);
         g.fillPoints(
@@ -274,21 +286,8 @@ export class BattleRenderer {
           true,
         );
         break;
-      case 'grenadier':
-        g.fillStyle(COLORS.crimson, 1);
-        g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
-        g.fillStyle(COLORS.signal, 1);
-        g.fillCircle(px - 2, py, 2);
-        break;
-      // ---- USA raid roster: olive silhouettes -------------------------------
-      case 'ranger':
-        g.fillStyle(COLORS.olive, 1);
-        g.fillCircle(px, py, 7);
-        g.lineStyle(1, COLORS.oliveDark, 1);
-        g.strokeCircle(px, py, 7);
-        break;
       case 'engineer':
-        g.fillStyle(COLORS.olive, 1);
+        g.fillStyle(body, 1);
         g.fillPoints(
           [
             { x: px, y: py - 8 },
@@ -301,28 +300,39 @@ export class BattleRenderer {
         g.fillStyle(COLORS.tracer, 1);
         g.fillCircle(px, py, 2);
         break;
+      // ---- standoff fire teams: arrowheads --------------------------------------
+      case 'grenadier':
+        g.fillStyle(body, 1);
+        g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
+        g.fillStyle(COLORS.signal, 1);
+        g.fillCircle(px - 2, py, 2);
+        break;
       case 'javelin':
-        g.fillStyle(COLORS.olive, 1);
+        g.fillStyle(body, 1);
         g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
         g.fillStyle(COLORS.intel, 1);
         g.fillCircle(px - 2, py, 2);
         break;
+      // ---- light vehicles: small hulls with a barrel ------------------------------
       case 'humvee':
-        g.fillStyle(COLORS.oliveDark, 1);
+      case 'zbd':
+        g.fillStyle(dark, 1);
         g.fillRect(px - 9, py - 6, 18, 12);
-        g.lineStyle(1, COLORS.olive, 1);
+        g.lineStyle(1, body, 1);
         g.strokeRect(px - 9, py - 6, 18, 12);
-        g.lineStyle(2, COLORS.olive, 1);
+        g.lineStyle(2, body, 1);
         g.lineBetween(px, py, px + 12, py);
         break;
+      // ---- main battle tanks: big hulls with turret + barrel -----------------------
       case 'abrams':
-        g.fillStyle(COLORS.oliveDark, 1);
+      case 'type99':
+        g.fillStyle(dark, 1);
         g.fillRect(px - 12, py - 8, 24, 16);
-        g.lineStyle(2, COLORS.olive, 1);
+        g.lineStyle(2, body, 1);
         g.strokeRect(px - 12, py - 8, 24, 16);
-        g.fillStyle(COLORS.olive, 1);
+        g.fillStyle(body, 1);
         g.fillCircle(px, py, 5);
-        g.lineStyle(3, COLORS.olive, 1);
+        g.lineStyle(3, body, 1);
         g.lineBetween(px, py, px + 16, py);
         break;
       case 'infiltrator':
@@ -349,24 +359,6 @@ export class BattleRenderer {
         g.lineStyle(3, COLORS.ruRust, 1);
         g.lineBetween(px, py, px + 15, py);
         break;
-      case 'zbd':
-        g.fillStyle(COLORS.crimsonDark, 1);
-        g.fillRect(px - 9, py - 6, 18, 12);
-        g.lineStyle(1, COLORS.crimson, 1);
-        g.strokeRect(px - 9, py - 6, 18, 12);
-        g.lineStyle(2, COLORS.crimson, 1);
-        g.lineBetween(px, py, px + 12, py);
-        break;
-      case 'type99':
-        g.fillStyle(COLORS.crimsonDark, 1);
-        g.fillRect(px - 12, py - 8, 24, 16);
-        g.lineStyle(2, COLORS.crimson, 1);
-        g.strokeRect(px - 12, py - 8, 24, 16);
-        g.fillStyle(COLORS.crimson, 1);
-        g.fillCircle(px, py, 5);
-        g.lineStyle(3, COLORS.crimson, 1);
-        g.lineBetween(px, py, px + 16, py);
-        break;
       default:
         // Unknown kinds (test/sandbox content): breakers as diamonds, rest as circles.
         if (attacker.profile.wallDps > 20) {
@@ -381,7 +373,7 @@ export class BattleRenderer {
             true,
           );
         } else {
-          g.fillStyle(COLORS.crimson, 1);
+          g.fillStyle(body, 1);
           g.fillCircle(px, py, 7);
         }
         break;

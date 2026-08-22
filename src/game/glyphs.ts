@@ -159,14 +159,14 @@ export function drawStructureGlyph(
       g.strokeCircle(px + 8, py, 6);
       break;
     case 'supplyDepot':
-      buildingBase(g, px, py, cell, COLORS.sandDark);
+      buildingBase(g, px, py, cell, COLORS.sandDark, hostile);
       g.fillStyle(COLORS.sand, 1); // crates
       g.fillRect(px - 12, py - 10, 10, 8);
       g.fillRect(px + 2, py - 10, 10, 8);
       g.fillRect(px - 5, py + 2, 10, 8);
       break;
     case 'fuelDepot':
-      buildingBase(g, px, py, cell, COLORS.steel);
+      buildingBase(g, px, py, cell, COLORS.steel, hostile);
       g.fillStyle(COLORS.signal, 0.9); // drums
       g.fillCircle(px - 8, py, 7);
       g.fillCircle(px + 8, py, 7);
@@ -204,25 +204,25 @@ export function drawStructureGlyph(
       g.lineBetween(px, py - 2, px + 13, py - 2);
       break;
     case 'm2nest':
-      turretBase(g, px, py);
-      g.fillStyle(COLORS.olive, 1);
+      turretBase(g, px, py, hostile);
+      g.fillStyle(hostile ? COLORS.crimson : COLORS.olive, 1);
       g.fillCircle(px, py, 7);
       g.lineStyle(3, COLORS.steel, 1);
       g.lineBetween(px, py, px, py - 12);
       break;
     case 'autocannon':
-      turretBase(g, px, py);
-      g.fillStyle(COLORS.olive, 1);
+      turretBase(g, px, py, hostile);
+      g.fillStyle(hostile ? COLORS.crimson : COLORS.olive, 1);
       g.fillCircle(px, py, 7);
       g.lineStyle(2, COLORS.steel, 1);
       g.lineBetween(px - 3, py, px - 3, py - 13);
       g.lineBetween(px + 3, py, px + 3, py - 13);
       break;
     case 'mortar':
-      turretBase(g, px, py);
+      turretBase(g, px, py, hostile);
       g.lineStyle(3, COLORS.steel, 1);
       g.strokeCircle(px, py, 7);
-      g.fillStyle(COLORS.olive, 1);
+      g.fillStyle(hostile ? COLORS.crimson : COLORS.olive, 1);
       g.fillCircle(px, py, 3);
       break;
     case 'depmg':
@@ -248,8 +248,8 @@ export function drawStructureGlyph(
       g.fillTriangle(px + 4, py - 5, px + 4, py + 5, px - 6, py);
       break;
     default:
-      turretBase(g, px, py);
-      g.fillStyle(COLORS.olive, 1);
+      turretBase(g, px, py, hostile);
+      g.fillStyle(hostile ? COLORS.crimson : COLORS.olive, 1);
       g.fillCircle(px, py, 6);
       break;
   }

@@ -11,6 +11,29 @@ export const MAP_W = 32;
 export const MAP_H = 24;
 export const TARGETS_PER_TIER = 3;
 
+/** Which kinds a generated base is built from — one kit per defending faction. */
+export interface BaseKit {
+  /** Tower kinds by role: [basic anti-infantry, area denial, anti-armor]. */
+  towers: [string, string, string];
+  cache: string;
+  dump: string;
+}
+
+/** China's Front Line kit (the default: USA raids China). */
+export const CHINA_BASE_KIT: BaseKit = {
+  towers: ['hmgTower', 'qlzTower', 'atgmTower'],
+  cache: 'supplyCache',
+  dump: 'fuelDump',
+};
+
+/** USA firebases (what a China player raids). Mortars arrive at tier 3 —
+ * two per compound before then erased PLA infantry raids outright (M5 pass). */
+export const USA_BASE_KIT: BaseKit = {
+  towers: ['m2nest', 'autocannon', 'mortar'],
+  cache: 'supplyDepot',
+  dump: 'fuelDepot',
+};
+
 export interface GeneratedBase {
   tier: number;
   variant: number;
@@ -55,7 +78,11 @@ const footprint2 = (origin: CellIndex): CellIndex[] => [
   origin + MAP_W + 1,
 ];
 
-export function generateBase(tier: number, variant: number): GeneratedBase {
+export function generateBase(
+  tier: number,
+  variant: number,
+  kit: BaseKit = CHINA_BASE_KIT,
+): GeneratedBase {
   const seed = (tier * 7919 + variant * 104729 + 12345) >>> 0;
   const rng = createRng(seed);
   const level = structureLevelFor(tier);
@@ -102,11 +129,11 @@ export function generateBase(tier: number, variant: number): GeneratedBase {
     spotIndex < economySpots.length ? economySpots[spotIndex++]! : null;
   for (let i = 0; i < cacheCount; i++) {
     const spot = nextSpot();
-    if (spot) putStructure('supplyCache', spot[0] + ri(rng, -1, 1), spot[1], true);
+    if (spot) putStructure(kit.cache, spot[0] + ri(rng, -1, 1), spot[1], true);
   }
   for (let i = 0; i < dumpCount; i++) {
     const spot = nextSpot();
-    if (spot) putStructure('fuelDump', spot[0], spot[1] + ri(rng, -1, 0), true);
+    if (spot) putStructure(kit.dump, spot[0], spot[1] + ri(rng, -1, 0), true);
   }
 
   // ---- walls by template -----------------------------------------------------
@@ -184,9 +211,9 @@ export function generateBase(tier: number, variant: number): GeneratedBase {
   // ---- towers ------------------------------------------------------------------
   const towerCount = Math.min(8, 3 + Math.floor(tier / 2));
   const towerKind = (i: number): string => {
-    if (tier >= 3 && i % 3 === 2) return 'atgmTower';
-    if (tier >= 2 && i % 2 === 1) return 'qlzTower';
-    return 'hmgTower';
+    if (tier >= 3 && i % 3 === 2) return kit.towers[2]; // anti-armor
+    if (tier >= 2 && i % 2 === 1) return kit.towers[1]; // area denial
+    return kit.towers[0];
   };
   let placed = 0;
   for (let i = 0; i < towerSpots.length && placed < towerCount; i++) {
@@ -211,12 +238,17 @@ export function generateBase(tier: number, variant: number): GeneratedBase {
 export function lootFor(kind: string, tier: number): { supplies: number; fuel: number } {
   switch (kind) {
     case 'supplyCache':
+    case 'supplyDepot':
       return { supplies: 120 + 40 * tier, fuel: 0 };
     case 'fuelDump':
+    case 'fuelDepot':
       return { supplies: 0, fuel: 40 + 15 * tier };
     case 'hmgTower':
     case 'qlzTower':
     case 'atgmTower':
+    case 'm2nest':
+    case 'autocannon':
+    case 'mortar':
       return { supplies: 25 + 10 * tier, fuel: 0 };
     case 'cc':
       return { supplies: 250 + 90 * tier, fuel: 50 + 20 * tier };

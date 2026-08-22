@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { MissionDef } from '../../content/campaign';
+import { campaignFor, flavorFor, type FactionId } from '../../content/factions';
 import type { SimConfig } from '../../sim/types';
 import { COLORS } from '../palette';
 import { mono, makeButton } from '../ui';
@@ -8,6 +9,7 @@ export interface BriefingData {
   mission: MissionDef;
   /** Fully-built battle config; this scene only displays and forwards it. */
   config: SimConfig;
+  faction: FactionId;
 }
 
 /**
@@ -41,14 +43,20 @@ export class BriefingScene extends Phaser.Scene {
     this.add.rectangle(140, 60, width - 280, 648, COLORS.bgPanel).setOrigin(0);
     this.add.rectangle(140, 60, width - 280, 2, COLORS.gridLine).setOrigin(0);
 
+    const faction = this.briefing.faction ?? 'usa';
     this.add
-      .text(cx, 92, `MISSION ${mission.index + 1} OF 9`, mono(11, COLORS.inkDim))
+      .text(
+        cx,
+        92,
+        `MISSION ${mission.index + 1} OF ${campaignFor(faction).length}`,
+        mono(11, COLORS.inkDim),
+      )
       .setOrigin(0.5, 0);
     this.add
       .text(cx, 112, mission.codename, mono(30, COLORS.ink, { fontStyle: 'bold' }))
       .setOrigin(0.5, 0);
     this.add
-      .text(cx, 152, 'OPERATION LANDFALL — COOS BAY PERIMETER', mono(10, COLORS.inkDim))
+      .text(cx, 152, flavorFor(faction).operation, mono(10, COLORS.inkDim))
       .setOrigin(0.5, 0);
 
     this.add.text(180, 196, 'INCOMING TRANSMISSION', mono(10, COLORS.signal));
@@ -93,6 +101,7 @@ export class BriefingScene extends Phaser.Scene {
       config: this.briefing.config,
       fromTown: true,
       battle: { type: 'mission', missionId: this.briefing.mission.id },
+      faction: this.briefing.faction ?? 'usa',
     });
   }
 
