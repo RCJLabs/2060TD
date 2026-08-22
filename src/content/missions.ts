@@ -7,10 +7,20 @@ import type { SiegeDef, WaveEntry } from '../sim/types';
  * small arms, and the Type 99 demands kinetic focus or powers.
  */
 
-const entry = (atTick: number, kind: string, row: number): WaveEntry => ({ atTick, kind, row });
+export const entry = (atTick: number, kind: string, row: number): WaveEntry => ({
+  atTick,
+  kind,
+  row,
+});
 
 /** n spawns of `kind`, starting at `from`, every `step` ticks, cycling rows. */
-function series(from: number, step: number, n: number, kind: string, rows: number[]): WaveEntry[] {
+export function series(
+  from: number,
+  step: number,
+  n: number,
+  kind: string,
+  rows: number[],
+): WaveEntry[] {
   const out: WaveEntry[] = [];
   for (let i = 0; i < n; i++) {
     out.push(entry(from + i * step, kind, rows[i % rows.length]!));

@@ -19,6 +19,7 @@ export const USA_STRUCTURES: Record<string, StructureProfile> = {
     footprint: 2,
     blocks: true,
     targetable: true,
+    levels: [{ maxHp: 2200 }, { maxHp: 3000 }],
   },
 
   // ---- emplacements (permanent layer, Supplies) ------------------------------
@@ -31,6 +32,10 @@ export const USA_STRUCTURES: Record<string, StructureProfile> = {
     targetable: true,
     supplyCost: 60,
     weapon: { damageType: 'smallArms', damage: 10, shotsPerSecond: 3.0, range: 4.5 },
+    levels: [
+      { maxHp: 320, weapon: { damageType: 'smallArms', damage: 13, shotsPerSecond: 3.0, range: 4.5 } },
+      { maxHp: 400, weapon: { damageType: 'smallArms', damage: 17, shotsPerSecond: 3.0, range: 4.5 } },
+    ],
   },
   autocannon: {
     kind: 'autocannon',
@@ -41,6 +46,10 @@ export const USA_STRUCTURES: Record<string, StructureProfile> = {
     targetable: true,
     supplyCost: 100,
     weapon: { damageType: 'kinetic', damage: 22, shotsPerSecond: 1.6, range: 5.5 },
+    levels: [
+      { maxHp: 380, weapon: { damageType: 'kinetic', damage: 29, shotsPerSecond: 1.6, range: 5.5 } },
+      { maxHp: 470, weapon: { damageType: 'kinetic', damage: 37, shotsPerSecond: 1.6, range: 5.5 } },
+    ],
   },
   mortar: {
     kind: 'mortar',
@@ -59,6 +68,32 @@ export const USA_STRUCTURES: Record<string, StructureProfile> = {
       splashRadius: 1.6,
       flightSeconds: 1.2,
     },
+    levels: [
+      {
+        maxHp: 260,
+        weapon: {
+          damageType: 'explosive',
+          damage: 46,
+          shotsPerSecond: 1 / 3.5,
+          range: 9,
+          minRange: 3,
+          splashRadius: 1.6,
+          flightSeconds: 1.2,
+        },
+      },
+      {
+        maxHp: 330,
+        weapon: {
+          damageType: 'explosive',
+          damage: 58,
+          shotsPerSecond: 1 / 3.5,
+          range: 9.5,
+          minRange: 3,
+          splashRadius: 1.7,
+          flightSeconds: 1.2,
+        },
+      },
+    ],
   },
 
   // ---- field defenses (battle layer, CP) ---------------------------------------

@@ -48,19 +48,32 @@ Carried to M2: unspent-CP → salvage conversion on victory (needs the persisten
 economy to matter), weapon line-of-sight rules (decide vs keep lob-over-walls), hit-flash
 on damaged targets.
 
-## M2 — Town & economy *(~2 sessions)*
+## M2 — Town & economy ✅
 
-The persistent base between battles.
+The persistent base between battles: the game is now a loop, not a mission.
 
-- [ ] Carried from M1: unspent-CP salvage on victory; line-of-sight decision; hit flashes
+- [x] Carried from M1: unspent-CP → salvage Supplies on victory (2:1); impact hit
+      flashes; line-of-sight **decided**: no LoS checks — mortars/grenades lob, direct
+      fire is abstracted (revisit only if playtests demand it)
+- [x] TownScene build mode: place/move buildings (rotate dropped — square footprints,
+      no facing), wall drag-painting, 2×2 footprint rules, sell/repair, selection cards
+- [x] Resources: Supplies + Fuel, per-minute generation, storage caps (CC base + bunkers)
+- [x] Build/upgrade timers with Engineering Bay speed-ups; CC level gates counts and
+      structure levels (emplacements included — leveled stats flow into the siege)
+- [x] USA building set v1: Command Center L1–3, Supply/Fuel Depots, Storage Bunker,
+      Engineering Bay (Barracks & Motor Pool deferred to M4 where army production exists)
+- [x] Save/load: versioned JSON in localStorage + export/import file, reset with confirm
+- [x] Offline resource accrual on load (8h cap), build timers complete while away,
+      "while you were gone" report
+- [x] Siege entry: assaults hit your *actual* town — buildings are big demolishable
+      obstacles, walls lost in battle stay lost, setup-bought guns join the town,
+      destroyed structures come back wrecked (repair 30% of cumulative cost)
+- [x] Assault ladder (pre-campaign): deterministic difficulty generator — 3 waves at L1,
+      grenadiers at L2, armor + Type 99 from L3, scaling counts beyond; victory loot +
+      defeat penalty (raiders take 15% of stores)
+- [x] Ordnance stock: power charges bought with Fuel in town, consumed per cast in battle
 
-- [ ] TownScene build mode: place/move/rotate buildings, wall drag-painting, footprint rules
-- [ ] Resources: Supplies + Fuel, generation rates, storage caps
-- [ ] Build/upgrade timers (Engineering Bay speed-ups), building levels gate content
-- [ ] USA building set v1 (Command Center, depots, storages, Barracks, Motor Pool, Eng. Bay)
-- [ ] Save/load: versioned JSON, localStorage + export/import file
-- [ ] Offline resource accrual on load (capped), elapsed-time handling
-- [ ] Siege entry: attacks target your *actual* town layout
+Carried to M3: a proper battle-report/defense-log screen (current: overlay + banner).
 
 ## M3 — v0.1 "Landfall": defense campaign *(~2–3 sessions)* → **first shareable build**
 

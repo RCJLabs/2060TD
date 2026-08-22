@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { Attacker, Engine } from '../sim/engine';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
+import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from './glyphs';
 import { COLORS } from './palette';
 import { mono } from './ui';
 
@@ -58,28 +59,9 @@ export class BattleRenderer {
   // ---- static layer -----------------------------------------------------------
 
   private drawStaticLayer(): void {
-    const g = this.staticLayer;
     const grid = this.engine.grid;
     const c = this.cell;
-    const pxW = grid.width * c;
-    const pxH = grid.height * c;
-
-    g.fillStyle(COLORS.bgField, 1);
-    g.fillRect(0, 0, pxW, pxH);
-
-    g.lineStyle(1, COLORS.gridLine, 1);
-    for (let x = 0; x <= grid.width; x++) g.lineBetween(x * c, 0, x * c, pxH);
-    for (let y = 0; y <= grid.height; y++) g.lineBetween(0, y * c, pxW, y * c);
-
-    // Attacker entry column: tinted strip with chevrons.
-    const spawnX = this.engine.config.spawnColumn * c;
-    g.fillStyle(COLORS.crimson, 0.07);
-    g.fillRect(spawnX, 0, c, pxH);
-    g.fillStyle(COLORS.crimson, 0.4);
-    for (let y = 1; y < grid.height; y += 3) {
-      const cy = y * c + c / 2;
-      g.fillTriangle(spawnX + 8, cy - 6, spawnX + 8, cy + 6, spawnX + 20, cy);
-    }
+    drawFieldBase(this.staticLayer, grid.width, grid.height, c, this.engine.config.spawnColumn);
 
     // Command Center label (the block itself is drawn dynamically for HP shading).
     const cc = this.engine.cc;
@@ -165,23 +147,7 @@ export class BattleRenderer {
     const grid = this.engine.grid;
     const c = this.cell;
     for (const [cell, wall] of grid.walls) {
-      const x = grid.xOf(cell) * c;
-      const y = grid.yOf(cell) * c;
-      const isHesco = wall.kind === 'hesco';
-      g.fillStyle(isHesco ? COLORS.steel : COLORS.sandDark, 1);
-      g.fillRect(x + 1, y + 1, c - 2, c - 2);
-      g.fillStyle(COLORS.sand, 0.35 + 0.65 * (wall.hp / wall.maxHp));
-      g.fillRect(x + 3, y + 3, c - 6, c - 6);
-      if (isHesco) {
-        g.lineStyle(2, COLORS.steel, 0.8);
-        g.lineBetween(x + 4, y + 4, x + c - 4, y + c - 4);
-        g.lineBetween(x + c - 4, y + 4, x + 4, y + c - 4);
-      }
-      const damage = 1 - wall.hp / wall.maxHp;
-      if (damage > 0.02) {
-        g.fillStyle(COLORS.signal, 0.35 * damage);
-        g.fillRect(x + 3, y + 3, c - 6, c - 6);
-      }
+      drawWallGlyph(g, grid.xOf(cell) * c, grid.yOf(cell) * c, c, wall.kind, wall.hp / wall.maxHp);
     }
   }
 
@@ -190,81 +156,17 @@ export class BattleRenderer {
     for (const s of this.engine.structures) {
       const px = s.center.x * c;
       const py = s.center.y * c;
-      switch (s.profile.kind) {
-        case 'cc': {
-          const x = (s.center.x - 1) * c;
-          const y = (s.center.y - 1) * c;
-          g.fillStyle(COLORS.intel, 1);
-          g.fillRect(x + 3, y + 3, 2 * c - 6, 2 * c - 6);
-          g.lineStyle(2, COLORS.ink, 0.9);
-          g.strokeRect(x + 3, y + 3, 2 * c - 6, 2 * c - 6);
-          this.hpBar(g, px, y - 6, 2 * c - 8, s.hp / s.profile.maxHp, true);
-          break;
-        }
-        case 'm2nest':
-          this.turretBase(g, px, py);
-          g.fillStyle(COLORS.olive, 1);
-          g.fillCircle(px, py, 7);
-          g.lineStyle(3, COLORS.steel, 1);
-          g.lineBetween(px, py, px, py - 12);
-          break;
-        case 'autocannon':
-          this.turretBase(g, px, py);
-          g.fillStyle(COLORS.olive, 1);
-          g.fillCircle(px, py, 7);
-          g.lineStyle(2, COLORS.steel, 1);
-          g.lineBetween(px - 3, py, px - 3, py - 13);
-          g.lineBetween(px + 3, py, px + 3, py - 13);
-          break;
-        case 'mortar':
-          this.turretBase(g, px, py);
-          g.lineStyle(3, COLORS.steel, 1);
-          g.strokeCircle(px, py, 7);
-          g.fillStyle(COLORS.olive, 1);
-          g.fillCircle(px, py, 3);
-          break;
-        case 'depmg':
-          g.fillStyle(COLORS.steel, 0.35);
-          g.fillRect(px - 10, py - 10, 20, 20);
-          g.fillStyle(COLORS.steel, 1);
-          g.fillCircle(px, py, 5);
-          g.lineStyle(2, COLORS.ink, 0.8);
-          g.lineBetween(px, py, px, py - 9);
-          break;
-        case 'foxhole':
-          g.fillStyle(COLORS.sandDark, 0.8);
-          g.fillCircle(px, py, 10);
-          g.lineStyle(3, COLORS.steel, 1);
-          g.beginPath();
-          g.arc(px, py, 10, Math.PI, 0, false);
-          g.strokePath();
-          g.fillStyle(COLORS.olive, 1);
-          g.fillCircle(px, py, 4);
-          break;
-        case 'claymore':
-          g.fillStyle(COLORS.signal, 0.9);
-          g.fillTriangle(px + 4, py - 5, px + 4, py + 5, px - 6, py);
-          g.lineStyle(1, COLORS.signal, 0.35);
-          g.strokeCircle(px, py, (s.profile.trigger?.radius ?? 0.8) * c);
-          break;
-        default: {
-          this.turretBase(g, px, py);
-          g.fillStyle(COLORS.olive, 1);
-          g.fillCircle(px, py, 6);
-          break;
-        }
+      drawStructureGlyph(g, s.profile.kind, px, py, c, { level: s.level, inert: s.inert });
+      if (s.profile.kind === 'claymore') {
+        g.lineStyle(1, COLORS.signal, 0.35);
+        g.strokeCircle(px, py, (s.profile.trigger?.radius ?? 0.8) * c);
       }
-      if (s.profile.kind !== 'cc' && s.hp < s.profile.maxHp) {
+      if (s.profile.kind === 'cc') {
+        this.hpBar(g, px, (s.center.y - 1) * c - 6, 2 * c - 8, s.hp / s.profile.maxHp, true);
+      } else if (s.hp < s.profile.maxHp) {
         this.hpBar(g, px, py - 16, 22, s.hp / s.profile.maxHp, false);
       }
     }
-  }
-
-  private turretBase(g: Phaser.GameObjects.Graphics, px: number, py: number): void {
-    g.fillStyle(COLORS.oliveDark, 1);
-    g.fillRect(px - 11, py - 11, 22, 22);
-    g.lineStyle(1, COLORS.gridLine, 1);
-    g.strokeRect(px - 11, py - 11, 22, 22);
   }
 
   private drawPaths(g: Phaser.GameObjects.Graphics, alpha: number): void {
@@ -467,6 +369,9 @@ export class BattleRenderer {
         case 'tracer':
           g.lineStyle(1.5, fx.color ?? COLORS.tracer, 0.9 * (1 - t));
           g.lineBetween(fx.x * c, fx.y * c, fx.x2! * c, fx.y2! * c);
+          // Impact flash on the target.
+          g.fillStyle(fx.color ?? COLORS.tracer, 0.8 * (1 - t));
+          g.fillCircle(fx.x2! * c, fx.y2! * c, 3.5 * (1 - t) + 1);
           break;
         case 'boom':
           g.lineStyle(2, COLORS.signal, 0.8 * (1 - t));

@@ -64,7 +64,7 @@ export interface StructureProfile {
   kind: string;
   name: string;
   maxHp: number;
-  /** Grid footprint edge length: 1 (1×1) or 2 (2×2, Command Center only). */
+  /** Grid footprint edge length: 1 (1×1) or 2 (2×2 — CC and economy buildings). */
   footprint: 1 | 2;
   /** Blocks movement (attackers demolish it to pass). Claymores don't. */
   blocks: boolean;
@@ -77,6 +77,11 @@ export interface StructureProfile {
   supplyCost?: number;
   /** Cost in Command Points — deployable during combat (field defenses). */
   cpCost?: number;
+  /**
+   * Stat overrides per upgrade level: levels[0] applies at level 2, etc.
+   * Overrides merge onto the base profile (see Engine.resolveProfile).
+   */
+  levels?: Partial<Pick<StructureProfile, 'maxHp' | 'weapon' | 'trigger'>>[];
 }
 
 export interface WallDef {
@@ -163,16 +168,48 @@ export interface SiegeDef {
   waves: WaveDef[];
 }
 
+/** A pre-existing wall injected at battle start (from the persistent town). */
+export interface LayoutWall {
+  cell: CellIndex;
+  kind: string;
+}
+
+/** A pre-existing structure injected at battle start (from the persistent town). */
+export interface LayoutStructure {
+  cell: CellIndex;
+  kind: string;
+  level?: number;
+  /** Starting HP fraction (under-construction scaffolding arrives damaged). */
+  hpFraction?: number;
+  /** Inert structures don't fire or trigger (still under construction). */
+  inert?: boolean;
+}
+
 export interface SimConfig {
   width: number;
   height: number;
   seed: number;
   /** Top-left cell of the 2×2 Command Center footprint. */
   ccOrigin: CellIndex;
+  /** Command Center upgrade level (scales its HP). Default 1. */
+  ccLevel?: number;
   /** Column reserved for attacker entry; nothing can be built there. */
   spawnColumn: number;
   /** Omit for sandbox mode: free placement, manual spawns, no waves. */
   siege?: SiegeDef;
+  /** The persistent town, placed free of charge before the battle starts. */
+  layout?: { walls: LayoutWall[]; structures: LayoutStructure[] };
+  /**
+   * Ammunition stock per power kind. When present, each cast consumes one
+   * charge and casts without a remaining charge are rejected. Absent =
+   * unlimited (M1 standalone battles, sandbox).
+   */
+  powerCharges?: Record<string, number>;
+  /**
+   * Max total count per structure kind (layout included) and max wall count,
+   * from the town's Command Center gating. Absent = unlimited.
+   */
+  buildLimits?: { structures?: Record<string, number>; walls?: number };
 }
 
 export type Phase = 'sandbox' | 'setup' | 'combat' | 'prep' | 'victory' | 'defeat';
@@ -182,7 +219,7 @@ export type Phase = 'sandbox' | 'setup' | 'combat' | 'prep' | 'victory' | 'defea
 export type Command =
   | { tick: number; type: 'placeWall'; cell: CellIndex; kind: string }
   | { tick: number; type: 'removeWall'; cell: CellIndex }
-  | { tick: number; type: 'placeStructure'; cell: CellIndex; kind: string }
+  | { tick: number; type: 'placeStructure'; cell: CellIndex; kind: string; level?: number }
   | { tick: number; type: 'removeStructure'; cell: CellIndex }
   | { tick: number; type: 'spawnAttacker'; cell: CellIndex; kind: string }
   | { tick: number; type: 'startAssault' }
@@ -215,4 +252,6 @@ export interface SimStats {
   structuresLost: number;
   suppliesSpent: number;
   cpSpent: number;
+  /** Supplies recovered from unspent CP at victory (2 Supplies per CP). */
+  salvage: number;
 }

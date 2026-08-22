@@ -15,53 +15,62 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — M1: Siege vertical slice
+## Current state — M2: The persistent town
 
-**HOLD THE LINE** — the first playable battle of the Landfall arc. Five authored waves of
-China's assault roster against your USA firebase at Coos Bay:
+The game is now a loop, not a mission. Your **forward base at Coos Bay** exists between
+battles: it generates Supplies and Fuel in real time (even while you're away, capped at
+8 hours), buildings construct and upgrade on timers, and your save lives in the browser
+with file export/import.
 
-- **Fortify** (Supplies): lay wall mazes and permanent emplacements — M2 nest, 25mm
-  autocannon, 120mm mortar — then start the assault.
-- **Fight** (Command Points): earn CP passively and per kill; drop field defenses mid-wave
-  (deployable MG, rifle foxhole, claymores, HESCO barricades) and call commander powers
-  (A-10 gun run, 155mm fire mission).
-- **Prep windows** between waves: repair, re-maze, and read the intel on what's inbound.
-- Deterministic combat with damage-type × armor-class counters: small arms shred infantry,
-  kinetic kills armor, explosive punishes crowds and structures.
-- Six attacker types with real behaviors: militia swarms, rifle squads, wall-chewing
-  sappers, grenadiers that stand off and shell your guns, ZBD IFVs, and a Type 99 MBT.
-- Attackers weigh *going around* against *breaking through* everything you place — walls,
-  barricades, even gun emplacements are obstacles with HP, not absolute barriers.
+- **Build the base:** Supply/Fuel Depots, Storage Bunkers, an Engineering Bay that
+  speeds construction, wall mazes, and emplacements — all gated by your Command Center's
+  level (counts *and* upgrade levels; leveled guns carry their stats into battle).
+- **Defend it for real:** the assault ladder generates escalating attacks — 3 waves of
+  infantry at level 1, grenadiers at 2, armor and the Type 99 from 3, scaling counts
+  beyond. The battle happens on your *actual* town layout: economy buildings are big
+  demolishable obstacles, walls lost stay lost, and destroyed structures come back
+  wrecked until repaired.
+- **Consequences both ways:** victory pays loot, converts unspent CP into salvage, and
+  advances the ladder; defeat lets the raiders take 15% of your stores.
+- **Ordnance:** stock A-10 and 155mm charges with Fuel in town; each cast in battle
+  consumes one.
 
-Losing the Command Center loses the battle. Clear all five waves and the sector holds.
+The M1 siege mechanics (active TD with CP-bought field defenses, powers, prep windows,
+damage-type × armor counters, everything-is-demolishable pathing) all carry forward.
 
 ## Quickstart
 
 ```bash
 npm install
-npm run dev        # the mission; add ?playground=1 for the sandbox maze lab,
-                   # ?demo=1 for a scripted mid-battle (screenshot mode)
-npm test           # sim test suites (pathfinding, combat, siege flow, determinism)
+npm run dev        # the game (town → siege loop)
+                   # ?playground=1 sandbox maze lab · ?demo=1 scripted battle
+                   # ?demo=town showcase base (screenshot modes)
+npm test           # sim + meta suites (pathfinding, combat, siege, town, determinism)
 npm run build      # typecheck + production build
-npm run screenshot # headless screenshot of the demo battle into screenshots/
+npm run screenshot # headless screenshots into screenshots/
 ```
 
-## Mission controls
+## Controls
+
+**Town:** left-click uses the selected tool (buildings place per click, walls drag-paint);
+click a structure in select mode to inspect/upgrade/move/sell/repair; right-click or
+`ESC` returns to select; `SPACE` launches the next assault.
+
+**Siege:**
 
 | Control | Action |
 |---|---|
 | Left-click / drag | Use selected tool (walls drag-paint; guns place per click) |
 | Right-click / `ESC` | Cancel tool |
-| `1`–`4` | Select build item (setup/prep: wall, M2, autocannon, mortar · combat: MG, foxhole, claymore, HESCO) |
+| `1`–`4` | Build item (setup/prep: wall, M2, autocannon, mortar · combat: MG, foxhole, claymore, HESCO) |
 | `E` | Erase / refund (setup & prep only) |
 | `Q` / `W` | Arm A-10 gun run / 155mm fire mission, then click the target |
-| `SPACE` | Start assault / skip prep |
-| `P` | Toggle path visualization |
-| `S` | Sim speed ×1 / ×2 / ×4 |
-| `R` | Restart the mission |
+| `SPACE` | Start assault / skip prep / return to base when it's over |
+| `P` / `S` | Path visualization / sim speed ×1 ×2 ×4 |
+| `R` | Restart (standalone battles only — town battles have consequences) |
 
 The sandbox (`?playground=1`): `1/2/3` wall/M2/erase, `W` militia, `B` sapper,
-`SPACE` mixed wave, same view keys.
+`SPACE` mixed wave.
 
 ## Project layout
 
@@ -69,13 +78,15 @@ The sandbox (`?playground=1`): `1/2/3` wall/M2/erase, `W` militia, `B` sapper,
 docs/            Game design document, roadmap, locked decisions
 src/sim/         Pure-TS deterministic simulation (no Phaser imports):
                  fixed-tick engine, siege phase machine, weighted multi-goal A*,
-                 combat resolution, seeded PRNG, state hashing
-src/content/     Data, not code: damage table, China attackers, USA defenses,
-                 powers, the HOLD THE LINE wave scripts
-src/game/        Phaser 3 presentation: BattleRenderer (shared battlefield
-                 drawing), SiegeScene, sandbox PlaygroundScene, UI kit, palette
-tests/           Vitest suites: pathfinding, engine behavior, siege flow,
-                 damage table, determinism hashes
+                 combat resolution, structure levels, seeded PRNG, state hashing
+src/content/     Data, not code: damage table, China attackers, USA defenses &
+                 buildings with level tables, CC gating, the assault ladder
+src/meta/        The persistent layer: town state (timers, accrual, gating,
+                 wrecks), the siege bridge, versioned saves
+src/game/        Phaser 3 presentation: shared glyphs + BattleRenderer,
+                 TownScene, SiegeScene, sandbox PlaygroundScene, UI kit, palette
+tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
+                 assault ladder, damage table, determinism hashes
 ```
 
 **Architecture rule:** `src/sim` never imports Phaser. Same seed + same commands ⇒

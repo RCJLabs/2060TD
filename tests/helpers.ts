@@ -1,3 +1,4 @@
+import { ECONOMY_STRUCTURES } from '../src/content/buildings';
 import { DAMAGE_MULT } from '../src/content/damage';
 import { USA_POWERS, USA_STRUCTURES, USA_WALLS } from '../src/content/usa';
 import { Engine } from '../src/sim/engine';
@@ -70,7 +71,7 @@ export const TEST_ATTACKERS: Record<string, AttackerProfile> = {
 
 export const TEST_CATALOG: Catalog = {
   attackers: TEST_ATTACKERS,
-  structures: USA_STRUCTURES,
+  structures: { ...USA_STRUCTURES, ...ECONOMY_STRUCTURES },
   walls: USA_WALLS,
   powers: USA_POWERS,
   damage: DAMAGE_MULT,

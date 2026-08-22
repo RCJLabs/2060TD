@@ -48,6 +48,9 @@ export interface Structure {
   cells: CellIndex[];
   center: Vec2;
   hp: number;
+  level: number;
+  /** Still under construction: an obstacle, but fires nothing. */
+  inert: boolean;
   weaponCooldown: number;
 }
 
@@ -107,6 +110,7 @@ export class Engine {
     structuresLost: 0,
     suppliesSpent: 0,
     cpSpent: 0,
+    salvage: 0,
   };
 
   tick = 0;
@@ -129,6 +133,9 @@ export class Engine {
   private readonly structureAtCell = new Map<CellIndex, Structure>();
   private readonly pendingImpacts: PendingImpact[] = [];
   private readonly powerCooldowns = new Map<string, number>();
+  private readonly chargesLeft: Map<string, number> | null;
+  /** Structures with id below this came from the town layout — not removable. */
+  private layoutWatermark = 0;
   private readonly pathView: PathGrid;
 
   constructor(config: SimConfig, catalog: Catalog) {
@@ -142,36 +149,24 @@ export class Engine {
     this.waves = (config.siege?.waves ?? []).map((w) =>
       [...w.entries].sort((a, b) => a.atTick - b.atTick),
     );
+    this.chargesLeft = config.powerCharges
+      ? new Map(Object.entries(config.powerCharges))
+      : null;
 
     // Plant the Command Center: 2×2, hard-blocked, the thing everyone dies for.
-    const ccProfile = catalog.structures['cc'];
-    if (!ccProfile) throw new Error('catalog is missing the cc structure');
-    const o = config.ccOrigin;
-    const w = config.width;
-    const ccCells = [o, o + 1, o + w, o + w + 1];
-    this.cc = {
-      id: this.nextId++,
-      profile: ccProfile,
-      origin: o,
-      cells: ccCells,
-      center: { x: this.grid.xOf(o) + 1, y: this.grid.yOf(o) + 1 },
-      hp: ccProfile.maxHp,
-      weaponCooldown: 0,
-    };
-    this.structures.push(this.cc);
-    for (const cell of ccCells) {
-      this.grid.addBlocker(cell);
-      this.structureAtCell.set(cell, this.cc);
-    }
+    const cc = this.createStructure(config.ccOrigin, 'cc', config.ccLevel ?? 1, 1, false);
+    if (!cc) throw new Error('invalid Command Center placement or missing cc profile');
+    this.cc = cc;
+    for (const cell of cc.cells) this.grid.addBlocker(cell);
 
     // Assault goals: the CC's orthogonal perimeter (deduped, sorted — deterministic).
     const goals = new Set<CellIndex>();
     const scratch: CellIndex[] = [0, 0, 0, 0];
-    for (const cell of ccCells) {
+    for (const cell of cc.cells) {
       const n = this.grid.neighbors4(cell, scratch);
       for (let i = 0; i < n; i++) {
         const c = scratch[i]!;
-        if (!ccCells.includes(c)) goals.add(c);
+        if (!cc.cells.includes(c)) goals.add(c);
       }
     }
     this.goalCells = [...goals].sort((a, b) => a - b);
@@ -191,6 +186,69 @@ export class Engine {
         return 0;
       },
     };
+
+    // Inject the persistent town layout, free of charge, before anything moves.
+    if (config.layout) {
+      for (const wall of config.layout.walls) {
+        const def = catalog.walls[wall.kind];
+        if (def && this.isBuildable(wall.cell)) {
+          this.grid.placeWall(wall.cell, def.hp, def.kind);
+        }
+      }
+      for (const s of config.layout.structures) {
+        this.createStructure(s.cell, s.kind, s.level ?? 1, s.hpFraction ?? 1, s.inert ?? false);
+      }
+    }
+    this.layoutWatermark = this.nextId;
+  }
+
+  /** Base profile merged with its per-level overrides (level 2 = levels[0]). */
+  resolveProfile(kind: string, level: number): StructureProfile | undefined {
+    const base = this.catalog.structures[kind];
+    if (!base || level <= 1 || !base.levels || base.levels.length === 0) return base;
+    const override = base.levels[Math.min(level - 2, base.levels.length - 1)];
+    return override ? { ...base, ...override } : base;
+  }
+
+  private footprintCells(origin: CellIndex, footprint: 1 | 2): CellIndex[] | null {
+    if (footprint === 1) return [origin];
+    const x = this.grid.xOf(origin);
+    const y = this.grid.yOf(origin);
+    if (x >= this.grid.width - 1 || y >= this.grid.height - 1) return null;
+    const w = this.grid.width;
+    return [origin, origin + 1, origin + w, origin + w + 1];
+  }
+
+  private createStructure(
+    origin: CellIndex,
+    kind: string,
+    level: number,
+    hpFraction: number,
+    inert: boolean,
+  ): Structure | null {
+    const profile = this.resolveProfile(kind, level);
+    if (!profile) return null;
+    const cells = this.footprintCells(origin, profile.footprint);
+    if (!cells || !cells.every((c) => this.isBuildable(c))) return null;
+    const center =
+      profile.footprint === 2
+        ? { x: this.grid.xOf(origin) + 1, y: this.grid.yOf(origin) + 1 }
+        : this.grid.centerOf(origin);
+    const structure: Structure = {
+      id: this.nextId++,
+      profile,
+      origin,
+      cells,
+      center,
+      hp: profile.maxHp * hpFraction,
+      level,
+      inert,
+      weaponCooldown: 0,
+    };
+    this.structures.push(structure);
+    for (const cell of cells) this.structureAtCell.set(cell, structure);
+    if (profile.blocks) this.grid.version++;
+    return structure;
   }
 
   // ---- input ------------------------------------------------------------------
@@ -262,6 +320,10 @@ export class Engine {
       if (waveDone) {
         this.supplies += siege.suppliesPerWave;
         if (this.waveIndex >= this.waves.length - 1) {
+          // Unspent CP converts to salvaged Supplies — hoarding was a choice.
+          this.stats.salvage = Math.floor(this.cp * 2);
+          this.supplies += this.stats.salvage;
+          this.cp = 0;
           this.phase = 'victory';
           events.push({ type: 'victory' });
         } else {
@@ -378,26 +440,16 @@ export class Engine {
       }
       case 'placeStructure': {
         if (!this.canPlaceStructure(cmd.kind, cmd.cell)) return false;
-        const profile = this.catalog.structures[cmd.kind]!;
-        const structure: Structure = {
-          id: this.nextId++,
-          profile,
-          origin: cmd.cell,
-          cells: [cmd.cell],
-          center: this.grid.centerOf(cmd.cell),
-          hp: profile.maxHp,
-          weaponCooldown: 0,
-        };
-        this.structures.push(structure);
-        this.structureAtCell.set(cmd.cell, structure);
-        if (profile.blocks) this.grid.version++;
-        this.pay(profile);
+        const structure = this.createStructure(cmd.cell, cmd.kind, cmd.level ?? 1, 1, false);
+        if (!structure) return false;
+        this.pay(this.catalog.structures[cmd.kind]!);
         return true;
       }
       case 'removeStructure': {
         if (this.phase !== 'setup' && this.phase !== 'sandbox') return false;
         const s = this.structureAtCell.get(cmd.cell);
-        if (!s || s.profile.kind === 'cc') return false;
+        // Town-layout structures (and the CC) can't be sold off mid-siege.
+        if (!s || s.profile.kind === 'cc' || s.id < this.layoutWatermark) return false;
         if (this.phase === 'setup' && s.profile.supplyCost !== undefined) {
           this.supplies += s.profile.supplyCost;
         }
@@ -435,6 +487,9 @@ export class Engine {
         if (this.phase !== 'sandbox') {
           this.cp -= def.cpCost;
           this.stats.cpSpent += def.cpCost;
+        }
+        if (this.chargesLeft) {
+          this.chargesLeft.set(def.kind, (this.chargesLeft.get(def.kind) ?? 0) - 1);
         }
         this.powerCooldowns.set(def.kind, Math.round(def.cooldownSeconds * TICKS_PER_SECOND));
         this.schedulePower(def.kind, cmd.target);
@@ -522,7 +577,7 @@ export class Engine {
 
   private updateStructures(events: SimEvent[]): void {
     for (const structure of this.structures) {
-      if (structure.hp <= 0) continue;
+      if (structure.hp <= 0 || structure.inert) continue;
       const { profile } = structure;
 
       if (profile.trigger) {
@@ -805,21 +860,46 @@ export class Engine {
 
   canPlaceWall(kind: string, cell: CellIndex): boolean {
     const def = this.catalog.walls[kind];
-    return def !== undefined && this.affords(def) && this.isBuildable(cell);
+    if (!def) return false;
+    // Town wall allowance gates Supplies walls only; HESCOs are battle-layer.
+    if (def.supplyCost !== undefined && this.config.buildLimits?.walls !== undefined) {
+      let supplyWalls = 0;
+      for (const wall of this.grid.walls.values()) {
+        if (this.catalog.walls[wall.kind]?.supplyCost !== undefined) supplyWalls++;
+      }
+      if (supplyWalls >= this.config.buildLimits.walls) return false;
+    }
+    return this.affords(def) && this.isBuildable(cell);
   }
 
   canPlaceStructure(kind: string, cell: CellIndex): boolean {
     const profile = this.catalog.structures[kind];
-    if (!profile || profile.kind === 'cc' || profile.footprint !== 1) return false;
-    return this.affords(profile) && this.isBuildable(cell);
+    if (!profile || profile.kind === 'cc') return false;
+    if (!this.affords(profile)) return false;
+    const limit = this.config.buildLimits?.structures?.[kind];
+    if (limit !== undefined) {
+      let count = 0;
+      for (const s of this.structures) {
+        if (s.profile.kind === kind) count++;
+      }
+      if (count >= limit) return false;
+    }
+    const cells = this.footprintCells(cell, profile.footprint);
+    return cells !== null && cells.every((c) => this.isBuildable(c));
   }
 
   canCastPower(kind: string): boolean {
     const def = this.catalog.powers[kind];
     if (!def) return false;
+    if (this.chargesLeft && (this.chargesLeft.get(kind) ?? 0) <= 0) return false;
     if (this.phase === 'sandbox') return (this.powerCooldowns.get(kind) ?? 0) <= 0;
     if (this.phase !== 'combat') return false;
     return (this.powerCooldowns.get(kind) ?? 0) <= 0 && this.cp >= def.cpCost;
+  }
+
+  /** Remaining charges for a power, or null when the battle has no stock limit. */
+  powerChargesLeft(kind: string): number | null {
+    return this.chargesLeft ? (this.chargesLeft.get(kind) ?? 0) : null;
   }
 
   powerCooldownSeconds(kind: string): number {
@@ -862,7 +942,7 @@ export class Engine {
     ];
     const s = this.stats;
     parts.push(
-      `s${s.spawned},${s.kills},${s.wallsBuilt},${s.wallsLost},${s.structuresLost},${s.suppliesSpent},${s.cpSpent.toFixed(6)}`,
+      `s${s.spawned},${s.kills},${s.wallsBuilt},${s.wallsLost},${s.structuresLost},${s.suppliesSpent},${s.cpSpent.toFixed(6)},${s.salvage}`,
     );
 
     const wallCells = [...this.grid.walls.keys()].sort((a, b) => a - b);
@@ -872,7 +952,7 @@ export class Engine {
     }
     for (const st of this.structures) {
       parts.push(
-        `S${st.id}:${st.profile.kind}@${st.origin}:${st.hp.toFixed(6)}:${st.weaponCooldown.toFixed(6)}`,
+        `S${st.id}:${st.profile.kind}L${st.level}${st.inert ? 'i' : ''}@${st.origin}:${st.hp.toFixed(6)}:${st.weaponCooldown.toFixed(6)}`,
       );
     }
     for (const a of this.attackers) {
@@ -893,6 +973,10 @@ export class Engine {
     }
     const cds = [...this.powerCooldowns.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
     for (const [kind, ticks] of cds) parts.push(`cd${kind}:${ticks}`);
+    if (this.chargesLeft) {
+      const charges = [...this.chargesLeft.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+      for (const [kind, left] of charges) parts.push(`ch${kind}:${left}`);
+    }
     return fnv1a(parts.join('|'));
   }
 }

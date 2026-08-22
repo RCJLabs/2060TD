@@ -1,14 +1,13 @@
 /**
- * Headless smoke test + screenshot of the demo battle (?demo=1).
- * Starts a Vite dev server, loads the playground in Chromium, lets the
- * scripted battle run a few seconds, and saves screenshots/demo.png.
+ * Headless smoke test + screenshots: the scripted siege (?demo=1) and the
+ * showcase town (?demo=town). Starts a Vite dev server, drives Chromium,
+ * saves screenshots/demo.png and screenshots/town.png.
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const PORT = 5199;
-const URL = `http://localhost:${PORT}/?demo=1`;
 
 async function waitForServer(url, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
@@ -41,19 +40,24 @@ const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
 try {
   await waitForServer(`http://localhost:${PORT}/`);
   const browser = await launchBrowser();
-  const page = await browser.newPage({ viewport: { width: 1300, height: 800 } });
-
-  const errors = [];
-  page.on('pageerror', (err) => errors.push(String(err)));
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
-  });
-
-  await page.goto(URL, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(9000); // let the scripted battle develop past the barrage
-
   mkdirSync('screenshots', { recursive: true });
-  await page.screenshot({ path: 'screenshots/demo.png' });
+  const errors = [];
+
+  const shoot = async (query, waitMs, file) => {
+    const page = await browser.newPage({ viewport: { width: 1300, height: 800 } });
+    page.on('pageerror', (err) => errors.push(`${query}: ${String(err)}`));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(`${query}: ${msg.text()}`);
+    });
+    await page.goto(`http://localhost:${PORT}/?${query}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(waitMs);
+    await page.screenshot({ path: `screenshots/${file}` });
+    await page.close();
+  };
+
+  await shoot('demo=1', 9000, 'demo.png'); // mid-battle, past the fire mission
+  await shoot('demo=town', 3000, 'town.png'); // showcase base
+
   await browser.close();
 
   if (errors.length > 0) {
@@ -61,7 +65,7 @@ try {
     for (const err of errors) console.error(`  ${err}`);
     process.exitCode = 1;
   } else {
-    console.log('OK: screenshots/demo.png written, no page errors.');
+    console.log('OK: screenshots/demo.png + town.png written, no page errors.');
   }
 } finally {
   process.kill(-vite.pid, 'SIGTERM');

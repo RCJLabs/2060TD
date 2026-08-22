@@ -1,11 +1,18 @@
 import Phaser from 'phaser';
 import { M1_CATALOG } from '../../content/catalog';
 import { HOLD_THE_LINE } from '../../content/missions';
+import { outcomeFromEngine } from '../../meta/town';
 import { DT, Engine } from '../../sim/engine';
-import type { SimEvent } from '../../sim/types';
+import type { SimConfig, SimEvent } from '../../sim/types';
 import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
 import { makeButton, mono, type Button } from '../ui';
+
+export interface SiegeLaunchData {
+  /** Battle built from the town (meta/town.siegeConfig). Absent = standalone. */
+  config?: SimConfig;
+  fromTown?: boolean;
+}
 
 const CELL = 32;
 const GRID_W = 32;
@@ -37,6 +44,8 @@ export class SiegeScene extends Phaser.Scene {
   private demoMode = false;
   private lastPaintedCell = -1;
   private overlayShown = false;
+  private fromTown = false;
+  private launchConfig: SimConfig | null = null;
 
   private phaseText!: Phaser.GameObjects.Text;
   private suppliesText!: Phaser.GameObjects.Text;
@@ -52,25 +61,29 @@ export class SiegeScene extends Phaser.Scene {
     super('siege');
   }
 
+  init(data: SiegeLaunchData): void {
+    this.launchConfig = data?.config ?? null;
+    this.fromTown = data?.fromTown ?? false;
+  }
+
   create(): void {
-    this.demoMode = new URLSearchParams(window.location.search).has('demo');
+    this.demoMode =
+      !this.fromTown && new URLSearchParams(window.location.search).get('demo') === '1';
     this.tool = null;
     this.speedMult = 1;
     this.accumulator = 0;
     this.overlayShown = false;
     this.buttons = {};
 
-    this.engine = new Engine(
-      {
-        width: GRID_W,
-        height: GRID_H,
-        seed: this.demoMode ? 1337 : Date.now() >>> 0,
-        ccOrigin: 11 * GRID_W + 27,
-        spawnColumn: 0,
-        siege: HOLD_THE_LINE,
-      },
-      M1_CATALOG,
-    );
+    const config: SimConfig = this.launchConfig ?? {
+      width: GRID_W,
+      height: GRID_H,
+      seed: this.demoMode ? 1337 : Date.now() >>> 0,
+      ccOrigin: 11 * GRID_W + 27,
+      spawnColumn: 0,
+      siege: HOLD_THE_LINE,
+    };
+    this.engine = new Engine(config, M1_CATALOG);
     this.battle = new BattleRenderer(this, this.engine, CELL);
 
     this.add
@@ -149,7 +162,10 @@ export class SiegeScene extends Phaser.Scene {
       this.showPaths = !this.showPaths;
     });
     kb?.on('keydown-S', () => this.cycleSpeed());
-    kb?.on('keydown-R', () => this.scene.restart());
+    kb?.on('keydown-R', () => {
+      // Town battles have consequences — no free restarts.
+      if (!this.fromTown) this.scene.restart({});
+    });
   }
 
   private selectToolSlot(slot: number): void {
@@ -166,8 +182,14 @@ export class SiegeScene extends Phaser.Scene {
   }
 
   private advancePhase(): void {
-    if (this.engine.phase === 'setup') this.engine.command({ type: 'startAssault' });
-    else if (this.engine.phase === 'prep') this.engine.command({ type: 'skipPrep' });
+    const phase = this.engine.phase;
+    if (phase === 'setup') this.engine.command({ type: 'startAssault' });
+    else if (phase === 'prep') this.engine.command({ type: 'skipPrep' });
+    else if ((phase === 'victory' || phase === 'defeat') && this.fromTown) this.returnToTown();
+  }
+
+  private returnToTown(): void {
+    this.scene.start('town', { outcome: outcomeFromEngine(this.engine) });
   }
 
   private setTool(tool: Tool | null): void {
@@ -302,7 +324,12 @@ export class SiegeScene extends Phaser.Scene {
     this.add.rectangle(x0, 0, 2, GRID_PX_H, COLORS.gridLine).setOrigin(0, 0);
 
     this.add.text(x0 + pad, 12, 'LAST LINE', mono(17, COLORS.ink, { fontStyle: 'bold' }));
-    this.add.text(x0 + pad, 34, `M1 — ${HOLD_THE_LINE.name}`, mono(10, COLORS.inkDim));
+    this.add.text(
+      x0 + pad,
+      34,
+      this.engine.config.siege?.name ?? 'SANDBOX',
+      mono(10, COLORS.inkDim),
+    );
     this.phaseText = this.add.text(x0 + pad, 54, '', mono(13, COLORS.ink, { fontStyle: 'bold' }));
 
     this.suppliesText = this.add.text(x0 + pad, 78, '', mono(12));
@@ -428,7 +455,7 @@ export class SiegeScene extends Phaser.Scene {
 
   private updateHud(): void {
     const e = this.engine;
-    const siege = HOLD_THE_LINE;
+    const siege = e.config.siege ?? HOLD_THE_LINE;
 
     switch (e.phase) {
       case 'setup':
@@ -477,13 +504,15 @@ export class SiegeScene extends Phaser.Scene {
       const cd = e.powerCooldownSeconds(kind);
       const button = this.buttons[kind];
       if (!button) continue;
+      const charges = e.powerChargesLeft(kind);
+      const stock = charges !== null ? ` ×${charges}` : '';
       if (cd > 0) {
         button.setEnabled(false);
-        button.setLabel(`${def.name.toUpperCase()} — ${Math.ceil(cd)}s`);
+        button.setLabel(`${def.name.toUpperCase()} — ${Math.ceil(cd)}s${stock}`);
       } else {
         button.setEnabled(e.canCastPower(kind));
         button.setLabel(
-          `${def.name.toUpperCase()} — ${def.cpCost} CP [${kind === 'a10' ? 'Q' : 'W'}]`,
+          `${def.name.toUpperCase()} — ${def.cpCost} CP${stock} [${kind === 'a10' ? 'Q' : 'W'}]`,
         );
       }
     }
@@ -536,22 +565,20 @@ export class SiegeScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(41);
     const s = this.engine.stats;
+    const lines = [
+      victory
+        ? 'The perimeter held. Coos Bay stays on the map.'
+        : 'The line broke. Survivors are falling back inland.',
+      '',
+      `Hostiles destroyed: ${s.kills} / ${s.spawned}`,
+      `Walls lost: ${s.wallsLost}   Structures lost: ${s.structuresLost}`,
+    ];
+    if (victory && s.salvage > 0) lines.push(`Unspent CP salvaged: +${s.salvage} SUP`);
+    lines.push('', this.fromTown ? 'PRESS SPACE TO RETURN TO BASE' : 'PRESS R TO RUN IT BACK');
     this.add
-      .text(
-        cx,
-        356,
-        [
-          victory
-            ? 'The perimeter held. Coos Bay stays on the map.'
-            : 'The line broke. Survivors are falling back inland.',
-          '',
-          `Hostiles destroyed: ${s.kills} / ${s.spawned}`,
-          `Walls lost: ${s.wallsLost}   Emplacements lost: ${s.structuresLost}`,
-          '',
-          'PRESS R TO RUN IT BACK',
-        ].join('\n'),
-        { ...mono(13, COLORS.ink, { lineSpacing: 6, align: 'center' }) },
-      )
+      .text(cx, 356, lines.join('\n'), {
+        ...mono(13, COLORS.ink, { lineSpacing: 6, align: 'center' }),
+      })
       .setOrigin(0.5, 0)
       .setDepth(41);
   }

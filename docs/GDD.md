@@ -262,6 +262,11 @@ Damage types × armor classes multiplier table (v1):
 
 Targeting is deterministic: nearest valid target, ties broken by lowest entity id.
 
+**Line of sight (decided, M2):** there are no LoS checks. Mortars and grenades lob;
+direct-fire weapons shooting "through" walls are an accepted abstraction — both sides
+benefit symmetrically, and the readability win beats the realism loss. Revisit only if
+playtesting shows degenerate tactics.
+
 ### 5.5 Command Points (siege battle economy)
 
 - Base income: ~1 CP/sec, +CP per kill (scaled by kill value).
