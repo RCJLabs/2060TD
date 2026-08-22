@@ -65,6 +65,15 @@ export const ECONOMY_STRUCTURES: Record<string, StructureProfile> = {
     targetable: true,
     levels: [{ maxHp: 680 }, { maxHp: 820 }],
   },
+  radar: {
+    kind: 'radar',
+    name: 'Signals Station',
+    maxHp: 420,
+    footprint: 2,
+    blocks: true,
+    targetable: true,
+    levels: [{ maxHp: 520 }, { maxHp: 630 }],
+  },
 };
 
 // ---- town metadata ---------------------------------------------------------------
@@ -85,8 +94,12 @@ export interface TownBuildingMeta {
   generatesSupplies?: number[];
   /** Fuel generated per minute at each level. */
   generatesFuel?: number[];
+  /** Intel generated per minute at each level (Signals Station). */
+  generatesIntel?: number[];
   /** Storage cap added at each level. */
   storage?: { supplies: number; fuel: number }[];
+  /** Intel cap added at each level. */
+  intelCap?: number[];
   /** Build-time reduction fraction at each level (Engineering Bay). */
   buildSpeed?: number[];
 }
@@ -163,6 +176,17 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
       { supplies: 2000, fuel: 500, seconds: 220 },
     ],
   },
+  radar: {
+    kind: 'radar',
+    name: 'Signals Station',
+    levels: [
+      { supplies: 350, fuel: 50, seconds: 35 },
+      { supplies: 800, fuel: 150, seconds: 100 },
+      { supplies: 1800, fuel: 400, seconds: 210 },
+    ],
+    generatesIntel: [4, 7, 11],
+    intelCap: [150, 300, 500],
+  },
   m2nest: {
     kind: 'm2nest',
     name: 'M2 MG Nest',
@@ -198,6 +222,7 @@ export const BUILDABLE_KINDS = [
   'fuelDepot',
   'storageBunker',
   'engBay',
+  'radar',
   'barracks',
   'motorpool',
   'm2nest',
@@ -221,7 +246,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 1,
     walls: 50,
     counts: {
-      supplyDepot: 2, fuelDepot: 1, storageBunker: 1, engBay: 0,
+      supplyDepot: 2, fuelDepot: 1, storageBunker: 1, engBay: 0, radar: 0,
       barracks: 1, motorpool: 0, m2nest: 2, autocannon: 1, mortar: 0,
     },
   },
@@ -229,7 +254,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 2,
     walls: 80,
     counts: {
-      supplyDepot: 3, fuelDepot: 2, storageBunker: 2, engBay: 1,
+      supplyDepot: 3, fuelDepot: 2, storageBunker: 2, engBay: 1, radar: 1,
       barracks: 1, motorpool: 1, m2nest: 3, autocannon: 2, mortar: 1,
     },
   },
@@ -237,17 +262,17 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 3,
     walls: 120,
     counts: {
-      supplyDepot: 4, fuelDepot: 3, storageBunker: 3, engBay: 1,
+      supplyDepot: 4, fuelDepot: 3, storageBunker: 3, engBay: 1, radar: 1,
       barracks: 2, motorpool: 1, m2nest: 4, autocannon: 3, mortar: 2,
     },
   },
 ];
 
-/** Baseline storage caps provided by the Command Center itself, per CC level. */
+/** Baseline caps provided by the Command Center itself, per CC level. */
 export const BASE_CAPS = [
-  { supplies: 800, fuel: 250 },
-  { supplies: 1200, fuel: 350 },
-  { supplies: 2000, fuel: 550 },
+  { supplies: 800, fuel: 250, intel: 60 },
+  { supplies: 1200, fuel: 350, intel: 100 },
+  { supplies: 2000, fuel: 550, intel: 160 },
 ];
 
 // ---- ordnance & bootstrap -------------------------------------------------------------

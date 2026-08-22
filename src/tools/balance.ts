@@ -23,9 +23,15 @@ import {
   FACTION_IDS,
   type FactionId,
 } from '../content/factions';
-import { raidConfig, resolveRaid, type SquadPlan } from '../meta/warfare';
+import { raidConfig, resolveRaid, type RaidSupport, type SquadPlan } from '../meta/warfare';
 import { Engine } from '../sim/engine';
-import type { CellIndex, LayoutStructure, LayoutWall, SimConfig } from '../sim/types';
+import type {
+  CellIndex,
+  DefenderMods,
+  LayoutStructure,
+  LayoutWall,
+  SimConfig,
+} from '../sim/types';
 
 const SEEDS = 20;
 const VARIANTS = 3;
@@ -68,7 +74,7 @@ interface RaidRow {
   lossPct: number;
 }
 
-function raidMatrix(faction: FactionId): RaidRow[] {
+function raidMatrix(faction: FactionId, support?: RaidSupport): RaidRow[] {
   const catalog = raidCatalogFor(faction);
   const kit = baseKitFor(faction);
   const squads = RAID_PLANS[faction];
@@ -84,7 +90,13 @@ function raidMatrix(faction: FactionId): RaidRow[] {
     for (let variant = 0; variant < VARIANTS; variant++) {
       const base = generateBase(tier, variant, kit);
       for (let i = 0; i < SEEDS; i++) {
-        const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+        const config = raidConfig(
+          base,
+          squads,
+          seedOf(tier, variant, i),
+          trainableFor(faction),
+          support ?? {},
+        );
         const res = resolveRaid(config, squads, tier, catalog);
         runs++;
         if (res.cleared) cleared++;
@@ -140,6 +152,9 @@ function referenceBases(): ReferenceBase[] {
   ];
 
   // MID (CC2): offset double line — a serpentine through two kill pockets.
+  // Both AT posts overlap the inner wall's breach approaches: a lone tank
+  // that stalls at the line to shell the CC from standoff must be reachable
+  // by at least one of them, wherever the escort fight left holes.
   const mid: ReferenceBase = { name: 'MID (CC2)', ccLevel: 2, walls: [], structures: [] };
   wallLine(mid.walls, 20, 2, 21, [11, 12]);
   wallLine(mid.walls, 24, 2, 21, [5, 6, 17, 18]);
@@ -147,8 +162,8 @@ function referenceBases(): ReferenceBase[] {
     { cell: idx(22, 10), kind: 'm2nest', level: 2 },
     { cell: idx(22, 13), kind: 'm2nest', level: 2 },
     { cell: idx(26, 6), kind: 'm2nest', level: 2 },
-    { cell: idx(25, 11), kind: 'autocannon', level: 2 },
-    { cell: idx(26, 16), kind: 'autocannon', level: 2 },
+    { cell: idx(25, 8), kind: 'autocannon', level: 2 },
+    { cell: idx(25, 15), kind: 'autocannon', level: 2 },
     { cell: idx(28, 8), kind: 'mortar', level: 1 },
   ];
 
@@ -177,7 +192,7 @@ interface DefenseRow {
   holdPct: number[];
 }
 
-function defenseMatrix(faction: FactionId): DefenseRow[] {
+function defenseMatrix(faction: FactionId, mods?: DefenderMods): DefenseRow[] {
   const catalog = defenseCatalogFor(faction);
   const roster = enemyRosterFor(faction);
   const rows: DefenseRow[] = [];
@@ -200,6 +215,7 @@ function defenseMatrix(faction: FactionId): DefenseRow[] {
             structures: base.structures.map((s) => ({ ...s })),
           },
           powerCharges: {},
+          ...(mods ? { mods: { defender: mods } } : {}),
         };
         const engine = new Engine(config, catalog);
         engine.enqueue({ tick: 0, type: 'startAssault' });
@@ -219,10 +235,10 @@ function defenseMatrix(faction: FactionId): DefenseRow[] {
 
 const pad = (value: string | number, width: number): string => String(value).padStart(width);
 
-function raidTable(faction: FactionId, rows: RaidRow[]): string {
+function raidTable(faction: FactionId, rows: RaidRow[], suffix = ''): string {
   const flavor = flavorFor(faction);
   const lines = [
-    `RAID — ${flavor.faction} strike force (${planManpower(faction)} MP) vs ${flavor.enemy} Front Line`,
+    `RAID — ${flavor.faction} strike force (${planManpower(faction)} MP) vs ${flavor.enemy} Front Line${suffix}`,
     'TIER | CLEAR% | DESTR% | MP LOST%',
     '-----+--------+--------+---------',
   ];
@@ -234,10 +250,10 @@ function raidTable(faction: FactionId, rows: RaidRow[]): string {
   return lines.join('\n');
 }
 
-function defenseTable(faction: FactionId, rows: DefenseRow[]): string {
+function defenseTable(faction: FactionId, rows: DefenseRow[], suffix = ''): string {
   const flavor = flavorFor(faction);
   const lines = [
-    `DEFENSE — ${flavor.faction} permanent layer vs ${flavor.enemy} assault ladder (hold%)`,
+    `DEFENSE — ${flavor.faction} permanent layer vs ${flavor.enemy} assault ladder (hold%)${suffix}`,
     `STAGE       | ${ASSAULT_LEVELS.map((l) => pad(`L${l}`, 4)).join(' | ')}`,
     `------------+${ASSAULT_LEVELS.map(() => '------').join('+')}`,
   ];
@@ -247,14 +263,32 @@ function defenseTable(faction: FactionId, rows: DefenseRow[]): string {
   return lines.join('\n');
 }
 
+/** The v0.4 ceiling: full Strike doctrine plus a stocked two-charge fire plan. */
+const DOCTRINE_SUPPORT: RaidSupport = {
+  mods: { hp: 1.12, damage: 1.12 },
+  powerCharges: { a10: 1, arty: 2 },
+  autoPowers: [
+    { kind: 'a10', atSeconds: 15, target: 'guns' },
+    { kind: 'arty', atSeconds: 40, target: 'cc' },
+  ],
+};
+
+const FORTIFY_MODS: DefenderMods = { wallHp: 1.15, weaponDamage: 1.12 };
+
 function main(): void {
   const started = Date.now();
   const sections: string[] = [];
   for (const faction of FACTION_IDS) {
     sections.push(raidTable(faction, raidMatrix(faction)));
+    sections.push(
+      raidTable(faction, raidMatrix(faction, DOCTRINE_SUPPORT), ' — STRIKE doctrine + fire plan'),
+    );
   }
   for (const faction of FACTION_IDS) {
     sections.push(defenseTable(faction, defenseMatrix(faction)));
+    sections.push(
+      defenseTable(faction, defenseMatrix(faction, FORTIFY_MODS), ' — FORTIFY doctrine'),
+    );
   }
   const body = sections.join('\n\n');
   console.log(body);
@@ -275,22 +309,30 @@ function main(): void {
       body,
       '```',
       '',
-      '## Reading the tables (M5 tuning pass)',
+      '## Reading the tables (M6 pass)',
       '',
       '- **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.',
-      '  USA (quality) stays potent deep into the ladder but pays 75%+ of the force at tier 4–5;',
+      '  USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;',
       '  China (mass) grinds tiers 2–3 with cheap replacements, then needs the late-game army:',
       '  a 33-manpower PLA force with doubled armor clears tier 4–5 at ~70% (verified headlessly).',
       '  Steeper curve + cheaper bodies is the intended faction texture, not a wall.',
-      '- **Both factions hold their probe floor**: EARLY holds L1–2 (probes cap near the Front Line',
-      '  tier), MID holds L3–5ish, LATE holds everything on the current ladder.',
-      '- **Watch items for v0.4**: China MID vs the L6 US assault (Javelin teams outrange the wire',
-      '  and snipe HJ-8 posts — mortars are the intended answer and MID fields only one), and the',
-      '  EARLY L2→L3 cliff on both sides (armor arrives before anti-armor requisitions).',
-      '- M5 changes behind these numbers: deliberate demolition now uses the breacher stat',
-      '  (max of hqDps/wallDps) against non-CC structures; USA firebases delay mortars to tier 3;',
-      '  HJ-8 posts and Type 88 nests hit harder; PLA manpower runs cheaper (grn 2, zbd 3, t99 7);',
-      '  PLA vehicle hp raised to survive level-2 tower lines.',
+      '- **The doctrine rows are the v0.4 ceiling**: full Strike research plus a stocked fire plan',
+      '  (an A-10/MLRS pass on the guns at T+15, 155s/PLZ-05 on the post at T+40). It lifts the',
+      '  USA tail to ~92–98% and trims losses ~6 points; for China it converts into destruction',
+      '  and loot more than into clears — their tier 4+ answer remains the max-cap army.',
+      '- **FORTIFY is strictly non-negative everywhere** (verified after the reference-base fix',
+      "  below). China's defense floor runs softer than the USA's at MID — their besiegers are",
+      '  Rangers, Javelins, and Abrams, not militia — which makes the FORTIFY branch their',
+      '  must-have doctrine (L4 hold: 50% → 85%).',
+      '- **Coverage lesson baked into the MID reference**: a lone tank that survives to the wall',
+      '  line will stand at standoff range and shell the CC; every breach approach must be inside',
+      "  some AT post's arc or that tank ends the siege. The reference base was fixed to overlap",
+      '  its arcs, which is also the in-game lesson for players.',
+      '- **Watch items for v0.5**: the EARLY L2→L3 cliff on both sides (armor arrives before',
+      '  anti-armor requisitions), and China MID vs L5+ (Javelin overwatch).',
+      '- M6 changes behind these numbers: HJ-8 posts trade alpha for cadence (same DPS at 0.5/s),',
+      '  research mods ride inside SimConfig (replay-safe), raid fire support strikes structures',
+      '  and walls on the attacker side, and the MID reference base overlaps its AT arcs.',
       '',
     ].join('\n');
     writeFileSync('docs/BALANCE.md', md);

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from './audio';
 import { COLORS, css } from './palette';
 
 export interface Button {
@@ -56,7 +57,9 @@ export function makeButton(
     'pointerdown',
     (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
       ev.stopPropagation();
+      audio.unlock(); // first gesture wakes the audio context
       if (!enabled) return;
+      audio.sfx('click');
       onClick();
       refresh();
     },

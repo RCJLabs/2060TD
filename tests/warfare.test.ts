@@ -142,6 +142,7 @@ describe('raid planning and resolution', () => {
         destroyed: { cc: 1, supplyCache: 2 },
         loot: { supplies: 300, fuel: 40 },
         destructionPct: 0.5,
+        powersUsed: {},
       },
       config,
       T0 + 1000,
@@ -164,7 +165,7 @@ describe('raid planning and resolution', () => {
     const config = raidConfig(base, plan, 1);
     const win = {
       cleared: true, ticks: 1, deployed: {}, survivors: {}, losses: {},
-      destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1,
+      destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1, powersUsed: {},
     };
     applyRaidResult(town, base, win, config, T0);
     applyRaidResult(town, base, win, config, T0);
@@ -174,14 +175,14 @@ describe('raid planning and resolution', () => {
     expect(town.frontline.wins).toBe(0);
   });
 
-  it('scouting costs supplies once and persists', () => {
+  it('scouting costs intel once and persists', () => {
     const town = devTown();
-    town.supplies = 200;
+    town.intel = 100;
     expect(isScouted(town, 1, 0)).toBe(false);
     expect(scoutTarget(town, 1, 0)).toBe(true);
-    expect(town.supplies).toBe(110); // 60 + 30×1
+    expect(town.intel).toBe(55); // 100 − (30 + 15×1)
     expect(scoutTarget(town, 1, 0)).toBe(true); // already scouted: free
-    expect(town.supplies).toBe(110);
+    expect(town.intel).toBe(55);
   });
 });
 

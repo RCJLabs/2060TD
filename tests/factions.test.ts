@@ -194,10 +194,11 @@ describe('faction pipeline', () => {
     };
     const migrated = deserialize(JSON.stringify(legacyV3))!;
     expect(migrated).not.toBeNull();
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(5);
     expect(migrated.faction).toBe('usa');
     expect(migrated.campaign.next).toBe(3);
     expect(migrated.army['ranger']).toBe(2);
+    expect(migrated.intel).toBe(0);
   });
 
   it('an eastern tide mission runs in-engine on the china catalog', () => {

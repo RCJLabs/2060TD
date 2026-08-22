@@ -15,7 +15,32 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.3: pick your war
+## Current state — v0.4: the intel war
+
+The depth patch: signals, doctrine, and fire support.
+
+- **Intel is the third resource.** The Signals Station (both factions) generates it;
+  scouting Front Line targets now costs Intel, not Supplies.
+- **Research & doctrine** (`T`): nine projects in three branches — **FORTIFY** (wall HP,
+  emplacement damage, cheaper field works), **STRIKE** (raid unit HP/damage, faster
+  training), **LOGISTICS** (storage, generation, cheaper recon). One project at a time;
+  it finishes while you're away. Effects are carried inside each battle's config, so
+  replays of old battles keep their original math.
+- **Pre-planned fire support on raids.** The same A-10 / 155mm (or MLRS / PLZ-05)
+  charges you stock for defense can ride with a raid: set a fire plan per power —
+  T+15/40/70 seconds, on the guns or on the command post — and the hands-off resolver
+  executes it. Attacker-side ordnance pounds structures and walls, never your own
+  units, and every replay re-fires the plan identically.
+- **Operations map** (`M`): fight the next objective or replay held sectors at 35% pay.
+- **Defeat forensics:** battle reports, replays, and the defense log name what landed
+  the killing blow on your Command Center.
+- **Presentation pass:** vehicles face their heading, tower barrels track targets,
+  muzzle flashes, textured ground, synthesized battle SFX and radio chatter (zero audio
+  assets), colorblind-safe hostile palette toggle, siege ×8 speed.
+- Saves migrate (v5); missions you'd already cleared re-grant the new Signals
+  requisition automatically.
+
+## v0.3: pick your war
 
 China is playable. The first screen now asks whose war you're fighting:
 
@@ -104,7 +129,8 @@ npm run screenshot # headless screenshots into screenshots/
 
 **Town:** left-click uses the selected tool (buildings place per click, walls drag-paint);
 click a structure in select mode to inspect/upgrade/move/sell/repair; right-click or
-`ESC` returns to select; `SPACE` launches the next assault.
+`ESC` returns to select; `SPACE` launches the next assault; `T` research; `M` operations
+map; `F` Front Line. SFX and colorblind-palette toggles live in the utility row.
 
 **Siege:**
 
@@ -116,7 +142,7 @@ click a structure in select mode to inspect/upgrade/move/sell/repair; right-clic
 | `E` | Erase / refund (setup & prep only) |
 | `Q` / `W` | Arm A-10 gun run / 155mm fire mission, then click the target |
 | `SPACE` | Start assault / skip prep / return to base when it's over |
-| `P` / `S` / `F` | Path visualization / sim speed ×1 ×2 ×4 / hold (pause) |
+| `P` / `S` / `F` | Path visualization / sim speed ×1–×8 / hold (pause) |
 | `R` | Restart (standalone battles only — town battles have consequences) |
 
 The sandbox (`?playground=1`): `1/2/3` wall/M2/erase, `W` militia, `B` sapper,

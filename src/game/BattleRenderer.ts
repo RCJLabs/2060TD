@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import type { Attacker, Engine } from '../sim/engine';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
+import { audio } from './audio';
 import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from './glyphs';
 import { COLORS } from './palette';
 import { mono } from './ui';
 
 interface Effect {
-  kind: 'tracer' | 'boom' | 'wallBoom' | 'structBoom' | 'aoe' | 'strafe' | 'reticle';
+  kind: 'tracer' | 'boom' | 'wallBoom' | 'structBoom' | 'aoe' | 'strafe' | 'reticle' | 'flash';
   x: number;
   y: number;
   x2?: number;
@@ -47,6 +48,10 @@ export class BattleRenderer {
   private readonly staticLayer: Phaser.GameObjects.Graphics;
   private readonly dynLayer: Phaser.GameObjects.Graphics;
   private effects: Effect[] = [];
+  /** Last firing direction per structure id — barrels track their targets. */
+  private readonly barrelDirs = new Map<number, number>();
+  /** Last movement heading per attacker id — vehicles keep facing when halted. */
+  private readonly facings = new Map<number, number>();
 
   constructor(scene: Phaser.Scene, engine: Engine, cellPx: number, hostileStructures = false) {
     this.scene = scene;
@@ -94,7 +99,7 @@ export class BattleRenderer {
   consumeEvents(events: SimEvent[]): void {
     for (const event of events) {
       switch (event.type) {
-        case 'shot':
+        case 'shot': {
           this.effects.push({
             kind: 'tracer',
             x: event.from.x,
@@ -105,17 +110,37 @@ export class BattleRenderer {
             age: 0,
             life: 0.1,
           });
+          this.effects.push({ kind: 'flash', x: event.from.x, y: event.from.y, age: 0, life: 0.07 });
+          // Track the shooter's barrel when the shot came from an emplacement.
+          for (const s of this.engine.structures) {
+            if (s.center.x === event.from.x && s.center.y === event.from.y) {
+              this.barrelDirs.set(
+                s.id,
+                Math.atan2(event.to.y - event.from.y, event.to.x - event.from.x),
+              );
+              break;
+            }
+          }
+          audio.sfx(
+            event.damageType === 'explosive' || event.damageType === 'shaped' ? 'shotHeavy' : 'shot',
+          );
           break;
+        }
         case 'attackerDied':
           this.effects.push({ kind: 'boom', x: event.at.x, y: event.at.y, age: 0, life: 0.35 });
+          this.facings.delete(event.id);
+          audio.sfx('shotHeavy');
           break;
         case 'wallDestroyed': {
           const at = this.engine.grid.centerOf(event.cell);
           this.effects.push({ kind: 'wallBoom', x: at.x, y: at.y, age: 0, life: 0.4 });
+          audio.sfx('wallBreak');
           break;
         }
         case 'structureDestroyed':
           this.effects.push({ kind: 'structBoom', x: event.at.x, y: event.at.y, age: 0, life: 0.5 });
+          this.barrelDirs.delete(event.id);
+          audio.sfx('structureDown');
           break;
         case 'aoe':
           this.effects.push({
@@ -126,6 +151,7 @@ export class BattleRenderer {
             age: 0,
             life: 0.45,
           });
+          audio.sfx('explosion');
           break;
         case 'strafePulse':
           this.effects.push({
@@ -136,9 +162,11 @@ export class BattleRenderer {
             age: 0,
             life: 0.3,
           });
+          audio.sfx('explosion');
           break;
         case 'powerCast':
           this.effects.push({ kind: 'reticle', x: event.at.x, y: event.at.y, age: 0, life: 0.8 });
+          audio.sfx('power');
           break;
         default:
           break;
@@ -174,10 +202,12 @@ export class BattleRenderer {
     for (const s of this.engine.structures) {
       const px = s.center.x * c;
       const py = s.center.y * c;
+      const aim = this.barrelDirs.get(s.id);
       drawStructureGlyph(g, s.profile.kind, px, py, c, {
         level: s.level,
         inert: s.inert,
         hostile: this.hostileStructures,
+        ...(aim !== undefined ? { aimAngle: aim } : {}),
       });
       if (s.profile.kind === 'claymore') {
         g.lineStyle(1, COLORS.signal, 0.35);
@@ -230,6 +260,9 @@ export class BattleRenderer {
       const p = this.lerpPos(attacker, alpha);
       const px = p.x * c;
       const py = p.y * c;
+      if (attacker.lastDir.x !== 0 || attacker.lastDir.y !== 0) {
+        this.facings.set(attacker.id, Math.atan2(attacker.lastDir.y, attacker.lastDir.x));
+      }
       this.drawAttackerBody(g, attacker, px, py);
 
       if (attacker.state === 'breaking') {
@@ -240,7 +273,7 @@ export class BattleRenderer {
         g.strokeCircle(px, py, 11);
       }
 
-      const hpFrac = attacker.hp / attacker.profile.maxHp;
+      const hpFrac = attacker.hp / attacker.maxHp;
       if (hpFrac < 1) this.hpBar(g, px, py - 16, 20, hpFrac, false);
     }
   }
@@ -300,41 +333,54 @@ export class BattleRenderer {
         g.fillStyle(COLORS.tracer, 1);
         g.fillCircle(px, py, 2);
         break;
-      // ---- standoff fire teams: arrowheads --------------------------------------
+      // ---- standoff fire teams: arrowheads face their heading ---------------------
       case 'grenadier':
+      case 'javelin': {
+        const angle = this.facings.get(attacker.id) ?? 0;
+        g.save();
+        g.translateCanvas(px, py);
+        g.rotateCanvas(angle);
         g.fillStyle(body, 1);
-        g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
-        g.fillStyle(COLORS.signal, 1);
-        g.fillCircle(px - 2, py, 2);
+        g.fillTriangle(-6, -7, -6, 7, 8, 0);
+        g.fillStyle(attacker.profile.kind === 'javelin' ? COLORS.intel : COLORS.signal, 1);
+        g.fillCircle(-2, 0, 2);
+        g.restore();
         break;
-      case 'javelin':
-        g.fillStyle(body, 1);
-        g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
-        g.fillStyle(COLORS.intel, 1);
-        g.fillCircle(px - 2, py, 2);
-        break;
-      // ---- light vehicles: small hulls with a barrel ------------------------------
+      }
+      // ---- light vehicles: small hulls, facing their heading ----------------------
       case 'humvee':
-      case 'zbd':
+      case 'zbd': {
+        const angle = this.facings.get(attacker.id) ?? 0;
+        g.save();
+        g.translateCanvas(px, py);
+        g.rotateCanvas(angle);
         g.fillStyle(dark, 1);
-        g.fillRect(px - 9, py - 6, 18, 12);
+        g.fillRect(-9, -6, 18, 12);
         g.lineStyle(1, body, 1);
-        g.strokeRect(px - 9, py - 6, 18, 12);
+        g.strokeRect(-9, -6, 18, 12);
         g.lineStyle(2, body, 1);
-        g.lineBetween(px, py, px + 12, py);
+        g.lineBetween(0, 0, 12, 0);
+        g.restore();
         break;
+      }
       // ---- main battle tanks: big hulls with turret + barrel -----------------------
       case 'abrams':
-      case 'type99':
+      case 'type99': {
+        const angle = this.facings.get(attacker.id) ?? 0;
+        g.save();
+        g.translateCanvas(px, py);
+        g.rotateCanvas(angle);
         g.fillStyle(dark, 1);
-        g.fillRect(px - 12, py - 8, 24, 16);
+        g.fillRect(-12, -8, 24, 16);
         g.lineStyle(2, body, 1);
-        g.strokeRect(px - 12, py - 8, 24, 16);
+        g.strokeRect(-12, -8, 24, 16);
         g.fillStyle(body, 1);
-        g.fillCircle(px, py, 5);
+        g.fillCircle(0, 0, 5);
         g.lineStyle(3, body, 1);
-        g.lineBetween(px, py, px + 16, py);
+        g.lineBetween(0, 0, 16, 0);
+        g.restore();
         break;
+      }
       case 'infiltrator':
         g.fillStyle(COLORS.nkSlate, 1);
         g.fillPoints(
@@ -349,16 +395,22 @@ export class BattleRenderer {
         g.lineStyle(1, COLORS.ink, 0.6);
         g.strokeCircle(px, py, 8);
         break;
-      case 't72':
+      case 't72': {
+        const angle = this.facings.get(attacker.id) ?? 0;
+        g.save();
+        g.translateCanvas(px, py);
+        g.rotateCanvas(angle);
         g.fillStyle(COLORS.ruRust, 1);
-        g.fillRect(px - 11, py - 7, 22, 14);
+        g.fillRect(-11, -7, 22, 14);
         g.lineStyle(2, COLORS.sand, 0.7);
-        g.strokeRect(px - 11, py - 7, 22, 14);
+        g.strokeRect(-11, -7, 22, 14);
         g.fillStyle(COLORS.sandDark, 1);
-        g.fillCircle(px, py, 4);
+        g.fillCircle(0, 0, 4);
         g.lineStyle(3, COLORS.ruRust, 1);
-        g.lineBetween(px, py, px + 15, py);
+        g.lineBetween(0, 0, 15, 0);
+        g.restore();
         break;
+      }
       default:
         // Unknown kinds (test/sandbox content): breakers as diamonds, rest as circles.
         if (attacker.profile.wallDps > 20) {
@@ -499,6 +551,11 @@ export class BattleRenderer {
           g.strokeCircle(fx.x * c, fx.y * c, 10 + 6 * Math.sin(t * Math.PI * 4));
           g.lineBetween(fx.x * c - 14, fx.y * c, fx.x * c + 14, fx.y * c);
           g.lineBetween(fx.x * c, fx.y * c - 14, fx.x * c, fx.y * c + 14);
+          break;
+        case 'flash':
+          // Muzzle flash: a hot dot that dies in a few frames.
+          g.fillStyle(COLORS.tracer, 0.9 * (1 - t));
+          g.fillCircle(fx.x * c, fx.y * c, 4.5 * (1 - t) + 1.5);
           break;
       }
     }

@@ -6,6 +6,10 @@ import { ReplayScene } from './game/scenes/ReplayScene';
 import { SiegeScene } from './game/scenes/SiegeScene';
 import { TownScene } from './game/scenes/TownScene';
 import { COLORS, css } from './game/palette';
+import { applySettings, loadSettings } from './game/settings';
+
+// Device preferences (sound, colorblind palette) apply before any scene draws.
+applySettings(loadSettings());
 
 const params = new URLSearchParams(window.location.search);
 // Demo modes drive screenshots/smoke tests: headless browsers throttle

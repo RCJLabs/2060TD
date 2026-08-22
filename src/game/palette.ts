@@ -1,6 +1,9 @@
 /**
  * The "map table" palette (GDD §6.1): muted military-ops tones with sparse
  * alarm accents. Every color in the game comes from here.
+ *
+ * Mutable on purpose: the colorblind-safe mode swaps the hostile family at
+ * boot/toggle (scenes read COLORS at draw time, so a restart repaints all).
  */
 export const COLORS = {
   bgField: 0x171a17,
@@ -23,7 +26,17 @@ export const COLORS = {
   crimsonDark: 0x7c2424,
   nkSlate: 0x5c6670,
   ruRust: 0x8c5a2b,
-} as const;
+};
+
+const HOSTILE_DEFAULT = { crimson: 0xa83232, crimsonDark: 0x7c2424 };
+/** Violet separates from olive on the blue channel — readable for red-green
+ * color vision deficiency, where crimson-vs-olive collapses to brown. */
+const HOSTILE_COLORBLIND = { crimson: 0x8a63c9, crimsonDark: 0x5a3f8c };
+
+/** Swap the hostile color family (colorblind-safe accents). */
+export function applyPalette(colorblind: boolean): void {
+  Object.assign(COLORS, colorblind ? HOSTILE_COLORBLIND : HOSTILE_DEFAULT);
+}
 
 /** CSS hex string for a palette color (for text styles and DOM). */
 export function css(color: number): string {

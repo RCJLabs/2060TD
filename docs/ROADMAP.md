@@ -151,14 +151,43 @@ replaying cleared missions.
       manpower runs cheaper and vehicles tank level-2 gun lines. Deferred to M6: raid commander
       powers with auto-trigger rules, mission-select map, replaying cleared missions.*
 
-## M6 — v0.4: depth & polish *(~2–3 sessions)*
+## M6 — v0.4: depth & polish *(~2–3 sessions)* ✅
 
-- [ ] Intel as a resource + Radar Station; research tech tree
-- [ ] Vector art pass: proper unit/building silhouettes, atlas pipeline, palette enforcement
-- [ ] Audio: radio-chatter UI feedback, siege ambience, sparse score
-- [ ] Replay polish, kill-cams for probe raids
-- [ ] QoL: hotkeys, colorblind-safe faction accents, speed controls everywhere
-- [ ] Balance pass 2 with harness
+- [x] Intel as a resource + Radar Station; research tech tree
+      — *Signals Station ('radar' role, both factions) generates Intel; scouting now costs
+      Intel. Nine-doctrine research board (FORTIFY/STRIKE/LOGISTICS × 3 tiers, one project
+      at a time, offline completion). Effects ride INSIDE SimConfig as deterministic
+      multipliers, so old replays keep their original math; meta effects (storage, rates,
+      training time, scout discounts) apply where the numbers live. Save v5 backfills the
+      new requisition key into cleared campaigns.*
+- [x] Raid commander powers with pre-planned fire missions *(deferred from M5)*
+      — *the town's ordnance stock rides on raids: per-power fire plans (T+15/40/70 →
+      GUNS or CC) resolve in-sim via config-carried auto-rules — replays re-fire them
+      identically. Attacker-side powers strike structures and walls, never your own units,
+      and cost charges, not CP.*
+- [x] Mission-select map + replaying cleared missions *(deferred from M5)*
+      — *OPS MAP overlay: fight the next objective or replay held sectors at 35% pay.*
+- [x] Vector art pass: silhouettes, palette enforcement
+      — *vehicles and fire teams face their heading, tower barrels track their last target,
+      muzzle flashes, deterministic ground texture (scrub/mud/rubble), radar dish glyph.
+      Atlas pipeline deferred — Graphics-drawn vectors still carry the aesthetic fine.*
+- [x] Audio: radio-chatter UI feedback, battle SFX
+      — *a zero-asset WebAudio synth kit: throttled gunfire ticks, explosions, breaches,
+      radio blips on briefing lines, research chimes, victory/defeat stingers. Master mute
+      persists per device. A sparse score remains open for a future pass.*
+- [x] Replay polish, defeat forensics
+      — *the sim records what landed the killing blow on the CC; battle reports, replay
+      end cards, and the defense log all name it ("BREACHED (M1 ABRAMS)"). Fixed-camera
+      design keeps kill-cams out; the cause line is the intended forensic.*
+- [x] QoL: hotkeys, colorblind-safe accents, speed controls
+      — *T research, M ops map, siege ×8 speed, colorblind palette toggle (hostile crimson
+      → violet, persisted per device), SFX toggle, tighter town panel.*
+- [x] Balance pass 2 with harness
+      — *harness gained doctrine-ceiling variants (Strike+fire plan raids, Fortify defense).
+      Found and fixed a real inversion: huge-alpha HJ-8s and an AT coverage hole made
+      +12% weapon damage LOSE fights (kill-order roulette on which post survived); HJ-8s
+      now trade alpha for cadence and the reference base overlaps its arcs. FORTIFY is
+      strictly non-negative everywhere; snapshot in docs/BALANCE.md.*
 
 ## M7 — v0.5+: expansion *(ongoing, one drop per release)*
 

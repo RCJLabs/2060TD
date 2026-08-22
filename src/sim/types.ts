@@ -204,6 +204,36 @@ export interface LayoutStructure {
   inert?: boolean;
 }
 
+/** Research-driven multipliers for the defending side (the town's tech). */
+export interface DefenderMods {
+  /** Emplacement/field weapon and trigger damage. */
+  weaponDamage?: number;
+  /** Wall HP, both layout-injected and newly placed. */
+  wallHp?: number;
+  /** CP prices (field defenses, HESCOs, powers). */
+  cpCost?: number;
+}
+
+/** Research-driven multipliers for the attacking side (raid armies). */
+export interface AttackerMods {
+  /** Unit HP at spawn. */
+  hp?: number;
+  /** wallDps, hqDps, and weapon damage. */
+  damage?: number;
+}
+
+/**
+ * A pre-planned fire mission for hands-off battles: at `atSeconds` into the
+ * assault, cast `kind` at the chosen target class (charges permitting).
+ * Rules live in the config so replays re-fire them identically.
+ */
+export interface AutoPowerRule {
+  kind: string;
+  atSeconds: number;
+  /** cc = the command post; guns = the densest cluster of armed defenses. */
+  target: 'cc' | 'guns';
+}
+
 export interface SimConfig {
   width: number;
   height: number;
@@ -214,6 +244,16 @@ export interface SimConfig {
   ccLevel?: number;
   /** Column reserved for attacker entry; nothing can be built there. */
   spawnColumn: number;
+  /**
+   * Which side the player commands. Defaults to 'defender' (town sieges):
+   * powers strike the attacking wave. As 'attacker' (raids): powers strike
+   * structures and walls instead, and cost no CP — charges are the budget.
+   */
+  playerSide?: 'defender' | 'attacker';
+  /** Research effects, applied deterministically inside the sim. */
+  mods?: { defender?: DefenderMods; attacker?: AttackerMods };
+  /** Pre-planned fire missions (hands-off raids). */
+  autoPowers?: AutoPowerRule[];
   /** Omit for sandbox mode: free placement, manual spawns, no waves. */
   siege?: SiegeDef;
   /** The persistent town, placed free of charge before the battle starts. */
@@ -279,4 +319,6 @@ export interface SimStats {
   cpSpent: number;
   /** Supplies recovered from unspent CP at victory (2 Supplies per CP). */
   salvage: number;
+  /** What landed the killing blow on the CC (attacker kind, or 'fire support'). */
+  ccKillerKind?: string;
 }

@@ -1,3 +1,4 @@
+import { campaignFor, type FactionId } from '../content/factions';
 import { newTown, unlockAll, type TownState } from './town';
 
 /**
@@ -6,7 +7,7 @@ import { newTown, unlockAll, type TownState } from './town';
  */
 
 export const SAVE_KEY = 'lastline_save_v1';
-export const SCHEMA = 4;
+export const SCHEMA = 5;
 
 export function serialize(town: TownState): string {
   return JSON.stringify({ schema: SCHEMA, savedAt: town.lastSeen, town });
@@ -45,6 +46,33 @@ function migrateV3(legacy: Record<string, unknown>): Record<string, unknown> | n
   return { ...legacy, version: 4, faction: 'usa' };
 }
 
+/**
+ * Schema 4 towns predate Intel and research. Beyond the new fields, missions
+ * cleared before v0.4 must re-grant their unlocks — the campaigns gained new
+ * requisition keys (the Signals Station) that old saves never received.
+ */
+function migrateV4(legacy: Record<string, unknown>): Record<string, unknown> | null {
+  if (legacy['version'] !== 4) return null;
+  const town: Record<string, unknown> = {
+    ...legacy,
+    version: 5,
+    intel: 0,
+    research: { completed: [], active: null },
+  };
+  const faction: FactionId = town['faction'] === 'china' ? 'china' : 'usa';
+  const completed = Array.isArray(town['campaign'])
+    ? []
+    : ((town['campaign'] as { completed?: string[] })?.completed ?? []);
+  const unlocked = new Set(Array.isArray(town['unlocked']) ? (town['unlocked'] as string[]) : []);
+  for (const mission of campaignFor(faction)) {
+    if (completed.includes(mission.id)) {
+      for (const key of mission.unlocks) unlocked.add(key);
+    }
+  }
+  town['unlocked'] = [...unlocked];
+  return town;
+}
+
 export function deserialize(json: string): TownState | null {
   try {
     const data = JSON.parse(json) as { schema?: number; town?: TownState };
@@ -55,10 +83,13 @@ export function deserialize(json: string): TownState | null {
     if (raw['version'] === 1) raw = migrateV1(raw) ?? raw;
     if (raw['version'] === 2) raw = migrateV2(raw) ?? raw;
     if (raw['version'] === 3) raw = migrateV3(raw) ?? raw;
-    if (raw['version'] !== 4) return null;
+    if (raw['version'] === 4) raw = migrateV4(raw) ?? raw;
+    if (raw['version'] !== 5) return null;
     const town = raw as unknown as TownState;
 
     if (town.faction !== 'usa' && town.faction !== 'china') town.faction = 'usa';
+    if (typeof town.intel !== 'number' || !Number.isFinite(town.intel)) town.intel = 0;
+    if (!town.research) town.research = { completed: [], active: null };
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;

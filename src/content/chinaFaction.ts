@@ -55,10 +55,10 @@ export const CHINA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
     blocks: true,
     targetable: true,
     supplyCost: 100,
-    weapon: { damageType: 'shaped', damage: 56, shotsPerSecond: 0.4, range: 5.2 },
+    weapon: { damageType: 'shaped', damage: 45, shotsPerSecond: 0.5, range: 5.2 },
     levels: [
-      { maxHp: 360, weapon: { damageType: 'shaped', damage: 72, shotsPerSecond: 0.4, range: 5.2 } },
-      { maxHp: 450, weapon: { damageType: 'shaped', damage: 90, shotsPerSecond: 0.4, range: 5.4 } },
+      { maxHp: 360, weapon: { damageType: 'shaped', damage: 58, shotsPerSecond: 0.5, range: 5.2 } },
+      { maxHp: 450, weapon: { damageType: 'shaped', damage: 72, shotsPerSecond: 0.5, range: 5.4 } },
     ],
   },
   mortar: {
@@ -133,6 +133,7 @@ export const CHINA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   fuelDepot: rename(ECONOMY_STRUCTURES['fuelDepot']!, 'Fuel Bowser Park'),
   storageBunker: rename(ECONOMY_STRUCTURES['storageBunker']!, 'Stores Pit'),
   engBay: rename(ECONOMY_STRUCTURES['engBay']!, 'Engineer Corps'),
+  radar: rename(ECONOMY_STRUCTURES['radar']!, 'Signals Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Militia Barracks'),
   motorpool: rename(ECONOMY_STRUCTURES['motorpool']!, 'Vehicle Park'),
 };

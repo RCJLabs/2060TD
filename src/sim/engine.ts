@@ -4,6 +4,7 @@ import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
 import type {
   AttackerProfile,
+  AutoPowerRule,
   Catalog,
   CellIndex,
   Command,
@@ -28,6 +29,8 @@ export interface Attacker {
   id: number;
   profile: AttackerProfile;
   hp: number;
+  /** Max HP after attacker-side mods (profile.maxHp × research). */
+  maxHp: number;
   /** Speed after the seeded jitter roll at spawn. */
   speed: number;
   pos: Vec2;
@@ -144,6 +147,15 @@ export class Engine {
   /** Structures with id below this came from the town layout — not removable. */
   private layoutWatermark = 0;
   private readonly pathView: PathGrid;
+  /** Research multipliers, resolved once (identity when absent). */
+  private readonly defWeaponMult: number;
+  private readonly defWallHpMult: number;
+  private readonly defCpMult: number;
+  private readonly atkHpMult: number;
+  private readonly atkDamageMult: number;
+  /** Pre-planned fire missions, sorted by time then kind (deterministic). */
+  private readonly autoRules: AutoPowerRule[];
+  private autoRuleCursor = 0;
 
   constructor(config: SimConfig, catalog: Catalog) {
     this.config = config;
@@ -159,6 +171,14 @@ export class Engine {
     this.chargesLeft = config.powerCharges
       ? new Map(Object.entries(config.powerCharges))
       : null;
+    this.defWeaponMult = config.mods?.defender?.weaponDamage ?? 1;
+    this.defWallHpMult = config.mods?.defender?.wallHp ?? 1;
+    this.defCpMult = config.mods?.defender?.cpCost ?? 1;
+    this.atkHpMult = config.mods?.attacker?.hp ?? 1;
+    this.atkDamageMult = config.mods?.attacker?.damage ?? 1;
+    this.autoRules = [...(config.autoPowers ?? [])].sort(
+      (a, b) => a.atSeconds - b.atSeconds || (a.kind < b.kind ? -1 : 1),
+    );
 
     // Plant the Command Center: 2×2, hard-blocked, the thing everyone dies for.
     const cc = this.createStructure(config.ccOrigin, 'cc', config.ccLevel ?? 1, 1, false, true);
@@ -200,7 +220,7 @@ export class Engine {
       for (const wall of config.layout.walls) {
         const def = catalog.walls[wall.kind];
         if (def && this.isBuildable(wall.cell, true)) {
-          this.grid.placeWall(wall.cell, def.hp, def.kind);
+          this.grid.placeWall(wall.cell, def.hp * this.defWallHpMult, def.kind);
         }
       }
       for (const s of config.layout.structures) {
@@ -283,6 +303,7 @@ export class Engine {
     }
     this.applyCommands(events);
     this.updatePhase(events);
+    this.applyAutoPowers(events);
     this.applyPendingImpacts(events);
     this.updateStructures(events);
     this.updateProjectiles(events);
@@ -395,10 +416,12 @@ export class Engine {
     const jitter = profile.speedJitter;
     const speed = profile.speed * (1 + rollRange(this.rng, -jitter, jitter));
     const pos = this.grid.centerOf(cell);
+    const maxHp = profile.maxHp * this.atkHpMult;
     const attacker: Attacker = {
       id: this.nextId++,
       profile,
-      hp: profile.maxHp,
+      hp: maxHp,
+      maxHp,
       speed,
       pos,
       prevPos: { ...pos },
@@ -440,6 +463,11 @@ export class Engine {
     return this.phase === 'combat' || this.phase === 'sandbox';
   }
 
+  /** CP price after the defender's research discount. */
+  cpPrice(cpCost: number): number {
+    return Math.ceil(cpCost * this.defCpMult);
+  }
+
   /** Checks phase gate + price for an item priced in Supplies or CP. */
   private affords(cost: { supplyCost?: number; cpCost?: number }): boolean {
     if (this.phase === 'sandbox') return true;
@@ -447,7 +475,7 @@ export class Engine {
       return this.canBuildPermanent && this.supplies >= cost.supplyCost;
     }
     if (cost.cpCost !== undefined) {
-      return this.canBuildField && this.cp >= cost.cpCost;
+      return this.canBuildField && this.cp >= this.cpPrice(cost.cpCost);
     }
     return false;
   }
@@ -458,8 +486,9 @@ export class Engine {
       this.supplies -= cost.supplyCost;
       this.stats.suppliesSpent += cost.supplyCost;
     } else if (cost.cpCost !== undefined) {
-      this.cp -= cost.cpCost;
-      this.stats.cpSpent += cost.cpCost;
+      const price = this.cpPrice(cost.cpCost);
+      this.cp -= price;
+      this.stats.cpSpent += price;
     }
   }
 
@@ -468,7 +497,7 @@ export class Engine {
       case 'placeWall': {
         if (!this.canPlaceWall(cmd.kind, cmd.cell)) return false;
         const def = this.catalog.walls[cmd.kind]!;
-        this.grid.placeWall(cmd.cell, def.hp, def.kind);
+        this.grid.placeWall(cmd.cell, def.hp * this.defWallHpMult, def.kind);
         this.pay(def);
         this.stats.wallsBuilt++;
         return true;
@@ -527,20 +556,65 @@ export class Engine {
         return true;
       }
       case 'castPower': {
-        if (!this.canCastPower(cmd.kind)) return false;
-        const def = this.catalog.powers[cmd.kind]!;
-        if (this.phase !== 'sandbox') {
-          this.cp -= def.cpCost;
-          this.stats.cpSpent += def.cpCost;
-        }
-        if (this.chargesLeft) {
-          this.chargesLeft.set(def.kind, (this.chargesLeft.get(def.kind) ?? 0) - 1);
-        }
-        this.powerCooldowns.set(def.kind, Math.round(def.cooldownSeconds * TICKS_PER_SECOND));
-        this.schedulePower(def.kind, cmd.target);
-        events.push({ type: 'powerCast', kind: def.kind, at: { ...cmd.target } });
-        return true;
+        return this.castPowerAt(cmd.kind, cmd.target, events);
       }
+    }
+  }
+
+  /** The player attacks in raids; powers then strike structures, not units. */
+  private get attackerSide(): boolean {
+    return this.config.playerSide === 'attacker';
+  }
+
+  private castPowerAt(kind: string, target: Vec2, events: SimEvent[]): boolean {
+    if (!this.canCastPower(kind)) return false;
+    const def = this.catalog.powers[kind]!;
+    // Raid-side ordnance is pre-paid stock (charges), not a CP purchase.
+    if (this.phase !== 'sandbox' && !this.attackerSide) {
+      const price = this.cpPrice(def.cpCost);
+      this.cp -= price;
+      this.stats.cpSpent += price;
+    }
+    if (this.chargesLeft) {
+      this.chargesLeft.set(def.kind, (this.chargesLeft.get(def.kind) ?? 0) - 1);
+    }
+    this.powerCooldowns.set(def.kind, Math.round(def.cooldownSeconds * TICKS_PER_SECOND));
+    this.schedulePower(def.kind, target);
+    events.push({ type: 'powerCast', kind: def.kind, at: { ...target } });
+    return true;
+  }
+
+  /** Auto-rule target: the armed structure with the most armed neighbors. */
+  private densestGunCluster(): Vec2 {
+    let best: Structure | null = null;
+    let bestCount = -1;
+    for (const s of this.structures) {
+      if (s.hp <= 0 || !this.isDefenseStructure(s)) continue;
+      let count = 0;
+      for (const other of this.structures) {
+        if (other.hp <= 0 || !this.isDefenseStructure(other)) continue;
+        const dx = other.center.x - s.center.x;
+        const dy = other.center.y - s.center.y;
+        if (dx * dx + dy * dy <= 9) count++; // within 3 cells, itself included
+      }
+      if (count > bestCount || (count === bestCount && s.id < best!.id)) {
+        bestCount = count;
+        best = s;
+      }
+    }
+    return best ? { ...best.center } : { ...this.cc.center };
+  }
+
+  /** Fire any pre-planned missions whose time has come (assault clock). */
+  private applyAutoPowers(events: SimEvent[]): void {
+    if (this.phase !== 'combat') return;
+    while (this.autoRuleCursor < this.autoRules.length) {
+      const rule = this.autoRules[this.autoRuleCursor]!;
+      if (rule.atSeconds * TICKS_PER_SECOND > this.waveTick) break;
+      this.autoRuleCursor++;
+      const target =
+        rule.target === 'guns' ? this.densestGunCluster() : { ...this.cc.center };
+      this.castPowerAt(rule.kind, target, events);
     }
   }
 
@@ -588,27 +662,59 @@ export class Engine {
     attacker.hp -= raw * this.catalog.damage[type][attacker.profile.armor];
   }
 
-  private damageStructure(structure: Structure, raw: number, type: DamageType): void {
+  private damageStructure(
+    structure: Structure,
+    raw: number,
+    type: DamageType,
+    source = 'fires',
+  ): void {
+    const before = structure.hp;
     structure.hp -= raw * this.catalog.damage[type]['structure'];
+    if (structure === this.cc && before > 0 && structure.hp <= 0) {
+      this.stats.ccKillerKind ??= source;
+    }
   }
 
   private applyPendingImpacts(events: SimEvent[]): void {
     if (this.pendingImpacts.length === 0) return;
     const remaining: PendingImpact[] = [];
+    const inShape = (shape: ImpactShape, x: number, y: number): boolean =>
+      shape.kind === 'circle'
+        ? (x - shape.x) ** 2 + (y - shape.y) ** 2 <= shape.r * shape.r
+        : x >= shape.x0 && x <= shape.x1 && y >= shape.y0 && y <= shape.y1;
+
     for (const impact of this.pendingImpacts) {
       if (impact.tick > this.tick) {
         remaining.push(impact);
         continue;
       }
       const { shape } = impact;
-      for (const attacker of this.attackers) {
-        if (attacker.hp <= 0) continue;
-        const { x, y } = attacker.pos;
-        const hit =
-          shape.kind === 'circle'
-            ? (x - shape.x) ** 2 + (y - shape.y) ** 2 <= shape.r * shape.r
-            : x >= shape.x0 && x <= shape.x1 && y >= shape.y0 && y <= shape.y1;
-        if (hit) this.damageAttacker(attacker, impact.damage, impact.damageType);
+      if (this.attackerSide) {
+        // Raid fire support pounds the base: structures and walls, not units.
+        for (const structure of this.structures) {
+          if (structure.hp <= 0) continue;
+          if (inShape(shape, structure.center.x, structure.center.y)) {
+            this.damageStructure(structure, impact.damage, impact.damageType, 'fire support');
+          }
+        }
+        const wallDamage =
+          impact.damage * this.catalog.damage[impact.damageType]['structure'];
+        for (const cell of [...this.grid.walls.keys()]) {
+          const center = this.grid.centerOf(cell);
+          if (inShape(shape, center.x, center.y)) {
+            if (this.grid.damageWall(cell, wallDamage)) {
+              this.stats.wallsLost++;
+              events.push({ type: 'wallDestroyed', cell });
+            }
+          }
+        }
+      } else {
+        for (const attacker of this.attackers) {
+          if (attacker.hp <= 0) continue;
+          if (inShape(shape, attacker.pos.x, attacker.pos.y)) {
+            this.damageAttacker(attacker, impact.damage, impact.damageType);
+          }
+        }
       }
       if (shape.kind === 'circle') {
         events.push({ type: 'aoe', at: { x: shape.x, y: shape.y }, radius: shape.r });
@@ -643,7 +749,7 @@ export class Engine {
             const dx = attacker.pos.x - structure.center.x;
             const dy = attacker.pos.y - structure.center.y;
             if (dx * dx + dy * dy <= t.splashRadius * t.splashRadius) {
-              this.damageAttacker(attacker, t.damage, t.damageType);
+              this.damageAttacker(attacker, t.damage * this.defWeaponMult, t.damageType);
             }
           }
           events.push({ type: 'aoe', at: { ...structure.center }, radius: t.splashRadius });
@@ -674,12 +780,12 @@ export class Engine {
           to: aim,
           firedTick: this.tick,
           impactTick: this.tick + Math.round(weapon.flightSeconds * TICKS_PER_SECOND),
-          damage: weapon.damage,
+          damage: weapon.damage * this.defWeaponMult,
           damageType: weapon.damageType,
           splashRadius: weapon.splashRadius ?? 0,
         });
       } else {
-        this.damageAttacker(target, weapon.damage, weapon.damageType);
+        this.damageAttacker(target, weapon.damage * this.defWeaponMult, weapon.damageType);
         events.push({
           type: 'shot',
           from: { ...structure.center },
@@ -759,7 +865,7 @@ export class Engine {
         const from = this.grid.cellAt(attacker.pos);
         const result = findPath(this.pathView, from, attacker.goalCells, {
           speed: attacker.speed,
-          wallDps: attacker.profile.wallDps,
+          wallDps: attacker.profile.wallDps * this.atkDamageMult,
         });
         attacker.path = result ? result.cells : null;
         attacker.pathIndex = result && result.cells.length > 1 ? 1 : 0;
@@ -787,7 +893,12 @@ export class Engine {
           attacker.state = 'engaging';
           if (attacker.weaponCooldown <= 0) {
             attacker.weaponCooldown = 1 / weapon.shotsPerSecond;
-            this.damageStructure(engageTarget, weapon.damage, weapon.damageType);
+            this.damageStructure(
+              engageTarget,
+              weapon.damage * this.atkDamageMult,
+              weapon.damageType,
+              attacker.profile.name,
+            );
             events.push({
               type: 'shot',
               from: { ...attacker.pos },
@@ -807,10 +918,15 @@ export class Engine {
       if (attacker.path.length === 1 && attacker.goalCells.includes(attacker.path[0]!)) {
         attacker.state = 'assaulting';
         const dps =
-          target === this.cc
+          (target === this.cc
             ? attacker.profile.hqDps
-            : Math.max(attacker.profile.hqDps, attacker.profile.wallDps);
+            : Math.max(attacker.profile.hqDps, attacker.profile.wallDps)) *
+          this.atkDamageMult;
+        const before = target.hp;
         target.hp -= dps * DT;
+        if (target === this.cc && before > 0 && target.hp <= 0) {
+          this.stats.ccKillerKind ??= attacker.profile.name;
+        }
         continue;
       }
 
@@ -822,7 +938,7 @@ export class Engine {
         const wall = this.grid.wallAt(targetCell);
         if (wall) {
           attacker.state = 'breaking';
-          if (this.grid.damageWall(targetCell, attacker.profile.wallDps * DT)) {
+          if (this.grid.damageWall(targetCell, attacker.profile.wallDps * this.atkDamageMult * DT)) {
             this.stats.wallsLost++;
             events.push({ type: 'wallDestroyed', cell: targetCell });
           }
@@ -831,7 +947,8 @@ export class Engine {
         const blocker = this.structureAtCell.get(targetCell);
         if (blocker && blocker.profile.blocks && blocker.hp > 0) {
           attacker.state = 'breaking';
-          blocker.hp -= attacker.profile.wallDps * DT; // demolition ignores armor
+          // Demolition ignores armor.
+          blocker.hp -= attacker.profile.wallDps * this.atkDamageMult * DT;
           break;
         }
 
@@ -1043,7 +1160,9 @@ export class Engine {
     if (this.chargesLeft && (this.chargesLeft.get(kind) ?? 0) <= 0) return false;
     if (this.phase === 'sandbox') return (this.powerCooldowns.get(kind) ?? 0) <= 0;
     if (this.phase !== 'combat') return false;
-    return (this.powerCooldowns.get(kind) ?? 0) <= 0 && this.cp >= def.cpCost;
+    if ((this.powerCooldowns.get(kind) ?? 0) > 0) return false;
+    // Attacker-side ordnance is charge-budgeted, never CP-budgeted.
+    return this.attackerSide || this.cp >= this.cpPrice(def.cpCost);
   }
 
   /** Remaining charges for a power, or null when the battle has no stock limit. */

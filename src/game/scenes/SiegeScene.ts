@@ -5,6 +5,7 @@ import { HOLD_THE_LINE } from '../../content/missions';
 import { outcomeFromEngine } from '../../meta/town';
 import { DT, Engine } from '../../sim/engine';
 import type { SimConfig, SimEvent } from '../../sim/types';
+import { audio } from '../audio';
 import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
 import { makeButton, mono, type Button } from '../ui';
@@ -285,7 +286,7 @@ export class SiegeScene extends Phaser.Scene {
   }
 
   private cycleSpeed(): void {
-    this.speedMult = this.speedMult >= 4 ? 1 : this.speedMult * 2;
+    this.speedMult = this.speedMult >= 8 ? 1 : this.speedMult * 2;
     this.buttons['speed']?.setLabel(`×${this.speedMult} [S]`);
   }
 
@@ -636,6 +637,7 @@ export class SiegeScene extends Phaser.Scene {
     this.overlayShown = true;
     this.paused = false;
     this.pausedText.setVisible(false);
+    audio.sfx(victory ? 'victory' : 'defeat');
     const cx = (GRID_PX_W + PANEL_W) / 2;
     this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.6).setOrigin(0).setDepth(40);
 
@@ -664,6 +666,7 @@ export class SiegeScene extends Phaser.Scene {
       `Hostiles destroyed: ${s.kills} / ${s.spawned}`,
       `Walls lost: ${s.wallsLost}   Structures lost: ${s.structuresLost}`,
     );
+    if (!victory && s.ccKillerKind) lines.push(`Command Center lost to: ${s.ccKillerKind}`);
     if (victory && s.salvage > 0) lines.push(`Unspent CP salvaged: +${s.salvage} SUP`);
 
     if (mission?.bonus) {

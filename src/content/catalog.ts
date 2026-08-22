@@ -22,11 +22,12 @@ export const M1_CATALOG: Catalog = {
   damage: DAMAGE_MULT,
 };
 
-/** Raids flip the table: USA units attack a Chinese Front Line base. */
+/** Raids flip the table: USA units attack a Chinese Front Line base. The
+ * town's own powers ride along as pre-planned fire support (M6). */
 export const RAID_CATALOG: Catalog = {
   attackers: USA_UNITS,
   structures: CHINA_BASE,
   walls: CHINA_WALLS,
-  powers: {},
+  powers: USA_POWERS,
   damage: DAMAGE_MULT,
 };

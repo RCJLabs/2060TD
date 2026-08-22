@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { MissionDef } from '../../content/campaign';
 import { campaignFor, flavorFor, type FactionId } from '../../content/factions';
 import type { SimConfig } from '../../sim/types';
+import { audio } from '../audio';
 import { COLORS } from '../palette';
 import { mono, makeButton } from '../ui';
 
@@ -116,6 +117,7 @@ export class BriefingScene extends Phaser.Scene {
       this.revealTimer = 0;
       this.revealed++;
       this.refreshLog();
+      audio.sfx('radio'); // each line crackles in
     }
   }
 }

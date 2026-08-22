@@ -28,7 +28,7 @@ import {
   planUnitCount,
   raidConfig,
   resolveRaid,
-  scoutCost,
+  scoutPrice,
   scoutTarget,
   sectorCells,
   targetFor,
@@ -37,6 +37,8 @@ import {
   type SectorId,
   type SquadPlan,
 } from '../../meta/warfare';
+import { researchEffects } from '../../meta/town';
+import type { AutoPowerRule } from '../../sim/types';
 import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
 import { COLORS } from '../palette';
 import { makeButton, mono, type Button } from '../ui';
@@ -47,6 +49,9 @@ const GRID_PX_H = MAP_H * CELL;
 const PANEL_W = 256;
 const DOCTRINES = ['assault', 'hunt', 'raze'] as const;
 const DOCTRINE_LABEL: Record<string, string> = { assault: 'ASLT', hunt: 'HUNT', raze: 'RAZE' };
+/** Fire-plan timing steps (seconds into the assault); null = hold fire. */
+const FIRE_TIMES = [null, 15, 40, 70] as const;
+const FIRE_TARGETS = ['guns', 'cc'] as const;
 
 /**
  * The Front Line (M4): pick a target, scout it, muster the army, split it
@@ -62,6 +67,8 @@ export class RaidScene extends Phaser.Scene {
   private selectedSquad = 0;
   private result: RaidResolution | null = null;
   private lastConfig: ReturnType<typeof raidConfig> | null = null;
+  /** Per-power fire plan: timing index into FIRE_TIMES + target class. */
+  private firePlans: Record<string, { timeIndex: number; target: 'guns' | 'cc' }> = {};
 
   private baseLayer!: Phaser.GameObjects.Graphics;
   private dynLayer!: Phaser.GameObjects.Graphics;
@@ -93,6 +100,10 @@ export class RaidScene extends Phaser.Scene {
       { units: {}, sector: 'N1', doctrine: 'hunt' },
       { units: {}, sector: 'S1', doctrine: 'raze' },
     ];
+    this.firePlans = {};
+    for (const kind of Object.keys(raidCatalogFor(this.town.faction).powers)) {
+      this.firePlans[kind] = { timeIndex: 0, target: 'guns' };
+    }
   }
 
   create(): void {
@@ -249,11 +260,29 @@ export class RaidScene extends Phaser.Scene {
 
   // ---- launch ------------------------------------------------------------------------
 
+  /** The armed fire plan, as sim rules (only powers with stock count). */
+  private autoPowerRules(): AutoPowerRule[] {
+    const rules: AutoPowerRule[] = [];
+    for (const [kind, plan] of Object.entries(this.firePlans)) {
+      const atSeconds = FIRE_TIMES[plan.timeIndex] ?? null;
+      if (atSeconds === null || (this.town.charges[kind] ?? 0) <= 0) continue;
+      rules.push({ kind, atSeconds, target: plan.target });
+    }
+    return rules;
+  }
+
   private launch(): void {
     if (this.result || planUnitCount(this.squads) === 0) return;
     if (this.town.frontline.pendingCounterattack) return;
     const squads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
-    const config = raidConfig(this.base, squads, Date.now() >>> 0, this.trainable);
+    const fx = researchEffects(this.town);
+    const config = raidConfig(this.base, squads, Date.now() >>> 0, this.trainable, {
+      ...(fx.unitHp !== 1 || fx.unitDamage !== 1
+        ? { mods: { hp: fx.unitHp, damage: fx.unitDamage } }
+        : {}),
+      autoPowers: this.autoPowerRules(),
+      powerCharges: { ...this.town.charges },
+    });
     const resolution = resolveRaid(config, squads, this.base.tier, raidCatalogFor(this.town.faction));
     applyRaidResult(this.town, this.base, resolution, config, Date.now());
     this.saveSoon();
@@ -284,10 +313,14 @@ export class RaidScene extends Phaser.Scene {
     const lossLine = Object.entries(res.losses)
       .map(([kind, n]) => `${n}× ${this.trainMeta[kind]?.short ?? kind}`)
       .join('  ');
+    const ordnanceLine = Object.entries(res.powersUsed)
+      .map(([kind, n]) => `${n}× ${kind.toUpperCase()}`)
+      .join('  ');
     const lines = [
       `Destruction: ${Math.round(res.destructionPct * 100)}%   Duration: ${Math.floor(res.ticks / 20)}s`,
       `Loot: +${res.loot.supplies} SUP  +${res.loot.fuel} FUEL`,
       lossLine ? `Losses: ${lossLine}` : 'Losses: none',
+      ...(ordnanceLine ? [`Ordnance expended: ${ordnanceLine}`] : []),
       res.cleared
         ? `Front Line: ${this.town.frontline.wins}/3 to next tier` +
           (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')
@@ -387,11 +420,37 @@ export class RaidScene extends Phaser.Scene {
     });
     y += 25;
     this.buttons['clear'] = makeButton(this, x0 + pad, y, bw, 20, 'CLEAR SQUAD', () => this.clearSquad());
-    y += 30;
+    y += 28;
 
-    this.buttons['launch'] = makeButton(this, x0 + pad, y, bw, 30, '', () => this.launch());
-    y += 38;
-    this.buttons['back'] = makeButton(this, x0 + pad, y, bw, 24, 'RETURN TO BASE [ESC]', () =>
+    // Pre-planned fire support: the same charges the town stocks for defense.
+    this.add.text(x0 + pad, y, 'FIRE PLAN — town ordnance', mono(10, COLORS.inkDim));
+    y += 13;
+    for (const kind of Object.keys(this.firePlans)) {
+      const timeHalf = (bw - 6) * 0.58;
+      this.buttons[`fireTime_${kind}`] = makeButton(this, x0 + pad, y, timeHalf, 20, '', () => {
+        const plan = this.firePlans[kind]!;
+        plan.timeIndex = (plan.timeIndex + 1) % FIRE_TIMES.length;
+      });
+      this.buttons[`fireTarget_${kind}`] = makeButton(
+        this,
+        x0 + pad + timeHalf + 6,
+        y,
+        bw - timeHalf - 6,
+        20,
+        '',
+        () => {
+          const plan = this.firePlans[kind]!;
+          plan.target =
+            FIRE_TARGETS[(FIRE_TARGETS.indexOf(plan.target) + 1) % FIRE_TARGETS.length]!;
+        },
+      );
+      y += 23;
+    }
+    y += 5;
+
+    this.buttons['launch'] = makeButton(this, x0 + pad, y, bw, 28, '', () => this.launch());
+    y += 34;
+    this.buttons['back'] = makeButton(this, x0 + pad, y, bw, 22, 'RETURN TO BASE [ESC]', () =>
       this.goHome(),
     );
 
@@ -420,14 +479,17 @@ export class RaidScene extends Phaser.Scene {
     this.armyText.setText(
       [
         `TIER ${tier} · POSTS CLEARED ${town.frontline.wins}/3`,
-        `MANPOWER ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)} · FUEL ${Math.floor(town.fuel)}`,
+        `MP ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)} · INT ${Math.floor(town.intel)}`,
       ].join('\n'),
     );
 
     this.buttons['target']?.setLabel(`TARGET ${this.variant + 1}/${TARGETS_PER_TIER} ▸`);
     const scouted = this.scouted();
-    this.buttons['scout']?.setLabel(scouted ? 'SCOUTED — LAYOUT KNOWN' : `SCOUT — ${scoutCost(tier)} SUP`);
-    this.buttons['scout']?.setEnabled(!scouted && town.supplies >= scoutCost(tier));
+    const scoutIntel = scoutPrice(town, tier);
+    this.buttons['scout']?.setLabel(
+      scouted ? 'SCOUTED — LAYOUT KNOWN' : `SCOUT — ${scoutIntel} INTEL`,
+    );
+    this.buttons['scout']?.setEnabled(!scouted && town.intel >= scoutIntel);
 
     for (const meta of this.trainable) {
       const cost = meta.fuel > 0 ? `${meta.supplies}S+${meta.fuel}F` : `${meta.supplies}S`;
@@ -459,6 +521,23 @@ export class RaidScene extends Phaser.Scene {
     this.buttons['doctrine']?.setLabel(`DOCTRINE: ${DOCTRINE_LABEL[squad.doctrine]} ▸`);
     for (const meta of this.trainable) {
       this.buttons[`add_${meta.kind}`]?.setEnabled(this.available(meta.kind) > 0 && !this.result);
+    }
+
+    // Fire plan rows: timing + target + remaining stock.
+    const powers = raidCatalogFor(town.faction).powers;
+    for (const [kind, plan] of Object.entries(this.firePlans)) {
+      const def = powers[kind];
+      const stock = town.charges[kind] ?? 0;
+      const name = (def?.short ?? def?.name ?? kind).toUpperCase();
+      const when = FIRE_TIMES[plan.timeIndex];
+      this.buttons[`fireTime_${kind}`]?.setLabel(
+        `${name.slice(0, 8)} ${when === null ? 'HOLD' : `T+${when}s`} ×${stock}`,
+      );
+      this.buttons[`fireTime_${kind}`]?.setEnabled(stock > 0 && !this.result);
+      this.buttons[`fireTarget_${kind}`]?.setLabel(plan.target === 'guns' ? '→ GUNS' : '→ CC');
+      this.buttons[`fireTarget_${kind}`]?.setEnabled(
+        stock > 0 && when !== null && !this.result,
+      );
     }
 
     const total = planUnitCount(this.squads);
@@ -516,6 +595,8 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
     barracks.trainQueue = faction === 'china' ? ['rifle', 'grenadier'] : ['ranger', 'javelin'];
     barracks.trainEndsAt = now + 9_000;
   }
+  town.charges = { a10: 2, arty: 1 };
+  town.intel = 120;
   town.lastSeen = now;
   return town;
 }

@@ -13,9 +13,12 @@ export interface StructureGlyphOptions {
   inert?: boolean;
   /** Enemy-held structure: crimson palette instead of olive/intel. */
   hostile?: boolean;
+  /** Barrel heading in radians (from the renderer's last-shot tracking).
+   * Absent = the resting pose, pointing up. */
+  aimAngle?: number;
 }
 
-/** Terrain base: field, grid lines, and the attacker entry strip. */
+/** Terrain base: field, grid lines, worn ground, and the attacker entry strip. */
 export function drawFieldBase(
   g: Phaser.GameObjects.Graphics,
   width: number,
@@ -27,17 +30,47 @@ export function drawFieldBase(
   const pxH = height * cell;
   g.fillStyle(COLORS.bgField, 1);
   g.fillRect(0, 0, pxW, pxH);
+
+  // Deterministic ground texture: a cheap hash scatters scrub and mud
+  // patches so the field reads as terrain, not graph paper.
+  for (let cy = 0; cy < height; cy++) {
+    for (let cx = 0; cx < width; cx++) {
+      const h = (cx * 73856093) ^ (cy * 19349663);
+      const roll = (h >>> 4) % 100;
+      const px = cx * cell;
+      const py = cy * cell;
+      if (roll < 7) {
+        // scrub tuft
+        g.lineStyle(1, COLORS.olive, 0.16);
+        const ox = px + 6 + ((h >>> 8) % (cell - 12));
+        const oy = py + 6 + ((h >>> 12) % (cell - 12));
+        g.lineBetween(ox - 3, oy + 3, ox, oy - 3);
+        g.lineBetween(ox, oy - 3, ox + 3, oy + 3);
+      } else if (roll < 11) {
+        // mud patch
+        g.fillStyle(COLORS.sandDark, 0.05);
+        g.fillCircle(px + cell / 2, py + cell / 2, cell * 0.42);
+      } else if (roll < 13) {
+        // rubble specks
+        g.fillStyle(COLORS.steel, 0.1);
+        g.fillRect(px + ((h >>> 6) % (cell - 6)) + 2, py + ((h >>> 10) % (cell - 6)) + 2, 3, 2);
+      }
+    }
+  }
+
   g.lineStyle(1, COLORS.gridLine, 1);
   for (let x = 0; x <= width; x++) g.lineBetween(x * cell, 0, x * cell, pxH);
   for (let y = 0; y <= height; y++) g.lineBetween(0, y * cell, pxW, y * cell);
 
-  const spawnX = spawnColumn * cell;
-  g.fillStyle(COLORS.crimson, 0.07);
-  g.fillRect(spawnX, 0, cell, pxH);
-  g.fillStyle(COLORS.crimson, 0.4);
-  for (let y = 1; y < height; y += 3) {
-    const cy = y * cell + cell / 2;
-    g.fillTriangle(spawnX + 8, cy - 6, spawnX + 8, cy + 6, spawnX + 20, cy);
+  if (spawnColumn >= 0) {
+    const spawnX = spawnColumn * cell;
+    g.fillStyle(COLORS.crimson, 0.07);
+    g.fillRect(spawnX, 0, cell, pxH);
+    g.fillStyle(COLORS.crimson, 0.4);
+    for (let y = 1; y < height; y += 3) {
+      const cy = y * cell + cell / 2;
+      g.fillTriangle(spawnX + 8, cy - 6, spawnX + 8, cy + 6, spawnX + 20, cy);
+    }
   }
 }
 
@@ -109,6 +142,15 @@ export function drawStructureGlyph(
   opts: StructureGlyphOptions = {},
 ): void {
   const hostile = opts.hostile ?? false;
+  const aim = opts.aimAngle ?? -Math.PI / 2; // resting pose: barrel up
+  /** Draw `body` in a frame rotated to the aim heading (+x = downrange). */
+  const aimed = (body: () => void): void => {
+    g.save();
+    g.translateCanvas(px, py);
+    g.rotateCanvas(aim);
+    body();
+    g.restore();
+  };
   switch (kind) {
     case 'cc': {
       const half = cell - 3;
@@ -122,15 +164,19 @@ export function drawStructureGlyph(
       turretBase(g, px, py, hostile);
       g.fillStyle(COLORS.crimson, 1);
       g.fillCircle(px, py, 7);
-      g.lineStyle(3, COLORS.steel, 1);
-      g.lineBetween(px, py, px, py - 12);
+      aimed(() => {
+        g.lineStyle(3, COLORS.steel, 1);
+        g.lineBetween(0, 0, 12, 0);
+      });
       break;
     case 'qlzTower':
       turretBase(g, px, py, hostile);
       g.fillStyle(COLORS.crimson, 1);
       g.fillCircle(px, py, 7);
-      g.lineStyle(5, COLORS.steel, 1);
-      g.lineBetween(px, py - 2, px, py - 10);
+      aimed(() => {
+        g.lineStyle(5, COLORS.steel, 1);
+        g.lineBetween(2, 0, 10, 0);
+      });
       g.lineStyle(1, COLORS.signal, 0.9);
       g.strokeCircle(px, py, 9);
       break;
@@ -138,9 +184,11 @@ export function drawStructureGlyph(
       turretBase(g, px, py, hostile);
       g.fillStyle(COLORS.crimson, 1);
       g.fillRect(px - 7, py - 5, 14, 10);
-      g.lineStyle(2, COLORS.steel, 1);
-      g.lineBetween(px - 3, py - 5, px - 3, py - 12);
-      g.lineBetween(px + 3, py - 5, px + 3, py - 12);
+      aimed(() => {
+        g.lineStyle(2, COLORS.steel, 1);
+        g.lineBetween(5, -3, 12, -3);
+        g.lineBetween(5, 3, 12, 3);
+      });
       break;
     case 'supplyCache':
       buildingBase(g, px, py, cell, COLORS.sandDark, hostile);
@@ -203,20 +251,36 @@ export function drawStructureGlyph(
       g.lineStyle(2, COLORS.olive, 1);
       g.lineBetween(px, py - 2, px + 13, py - 2);
       break;
+    case 'radar':
+      buildingBase(g, px, py, cell, COLORS.intel);
+      // Dish on a mast, angled skyward, plus a signal tick.
+      g.lineStyle(3, COLORS.steel, 1);
+      g.lineBetween(px - 2, py + 10, px - 2, py - 2);
+      g.lineStyle(3, COLORS.ink, 0.9);
+      g.beginPath();
+      g.arc(px + 1, py - 4, 8, Math.PI * 0.75, Math.PI * 1.45, false);
+      g.strokePath();
+      g.fillStyle(COLORS.tracer, 0.9);
+      g.fillCircle(px + 7, py - 10, 2);
+      break;
     case 'm2nest':
       turretBase(g, px, py, hostile);
       g.fillStyle(hostile ? COLORS.crimson : COLORS.olive, 1);
       g.fillCircle(px, py, 7);
-      g.lineStyle(3, COLORS.steel, 1);
-      g.lineBetween(px, py, px, py - 12);
+      aimed(() => {
+        g.lineStyle(3, COLORS.steel, 1);
+        g.lineBetween(0, 0, 12, 0);
+      });
       break;
     case 'autocannon':
       turretBase(g, px, py, hostile);
       g.fillStyle(hostile ? COLORS.crimson : COLORS.olive, 1);
       g.fillCircle(px, py, 7);
-      g.lineStyle(2, COLORS.steel, 1);
-      g.lineBetween(px - 3, py, px - 3, py - 13);
-      g.lineBetween(px + 3, py, px + 3, py - 13);
+      aimed(() => {
+        g.lineStyle(2, COLORS.steel, 1);
+        g.lineBetween(0, -3, 13, -3);
+        g.lineBetween(0, 3, 13, 3);
+      });
       break;
     case 'mortar':
       turretBase(g, px, py, hostile);
@@ -230,8 +294,10 @@ export function drawStructureGlyph(
       g.fillRect(px - 10, py - 10, 20, 20);
       g.fillStyle(COLORS.steel, 1);
       g.fillCircle(px, py, 5);
-      g.lineStyle(2, COLORS.ink, 0.8);
-      g.lineBetween(px, py, px, py - 9);
+      aimed(() => {
+        g.lineStyle(2, COLORS.ink, 0.8);
+        g.lineBetween(0, 0, 9, 0);
+      });
       break;
     case 'foxhole':
       g.fillStyle(COLORS.sandDark, 0.8);
@@ -289,6 +355,7 @@ const BUILDING_KINDS = new Set([
   'fuelDepot',
   'storageBunker',
   'engBay',
+  'radar',
   'barracks',
   'motorpool',
   'supplyCache',

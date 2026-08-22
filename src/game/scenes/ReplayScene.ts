@@ -130,9 +130,14 @@ export class ReplayScene extends Phaser.Scene {
         : attackersWon
           ? 'PERIMETER BREACHED'
           : 'PROBE REPELLED';
+      const killer = this.engine.stats.ccKillerKind;
+      const cause = attackersWon && killer ? `\nKILLING BLOW: ${killer.toUpperCase()}` : '';
       this.add
-        .text(512, 384, text, {
-          ...mono(28, attackersWon === raid ? COLORS.olive : COLORS.alarm, { fontStyle: 'bold' }),
+        .text(512, 384, text + cause, {
+          ...mono(28, attackersWon === raid ? COLORS.olive : COLORS.alarm, {
+            fontStyle: 'bold',
+            align: 'center',
+          }),
           backgroundColor: css(COLORS.bgPanel),
           padding: { x: 16, y: 10 },
         })

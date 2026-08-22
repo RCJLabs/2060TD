@@ -40,12 +40,13 @@ const CHINA_DEFENSE_CATALOG: Catalog = {
   damage: DAMAGE_MULT,
 };
 
-/** China's raid table: PLA rosters assault USA firebases. */
+/** China's raid table: PLA rosters assault USA firebases, with the PLA's own
+ * batteries available as pre-planned fire support. */
 const CHINA_RAID_CATALOG: Catalog = {
   attackers: CHINA_ATTACKERS,
   structures: { ...USA_STRUCTURES, ...ECONOMY_STRUCTURES },
   walls: USA_WALLS,
-  powers: {},
+  powers: CHINA_TOWN_POWERS,
   damage: DAMAGE_MULT,
 };
 

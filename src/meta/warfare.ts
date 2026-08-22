@@ -3,8 +3,17 @@ import { RAID_CATALOG } from '../content/catalog';
 import { baseKitFor, defenseCatalogFor } from '../content/factions';
 import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
-import type { Catalog, CellIndex, Doctrine, SimConfig, WaveDef, WaveEntry } from '../sim/types';
-import { probeConfig, type DefenseLogEntry, type TownState } from './town';
+import type {
+  AttackerMods,
+  AutoPowerRule,
+  Catalog,
+  CellIndex,
+  Doctrine,
+  SimConfig,
+  WaveDef,
+  WaveEntry,
+} from '../sim/types';
+import { probeConfig, researchEffects, type DefenseLogEntry, type TownState } from './town';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -96,12 +105,24 @@ export function raidWave(squads: SquadPlan[], trainable: TrainMeta[] = TRAINABLE
   return { entries };
 }
 
+export interface RaidSupport {
+  /** Research multipliers for the raiding units. */
+  mods?: AttackerMods;
+  /** Pre-planned fire missions, evaluated in-sim. */
+  autoPowers?: AutoPowerRule[];
+  /** Ordnance stock committed to this raid (usually the town's charges). */
+  powerCharges?: Record<string, number>;
+}
+
 export function raidConfig(
   base: GeneratedBase,
   squads: SquadPlan[],
   seed: number,
   trainable: TrainMeta[] = TRAINABLE,
+  support: RaidSupport = {},
 ): SimConfig {
+  const mods = support.mods;
+  const hasMods = mods && ((mods.hp ?? 1) !== 1 || (mods.damage ?? 1) !== 1);
   return {
     width: MAP_W,
     height: MAP_H,
@@ -109,6 +130,7 @@ export function raidConfig(
     ccOrigin: base.ccOrigin,
     ccLevel: base.ccLevel,
     spawnColumn: 0,
+    playerSide: 'attacker',
     siege: {
       name: `RAID — ${base.name}`,
       startingSupplies: 0,
@@ -124,7 +146,11 @@ export function raidConfig(
       walls: base.walls.map((w) => ({ ...w })),
       structures: base.structures.map((s) => ({ ...s })),
     },
-    powerCharges: {},
+    powerCharges: { ...(support.powerCharges ?? {}) },
+    ...(hasMods ? { mods: { attacker: mods } } : {}),
+    ...(support.autoPowers && support.autoPowers.length > 0
+      ? { autoPowers: support.autoPowers.map((r) => ({ ...r })) }
+      : {}),
   };
 }
 
@@ -141,6 +167,8 @@ export interface RaidResolution {
   destroyed: Record<string, number>;
   loot: { supplies: number; fuel: number };
   destructionPct: number;
+  /** Ordnance charges actually expended by the fire plan. */
+  powersUsed: Record<string, number>;
 }
 
 /** Run the raid headlessly to its end. Deterministic; the replay re-runs it. */
@@ -193,6 +221,12 @@ export function resolveRaid(
     }
   }
 
+  const powersUsed: Record<string, number> = {};
+  for (const [kind, stocked] of Object.entries(config.powerCharges ?? {})) {
+    const used = stocked - (engine.powerChargesLeft(kind) ?? stocked);
+    if (used > 0) powersUsed[kind] = used;
+  }
+
   return {
     cleared: engine.phase === 'defeat', // the DEFENDER lost its command post
     ticks: engine.tick,
@@ -202,6 +236,7 @@ export function resolveRaid(
     destroyed,
     loot,
     destructionPct: initialTotal > 0 ? destroyedTotal / initialTotal : 0,
+    powersUsed,
   };
 }
 
@@ -215,6 +250,10 @@ export function applyRaidResult(
 ): void {
   for (const [kind, lost] of Object.entries(resolution.losses)) {
     town.army[kind] = Math.max(0, (town.army[kind] ?? 0) - lost);
+  }
+  // Ordnance fired in support is gone from the shared stock.
+  for (const [kind, used] of Object.entries(resolution.powersUsed)) {
+    town.charges[kind] = Math.max(0, (town.charges[kind] ?? 0) - used);
   }
   town.supplies += resolution.loot.supplies;
   town.fuel += resolution.loot.fuel;
@@ -244,8 +283,14 @@ export function applyRaidResult(
 
 // ---- scouting -----------------------------------------------------------------------------
 
-export const scoutCost = (tier: number): number => 60 + 30 * tier;
+/** Recon is a Signals product now (M6): priced in Intel, not Supplies. */
+export const scoutCost = (tier: number): number => 30 + 15 * tier;
 export const targetKey = (tier: number, variant: number): string => `t${tier}v${variant}`;
+
+/** The tier's scout price after research discounts. */
+export function scoutPrice(town: TownState, tier: number): number {
+  return Math.ceil(scoutCost(tier) * researchEffects(town).scoutCost);
+}
 
 export function isScouted(town: TownState, tier: number, variant: number): boolean {
   return town.frontline.scouted.includes(targetKey(tier, variant));
@@ -253,9 +298,9 @@ export function isScouted(town: TownState, tier: number, variant: number): boole
 
 export function scoutTarget(town: TownState, tier: number, variant: number): boolean {
   if (isScouted(town, tier, variant)) return true;
-  const cost = scoutCost(tier);
-  if (town.supplies < cost) return false;
-  town.supplies -= cost;
+  const cost = scoutPrice(town, tier);
+  if (town.intel < cost) return false;
+  town.intel -= cost;
   town.frontline.scouted.push(targetKey(tier, variant));
   return true;
 }
@@ -320,6 +365,7 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
       held,
       suppliesLost,
       fuelLost,
+      ...(engine.stats.ccKillerKind ? { killer: engine.stats.ccKillerKind } : {}),
       config,
     };
     town.defenseLog.unshift(entry);

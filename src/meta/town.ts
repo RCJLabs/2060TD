@@ -28,6 +28,7 @@ import {
   type MissionDef,
 } from '../content/campaign';
 import { M1_CATALOG } from '../content/catalog';
+import { effectsOf, techPrereq, TECH_BY_ID, type ResearchEffects } from '../content/research';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats } from '../sim/types';
 
@@ -89,8 +90,17 @@ export interface DefenseLogEntry {
   held: boolean;
   suppliesLost: number;
   fuelLost: number;
+  /** What landed the killing blow on the CC, when breached. */
+  killer?: string;
   /** Full battle config — every offline probe is replayable. */
   config: SimConfig;
+}
+
+export interface ResearchState {
+  /** Completed tech ids (content/research.ts). */
+  completed: string[];
+  /** The single in-flight project, if any. */
+  active: { id: string; endsAt: number } | null;
 }
 
 export interface RaidRecord {
@@ -102,11 +112,14 @@ export interface RaidRecord {
 }
 
 export interface TownState {
-  version: 4;
+  version: 5;
   /** Whose war this town fights (M5): decides catalogs, campaign, enemies. */
   faction: FactionId;
   supplies: number;
   fuel: number;
+  /** Signals product (M6): pays for scouting and research. */
+  intel: number;
+  research: ResearchState;
   structures: PlacedStructure[]; // includes the Command Center (kind 'cc')
   walls: { cell: CellIndex; kind: string }[];
   charges: Record<string, number>;
@@ -130,10 +143,12 @@ export interface TownState {
 
 export function newTown(now: number, faction: FactionId = 'usa'): TownState {
   return {
-    version: 4,
+    version: 5,
     faction,
     supplies: STARTING_SUPPLIES,
     fuel: STARTING_FUEL,
+    intel: 0,
+    research: { completed: [], active: null },
     structures: [
       { id: 1, kind: 'cc', cell: TOWN_GRID.ccOrigin, level: 1, wrecked: false },
     ],
@@ -202,24 +217,44 @@ export function countOf(town: TownState, kind: string): number {
 
 // ---- economy -------------------------------------------------------------------------
 
-export function caps(town: TownState): { supplies: number; fuel: number } {
+/** Aggregated research multipliers for this town. */
+export function researchEffects(town: TownState): ResearchEffects {
+  return effectsOf(town.research.completed);
+}
+
+export function caps(town: TownState): { supplies: number; fuel: number; intel: number } {
   const base = BASE_CAPS[Math.min(ccLevel(town), BASE_CAPS.length) - 1]!;
   let supplies = base.supplies;
   let fuel = base.fuel;
+  let intel = base.intel;
   for (const s of town.structures) {
-    const storage = TOWN_META[s.kind]?.storage;
-    if (storage && working(s)) {
-      const tier = storage[Math.min(s.level, storage.length) - 1]!;
+    const meta = TOWN_META[s.kind];
+    if (!meta || !working(s)) continue;
+    if (meta.storage) {
+      const tier = meta.storage[Math.min(s.level, meta.storage.length) - 1]!;
       supplies += tier.supplies;
       fuel += tier.fuel;
     }
+    if (meta.intelCap) {
+      intel += meta.intelCap[Math.min(s.level, meta.intelCap.length) - 1]!;
+    }
   }
-  return { supplies, fuel };
+  const storageMult = researchEffects(town).storage;
+  return {
+    supplies: Math.floor(supplies * storageMult),
+    fuel: Math.floor(fuel * storageMult),
+    intel,
+  };
 }
 
-export function ratesPerMinute(town: TownState): { supplies: number; fuel: number } {
+export function ratesPerMinute(town: TownState): {
+  supplies: number;
+  fuel: number;
+  intel: number;
+} {
   let supplies = 0;
   let fuel = 0;
+  let intel = 0;
   for (const s of town.structures) {
     if (!working(s)) continue;
     const meta = TOWN_META[s.kind];
@@ -229,8 +264,16 @@ export function ratesPerMinute(town: TownState): { supplies: number; fuel: numbe
     if (meta?.generatesFuel) {
       fuel += meta.generatesFuel[Math.min(s.level, meta.generatesFuel.length) - 1]!;
     }
+    if (meta?.generatesIntel) {
+      intel += meta.generatesIntel[Math.min(s.level, meta.generatesIntel.length) - 1]!;
+    }
   }
-  return { supplies, fuel };
+  const ratesMult = researchEffects(town).rates;
+  return {
+    supplies: Math.round(supplies * ratesMult * 10) / 10,
+    fuel: Math.round(fuel * ratesMult * 10) / 10,
+    intel,
+  };
 }
 
 export function buildSpeedFactor(town: TownState): number {
@@ -272,8 +315,18 @@ export function tick(town: TownState, now: number): void {
     const minutes = elapsed / 60_000;
     town.supplies = Math.min(cap.supplies, town.supplies + rate.supplies * minutes);
     town.fuel = Math.min(cap.fuel, town.fuel + rate.fuel * minutes);
+    town.intel = Math.min(cap.intel, town.intel + rate.intel * minutes);
   }
   town.lastSeen = now;
+
+  // Research completes on its own clock — the lab doesn't wait for you.
+  const active = town.research.active;
+  if (active && active.endsAt <= now) {
+    if (!town.research.completed.includes(active.id)) {
+      town.research.completed.push(active.id);
+    }
+    town.research.active = null;
+  }
 
   for (const s of town.structures) {
     if (s.buildEndsAt !== undefined && s.buildEndsAt <= now) {
@@ -293,7 +346,9 @@ export function tick(town: TownState, now: number): void {
       town.army[kind] = (town.army[kind] ?? 0) + 1;
       const next = s.trainQueue[0];
       if (next !== undefined) {
-        s.trainEndsAt = s.trainEndsAt + (trainMetaFor(town.faction)[next]?.seconds ?? 30) * 1000;
+        const seconds =
+          (trainMetaFor(town.faction)[next]?.seconds ?? 30) * researchEffects(town).trainTime;
+        s.trainEndsAt = s.trainEndsAt + seconds * 1000;
       } else {
         delete s.trainEndsAt;
       }
@@ -362,7 +417,40 @@ export function queueTrain(town: TownState, structureId: number, kind: string, n
   town.fuel -= meta.fuel;
   s.trainQueue = s.trainQueue ?? [];
   s.trainQueue.push(kind);
-  if (s.trainQueue.length === 1) s.trainEndsAt = now + meta.seconds * 1000;
+  if (s.trainQueue.length === 1) {
+    s.trainEndsAt = now + meta.seconds * researchEffects(town).trainTime * 1000;
+  }
+  return true;
+}
+
+// ---- research -----------------------------------------------------------------------
+
+export type ResearchError = 'unknown' | 'done' | 'busy' | 'prereq' | 'radar' | 'cost' | null;
+
+/** A functional Signals Station hosts the research program. */
+export function hasRadar(town: TownState): boolean {
+  return town.structures.some(
+    (s) => s.kind === 'radar' && !s.wrecked && (s.buildEndsAt === undefined || s.upgradingTo !== undefined),
+  );
+}
+
+export function canResearch(town: TownState, id: string): ResearchError {
+  const tech = TECH_BY_ID[id];
+  if (!tech) return 'unknown';
+  if (town.research.completed.includes(id)) return 'done';
+  if (town.research.active) return 'busy';
+  if (!hasRadar(town)) return 'radar';
+  const prereq = techPrereq(tech);
+  if (prereq && !town.research.completed.includes(prereq)) return 'prereq';
+  if (town.intel < tech.intel) return 'cost';
+  return null;
+}
+
+export function startResearch(town: TownState, id: string, now: number): boolean {
+  if (canResearch(town, id) !== null) return false;
+  const tech = TECH_BY_ID[id]!;
+  town.intel -= tech.intel;
+  town.research.active = { id, endsAt: now + tech.seconds * 1000 };
   return true;
 }
 
@@ -560,6 +648,11 @@ function battleConfig(
   siege: SiegeDefWithSupplies,
   reservedCells?: CellIndex[],
 ): SimConfig {
+  const fx = researchEffects(town);
+  const defender =
+    fx.wallHp !== 1 || fx.weaponDamage !== 1 || fx.cpCost !== 1
+      ? { wallHp: fx.wallHp, weaponDamage: fx.weaponDamage, cpCost: fx.cpCost }
+      : undefined;
   return {
     width: TOWN_GRID.width,
     height: TOWN_GRID.height,
@@ -571,6 +664,7 @@ function battleConfig(
     layout: townLayout(town),
     powerCharges: { ...town.charges },
     buildLimits: buildLimitsFor(town),
+    ...(defender ? { mods: { defender } } : {}),
     ...(reservedCells && reservedCells.length > 0 ? { reservedCells } : {}),
   };
 }
@@ -697,6 +791,7 @@ function foldBattle(town: TownState, outcome: SiegeOutcome, now: number): void {
 function applyDefeat(town: TownState): void {
   town.supplies = Math.floor(town.supplies * (1 - DEFEAT_LOSS_FRACTION));
   town.fuel = Math.floor(town.fuel * (1 - DEFEAT_LOSS_FRACTION));
+  town.intel = Math.floor(town.intel * (1 - DEFEAT_LOSS_FRACTION));
   town.defeats++;
 }
 
@@ -704,6 +799,7 @@ function clampToCaps(town: TownState): void {
   const cap = caps(town);
   town.supplies = Math.min(town.supplies, cap.supplies);
   town.fuel = Math.min(town.fuel, cap.fuel);
+  town.intel = Math.min(town.intel, cap.intel);
 }
 
 /** Fold a finished SKIRMISH (ladder assault) back into the persistent town. */
@@ -767,7 +863,8 @@ export function applyMissionResult(
 
   const firstClear = !town.campaign.completed.includes(mission.id);
   const bonusAchieved = mission.bonus !== undefined && bonusMet(mission.bonus.id, outcome);
-  const multiplier = bonusAchieved ? 1.5 : 1;
+  // Replays of cleared missions pay a shadow of the original requisition.
+  const multiplier = (bonusAchieved ? 1.5 : 1) * (firstClear ? 1 : 0.35);
   const rewardSupplies = Math.floor(mission.reward.supplies * multiplier);
   const rewardFuel = Math.floor(mission.reward.fuel * multiplier);
   town.supplies += rewardSupplies;
