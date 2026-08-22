@@ -17,6 +17,10 @@ export const COLORS = {
   ink: 0xd8d5c7,
   inkDim: 0x8a8878,
   tracer: 0xf5e6a8,
+  tracerKinetic: 0xffe28a,
+  tracerExplosive: 0xff9a5c,
+  crimson: 0xa83232,
+  crimsonDark: 0x7c2424,
 } as const;
 
 /** CSS hex string for a palette color (for text styles and DOM). */

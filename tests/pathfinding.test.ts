@@ -5,7 +5,7 @@ import { findPath } from '../src/sim/pathfinding';
 const WALL_HP = 150;
 const WALKER = { speed: 2.2, wallDps: 3 }; // ~50s per wall: detours if at all possible
 const BREACHER = { speed: 1.6, wallDps: 45 }; // ~3.3s per wall: happily goes through
-const NO_BREAK = { speed: 2.0, wallDps: 0 }; // walls are impassable
+const NO_BREAK = { speed: 2.0, wallDps: 0 }; // obstacles are impassable
 
 /** 21×11 grid, start mid-left, goal mid-right. */
 function openField() {
@@ -59,7 +59,6 @@ describe('weighted A* — the maze rule', () => {
     const path = findPath(grid, start, goal, WALKER);
     expect(path).not.toBeNull();
     expect(wallCellsIn(grid, path!.cells)).toHaveLength(1);
-    // Breaking one wall (50s) dominates the cost.
     expect(path!.cost).toBeGreaterThan(WALL_HP / WALKER.wallDps);
   });
 
@@ -69,13 +68,13 @@ describe('weighted A* — the maze rule', () => {
     expect(findPath(grid, start, goal, NO_BREAK)).toBeNull();
   });
 
-  it('treats hard blockers (turret footprints) as impassable even for breachers', () => {
+  it('treats hard blockers (Command Center footprint) as impassable even for breachers', () => {
     const { grid, start, goal } = openField();
     for (let y = 0; y < grid.height; y++) grid.addBlocker(grid.idx(10, y));
     expect(findPath(grid, start, goal, BREACHER)).toBeNull();
   });
 
-  it('accounts wall HP into the path cost exactly', () => {
+  it('accounts obstacle HP into the path cost exactly', () => {
     // 1-wide corridor: 5 cells, wall in the middle — no way around.
     const grid = new Grid(5, 1);
     grid.placeWall(grid.idx(2, 0), WALL_HP);
@@ -84,13 +83,31 @@ describe('weighted A* — the maze rule', () => {
     expect(path!.cost).toBeCloseTo(4 * 1 + WALL_HP / 50, 10);
   });
 
+  it('reaches the cheapest of multiple goals', () => {
+    const { grid, start } = openField();
+    const near = grid.idx(20, 3);
+    const far = grid.idx(20, 9);
+    const path = findPath(grid, start, [far, near], WALKER);
+    expect(path).not.toBeNull();
+    expect(path!.cells.at(-1)).toBe(near);
+  });
+
+  it('skips goals that are hard-blocked but still reaches the others', () => {
+    const { grid, start } = openField();
+    const blockedGoal = grid.idx(20, 3);
+    grid.addBlocker(blockedGoal);
+    const path = findPath(grid, start, [blockedGoal, grid.idx(20, 9)], WALKER);
+    expect(path).not.toBeNull();
+    expect(path!.cells.at(-1)).toBe(grid.idx(20, 9));
+  });
+
   it('is deterministic: identical queries yield identical paths', () => {
     const { grid, start, goal } = openField();
     wallLine(grid, 3);
     grid.placeWall(grid.idx(5, 5), WALL_HP);
     grid.placeWall(grid.idx(15, 6), WALL_HP);
-    const a = findPath(grid, start, goal, WALKER);
-    const b = findPath(grid, start, goal, WALKER);
+    const a = findPath(grid, start, [goal], WALKER);
+    const b = findPath(grid, start, [goal], WALKER);
     expect(a).toEqual(b);
   });
 

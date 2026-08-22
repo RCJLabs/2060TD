@@ -1,112 +1,169 @@
 import { describe, expect, it } from 'vitest';
-import { Engine } from '../src/sim/engine';
-import type { RunnerProfile, SimConfig, TurretProfile } from '../src/sim/types';
+import type { SimEvent } from '../src/sim/types';
+import { makeSandbox, spawnCell, wallLine } from './helpers';
 
-// Zero-jitter profiles so travel times are exact in behavioral tests.
-const WALKER: RunnerProfile = { kind: 'walker', maxHp: 40, speed: 2, wallDps: 3, speedJitter: 0 };
-const BREACHER: RunnerProfile = { kind: 'breacher', maxHp: 70, speed: 1.6, wallDps: 45, speedJitter: 0 };
-const SEALED: RunnerProfile = { kind: 'sealed', maxHp: 40, speed: 2, wallDps: 0, speedJitter: 0 };
-const MG: TurretProfile = { kind: 'mg', range: 4.5, damage: 9, shotsPerSecond: 2.5 };
-
-function makeEngine(seed = 42): Engine {
-  const width = 20;
-  const height = 11;
-  const config: SimConfig = {
-    width,
-    height,
-    seed,
-    wallHp: 150,
-    hqCell: (5 * width) + 19, // (19, 5)
-    spawnColumn: 0,
-  };
-  return new Engine(config);
-}
-
-const spawnCell = (e: Engine, y: number) => e.grid.idx(0, y);
-
-function wallLineCommands(e: Engine, tick: number, gapY: number | null) {
-  for (let y = 0; y < e.grid.height; y++) {
-    if (y === gapY) continue;
-    e.enqueue({ tick, type: 'placeWall', cell: e.grid.idx(10, y) });
-  }
-}
-
-describe('engine behavior', () => {
-  it('a walker crosses open ground and leaks at the HQ', () => {
-    const e = makeEngine();
-    e.enqueue({ tick: 0, type: 'spawnRunner', cell: spawnCell(e, 5), profile: WALKER });
-    e.run(220); // 19 cells at speed 2 = 9.5s = 190 ticks
-    expect(e.stats.leaks).toBe(1);
-    expect(e.stats.kills).toBe(0);
-    expect(e.runners).toHaveLength(0);
+describe('engine behavior (sandbox)', () => {
+  it('an attacker crosses open ground and assaults the Command Center', () => {
+    const e = makeSandbox();
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'walker' });
+    e.run(250); // ~16 cells at speed 2 = 160 ticks, then assault begins
+    expect(e.attackers[0]!.state).toBe('assaulting');
+    expect(e.cc.hp).toBeLessThan(e.cc.profile.maxHp);
   });
 
-  it('a turret on the route kills a walker before it reaches the HQ', () => {
-    const e = makeEngine();
-    e.enqueue({ tick: 0, type: 'placeTurret', cell: e.grid.idx(10, 3), profile: MG });
-    e.enqueue({ tick: 0, type: 'spawnRunner', cell: spawnCell(e, 5), profile: WALKER });
+  it('enough attackers on the perimeter destroy the CC → defeat', () => {
+    const e = makeSandbox();
+    for (let i = 0; i < 5; i++) {
+      e.enqueue({ tick: i * 5, type: 'spawnAttacker', cell: spawnCell(e, 3 + i), kind: 'walker' });
+    }
+    e.run(3800); // 5 × 10 hqDps = 50 dps vs 1500 HP ≈ 30s of assault + travel
+    expect(e.phase).toBe('defeat');
+  });
+
+  it('an M2 nest on the route kills a walker before it arrives', () => {
+    const e = makeSandbox();
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(8, 4), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'walker' });
     e.run(300);
     expect(e.stats.kills).toBe(1);
-    expect(e.stats.leaks).toBe(0);
+    expect(e.attackers).toHaveLength(0);
+    expect(e.cc.hp).toBe(e.cc.profile.maxHp);
   });
 
   it('a breacher chews through a sealed wall line and still gets in', () => {
-    const e = makeEngine();
-    wallLineCommands(e, 0, null);
-    e.enqueue({ tick: 0, type: 'spawnRunner', cell: spawnCell(e, 5), profile: BREACHER });
-    e.run(400); // ~11.9s walking + ~3.3s breaking ≈ 305 ticks
+    const e = makeSandbox();
+    wallLine(e, 0, 10, null);
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'breacher' });
+    e.run(500);
     expect(e.stats.wallsLost).toBe(1);
-    expect(e.stats.leaks).toBe(1);
+    expect(e.attackers[0]!.state).toBe('assaulting');
   });
 
   it('re-paths live when walls appear mid-run', () => {
-    const e = makeEngine();
-    e.enqueue({ tick: 0, type: 'spawnRunner', cell: spawnCell(e, 5), profile: WALKER });
-    e.run(40); // runner is on its way straight down row 5
-    wallLineCommands(e, 40, 0); // slam a wall line in front, gap at the top
+    const e = makeSandbox();
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'walker' });
+    e.run(40);
+    wallLine(e, 40, 10, 0); // slam a wall line in front, gap at the top
     e.run(1);
-    const runner = e.runners[0]!;
-    expect(runner.path).not.toBeNull();
-    expect(runner.path).toContain(e.grid.idx(10, 0)); // rerouted through the gap
-    expect(runner.path!.some((c) => e.grid.wallAt(c) !== undefined)).toBe(false);
-    e.run(400);
-    expect(e.stats.leaks).toBe(1);
-    expect(e.stats.wallsLost).toBe(0); // it walked around, never chewed
+    const attacker = e.attackers[0]!;
+    expect(attacker.path).not.toBeNull();
+    expect(attacker.path).toContain(e.grid.idx(10, 0)); // rerouted through the gap
+    e.run(600);
+    expect(e.stats.wallsLost).toBe(0); // walked around, never chewed
+    expect(e.attackers[0]!.state).toBe('assaulting'); // and still got there
   });
 
-  it('a unit that cannot break walls goes stuck when sealed, and recovers when a wall drops', () => {
-    const e = makeEngine();
-    wallLineCommands(e, 0, null);
-    e.enqueue({ tick: 0, type: 'spawnRunner', cell: spawnCell(e, 5), profile: SEALED });
+  it('a unit that cannot break anything goes stuck when sealed, and recovers when a wall drops', () => {
+    const e = makeSandbox();
+    wallLine(e, 0, 10, null);
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'sealed' });
     e.run(60);
-    expect(e.runners[0]!.state).toBe('stuck');
-    expect(e.stats.leaks).toBe(0);
+    expect(e.attackers[0]!.state).toBe('stuck');
     e.enqueue({ tick: 60, type: 'removeWall', cell: e.grid.idx(10, 5) });
-    e.run(400);
-    expect(e.stats.leaks).toBe(1);
+    e.run(300);
+    expect(e.attackers[0]!.state).toBe('assaulting');
   });
 
-  it('rejects illegal construction: HQ cell, spawn column, occupied cells, stacking', () => {
-    const e = makeEngine();
-    e.enqueue({ tick: 0, type: 'spawnRunner', cell: spawnCell(e, 2), profile: SEALED });
-    e.run(1);
-    const runnerCell = e.grid.cellAt(e.runners[0]!.pos);
+  it('demolishes a blocking structure when that is the cheapest way through', () => {
+    const e = makeSandbox();
+    // Wall line with the row-5 slot held by a foxhole instead of a wall:
+    // breaking the foxhole (180/60 = 3s, no detour) beats a wall + detour.
+    wallLine(e, 0, 10, 5);
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(10, 5), kind: 'foxhole' });
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'breacher' });
+    e.run(500);
+    expect(e.stats.structuresLost).toBe(1);
+    expect(e.stats.wallsLost).toBe(0);
+    expect(e.attackers[0]!.state).toBe('assaulting');
+  });
 
-    e.enqueue({ tick: 1, type: 'placeWall', cell: e.config.hqCell });
-    e.enqueue({ tick: 1, type: 'placeWall', cell: e.grid.idx(0, 7) }); // spawn column
-    e.enqueue({ tick: 1, type: 'placeWall', cell: runnerCell }); // under a runner
-    e.enqueue({ tick: 1, type: 'placeWall', cell: e.grid.idx(5, 5) }); // legal
-    e.enqueue({ tick: 1, type: 'placeTurret', cell: e.grid.idx(5, 5), profile: MG }); // on a wall
+  it('a ranged attacker stops to destroy a defensive structure, then moves on', () => {
+    const e = makeSandbox();
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(10, 5), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'shooter' });
+
+    let sawEngaging = false;
+    let sawDestroyed = false;
+    for (let i = 0; i < 800; i++) {
+      const events = e.step();
+      if (e.attackers[0]?.state === 'engaging') sawEngaging = true;
+      if (events.some((ev: SimEvent) => ev.type === 'structureDestroyed')) sawDestroyed = true;
+    }
+    expect(sawEngaging).toBe(true);
+    expect(sawDestroyed).toBe(true);
+    expect(e.stats.structuresLost).toBe(1);
+    // Having cleared the nest, it advances until the CC is in range and shells it.
+    const shooter = e.attackers[0]!;
+    expect(shooter.state).toBe('engaging');
+    expect(shooter.pos.x).toBeGreaterThan(11);
+    expect(e.cc.hp).toBeLessThan(e.cc.profile.maxHp);
+  });
+
+  it('a claymore detonates on contact and kills the swarm around it', () => {
+    const e = makeSandbox();
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(10, 5), kind: 'claymore' });
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 5), kind: 'walker' });
+    let sawAoe = false;
+    for (let i = 0; i < 300; i++) {
+      if (e.step().some((ev: SimEvent) => ev.type === 'aoe')) sawAoe = true;
+    }
+    expect(sawAoe).toBe(true);
+    expect(e.stats.kills).toBe(1);
+    expect(e.structures).toHaveLength(1); // only the CC remains
+  });
+
+  it('a mortar lobs shells that splash a cluster', () => {
+    const e = makeSandbox();
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(12, 5), kind: 'mortar' });
+    for (const row of [4, 5, 6]) {
+      e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, row), kind: 'walker' });
+    }
+    let sawShellInFlight = false;
+    for (let i = 0; i < 400; i++) {
+      e.step();
+      if (e.projectiles.length > 0) sawShellInFlight = true;
+    }
+    expect(sawShellInFlight).toBe(true);
+    expect(e.stats.kills).toBeGreaterThanOrEqual(1);
+  });
+
+  it('armor classes matter: the M2 shreds infantry but barely scratches a tank', () => {
+    const walkerField = makeSandbox();
+    walkerField.enqueue({ tick: 0, type: 'placeStructure', cell: walkerField.grid.idx(8, 4), kind: 'm2nest' });
+    walkerField.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(walkerField, 5), kind: 'walker' });
+    walkerField.run(400);
+    expect(walkerField.stats.kills).toBe(1);
+
+    const tankField = makeSandbox();
+    tankField.enqueue({ tick: 0, type: 'placeStructure', cell: tankField.grid.idx(8, 4), kind: 'm2nest' });
+    tankField.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(tankField, 5), kind: 'tank' });
+    tankField.run(400);
+    expect(tankField.stats.kills).toBe(0);
+    expect(tankField.attackers[0]!.hp).toBeGreaterThan(400); // smallArms vs heavy = ×0.2
+  });
+
+  it('rejects illegal construction: CC footprint, spawn column, occupied cells, stacking', () => {
+    const e = makeSandbox();
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 2), kind: 'sealed' });
+    e.run(1);
+    const attackerCell = e.grid.cellAt(e.attackers[0]!.pos);
+
+    e.enqueue({ tick: 1, type: 'placeWall', cell: e.config.ccOrigin, kind: 'wall' });
+    e.enqueue({ tick: 1, type: 'placeWall', cell: e.grid.idx(0, 7), kind: 'wall' }); // spawn column
+    e.enqueue({ tick: 1, type: 'placeWall', cell: attackerCell, kind: 'wall' }); // under an attacker
+    e.enqueue({ tick: 1, type: 'placeWall', cell: e.grid.idx(5, 5), kind: 'wall' }); // legal
+    e.enqueue({ tick: 1, type: 'placeStructure', cell: e.grid.idx(5, 5), kind: 'm2nest' }); // on a wall
+    e.enqueue({ tick: 1, type: 'placeStructure', cell: e.grid.idx(6, 5), kind: 'cc' }); // never placeable
     e.run(1);
 
     expect(e.stats.wallsBuilt).toBe(1);
     expect(e.grid.wallAt(e.grid.idx(5, 5))).toBeDefined();
-    expect(e.turrets).toHaveLength(0);
+    expect(e.structures).toHaveLength(1); // only the CC
   });
 
   it('commands stamped for future ticks wait their turn', () => {
-    const e = makeEngine();
-    e.enqueue({ tick: 50, type: 'placeWall', cell: e.grid.idx(5, 5) });
+    const e = makeSandbox();
+    e.enqueue({ tick: 50, type: 'placeWall', cell: e.grid.idx(5, 5), kind: 'wall' });
     e.run(50);
     expect(e.grid.wallAt(e.grid.idx(5, 5))).toBeUndefined();
     e.run(1); // tick 50 applies now

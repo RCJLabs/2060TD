@@ -1,27 +1,41 @@
-import type { Grid } from './grid';
 import type { CellIndex } from './types';
 
 /**
  * Weighted A* — the maze rule.
  *
  * Path cost is measured in seconds. Entering an open cell costs 1/speed;
- * entering a walled cell costs 1/speed + wallHP/wallDps (the time spent
- * chewing through it). Units with wallDps = 0 treat walls as impassable.
+ * entering a cell holding a breakable obstacle (a wall, or a blocking
+ * structure such as a foxhole) costs 1/speed + obstacleHP/wallDps — the time
+ * spent demolishing it. Units with wallDps = 0 treat obstacles as impassable;
+ * Infinity HP (the Command Center footprint) is impassable for everyone.
  *
  * This single rule produces the game's core behaviors: most units genuinely
- * prefer going around (mazing works), breachers happily go through, and a
- * fully enclosed base trades wall HP for time instead of being invincible.
+ * prefer going around (mazing works), breachers happily go through, turret
+ * rings are legal but demolishable, and a fully enclosed base trades HP for
+ * time instead of being invincible.
+ *
+ * Supports multiple goals (e.g. the 8 perimeter cells of the 2×2 Command
+ * Center): the path ends at whichever goal is cheapest to reach.
  */
+
+/** What A* needs to know about the battlefield. Grid and Engine both provide it. */
+export interface PathGrid {
+  readonly width: number;
+  readonly height: number;
+  /** 0 = open, finite = breakable obstacle HP, Infinity = impassable. */
+  obstacleHpAt(cell: CellIndex): number;
+  neighbors4(cell: CellIndex, out: CellIndex[]): number;
+}
 
 export interface PathProfile {
   /** Cells per second. */
   speed: number;
-  /** Damage per second vs walls; 0 = cannot break walls. */
+  /** Demolition damage per second vs breakable obstacles; 0 = cannot break. */
   wallDps: number;
 }
 
 export interface PathResult {
-  /** Cells from start to goal inclusive; cells[0] === start. */
+  /** Cells from start to the reached goal inclusive; cells[0] === start. */
   cells: CellIndex[];
   /** Total traversal time in seconds. */
   cost: number;
@@ -88,27 +102,43 @@ class OpenHeap {
 }
 
 export function findPath(
-  grid: Grid,
+  grid: PathGrid,
   start: CellIndex,
-  goal: CellIndex,
+  goals: CellIndex | CellIndex[],
   profile: PathProfile,
 ): PathResult | null {
-  if (!grid.inBounds(start) || !grid.inBounds(goal)) return null;
-  if (start === goal) return { cells: [start], cost: 0 };
-
   const size = grid.width * grid.height;
+  const inBounds = (c: CellIndex) => c >= 0 && c < size;
+  if (!inBounds(start)) return null;
+
+  const goalList = (Array.isArray(goals) ? goals : [goals]).filter(
+    (g) => inBounds(g) && grid.obstacleHpAt(g) !== Infinity,
+  );
+  if (goalList.length === 0) return null;
+
+  const goalSet = new Set(goalList);
+  if (goalSet.has(start)) return { cells: [start], cost: 0 };
+
   const stepCost = 1 / profile.speed;
+  const goalXs = goalList.map((g) => g % grid.width);
+  const goalYs = goalList.map((g) => Math.floor(g / grid.width));
+
+  const heuristic = (cell: CellIndex): number => {
+    const x = cell % grid.width;
+    const y = Math.floor(cell / grid.width);
+    let best = Infinity;
+    for (let i = 0; i < goalXs.length; i++) {
+      const d = Math.abs(x - goalXs[i]!) + Math.abs(y - goalYs[i]!);
+      if (d < best) best = d;
+    }
+    return best * stepCost;
+  };
 
   const g = new Float64Array(size).fill(Infinity);
   const f = new Float64Array(size).fill(Infinity);
   const h = new Float64Array(size).fill(0);
   const cameFrom = new Int32Array(size).fill(-1);
   const closed = new Uint8Array(size);
-
-  const gx = grid.xOf(goal);
-  const gy = grid.yOf(goal);
-  const heuristic = (cell: CellIndex): number =>
-    (Math.abs(grid.xOf(cell) - gx) + Math.abs(grid.yOf(cell) - gy)) * stepCost;
 
   const open = new OpenHeap(f, h);
   g[start] = 0;
@@ -123,28 +153,27 @@ export function findPath(
     if (closed[current]) continue; // stale heap entry
     closed[current] = 1;
 
-    if (current === goal) {
+    if (goalSet.has(current)) {
       const cells: CellIndex[] = [];
-      let c: CellIndex = goal;
+      let c: CellIndex = current;
       while (c !== -1) {
         cells.push(c);
         c = cameFrom[c]!;
       }
       cells.reverse();
-      return { cells, cost: g[goal]! };
+      return { cells, cost: g[current]! };
     }
 
     const count = grid.neighbors4(current, neighbors);
     for (let i = 0; i < count; i++) {
       const next = neighbors[i]!;
       if (closed[next]) continue;
-      if (grid.isBlocked(next)) continue;
 
+      const obstacleHp = grid.obstacleHpAt(next);
       let enterCost = stepCost;
-      const wall = grid.wallAt(next);
-      if (wall) {
-        if (profile.wallDps <= 0) continue; // impassable for this unit
-        enterCost += wall.hp / profile.wallDps;
+      if (obstacleHp > 0) {
+        if (obstacleHp === Infinity || profile.wallDps <= 0) continue; // impassable
+        enterCost += obstacleHp / profile.wallDps;
       }
 
       const tentative = g[current]! + enterCost;

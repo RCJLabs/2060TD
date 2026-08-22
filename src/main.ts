@@ -1,10 +1,14 @@
 import Phaser from 'phaser';
 import { PlaygroundScene } from './game/scenes/PlaygroundScene';
+import { SiegeScene } from './game/scenes/SiegeScene';
 import { COLORS, css } from './game/palette';
 
+const params = new URLSearchParams(window.location.search);
 // Demo mode drives screenshots/smoke tests: headless browsers throttle
 // requestAnimationFrame, so fall back to a setTimeout loop there.
-const demoMode = new URLSearchParams(window.location.search).has('demo');
+const demoMode = params.has('demo');
+// ?playground=1 opens the sandbox maze lab instead of the mission.
+const playground = params.has('playground');
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -17,5 +21,5 @@ new Phaser.Game({
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   fps: demoMode ? { forceSetTimeOut: true, target: 60 } : undefined,
-  scene: [PlaygroundScene],
+  scene: playground ? [PlaygroundScene] : [SiegeScene],
 });

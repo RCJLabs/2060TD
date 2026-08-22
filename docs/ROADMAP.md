@@ -20,24 +20,39 @@ and tooling in place.
       visualization, HUD, sim speed toggle, `?demo=1` scripted setup
 - [x] Verified: `npm test`, `npm run build`, Playwright screenshot
 
-## M1 — Siege vertical slice *(~2–3 sessions)*
+## M1 — Siege vertical slice ✅
 
-The active TD battle becomes a real game.
+The active TD battle became a real game: **HOLD THE LINE**, five authored waves at the
+Coos Bay perimeter.
 
-- [ ] Wave system: authored wave definitions (composition, spacing, entry roads), wave preview
-- [ ] Command Point economy: passive income + kill income, costs, salvage conversion
-- [ ] 4 USA field defenses: deployable MG, rifle foxhole, claymore field, HESCO barricade
-- [ ] 3 USA emplacements: M2 nest, 25mm autocannon, 120mm mortar (splash, min range)
-- [ ] 6 China attacker types: militia, rifle squad, sapper, grenadier, ZBD IFV, Type 99
-- [ ] Damage-type × armor-class combat table; deterministic projectiles or hitscan per weapon
-- [ ] Command Center entity, win/lose flow, between-wave prep window (repair/reposition)
-- [ ] Battle HUD: CP bar, wave tracker, build palette, power buttons (2 powers: A-10 run,
-      155mm fire mission)
-- [ ] Render polish: interpolation everywhere, hit flashes, wall damage states
+- [x] Wave system: authored wave definitions (composition, spacing, entry rows), inbound
+      wave preview in the INTEL panel during setup/prep
+- [x] Command Point economy: passive + per-kill income, phase-gated costs (Supplies for
+      the permanent layer, CP for field defenses/powers), repair-all pricing
+- [x] 4 USA field defenses: deployable MG, rifle foxhole, claymore field, HESCO barricade
+- [x] 3 USA emplacements: M2 nest, 25mm autocannon, 120mm mortar (splash, min range,
+      target-leading lobbed shells)
+- [x] 6 China attacker types: militia, rifle squad, sapper, grenadier (stands off and
+      shells defenses), ZBD IFV, Type 99 — plus demolition of *any* blocking structure
+      (gun lines are obstacles with HP, not hard walls)
+- [x] Damage-type × armor-class combat table; hitscan weapons + deterministic mortar
+      projectiles
+- [x] Command Center entity (2×2, perimeter assault), win/lose flow, between-wave prep
+      window with repair and re-mazing
+- [x] Battle HUD: CP bar, phase banner, build palettes per phase, power buttons with
+      cooldowns, INTEL/SITREP blocks, victory/defeat overlay
+- [x] Render polish: interpolation, per-damage-type tracers, shells in flight, AoE rings,
+      strafe fx, ghost previews with range rings, power target previews
+
+Carried to M2: unspent-CP → salvage conversion on victory (needs the persistent town
+economy to matter), weapon line-of-sight rules (decide vs keep lob-over-walls), hit-flash
+on damaged targets.
 
 ## M2 — Town & economy *(~2 sessions)*
 
 The persistent base between battles.
+
+- [ ] Carried from M1: unspent-CP salvage on victory; line-of-sight decision; hit flashes
 
 - [ ] TownScene build mode: place/move/rotate buildings, wall drag-painting, footprint rules
 - [ ] Resources: Supplies + Fuel, generation rates, storage caps

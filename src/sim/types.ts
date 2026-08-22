@@ -2,8 +2,8 @@
  * Shared simulation types.
  *
  * The sim is pure TypeScript with no Phaser imports. Everything that affects
- * gameplay flows through here: profiles are embedded in spawn/place commands
- * so the engine stays content-agnostic until the content registry lands (M1).
+ * gameplay flows through here. Content (unit stats, structures, waves) lives
+ * in src/content as data conforming to these shapes.
  */
 
 export interface Vec2 {
@@ -14,54 +14,205 @@ export interface Vec2 {
 /** Flat cell index: y * width + x. */
 export type CellIndex = number;
 
-export interface RunnerProfile {
+// ---- combat model -----------------------------------------------------------
+
+export type ArmorClass = 'none' | 'light' | 'heavy' | 'structure';
+export type DamageType = 'smallArms' | 'kinetic' | 'explosive' | 'shaped';
+
+/** damage multiplier = DAMAGE_MULT[damageType][armorClass] (content/damage.ts) */
+export type DamageTable = Record<DamageType, Record<ArmorClass, number>>;
+
+export interface Weapon {
+  damageType: DamageType;
+  damage: number;
+  shotsPerSecond: number;
+  /** Acquisition range in cells (center to center). */
+  range: number;
+  /** Targets closer than this are untouchable (mortars). */
+  minRange?: number;
+  /** Impact splash radius in cells; omit for single-target. */
+  splashRadius?: number;
+  /** Seconds of shell flight; omit for hitscan. */
+  flightSeconds?: number;
+}
+
+// ---- profiles -----------------------------------------------------------------
+
+export interface AttackerProfile {
   kind: string;
+  name: string;
   maxHp: number;
-  /** Movement speed in cells per second. */
+  /** Cells per second. */
   speed: number;
-  /** Damage per second vs walls. 0 = walls are impassable to this unit. */
+  armor: ArmorClass;
+  /**
+   * Demolition damage per second vs walls and blocking structures in the
+   * attacker's path. 0 = cannot break through anything.
+   */
   wallDps: number;
+  /** Melee damage per second vs the Command Center once at its perimeter. */
+  hqDps: number;
+  /** Command Points awarded to the defender for the kill. */
+  cpValue: number;
+  /** Optional ranged weapon, used against defensive structures and the CC. */
+  weapon?: Weapon;
   /** ± fraction rolled onto speed at spawn via the seeded PRNG. */
   speedJitter: number;
 }
 
-export interface TurretProfile {
+export interface StructureProfile {
   kind: string;
-  /** Acquisition range in cells, measured from turret cell center. */
-  range: number;
-  damage: number;
-  shotsPerSecond: number;
+  name: string;
+  maxHp: number;
+  /** Grid footprint edge length: 1 (1×1) or 2 (2×2, Command Center only). */
+  footprint: 1 | 2;
+  /** Blocks movement (attackers demolish it to pass). Claymores don't. */
+  blocks: boolean;
+  /** Can be targeted by attacker weapons. Claymores are concealed. */
+  targetable: boolean;
+  weapon?: Weapon;
+  /** Proximity mine behavior (claymore). */
+  trigger?: { radius: number; damage: number; damageType: DamageType; splashRadius: number };
+  /** Cost in Supplies — buildable during setup/prep phases. */
+  supplyCost?: number;
+  /** Cost in Command Points — deployable during combat (field defenses). */
+  cpCost?: number;
+}
+
+export interface WallDef {
+  kind: string;
+  name: string;
+  hp: number;
+  /** Buildable in setup/prep for Supplies. */
+  supplyCost?: number;
+  /** Deployable mid-combat for CP (HESCO barricades). */
+  cpCost?: number;
+}
+
+// ---- powers ---------------------------------------------------------------------
+
+export interface StrafePower {
+  type: 'strafe';
+  kind: string;
+  name: string;
+  cpCost: number;
+  cooldownSeconds: number;
+  delayTicks: number;
+  pulses: number;
+  pulseSpacingTicks: number;
+  pulseDamage: number;
+  damageType: DamageType;
+  /** Strip half-extents in cells; the strafe runs along +x through the target. */
+  halfLength: number;
+  halfWidth: number;
+}
+
+export interface BarragePower {
+  type: 'barrage';
+  kind: string;
+  name: string;
+  cpCost: number;
+  cooldownSeconds: number;
+  delayTicks: number;
+  shells: number;
+  shellSpacingTicks: number;
+  shellDamage: number;
+  damageType: DamageType;
+  splashRadius: number;
+  /** Max scatter distance from the target point, rolled via the seeded PRNG. */
+  scatter: number;
+}
+
+export type PowerDef = StrafePower | BarragePower;
+
+// ---- content catalog ---------------------------------------------------------------
+
+export interface Catalog {
+  attackers: Record<string, AttackerProfile>;
+  structures: Record<string, StructureProfile>;
+  walls: Record<string, WallDef>;
+  powers: Record<string, PowerDef>;
+  damage: DamageTable;
+}
+
+// ---- siege definition ---------------------------------------------------------------
+
+export interface WaveEntry {
+  /** Tick offset from the start of the wave. */
+  atTick: number;
+  /** Attacker kind (catalog key). */
+  kind: string;
+  /** Spawn row in the entry column. */
+  row: number;
+}
+
+export interface WaveDef {
+  entries: WaveEntry[];
+}
+
+export interface SiegeDef {
+  name: string;
+  startingSupplies: number;
+  suppliesPerWave: number;
+  startingCp: number;
+  cpCap: number;
+  cpPerSecond: number;
+  prepSeconds: number;
+  /** Fraction of missing HP charged as Supplies by Repair All (e.g. 0.04). */
+  repairCostPerHp: number;
+  waves: WaveDef[];
 }
 
 export interface SimConfig {
   width: number;
   height: number;
   seed: number;
-  /** HP of a freshly built wall segment. */
-  wallHp: number;
-  /** The Command Center cell attackers path toward. */
-  hqCell: CellIndex;
+  /** Top-left cell of the 2×2 Command Center footprint. */
+  ccOrigin: CellIndex;
   /** Column reserved for attacker entry; nothing can be built there. */
   spawnColumn: number;
+  /** Omit for sandbox mode: free placement, manual spawns, no waves. */
+  siege?: SiegeDef;
 }
 
+export type Phase = 'sandbox' | 'setup' | 'combat' | 'prep' | 'victory' | 'defeat';
+
+// ---- commands ----------------------------------------------------------------------
+
 export type Command =
-  | { tick: number; type: 'placeWall'; cell: CellIndex }
+  | { tick: number; type: 'placeWall'; cell: CellIndex; kind: string }
   | { tick: number; type: 'removeWall'; cell: CellIndex }
-  | { tick: number; type: 'placeTurret'; cell: CellIndex; profile: TurretProfile }
-  | { tick: number; type: 'spawnRunner'; cell: CellIndex; profile: RunnerProfile };
+  | { tick: number; type: 'placeStructure'; cell: CellIndex; kind: string }
+  | { tick: number; type: 'removeStructure'; cell: CellIndex }
+  | { tick: number; type: 'spawnAttacker'; cell: CellIndex; kind: string }
+  | { tick: number; type: 'startAssault' }
+  | { tick: number; type: 'skipPrep' }
+  | { tick: number; type: 'repairAll' }
+  | { tick: number; type: 'castPower'; kind: string; target: Vec2 };
+
+// ---- events -------------------------------------------------------------------------
 
 export type SimEvent =
-  | { type: 'shot'; turretId: number; runnerId: number; from: Vec2; to: Vec2 }
-  | { type: 'runnerDied'; runnerId: number; at: Vec2 }
-  | { type: 'runnerLeaked'; runnerId: number }
-  | { type: 'runnerSpawned'; runnerId: number }
-  | { type: 'wallDestroyed'; cell: CellIndex };
+  | { type: 'attackerSpawned'; id: number }
+  | { type: 'attackerDied'; id: number; at: Vec2 }
+  | { type: 'shot'; from: Vec2; to: Vec2; damageType: DamageType }
+  | { type: 'aoe'; at: Vec2; radius: number }
+  | { type: 'strafePulse'; x0: number; x1: number; y: number }
+  | { type: 'wallDestroyed'; cell: CellIndex }
+  | { type: 'structureDestroyed'; id: number; kind: string; at: Vec2 }
+  | { type: 'powerCast'; kind: string; at: Vec2 }
+  | { type: 'assaultStarted' }
+  | { type: 'waveStarted'; index: number }
+  | { type: 'prepStarted'; index: number }
+  | { type: 'victory' }
+  | { type: 'defeat' };
 
 export interface SimStats {
   spawned: number;
   kills: number;
-  leaks: number;
   wallsBuilt: number;
   wallsLost: number;
+  structuresLost: number;
+  suppliesSpent: number;
+  cpSpent: number;
 }

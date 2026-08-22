@@ -3,13 +3,18 @@ import type { CellIndex, Vec2 } from './types';
 export interface WallState {
   hp: number;
   maxHp: number;
+  /** Wall variant (catalog key): 'wall', 'hesco', … Renderers care; the sim only needs hp. */
+  kind: string;
 }
 
 /**
  * The battlefield grid: bounds, walls (attackable obstacles with HP), and
- * hard blockers (turret footprints — impassable and unbreakable in M0).
+ * hard-blocked cells (the Command Center footprint — truly impassable).
  *
- * `version` increments on every topology change; runners compare it against
+ * Blocking *structures* live in the Engine; pathfinding sees them through the
+ * PathGrid interface (see pathfinding.ts), which merges both obstacle sources.
+ *
+ * `version` increments on every topology change; attackers compare it against
  * the version their path was computed under and re-path when stale.
  */
 export class Grid {
@@ -60,8 +65,8 @@ export class Grid {
     return !this.walls.has(cell) && !this.blocked.has(cell);
   }
 
-  placeWall(cell: CellIndex, hp: number): void {
-    this.walls.set(cell, { hp, maxHp: hp });
+  placeWall(cell: CellIndex, hp: number, kind = 'wall'): void {
+    this.walls.set(cell, { hp, maxHp: hp, kind });
     this.version++;
   }
 
@@ -85,6 +90,13 @@ export class Grid {
       return true;
     }
     return false;
+  }
+
+  /** PathGrid obstacle view for a bare grid: walls breakable, blockers hard. */
+  obstacleHpAt(cell: CellIndex): number {
+    const wall = this.walls.get(cell);
+    if (wall) return wall.hp;
+    return this.blocked.has(cell) ? Infinity : 0;
   }
 
   /** 4-connected neighbors, in a fixed deterministic order (N, E, S, W). */

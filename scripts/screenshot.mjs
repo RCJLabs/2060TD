@@ -50,7 +50,7 @@ try {
   });
 
   await page.goto(URL, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(4000); // let the scripted battle develop
+  await page.waitForTimeout(9000); // let the scripted battle develop past the barrage
 
   mkdirSync('screenshots', { recursive: true });
   await page.screenshot({ path: 'screenshots/demo.png' });
