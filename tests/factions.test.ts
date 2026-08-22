@@ -13,6 +13,7 @@ import {
   townMetaFor,
   trainableFor,
   trainMetaFor,
+  wreckRepairFractionFor,
 } from '../src/content/factions';
 import { lootFor } from '../src/content/bases';
 import { deserialize, serialize } from '../src/meta/save';
@@ -24,6 +25,7 @@ import {
   newTown,
   place,
   queueTrain,
+  repairCost,
   siegeConfig,
   tick,
   unlockAll,
@@ -201,24 +203,64 @@ describe('faction pipeline', () => {
     expect(migrated.intel).toBe(0);
   });
 
-  it('an eastern tide mission runs in-engine on the china catalog', () => {
-    const mission = campaignFor('china')[0]!;
-    const config = {
-      width: TOWN_GRID.width,
-      height: TOWN_GRID.height,
-      seed: 99,
-      ccOrigin: TOWN_GRID.ccOrigin,
-      spawnColumn: TOWN_GRID.spawnColumn,
-      siege: { ...missionSiege(mission, 'standard'), startingSupplies: 0 },
+  it.each(['china', 'russia'] as const)(
+    "%s's first mission runs in-engine on its own catalog",
+    (faction) => {
+      const mission = campaignFor(faction)[0]!;
+      const config = {
+        width: TOWN_GRID.width,
+        height: TOWN_GRID.height,
+        seed: 99,
+        ccOrigin: TOWN_GRID.ccOrigin,
+        spawnColumn: TOWN_GRID.spawnColumn,
+        siege: { ...missionSiege(mission, 'standard'), startingSupplies: 0 },
+      };
+      const engine = new Engine(config, defenseCatalogFor(faction));
+      engine.enqueue({ tick: 0, type: 'startAssault' });
+      while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) {
+        engine.step();
+      }
+      // An undefended base falls — proving spawn, pathing, and combat all
+      // resolve on the faction's defense catalog.
+      expect(engine.phase).toBe('defeat');
+      expect(engine.stats.spawned).toBeGreaterThan(0);
+    },
+  );
+
+  it('russia is overbuilt: pricier, slower builds and dearer wreck repairs', () => {
+    const usa = townMetaFor('usa')['supplyDepot']!;
+    const russia = townMetaFor('russia')['supplyDepot']!;
+    expect(russia.name).toBe('Supply Railhead');
+    expect(russia.levels[0]!.supplies).toBeGreaterThan(usa.levels[0]!.supplies);
+    expect(russia.levels[0]!.seconds).toBeGreaterThan(usa.levels[0]!.seconds);
+    // Generation and storage arrays stay shared — Overbuilt taxes builds, not yields.
+    expect(townMetaFor('russia')['radar']!.generatesIntel).toEqual(
+      townMetaFor('usa')['radar']!.generatesIntel,
+    );
+    expect(wreckRepairFractionFor('russia')).toBeGreaterThan(wreckRepairFractionFor('usa'));
+
+    // A wrecked Russian depot costs more to restore than the same USA wreck.
+    const cost = (faction: 'usa' | 'russia') => {
+      const town = unlockAll(newTown(T0, faction));
+      town.supplies = 9000;
+      town.fuel = 2000;
+      place(town, 'supplyDepot', idx(20, 5), T0);
+      tick(town, T0 + 60_000);
+      const depot = town.structures.find((s) => s.kind === 'supplyDepot')!;
+      depot.wrecked = true;
+      return repairCost(town, depot).supplies;
     };
-    const engine = new Engine(config, defenseCatalogFor('china'));
-    engine.enqueue({ tick: 0, type: 'startAssault' });
-    while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) {
-      engine.step();
-    }
-    // An undefended beachhead falls — proving spawn, pathing, and combat all
-    // resolve on the china defense catalog.
-    expect(engine.phase).toBe('defeat');
-    expect(engine.stats.spawned).toBeGreaterThan(0);
+    expect(cost('russia')).toBeGreaterThan(cost('usa'));
+  });
+
+  it('a russia save round-trips; its town holds more hp per role', () => {
+    const town = newTown(T0, 'russia');
+    expect(deserialize(serialize(town))?.faction).toBe('russia');
+    const usaWall = defenseCatalogFor('usa').walls['wall']!;
+    const ruWall = defenseCatalogFor('russia').walls['wall']!;
+    expect(ruWall.hp).toBeGreaterThan(usaWall.hp);
+    expect(defenseCatalogFor('russia').structures['cc']!.maxHp).toBeGreaterThan(
+      defenseCatalogFor('usa').structures['cc']!.maxHp,
+    );
   });
 });

@@ -295,12 +295,14 @@ export class BattleRenderer {
       // ---- swarm infantry: small plain circles --------------------------------
       case 'militia':
       case 'guardsman':
+      case 'conscript':
         g.fillStyle(body, 1);
         g.fillCircle(px, py, 5);
         break;
       // ---- line infantry: ringed circles --------------------------------------
       case 'rifle':
       case 'ranger':
+      case 'motorrifle':
         g.fillStyle(body, 1);
         g.fillCircle(px, py, 7);
         g.lineStyle(1, dark, 1);
@@ -320,6 +322,7 @@ export class BattleRenderer {
         );
         break;
       case 'engineer':
+      case 'demoteam':
         g.fillStyle(body, 1);
         g.fillPoints(
           [
@@ -335,21 +338,23 @@ export class BattleRenderer {
         break;
       // ---- standoff fire teams: arrowheads face their heading ---------------------
       case 'grenadier':
-      case 'javelin': {
+      case 'javelin':
+      case 'rpg': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
         g.rotateCanvas(angle);
         g.fillStyle(body, 1);
         g.fillTriangle(-6, -7, -6, 7, 8, 0);
-        g.fillStyle(attacker.profile.kind === 'javelin' ? COLORS.intel : COLORS.signal, 1);
+        g.fillStyle(attacker.profile.kind === 'grenadier' ? COLORS.signal : COLORS.intel, 1);
         g.fillCircle(-2, 0, 2);
         g.restore();
         break;
       }
       // ---- light vehicles: small hulls, facing their heading ----------------------
       case 'humvee':
-      case 'zbd': {
+      case 'zbd':
+      case 'btr': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
@@ -365,7 +370,8 @@ export class BattleRenderer {
       }
       // ---- main battle tanks: big hulls with turret + barrel -----------------------
       case 'abrams':
-      case 'type99': {
+      case 'type99':
+      case 't72': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
@@ -395,22 +401,6 @@ export class BattleRenderer {
         g.lineStyle(1, COLORS.ink, 0.6);
         g.strokeCircle(px, py, 8);
         break;
-      case 't72': {
-        const angle = this.facings.get(attacker.id) ?? 0;
-        g.save();
-        g.translateCanvas(px, py);
-        g.rotateCanvas(angle);
-        g.fillStyle(COLORS.ruRust, 1);
-        g.fillRect(-11, -7, 22, 14);
-        g.lineStyle(2, COLORS.sand, 0.7);
-        g.strokeRect(-11, -7, 22, 14);
-        g.fillStyle(COLORS.sandDark, 1);
-        g.fillCircle(0, 0, 4);
-        g.lineStyle(3, COLORS.ruRust, 1);
-        g.lineBetween(0, 0, 15, 0);
-        g.restore();
-        break;
-      }
       default:
         // Unknown kinds (test/sandbox content): breakers as diamonds, rest as circles.
         if (attacker.profile.wallDps > 20) {

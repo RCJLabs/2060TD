@@ -55,6 +55,11 @@ const RAID_PLANS: Record<FactionId, SquadPlan[]> = {
     { units: { grenadier: 2, sapper: 1 }, sector: 'N1', doctrine: 'hunt' },
     { units: { militia: 4, rifle: 2, sapper: 1 }, sector: 'S1', doctrine: 'raze' },
   ],
+  russia: [
+    { units: { t72: 1, btr: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { rpg: 2, demoteam: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { conscript: 3, motorrifle: 2, demoteam: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
 };
 
 function planManpower(faction: FactionId): number {
@@ -309,13 +314,17 @@ function main(): void {
       body,
       '```',
       '',
-      '## Reading the tables (M6 pass)',
+      '## Reading the tables (v0.5 pass)',
       '',
       '- **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.',
       '  USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;',
       '  China (mass) grinds tiers 2–3 with cheap replacements, then needs the late-game army:',
       '  a 33-manpower PLA force with doubled armor clears tier 4–5 at ~70% (verified headlessly).',
       '  Steeper curve + cheaper bodies is the intended faction texture, not a wall.',
+      '- **Russia (artillery) progresses through fire preparation**: their bare late-game force',
+      '  stalls past tier 3 (43/12/0 at t3–5), but a max-cap army behind a TOS-1A fire plan on',
+      '  the guns holds 53/52/42 — shell the batteries first, then walk the armor in. Their',
+      '  ordnance habit is the faction tax: fuel per charge, every raid.',
       '- **The doctrine rows are the v0.4 ceiling**: full Strike research plus a stocked fire plan',
       '  (an A-10/MLRS pass on the guns at T+15, 155s/PLZ-05 on the post at T+40). It lifts the',
       '  USA tail to ~92–98% and trims losses ~6 points; for China it converts into destruction',

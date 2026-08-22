@@ -60,7 +60,11 @@ import { makeButton, mono, type Button } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
-const UNLOCK_MISSION: Record<FactionId, Record<string, number>> = { usa: {}, china: {} };
+const UNLOCK_MISSION: Record<FactionId, Record<string, number>> = {
+  usa: {},
+  china: {},
+  russia: {},
+};
 for (const faction of FACTION_IDS) {
   for (const mission of campaignFor(faction)) {
     for (const key of mission.unlocks) UNLOCK_MISSION[faction][key] = mission.index;
@@ -635,13 +639,7 @@ export class TownScene extends Phaser.Scene {
         .text(
           cx,
           260,
-          [
-            this.town.faction === 'usa'
-              ? 'You hold a headland town on the Oregon coast: the last supply\ncorridor on Highway 101. Build the base. Hold the line.'
-              : 'You hold the beachhead at Grays Harbor: one pier, one HQ, and\nthe whole US Army working up the ridge. Hold the sand.',
-            '',
-            'CHOOSE YOUR COMMITMENT:',
-          ].join('\n'),
+          [flavor.situation, '', 'CHOOSE YOUR COMMITMENT:'].join('\n'),
           mono(14, COLORS.ink, { lineSpacing: 7, align: 'center' }),
         )
         .setOrigin(0.5, 0)
@@ -1042,7 +1040,7 @@ export class TownScene extends Phaser.Scene {
       const meta = this.meta(s.kind);
       const lines: string[] = [`${meta?.name.toUpperCase() ?? s.kind} — LV ${s.level}`];
       if (s.wrecked) {
-        const cost = repairCost(s);
+        const cost = repairCost(this.town, s);
         lines.push('STATUS: WRECKED', `REPAIR: ${cost.supplies}S+${cost.fuel}F`);
       } else if (s.buildEndsAt !== undefined) {
         const secs = Math.max(0, Math.ceil((s.buildEndsAt - now) / 1000));
@@ -1074,7 +1072,7 @@ export class TownScene extends Phaser.Scene {
       this.buttons['moveBtn']?.setEnabled(s.kind !== 'cc');
       this.buttons['sellBtn']?.setEnabled(s.kind !== 'cc');
       this.buttons['repairBtn']?.setEnabled(
-        s.wrecked && town.supplies >= repairCost(s).supplies && town.fuel >= repairCost(s).fuel,
+        s.wrecked && town.supplies >= repairCost(town, s).supplies && town.fuel >= repairCost(town, s).fuel,
       );
     } else {
       this.selectedText.setText('Click a structure to inspect.\nThe CC gates counts and levels.');

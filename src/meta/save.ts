@@ -87,7 +87,9 @@ export function deserialize(json: string): TownState | null {
     if (raw['version'] !== 5) return null;
     const town = raw as unknown as TownState;
 
-    if (town.faction !== 'usa' && town.faction !== 'china') town.faction = 'usa';
+    if (town.faction !== 'usa' && town.faction !== 'china' && town.faction !== 'russia') {
+      town.faction = 'usa';
+    }
     if (typeof town.intel !== 'number' || !Number.isFinite(town.intel)) town.intel = 0;
     if (!town.research) town.research = { completed: [], active: null };
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;

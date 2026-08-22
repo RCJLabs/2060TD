@@ -42,6 +42,24 @@ TIER | CLEAR% | DESTR% | MP LOST%
    4 |     10 |     33 |       98
    5 |      0 |     23 |      100
 
+RAID — RUSSIAN GROUND FORCES strike force (27 MP) vs US ARMY Front Line
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     65 |       36
+   2 |     67 |     46 |       78
+   3 |     33 |     51 |       90
+   4 |     13 |     29 |       94
+   5 |      0 |     27 |      100
+
+RAID — RUSSIAN GROUND FORCES strike force (27 MP) vs US ARMY Front Line — STRIKE doctrine + fire plan
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     68 |       33
+   2 |    100 |     51 |       55
+   3 |     63 |     63 |       73
+   4 |     13 |     34 |       94
+   5 |     15 |     32 |       96
+
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
@@ -69,15 +87,33 @@ STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |  100 |   85 |   30 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%)
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   65
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   85
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 ```
 
-## Reading the tables (M6 pass)
+## Reading the tables (v0.5 pass)
 
 - **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.
   USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;
   China (mass) grinds tiers 2–3 with cheap replacements, then needs the late-game army:
   a 33-manpower PLA force with doubled armor clears tier 4–5 at ~70% (verified headlessly).
   Steeper curve + cheaper bodies is the intended faction texture, not a wall.
+- **Russia (artillery) progresses through fire preparation**: their bare late-game force
+  stalls past tier 3 (43/12/0 at t3–5), but a max-cap army behind a TOS-1A fire plan on
+  the guns holds 53/52/42 — shell the batteries first, then walk the armor in. Their
+  ordnance habit is the faction tax: fuel per charge, every raid.
 - **The doctrine rows are the v0.4 ceiling**: full Strike research plus a stocked fire plan
   (an A-10/MLRS pass on the guns at T+15, 155s/PLZ-05 on the post at T+40). It lifts the
   USA tail to ~92–98% and trims losses ~6 points; for China it converts into destruction

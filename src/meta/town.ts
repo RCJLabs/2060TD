@@ -2,7 +2,9 @@ import { buildAssault, assaultLoot, probeAssault } from '../content/assaults';
 import {
   defenseCatalogFor,
   enemyRosterFor,
+  townMetaFor,
   trainMetaFor,
+  wreckRepairFractionFor,
   type FactionId,
 } from '../content/factions';
 import { manpowerCap } from '../content/usaUnits';
@@ -15,8 +17,6 @@ import {
   OFFLINE_CAP_HOURS,
   STARTING_FUEL,
   STARTING_SUPPLIES,
-  TOWN_META,
-  WRECK_REPAIR_FRACTION,
   type CcGating,
 } from '../content/buildings';
 import {
@@ -228,7 +228,7 @@ export function caps(town: TownState): { supplies: number; fuel: number; intel: 
   let fuel = base.fuel;
   let intel = base.intel;
   for (const s of town.structures) {
-    const meta = TOWN_META[s.kind];
+    const meta = townMetaFor(town.faction)[s.kind];
     if (!meta || !working(s)) continue;
     if (meta.storage) {
       const tier = meta.storage[Math.min(s.level, meta.storage.length) - 1]!;
@@ -257,7 +257,7 @@ export function ratesPerMinute(town: TownState): {
   let intel = 0;
   for (const s of town.structures) {
     if (!working(s)) continue;
-    const meta = TOWN_META[s.kind];
+    const meta = townMetaFor(town.faction)[s.kind];
     if (meta?.generatesSupplies) {
       supplies += meta.generatesSupplies[Math.min(s.level, meta.generatesSupplies.length) - 1]!;
     }
@@ -279,7 +279,7 @@ export function ratesPerMinute(town: TownState): {
 export function buildSpeedFactor(town: TownState): number {
   let best = 0;
   for (const s of town.structures) {
-    const speed = TOWN_META[s.kind]?.buildSpeed;
+    const speed = townMetaFor(town.faction)[s.kind]?.buildSpeed;
     if (speed && functional(s)) {
       best = Math.max(best, speed[Math.min(s.level, speed.length) - 1]!);
     }
@@ -288,8 +288,12 @@ export function buildSpeedFactor(town: TownState): number {
 }
 
 /** Sum of build + upgrade costs paid to reach `level`. */
-export function cumulativeCost(kind: string, level: number): { supplies: number; fuel: number } {
-  const meta = TOWN_META[kind];
+export function cumulativeCost(
+  town: TownState,
+  kind: string,
+  level: number,
+): { supplies: number; fuel: number } {
+  const meta = townMetaFor(town.faction)[kind];
   let supplies = 0;
   let fuel = 0;
   if (!meta) return { supplies, fuel };
@@ -482,7 +486,7 @@ function cellsFree(town: TownState, cells: CellIndex[], ignoreId?: number): Plac
 }
 
 export function canPlace(town: TownState, kind: string, cell: CellIndex): PlaceError {
-  const meta = TOWN_META[kind];
+  const meta = townMetaFor(town.faction)[kind];
   if (!meta || kind === 'cc') return 'unknown';
   if (!isUnlocked(town, kind)) return 'locked';
   const allowed = gating(town).counts[kind] ?? 0;
@@ -494,7 +498,7 @@ export function canPlace(town: TownState, kind: string, cell: CellIndex): PlaceE
 
 export function place(town: TownState, kind: string, cell: CellIndex, now: number): boolean {
   if (canPlace(town, kind, cell) !== null) return false;
-  const cost = TOWN_META[kind]!.levels[0]!;
+  const cost = townMetaFor(town.faction)[kind]!.levels[0]!;
   town.supplies -= cost.supplies;
   town.fuel -= cost.fuel;
   const structure: PlacedStructure = {
@@ -533,7 +537,7 @@ export function removeWall(town: TownState, cell: CellIndex): boolean {
 }
 
 export function upgradeError(town: TownState, s: PlacedStructure): PlaceError | 'busy' | 'max' {
-  const meta = TOWN_META[s.kind];
+  const meta = townMetaFor(town.faction)[s.kind];
   if (!meta) return 'unknown';
   if (s.wrecked || s.buildEndsAt !== undefined) return 'busy';
   const maxLevel = Math.min(gating(town).maxStructureLevel, meta.levels.length);
@@ -548,7 +552,7 @@ export function upgradeError(town: TownState, s: PlacedStructure): PlaceError | 
 export function upgrade(town: TownState, id: number, now: number): boolean {
   const s = town.structures.find((x) => x.id === id);
   if (!s || upgradeError(town, s) !== null) return false;
-  const cost = TOWN_META[s.kind]!.levels[s.level]!;
+  const cost = townMetaFor(town.faction)[s.kind]!.levels[s.level]!;
   town.supplies -= cost.supplies;
   town.fuel -= cost.fuel;
   s.upgradingTo = s.level + 1;
@@ -569,7 +573,7 @@ export function sell(town: TownState, id: number): boolean {
   if (index === -1) return false;
   const s = town.structures[index]!;
   if (s.kind === 'cc') return false;
-  const spent = cumulativeCost(s.kind, s.upgradingTo ?? s.level);
+  const spent = cumulativeCost(town, s.kind, s.upgradingTo ?? s.level);
   if (!s.wrecked) {
     town.supplies += Math.floor(spent.supplies * 0.5);
     town.fuel += Math.floor(spent.fuel * 0.5);
@@ -578,18 +582,19 @@ export function sell(town: TownState, id: number): boolean {
   return true;
 }
 
-export function repairCost(s: PlacedStructure): { supplies: number; fuel: number } {
-  const spent = cumulativeCost(s.kind, s.level);
+export function repairCost(town: TownState, s: PlacedStructure): { supplies: number; fuel: number } {
+  const spent = cumulativeCost(town, s.kind, s.level);
+  const fraction = wreckRepairFractionFor(town.faction);
   return {
-    supplies: Math.ceil(spent.supplies * WRECK_REPAIR_FRACTION),
-    fuel: Math.ceil(spent.fuel * WRECK_REPAIR_FRACTION),
+    supplies: Math.ceil(spent.supplies * fraction),
+    fuel: Math.ceil(spent.fuel * fraction),
   };
 }
 
 export function repairWreck(town: TownState, id: number): boolean {
   const s = town.structures.find((x) => x.id === id);
   if (!s || !s.wrecked) return false;
-  const cost = repairCost(s);
+  const cost = repairCost(town, s);
   if (town.supplies < cost.supplies || town.fuel < cost.fuel) return false;
   town.supplies -= cost.supplies;
   town.fuel -= cost.fuel;

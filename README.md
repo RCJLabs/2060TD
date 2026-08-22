@@ -15,7 +15,24 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.4: the intel war
+## Current state — v0.5: the northern front
+
+**Russia is playable** — the third faction, and the first shipped as a pure content
+drop on the role pipeline (no plumbing changes):
+
+- **RUSSIAN GROUND FORCES — Operation Iron Corridor.** Hold the Nome railhead, the
+  Alaskan end of the ice-road corridor, through six missions against the US
+  counteroffensive — then counter-raid with conscripts, motor rifle squads, UR
+  demolition teams, RPG-29s, BTR-82As, and the T-72B3.
+- **OVERBUILT**, the faction signature: everything carries ~25–30% more concrete —
+  walls at 190 HP, bunkers, the command post — but town builds cost ~15% more, take
+  30% longer, and wreck repairs run 42% of cumulative cost instead of 30%.
+- **Artillery doctrine:** a BM-21 Grad rocket line instead of a gun run, and the
+  TOS-1A thermobaric salvo — five huge fuel-air blasts. The balance harness confirms
+  the faction thesis: Russia's late-game raids stall without preparation, and clear
+  when a thermobaric fire plan hits the guns before the armor walks in.
+
+## v0.4: the intel war
 
 The depth patch: signals, doctrine, and fire support.
 

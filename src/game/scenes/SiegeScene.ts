@@ -80,7 +80,9 @@ export class SiegeScene extends Phaser.Scene {
     this.fromTown = data?.fromTown ?? false;
     this.battleTag = data?.battle ?? null;
     const urlFaction = new URLSearchParams(window.location.search).get('faction');
-    this.faction = data?.faction ?? (urlFaction === 'china' ? 'china' : 'usa');
+    this.faction =
+      data?.faction ??
+      (urlFaction === 'china' || urlFaction === 'russia' ? urlFaction : 'usa');
     this.paused = false;
   }
 
@@ -103,15 +105,15 @@ export class SiegeScene extends Phaser.Scene {
     this.buttons = {};
 
     // Standalone battles fight the faction's own war: USA gets the tuned
-    // HOLD THE LINE demo, China gets an Eastern Tide mission at strength.
+    // HOLD THE LINE demo; the others get their armor mission at strength.
     const standaloneSiege =
-      this.faction === 'china'
-        ? {
-            ...missionSiege(campaignFor('china')[4]!, 'standard'),
-            name: 'HOLD THE SAND (SANDBOX)',
+      this.faction === 'usa'
+        ? HOLD_THE_LINE
+        : {
+            ...missionSiege(campaignFor(this.faction)[4]!, 'standard'),
+            name: this.faction === 'china' ? 'HOLD THE SAND (SANDBOX)' : 'HOLD THE CONCRETE (SANDBOX)',
             startingSupplies: HOLD_THE_LINE.startingSupplies,
-          }
-        : HOLD_THE_LINE;
+          };
     const config: SimConfig = this.launchConfig ?? {
       width: GRID_W,
       height: GRID_H,

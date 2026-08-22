@@ -148,7 +148,7 @@ describe('town state', () => {
 
     depot.wrecked = true;
     expect(ratesPerMinute(town).supplies).toBe(0);
-    const cost = repairCost(depot);
+    const cost = repairCost(town, depot);
     expect(cost.supplies).toBe(Math.ceil(150 * 0.3));
     expect(repairWreck(town, depot.id)).toBe(true);
     expect(depot.wrecked).toBe(false);

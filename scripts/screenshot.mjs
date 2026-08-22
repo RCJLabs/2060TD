@@ -60,6 +60,8 @@ try {
   await shoot('demo=raid', 3000, 'raid.png'); // the Front Line planner
   await shoot('demo=1&faction=china', 9000, 'demo-china.png'); // Eastern Tide battle
   await shoot('demo=raid&faction=china', 3000, 'raid-china.png'); // PLA raids a US firebase
+  await shoot('demo=1&faction=russia', 9000, 'demo-russia.png'); // Iron Corridor battle
+  await shoot('demo=raid&faction=russia', 3000, 'raid-russia.png'); // RU raids a US firebase
 
   await browser.close();
 

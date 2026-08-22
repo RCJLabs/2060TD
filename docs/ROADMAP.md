@@ -191,7 +191,16 @@ replaying cleared missions.
 
 ## M7 — v0.5+: expansion *(ongoing, one drop per release)*
 
-- [ ] Russia faction + "Iron Corridor" arc (Overbuilt mechanic, thermobarics)
+- [x] Russia faction + "Iron Corridor" arc (Overbuilt mechanic, thermobarics) *(v0.5)*
+      — *third playable faction, pure content drop on the role pipeline: PKM bunkers,
+      2A72 cannon bunkers, Podnos mortars, concrete slab walls (190 hp), Grad rocket
+      line + TOS-1A thermobaric salvo. OVERBUILT: ~25–30% more HP on everything,
+      paid for with builds that cost ~15% more, run 30% longer, and wrecks that cost
+      42% to restore (vs 30%). Six-mission IRON CORRIDOR arc holds the Nome railhead
+      against the US counteroffensive (URAL / KREPOST ACTUAL radio voice). Raid army:
+      conscripts, motor rifles, UR demo teams (80 wall dps), RPG-29s, BTR-82A, T-72B3.
+      Balance identity verified in the harness: Russia's late game runs through the
+      fire plan — shell the guns with thermobarics, then walk the armor in.*
 - [ ] North Korea faction + "Silent Tunnels" arc (tunnel network bypassing mazes)
 - [ ] UN Coalition faction + "Blue Line" arc (Mandate system, engineering)
 - [ ] Air layer: air units + AA emplacements
