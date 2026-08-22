@@ -103,6 +103,48 @@ describe('M2 engine: town layouts, levels, charges, limits, salvage', () => {
     expect(e.grid.walls.size).toBe(2);
   });
 
+  it('tunnel entries spawn attackers inside the map, with blocked-mouth fallback', () => {
+    const tunnelSiege: SiegeDef = {
+      ...MINI_SIEGE,
+      waves: [
+        {
+          entries: [
+            { atTick: 0, kind: 'walker', row: 5, col: 10 },
+            { atTick: 5, kind: 'walker', row: 8, col: 12 },
+          ],
+        },
+      ],
+    };
+    const e = makeSandbox(42, {
+      siege: tunnelSiege,
+      layout: { walls: [{ cell: 8 * 20 + 12, kind: 'wall' }], structures: [] }, // brick one mouth
+    });
+    e.enqueue({ tick: 0, type: 'startAssault' });
+    e.run(10);
+    expect(e.attackers).toHaveLength(2);
+    const first = e.attackers[0]!;
+    expect(first.pos.x).toBeGreaterThan(9); // surfaced mid-map, not at the west strip
+    const second = e.attackers[1]!;
+    const dx = Math.abs(second.pos.x - 12.5);
+    const dy = Math.abs(second.pos.y - 8.5);
+    expect(Math.max(dx, dy)).toBeLessThanOrEqual(1.6); // shifted to a neighbor cell
+  });
+
+  it('reserved cells refuse new construction but keep pre-existing town walls', () => {
+    const reserved = 5 * 20 + 10;
+    const e = makeSandbox(42, {
+      siege: MINI_SIEGE,
+      reservedCells: [reserved, reserved + 1],
+      layout: { walls: [{ cell: reserved + 1, kind: 'wall' }], structures: [] },
+    });
+    expect(e.grid.wallAt(reserved + 1)).toBeDefined(); // town wall stands
+    expect(e.canPlaceWall('wall', reserved)).toBe(false);
+    e.enqueue({ tick: 0, type: 'placeWall', cell: reserved, kind: 'wall' });
+    e.run(1);
+    expect(e.grid.wallAt(reserved)).toBeUndefined();
+    expect(e.canPlaceWall('wall', reserved - 5)).toBe(true); // normal ground fine
+  });
+
   it('victory converts unspent CP into salvaged Supplies', () => {
     const e = makeSandbox(42, {
       siege: MINI_SIEGE,

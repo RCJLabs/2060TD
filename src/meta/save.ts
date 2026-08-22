@@ -1,23 +1,46 @@
-import { newTown, type TownState } from './town';
+import { newTown, unlockAll, type TownState } from './town';
 
 /**
  * Versioned save persistence: localStorage autosave plus export/import as a
- * JSON file. Schema migrations hook in at deserialize() when version 2 exists.
+ * JSON file. Schema 1 (M2, pre-campaign) saves migrate forward on load.
  */
 
 export const SAVE_KEY = 'lastline_save_v1';
+export const SCHEMA = 2;
 
 export function serialize(town: TownState): string {
-  return JSON.stringify({ schema: 1, savedAt: town.lastSeen, town });
+  return JSON.stringify({ schema: SCHEMA, savedAt: town.lastSeen, town });
+}
+
+/** Schema 1 towns predate the campaign: grant everything they already had. */
+function migrateV1(legacy: Record<string, unknown>): TownState | null {
+  if (legacy['version'] !== 1) return null;
+  const town = {
+    ...(legacy as object),
+    version: 2,
+    campaign: { next: 0, completed: [], difficulty: 'standard', bonuses: [] },
+    unlocked: [],
+  } as unknown as TownState;
+  unlockAll(town);
+  return town;
 }
 
 export function deserialize(json: string): TownState | null {
   try {
     const data = JSON.parse(json) as { schema?: number; town?: TownState };
-    if (data.schema !== 1 || !data.town || data.town.version !== 1) return null;
-    const town = data.town;
+    if (!data.town) return null;
+
+    let town: TownState | null = null;
+    if (data.schema === 2 && data.town.version === 2) {
+      town = data.town;
+    } else if (data.schema === 1) {
+      town = migrateV1(data.town as unknown as Record<string, unknown>);
+    }
+    if (!town) return null;
+
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
+    if (!town.campaign || !Array.isArray(town.unlocked)) return null;
     return town;
   } catch {
     return null;

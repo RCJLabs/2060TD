@@ -75,15 +75,26 @@ The persistent base between battles: the game is now a loop, not a mission.
 
 Carried to M3: a proper battle-report/defense-log screen (current: overlay + banner).
 
-## M3 — v0.1 "Landfall": defense campaign *(~2–3 sessions)* → **first shareable build**
+## M3 — v0.1 "Landfall": defense campaign ✅ → **first shareable build**
 
-- [ ] 8–10 USA campaign missions with authored waves and difficulty curve
-- [ ] Mission select map (Oregon corridor), radio-log briefings + after-action reports
-- [ ] Tutorialization through mission design (no modal tutorial)
-- [ ] Unlock flow: buildings/emplacements/field defenses gated by mission progress
-- [ ] Difficulty options (at least: Standard / Hard)
-- [ ] First-run experience, alternate-history framing text, pause/settings
-- [ ] Deploy story: static hosting build (GitHub Pages or equivalent)
+- [x] 9 USA campaign missions with authored waves and a difficulty curve (DIG IN →
+      LANDFALL), fought on the player's persistent base; NK infiltrators surface from
+      in-map tunnel mouths at M6, a Russian T-72 detachment probes at M7
+- [x] Radio-log briefings (BriefingScene, line-by-line reveal) + after-action battle
+      report (debrief text, stats, bonus objective result, salvage, requisition notes).
+      A mission-select MAP screen is deferred to M6 polish — flow is linear NEXT MISSION
+- [x] Tutorialization through mission design: each mission headlines one threat and
+      unlocks the answer to the next (no modal tutorial)
+- [x] Unlock flow: buildings, emplacements, field defenses, powers, and CC tiers gated
+      by mission progress; locked buttons name the mission that grants them; SKIRMISH
+      ladder unlocks after M2 as the farming track
+- [x] Difficulty options: Standard / Hard (+30% hostiles), committed at first run
+- [x] First-run experience: alternate-history framing + content stance, difficulty pick;
+      pause (HOLD [F]) in battles; bonus objectives (+50% reward)
+- [x] Deploy story: GitHub Pages workflow (`.github/workflows/deploy.yml`) — builds,
+      tests, and publishes `dist/` on push to main once Pages is enabled for the repo
+
+Carried to M4: mission-select map screen (M6), replaying cleared missions.
 
 ## M4 — v0.2: offense + the Front Line *(~3 sessions)*
 

@@ -21,6 +21,8 @@ export const COLORS = {
   tracerExplosive: 0xff9a5c,
   crimson: 0xa83232,
   crimsonDark: 0x7c2424,
+  nkSlate: 0x5c6670,
+  ruRust: 0x8c5a2b,
 } as const;
 
 /** CSS hex string for a palette color (for text styles and DOM). */

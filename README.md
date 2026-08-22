@@ -15,28 +15,30 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — M2: The persistent town
+## Current state — v0.1 "LANDFALL": the campaign
 
-The game is now a loop, not a mission. Your **forward base at Coos Bay** exists between
-battles: it generates Supplies and Fuel in real time (even while you're away, capped at
-8 hours), buildings construct and upgrade on timers, and your save lives in the browser
-with file export/import.
+The first shareable build. **Operation Landfall** is a nine-mission defense campaign
+fought on your persistent base at Coos Bay, from the first militia probe (**DIG IN**)
+to the combined-arms finale (**LANDFALL**):
 
-- **Build the base:** Supply/Fuel Depots, Storage Bunkers, an Engineering Bay that
-  speeds construction, wall mazes, and emplacements — all gated by your Command Center's
-  level (counts *and* upgrade levels; leveled guns carry their stats into battle).
-- **Defend it for real:** the assault ladder generates escalating attacks — 3 waves of
-  infantry at level 1, grenadiers at 2, armor and the Type 99 from 3, scaling counts
-  beyond. The battle happens on your *actual* town layout: economy buildings are big
-  demolishable obstacles, walls lost stay lost, and destroyed structures come back
-  wrecked until repaired.
-- **Consequences both ways:** victory pays loot, converts unspent CP into salvage, and
-  advances the ladder; defeat lets the raiders take 15% of your stores.
-- **Ordnance:** stock A-10 and 155mm charges with Fuel in town; each cast in battle
-  consumes one.
+- **Radio-log missions:** each mission opens with a terse CASCADE transmission, ends
+  with an after-action report (stats, bonus objective, requisitions), and headlines one
+  threat — sappers void your maze at M3, grenadiers outrange your guns at M5, NK
+  infiltrators surface from tunnel mouths *inside your wire* at M6, a Russian T-72
+  detachment probes at M7.
+- **Requisition progression:** you start with walls, supply depots, and M2 nests.
+  Victories unlock the rest — field defenses, claymores, fuel economy, autocannons,
+  mortars, air power, CC expansions — always one mission before you need it.
+- **Bonus objectives** pay +50% (hold CC above 90%, lose no structures, keep the maze).
+- **Standard or Hard** (+30% hostiles), committed at first run with the
+  alternate-history framing up front.
+- **The persistent town** (M2) underneath it all: real-time economy, build timers,
+  offline accrual, wrecks and repairs, save export/import — and the SKIRMISH ladder
+  unlocks after M2 as the endless farming track between story missions.
 
-The M1 siege mechanics (active TD with CP-bought field defenses, powers, prep windows,
-damage-type × armor counters, everything-is-demolishable pathing) all carry forward.
+The core mechanics carry through: active TD defense with CP-bought field works and
+commander powers, damage-type × armor counters, and weighted pathfinding where
+*everything* you build is an obstacle with HP — attackers always do the math.
 
 ## Quickstart
 
@@ -66,7 +68,7 @@ click a structure in select mode to inspect/upgrade/move/sell/repair; right-clic
 | `E` | Erase / refund (setup & prep only) |
 | `Q` / `W` | Arm A-10 gun run / 155mm fire mission, then click the target |
 | `SPACE` | Start assault / skip prep / return to base when it's over |
-| `P` / `S` | Path visualization / sim speed ×1 ×2 ×4 |
+| `P` / `S` / `F` | Path visualization / sim speed ×1 ×2 ×4 / hold (pause) |
 | `R` | Restart (standalone battles only — town battles have consequences) |
 
 The sandbox (`?playground=1`): `1/2/3` wall/M2/erase, `W` militia, `B` sapper,
@@ -92,3 +94,10 @@ tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
 **Architecture rule:** `src/sim` never imports Phaser. Same seed + same commands ⇒
 identical outcome (hash-tested), which is what makes replays, offline raid resolution,
 and the future balance harness possible.
+
+## Deploying
+
+`.github/workflows/deploy.yml` builds, tests, and publishes `dist/` to GitHub Pages on
+every push to `main` (once Pages is set to "GitHub Actions" in the repo settings).
+The build is fully static and relative-pathed — any static host works:
+`npm run build && rsync dist/ somewhere`.

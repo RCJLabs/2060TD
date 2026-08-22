@@ -154,7 +154,7 @@ export class Engine {
       : null;
 
     // Plant the Command Center: 2×2, hard-blocked, the thing everyone dies for.
-    const cc = this.createStructure(config.ccOrigin, 'cc', config.ccLevel ?? 1, 1, false);
+    const cc = this.createStructure(config.ccOrigin, 'cc', config.ccLevel ?? 1, 1, false, true);
     if (!cc) throw new Error('invalid Command Center placement or missing cc profile');
     this.cc = cc;
     for (const cell of cc.cells) this.grid.addBlocker(cell);
@@ -188,15 +188,16 @@ export class Engine {
     };
 
     // Inject the persistent town layout, free of charge, before anything moves.
+    // Reserved cells don't apply here: what the town built already stands.
     if (config.layout) {
       for (const wall of config.layout.walls) {
         const def = catalog.walls[wall.kind];
-        if (def && this.isBuildable(wall.cell)) {
+        if (def && this.isBuildable(wall.cell, true)) {
           this.grid.placeWall(wall.cell, def.hp, def.kind);
         }
       }
       for (const s of config.layout.structures) {
-        this.createStructure(s.cell, s.kind, s.level ?? 1, s.hpFraction ?? 1, s.inert ?? false);
+        this.createStructure(s.cell, s.kind, s.level ?? 1, s.hpFraction ?? 1, s.inert ?? false, true);
       }
     }
     this.layoutWatermark = this.nextId;
@@ -225,11 +226,12 @@ export class Engine {
     level: number,
     hpFraction: number,
     inert: boolean,
+    ignoreReserved = false,
   ): Structure | null {
     const profile = this.resolveProfile(kind, level);
     if (!profile) return null;
     const cells = this.footprintCells(origin, profile.footprint);
-    if (!cells || !cells.every((c) => this.isBuildable(c))) return null;
+    if (!cells || !cells.every((c) => this.isBuildable(c, ignoreReserved))) return null;
     const center =
       profile.footprint === 2
         ? { x: this.grid.xOf(origin) + 1, y: this.grid.yOf(origin) + 1 }
@@ -309,7 +311,8 @@ export class Engine {
       const wave = this.waves[this.waveIndex]!;
       while (this.spawnCursor < wave.length && wave[this.spawnCursor]!.atTick <= this.waveTick) {
         const entry = wave[this.spawnCursor++]!;
-        this.spawnAttackerAt(this.grid.idx(this.config.spawnColumn, entry.row), entry.kind, events);
+        const column = entry.col ?? this.config.spawnColumn;
+        this.spawnAttackerAt(this.grid.idx(column, entry.row), entry.kind, events);
       }
       this.waveTick++;
 
@@ -346,10 +349,37 @@ export class Engine {
     events.push({ type: 'waveStarted', index });
   }
 
+  /** The requested cell, or the nearest open neighbor (tunnel mouths can be
+   *  walled over) — deterministic search order, null if the area is bricked. */
+  private findSpawnCell(cell: CellIndex): CellIndex | null {
+    const open = (c: CellIndex) =>
+      this.grid.inBounds(c) &&
+      !this.grid.wallAt(c) &&
+      !this.structureAtCell.get(c)?.profile.blocks;
+    if (open(cell)) return cell;
+    const w = this.grid.width;
+    const x = this.grid.xOf(cell);
+    const y = this.grid.yOf(cell);
+    const candidates = [
+      [0, -1], [1, 0], [0, 1], [-1, 0],
+      [1, -1], [1, 1], [-1, 1], [-1, -1],
+    ];
+    for (const [dx, dy] of candidates) {
+      const nx = x + dx!;
+      const ny = y + dy!;
+      if (nx < 0 || nx >= w || ny < 0 || ny >= this.grid.height) continue;
+      const c = ny * w + nx;
+      if (open(c)) return c;
+    }
+    return null;
+  }
+
   private spawnAttackerAt(cell: CellIndex, kind: string, events: SimEvent[]): boolean {
     const profile = this.catalog.attackers[kind];
     if (!profile || !this.grid.inBounds(cell)) return false;
-    if (this.grid.wallAt(cell) || this.structureAtCell.get(cell)?.profile.blocks) return false;
+    const spawnCell = this.findSpawnCell(cell);
+    if (spawnCell === null) return false;
+    cell = spawnCell;
     const jitter = profile.speedJitter;
     const speed = profile.speed * (1 + rollRange(this.rng, -jitter, jitter));
     const pos = this.grid.centerOf(cell);
@@ -846,12 +876,13 @@ export class Engine {
     return this.structureAtCell.get(cell);
   }
 
-  /** Open ground, not the spawn column, no attacker standing on it. */
-  isBuildable(cell: CellIndex): boolean {
+  /** Open ground, not the spawn column or a reserved cell, no attacker on it. */
+  isBuildable(cell: CellIndex, ignoreReserved = false): boolean {
     if (!this.grid.inBounds(cell)) return false;
     if (this.grid.wallAt(cell) || this.structureAtCell.has(cell)) return false;
     if (this.grid.isBlocked(cell)) return false;
     if (this.grid.xOf(cell) === this.config.spawnColumn) return false;
+    if (!ignoreReserved && this.config.reservedCells?.includes(cell)) return false;
     for (const attacker of this.attackers) {
       if (this.grid.cellAt(attacker.pos) === cell) return false;
     }
@@ -868,6 +899,15 @@ export class Engine {
         if (this.catalog.walls[wall.kind]?.supplyCost !== undefined) supplyWalls++;
       }
       if (supplyWalls >= this.config.buildLimits.walls) return false;
+    }
+    // Per-kind limits also cover wall kinds (a 0 entry = not yet unlocked).
+    const kindLimit = this.config.buildLimits?.structures?.[kind];
+    if (kindLimit !== undefined) {
+      let count = 0;
+      for (const wall of this.grid.walls.values()) {
+        if (wall.kind === kind) count++;
+      }
+      if (count >= kindLimit) return false;
     }
     return this.affords(def) && this.isBuildable(cell);
   }

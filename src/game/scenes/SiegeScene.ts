@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { bonusMet, CAMPAIGN, type MissionDef } from '../../content/campaign';
 import { M1_CATALOG } from '../../content/catalog';
 import { HOLD_THE_LINE } from '../../content/missions';
 import { outcomeFromEngine } from '../../meta/town';
@@ -8,10 +9,13 @@ import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleR
 import { COLORS, css } from '../palette';
 import { makeButton, mono, type Button } from '../ui';
 
+export type BattleTag = { type: 'mission'; missionId: string } | { type: 'skirmish' };
+
 export interface SiegeLaunchData {
-  /** Battle built from the town (meta/town.siegeConfig). Absent = standalone. */
+  /** Battle built from the town (meta/town). Absent = standalone. */
   config?: SimConfig;
   fromTown?: boolean;
+  battle?: BattleTag;
 }
 
 const CELL = 32;
@@ -46,6 +50,9 @@ export class SiegeScene extends Phaser.Scene {
   private overlayShown = false;
   private fromTown = false;
   private launchConfig: SimConfig | null = null;
+  private battleTag: BattleTag | null = null;
+  private paused = false;
+  private pausedText!: Phaser.GameObjects.Text;
 
   private phaseText!: Phaser.GameObjects.Text;
   private suppliesText!: Phaser.GameObjects.Text;
@@ -64,6 +71,13 @@ export class SiegeScene extends Phaser.Scene {
   init(data: SiegeLaunchData): void {
     this.launchConfig = data?.config ?? null;
     this.fromTown = data?.fromTown ?? false;
+    this.battleTag = data?.battle ?? null;
+    this.paused = false;
+  }
+
+  private get mission(): MissionDef | null {
+    if (this.battleTag?.type !== 'mission') return null;
+    return CAMPAIGN.find((m) => m.id === (this.battleTag as { missionId: string }).missionId) ?? null;
   }
 
   create(): void {
@@ -162,6 +176,7 @@ export class SiegeScene extends Phaser.Scene {
       this.showPaths = !this.showPaths;
     });
     kb?.on('keydown-S', () => this.cycleSpeed());
+    kb?.on('keydown-F', () => this.togglePause());
     kb?.on('keydown-R', () => {
       // Town battles have consequences — no free restarts.
       if (!this.fromTown) this.scene.restart({});
@@ -189,7 +204,18 @@ export class SiegeScene extends Phaser.Scene {
   }
 
   private returnToTown(): void {
-    this.scene.start('town', { outcome: outcomeFromEngine(this.engine) });
+    this.scene.start('town', {
+      outcome: outcomeFromEngine(this.engine),
+      battle: this.battleTag ?? { type: 'skirmish' },
+    });
+  }
+
+  private togglePause(): void {
+    const phase = this.engine.phase;
+    if (phase === 'victory' || phase === 'defeat') return;
+    this.paused = !this.paused;
+    this.pausedText.setVisible(this.paused);
+    this.buttons['pause']?.setActive(this.paused);
   }
 
   private setTool(tool: Tool | null): void {
@@ -238,12 +264,17 @@ export class SiegeScene extends Phaser.Scene {
 
   private cycleSpeed(): void {
     this.speedMult = this.speedMult >= 4 ? 1 : this.speedMult * 2;
-    this.buttons['speed']?.setLabel(`SPEED ×${this.speedMult} [S]`);
+    this.buttons['speed']?.setLabel(`×${this.speedMult} [S]`);
   }
 
   // ---- sim stepping ------------------------------------------------------------------
 
   override update(_time: number, deltaMs: number): void {
+    if (this.paused) {
+      this.battle.draw(1, deltaMs / 1000, { showPaths: this.showPaths });
+      this.updateHud();
+      return;
+    }
     this.accumulator += (deltaMs / 1000) * this.speedMult;
     let safety = 12;
     while (this.accumulator >= DT && safety-- > 0) {
@@ -414,18 +445,36 @@ export class SiegeScene extends Phaser.Scene {
     this.add.text(x0 + pad, 540, 'SITREP', mono(10, COLORS.inkDim));
     this.sitrepText = this.add.text(x0 + pad, 556, '', mono(11, COLORS.ink, { lineSpacing: 4 }));
 
-    this.buttons['paths'] = makeButton(this, x0 + pad, 676, (bw - 6) / 2, 24, 'PATHS [P]', () => {
+    const third = (bw - 12) / 3;
+    this.buttons['paths'] = makeButton(this, x0 + pad, 676, third, 24, 'PATHS [P]', () => {
       this.showPaths = !this.showPaths;
     });
     this.buttons['speed'] = makeButton(
       this,
-      x0 + pad + (bw + 6) / 2,
+      x0 + pad + third + 6,
       676,
-      (bw - 6) / 2,
+      third,
       24,
-      'SPEED ×1 [S]',
+      '×1 [S]',
       () => this.cycleSpeed(),
     );
+    this.buttons['pause'] = makeButton(
+      this,
+      x0 + pad + (third + 6) * 2,
+      676,
+      third,
+      24,
+      'HOLD [F]',
+      () => this.togglePause(),
+    );
+    this.pausedText = this.add
+      .text(GRID_PX_W / 2, GRID_PX_H / 2, 'HOLDING — PRESS F', {
+        ...mono(24, COLORS.ink, { fontStyle: 'bold', backgroundColor: css(COLORS.bgPanel) }),
+        padding: { x: 18, y: 10 },
+      })
+      .setOrigin(0.5)
+      .setDepth(30)
+      .setVisible(false);
 
     this.add.text(
       x0 + pad,
@@ -556,27 +605,61 @@ export class SiegeScene extends Phaser.Scene {
   private showOverlay(victory: boolean): void {
     if (this.overlayShown) return;
     this.overlayShown = true;
+    this.paused = false;
+    this.pausedText.setVisible(false);
     const cx = (GRID_PX_W + PANEL_W) / 2;
-    this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.55).setOrigin(0).setDepth(40);
+    this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.6).setOrigin(0).setDepth(40);
+
+    const mission = this.mission;
+    const title = victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST';
     this.add
-      .text(cx, 300, victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST', {
-        ...mono(34, victory ? COLORS.olive : COLORS.alarm, { fontStyle: 'bold' }),
-      })
+      .text(cx, 216, mission ? `M${mission.index + 1} — ${mission.codename}` : 'AFTER ACTION', mono(12, COLORS.inkDim))
       .setOrigin(0.5)
       .setDepth(41);
+    this.add
+      .text(cx, 252, title, mono(34, victory ? COLORS.olive : COLORS.alarm, { fontStyle: 'bold' }))
+      .setOrigin(0.5)
+      .setDepth(41);
+
     const s = this.engine.stats;
-    const lines = [
-      victory
-        ? 'The perimeter held. Coos Bay stays on the map.'
-        : 'The line broke. Survivors are falling back inland.',
-      '',
+    const lines: string[] = [];
+
+    if (mission) {
+      lines.push(...(victory ? mission.debriefVictory : mission.debriefDefeat), '');
+    } else {
+      lines.push(
+        victory
+          ? 'The perimeter held. Coos Bay stays on the map.'
+          : 'The line broke. Survivors are falling back inland.',
+        '',
+      );
+    }
+
+    lines.push(
       `Hostiles destroyed: ${s.kills} / ${s.spawned}`,
       `Walls lost: ${s.wallsLost}   Structures lost: ${s.structuresLost}`,
-    ];
+    );
     if (victory && s.salvage > 0) lines.push(`Unspent CP salvaged: +${s.salvage} SUP`);
+
+    if (mission?.bonus) {
+      const achieved = bonusMet(mission.bonus.id, outcomeFromEngine(this.engine));
+      lines.push(
+        '',
+        `BONUS ${victory && achieved ? 'ACHIEVED (+50% REWARD)' : 'MISSED'} — ${mission.bonus.label}`,
+      );
+    }
+    if (mission && victory) {
+      const reward = mission.reward;
+      lines.push(
+        `REWARD: ${reward.supplies} SUP${reward.fuel > 0 ? ` + ${reward.fuel} FUEL` : ''}` +
+          ' (before bonus)',
+      );
+      if (mission.unlockNote) lines.push(mission.unlockNote);
+    }
+
     lines.push('', this.fromTown ? 'PRESS SPACE TO RETURN TO BASE' : 'PRESS R TO RUN IT BACK');
     this.add
-      .text(cx, 356, lines.join('\n'), {
+      .text(cx, 300, lines.join('\n'), {
         ...mono(13, COLORS.ink, { lineSpacing: 6, align: 'center' }),
       })
       .setOrigin(0.5, 0)

@@ -38,15 +38,18 @@ export function makeButton(
 
   let active = false;
   let enabled = true;
+  const alive = () => bg.active && label.active;
   const restingColor = () => (active ? COLORS.oliveDark : COLORS.bgField);
   const refresh = () => {
+    // Pointer events can trail in after a click handler destroyed the button.
+    if (!alive()) return;
     bg.setFillStyle(restingColor());
     bg.setStrokeStyle(1, active ? COLORS.olive : COLORS.gridLine);
     label.setColor(css(enabled ? COLORS.ink : COLORS.inkDim));
   };
 
   bg.on('pointerover', () => {
-    if (enabled) bg.setFillStyle(active ? COLORS.olive : COLORS.gridLine);
+    if (enabled && alive()) bg.setFillStyle(active ? COLORS.olive : COLORS.gridLine);
   });
   bg.on('pointerout', refresh);
   bg.on(

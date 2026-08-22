@@ -61,7 +61,23 @@ export class BattleRenderer {
   private drawStaticLayer(): void {
     const grid = this.engine.grid;
     const c = this.cell;
-    drawFieldBase(this.staticLayer, grid.width, grid.height, c, this.engine.config.spawnColumn);
+    const g = this.staticLayer;
+    drawFieldBase(g, grid.width, grid.height, c, this.engine.config.spawnColumn);
+
+    // Tunnel mouths (reserved cells): the enemy owns this ground.
+    for (const cell of this.engine.config.reservedCells ?? []) {
+      const center = grid.centerOf(cell);
+      const px = center.x * c;
+      const py = center.y * c;
+      g.fillStyle(0x000000, 0.8);
+      g.fillCircle(px, py, 11);
+      g.lineStyle(2, COLORS.nkSlate, 1);
+      g.strokeCircle(px, py, 11);
+      g.lineStyle(2, COLORS.crimson, 0.8);
+      g.strokeCircle(px, py, 15);
+      g.fillStyle(COLORS.nkSlate, 1);
+      g.fillRect(px - 6, py - 1.5, 12, 3);
+    }
 
     // Command Center label (the block itself is drawn dynamically for HP shading).
     const cc = this.engine.cc;
@@ -250,6 +266,30 @@ export class BattleRenderer {
         g.fillTriangle(px - 6, py - 7, px - 6, py + 7, px + 8, py);
         g.fillStyle(COLORS.signal, 1);
         g.fillCircle(px - 2, py, 2);
+        break;
+      case 'infiltrator':
+        g.fillStyle(COLORS.nkSlate, 1);
+        g.fillPoints(
+          [
+            { x: px, y: py - 7 },
+            { x: px + 5, y: py },
+            { x: px, y: py + 7 },
+            { x: px - 5, y: py },
+          ],
+          true,
+        );
+        g.lineStyle(1, COLORS.ink, 0.6);
+        g.strokeCircle(px, py, 8);
+        break;
+      case 't72':
+        g.fillStyle(COLORS.ruRust, 1);
+        g.fillRect(px - 11, py - 7, 22, 14);
+        g.lineStyle(2, COLORS.sand, 0.7);
+        g.strokeRect(px - 11, py - 7, 22, 14);
+        g.fillStyle(COLORS.sandDark, 1);
+        g.fillCircle(px, py, 4);
+        g.lineStyle(3, COLORS.ruRust, 1);
+        g.lineBetween(px, py, px + 15, py);
         break;
       case 'zbd':
         g.fillStyle(COLORS.crimsonDark, 1);

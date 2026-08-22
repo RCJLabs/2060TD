@@ -20,6 +20,7 @@ import {
   structureAt,
   tick,
   townCc,
+  unlockAll,
   upgrade,
   upgradeError,
   TOWN_GRID,
@@ -32,10 +33,11 @@ const T0 = 1_700_000_000_000;
 const minutes = (m: number) => m * 60_000;
 const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
 
+/** Dev town: everything unlocked (campaign locks tested separately), rich. */
 const rich = (town: TownState): TownState => {
   town.supplies = 50_000;
   town.fuel = 50_000;
-  return town;
+  return unlockAll(town);
 };
 
 /** A town with its CC already at the given level (paid and completed). */
@@ -203,7 +205,7 @@ describe('the siege bridge', () => {
   });
 
   it('victory: wrecks the fallen, adopts battle-bought guns, pays loot, advances the ladder', () => {
-    const town = newTown(T0);
+    const town = unlockAll(newTown(T0));
     town.supplies = 300;
     town.fuel = 100;
     place(town, 'supplyDepot', idx(5, 5), T0);
@@ -225,6 +227,7 @@ describe('the siege bridge', () => {
         spawned: 0, kills: 0, wallsBuilt: 0, wallsLost: 0,
         structuresLost: 1, suppliesSpent: 0, cpSpent: 0, salvage: 0,
       },
+      ccHpFraction: 0.95,
     };
     applySiegeResult(town, outcome, T0 + minutes(10));
 
@@ -252,6 +255,7 @@ describe('the siege bridge', () => {
         spawned: 0, kills: 0, wallsBuilt: 0, wallsLost: 0,
         structuresLost: 0, suppliesSpent: 0, cpSpent: 0, salvage: 0,
       },
+      ccHpFraction: 0,
     };
     applySiegeResult(town, outcome, T0 + minutes(10));
     expect(town.supplies).toBe(340); // 400 × 0.85

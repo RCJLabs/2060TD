@@ -149,6 +149,11 @@ export interface WaveEntry {
   kind: string;
   /** Spawn row in the entry column. */
   row: number;
+  /**
+   * Spawn column override — infiltration tunnels open INSIDE the map.
+   * Omit for the regular western entry strip.
+   */
+  col?: number;
 }
 
 export interface WaveDef {
@@ -207,9 +212,15 @@ export interface SimConfig {
   powerCharges?: Record<string, number>;
   /**
    * Max total count per structure kind (layout included) and max wall count,
-   * from the town's Command Center gating. Absent = unlimited.
+   * from the town's Command Center gating. Absent = unlimited. Kind entries
+   * also apply to wall kinds (a 0 entry locks HESCOs, for example).
    */
   buildLimits?: { structures?: Record<string, number>; walls?: number };
+  /**
+   * Cells the player may not build on during this battle (tunnel mouths).
+   * Town-layout injection ignores this — pre-existing walls stand.
+   */
+  reservedCells?: CellIndex[];
 }
 
 export type Phase = 'sandbox' | 'setup' | 'combat' | 'prep' | 'victory' | 'defeat';
