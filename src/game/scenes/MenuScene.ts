@@ -74,7 +74,7 @@ export class MenuScene extends Phaser.Scene {
     // else, so the whole composition centres as one block instead of leaving
     // a hole between a pinned title and the buttons.
     const ov = new Overlay(this, this.layout, { scrim: 1 });
-    const { rowH, gap, font, px } = this.layout;
+    const { rowH, gap, font, compact, px } = this.layout;
     const armed = Date.now() <= this.wipeArmedUntil;
 
     /** One column for the whole menu, not a monitor-wide stretch. */
@@ -83,43 +83,63 @@ export class MenuScene extends Phaser.Scene {
       return { ...rect, x: rect.x + Math.round((rect.w - w) / 2), w };
     };
     const menuRow = (): Rect => column(ov.flow(rowH, Math.round(gap * 0.8)));
+    /**
+     * Deliberate breathing room between blocks. Measuring the text also took
+     * away the slack that over-estimated heights used to provide by accident,
+     * and on a monitor that slack was the only thing keeping the composition
+     * from reading as one squeezed paragraph.
+     */
+    const air = compact ? gap : Math.round(gap * 2);
+    /**
+     * Every block here is MEASURED, never estimated. A phone wraps the
+     * faction line and the campaign status onto two lines each, and a height
+     * guessed from a line count put both of them through the block below.
+     */
+    const prose = (
+      value: string,
+      size: number,
+      color: number,
+      gapAfter: number,
+      width = px(420),
+    ): void => {
+      ov.paragraph(value, size, color, {
+        center: true,
+        width: Math.min(ov.card.w, width),
+        gapAfter,
+        lineSpacing: Math.round(size * 0.5),
+      });
+    };
 
-    ov.centered(ov.flow(Math.round(font.hero * 1.25), gap), 'LAST LINE', font.hero);
-    ov.centered(
-      column(ov.flow(Math.round(font.tiny * 6.0), Math.round(gap * 2.2)), px(560)),
+    prose('LAST LINE', font.hero, COLORS.ink, air, px(560));
+    prose(
       'An alternate history. 2027. A coordinated offensive — China, Russia, ' +
         'North Korea — strikes the American mainland and UN forces worldwide. ' +
         'The fiction depicts militaries and machines, not peoples.',
       font.tiny,
       COLORS.inkDim,
-      { lineSpacing: Math.round(font.tiny * 0.5) },
+      Math.round(air * 1.6),
+      px(560),
     );
 
     if (town) {
       tick(town, Date.now());
       const flavor = flavorFor(town.faction);
       const next = campaignFor(town.faction)[town.campaign.next];
-      ov.centered(
-        ov.flow(Math.round(font.body * 1.5), Math.round(gap / 2)),
-        `${flavor.faction} · ${flavor.operation.split(' — ')[0]}`,
-        font.body,
-        COLORS.olive,
-      );
-      ov.centered(
-        ov.flow(Math.round(font.tiny * 1.6), gap),
-        `${next ? `NEXT: M${next.index + 1} ${next.codename}` : 'CAMPAIGN COMPLETE'}` +
-          ` · TIER ${town.frontline.tier} · ${leagueOf(town).label} ${town.frontline.standing} PTS` +
+      // On a narrow screen the joins become line breaks, so the wrap lands
+      // between the two facts instead of through the middle of one.
+      const join = compact ? '\n' : ' · ';
+      prose(`${flavor.faction}${join}${flavor.operation.split(' — ')[0]}`, font.body, COLORS.olive, Math.round(gap / 2));
+      prose(
+        `${next ? `NEXT: M${next.index + 1} ${next.codename}` : 'CAMPAIGN COMPLETE'}${join}` +
+          `TIER ${town.frontline.tier} · ${leagueOf(town).label} ${town.frontline.standing} PTS` +
           ` · ${town.victories} VICTORIES`,
         font.tiny,
         COLORS.inkDim,
+        air,
       );
       ov.button(menuRow(), 'CONTINUE THE WAR', () => this.enterWar());
     } else {
-      ov.centered(
-        ov.flow(Math.round(font.body * 1.6), gap),
-        'Five commands are hiring.',
-        font.body,
-      );
+      prose('Five commands are hiring.', font.body, COLORS.ink, air);
     }
 
     ov.button(
@@ -141,13 +161,14 @@ export class MenuScene extends Phaser.Scene {
       window.location.search = '?playground=1';
     });
 
-    ov.centered(
-      column(ov.flow(Math.round(font.tiny * 3.4), 0), px(560)),
-      'Your town is the battlefield: the walls that protect your economy\n' +
+    ov.flow(0, air); // spacer: the closing line is a sign-off, not a fifth button
+    prose(
+      'Your town is the battlefield: the walls that protect your economy ' +
         'are the maze your enemies fight through.',
       font.tiny,
       COLORS.inkDim,
-      { lineSpacing: Math.round(font.tiny * 0.5) },
+      0,
+      px(560),
     );
     return ov;
   }

@@ -182,16 +182,21 @@ export class Overlay {
     value: string,
     size: number,
     color = COLORS.ink,
-    opts: { gapAfter?: number; width?: number; minHeight?: number; center?: boolean } = {},
+    opts: {
+      gapAfter?: number;
+      width?: number;
+      minHeight?: number;
+      center?: boolean;
+      lineSpacing?: number;
+    } = {},
   ): Phaser.GameObjects.Text {
     const width = opts.width ?? this.card.w;
-    const rect = {
-      x: this.card.x,
-      y: this.card.y + this.cursor - this.scrollY,
-      w: width,
-      h: 0,
-    };
-    const extra = { lineSpacing: Math.round(size * 0.3) };
+    // A centred block narrower than the card is a column: centre the column
+    // too. Left-aligned blocks stay pinned to the card edge, which is what a
+    // list entry with a button beside it needs.
+    const x = opts.center ? this.card.x + Math.round((this.card.w - width) / 2) : this.card.x;
+    const rect = { x, y: this.card.y + this.cursor - this.scrollY, w: width, h: 0 };
+    const extra = { lineSpacing: opts.lineSpacing ?? Math.round(size * 0.3) };
     const t = opts.center
       ? this.centered(rect, value, size, color, extra)
       : this.text(rect, value, size, color, extra);
