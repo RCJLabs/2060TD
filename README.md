@@ -17,6 +17,32 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.12: three orders a day
+
+**DAY ORDERS on the WAR tab** — three standing orders, posted daily off the
+same fixed epoch as the field-condition rotation. No server, no stored
+schedule, no way for two saves to disagree about what today asks.
+
+- **One per category** — the front, the wire, the yard — so there's always
+  something for whatever you happen to be doing. Three pools of different
+  sizes (5, 4, 6) mean the exact triple doesn't come round for sixty days; one
+  pool of fifteen would repeat every fifteen and pin each order to the same
+  weekday forever.
+- **They pay themselves.** An order settles the instant it's filled, not when
+  you come back to collect. This is a game built to be left alone for a day,
+  and a reward that expires because nobody tapped it punishes exactly that.
+- **They never pay standing.** Standing is the one number that falls on its
+  own; a daily faucet of it would quietly undo the whole board. Orders pay
+  Supplies, Fuel and Intel.
+- **Goals are flat; the rate is your band.** A tier-5 commander runs the same
+  errand a tier-1 one does — the league multiplier is what keeps it worth
+  their afternoon.
+- **Only the progress is stored**, with the day it belongs to, so a stale
+  sheet is replaced rather than credited against orders it never saw. What
+  each order *paid* is stored too: a raid can fill an order and move your band
+  in the same breath, and a screen that re-priced it would print a number
+  nobody was ever paid.
+
 ## Current state — v1.11: a battle is a string
 
 **The sim is deterministic, so a battle *is* its config.** No frame log, no
@@ -570,7 +596,7 @@ npm run dev        # the game (faction pick → town → missions/raids loop)
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, leagues, conditions,
                    # archetypes, the coach, the score, veterancy, the record,
-                   # share codes, replay codes, determinism)
+                   # share codes, replay codes, day orders, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
                    # -- --shapes for the eight base archetypes, or
@@ -590,6 +616,7 @@ node scripts/e2e-boot.mjs            # boot card under throttling + the single f
 node scripts/e2e-vet.mjs             # named formations, their files, and who came back
 node scripts/e2e-record.mjs          # the service record, and that it never draws over itself
 node scripts/e2e-vault.mjs           # a battle filed, copied out as a string, and played back in
+node scripts/e2e-orders.mjs          # the day's orders, filled by actually playing
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
@@ -638,13 +665,13 @@ src/sim/         Pure-TS deterministic simulation (no Phaser imports):
                  combat resolution, structure levels, seeded PRNG, state hashing
 src/content/     Data, not code: damage table, both factions' defenses, armies,
                  campaigns, base kits, league bands, the rotating field
-                 conditions, the veterancy ranks, and the faction switch
-                 (factions.ts)
+                 conditions, the veterancy ranks, the daily contract pools,
+                 and the faction switch (factions.ts)
 src/meta/        The persistent layer: town state (timers, accrual, gating,
                  wrecks), the siege bridge, warfare/raids, the league ladder
                  (standing, decay, seasons, the standing line), the service
                  record, the replay vault, share and replay codes (over one
-                 shared codec), versioned saves
+                 shared codec), the day's orders, versioned saves
 src/game/        Phaser 3 presentation: responsive layout + board camera rig,
                  shared glyphs + BattleRenderer, Town/Siege/Briefing/Raid/
                  Replay scenes, touch UI kit, overlays, palette
@@ -652,7 +679,7 @@ src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
                  assault ladder, doctrines, warfare, factions, leagues,
                  field conditions, veterancy, the service record, share
-                 codes, replay codes and the vault, determinism
+                 codes, replay codes and the vault, day orders, determinism
 scripts/         Playwright harnesses that drive the real build by button
                  label: first-run flow, menu, touch gestures, raids, share
                  codes, the league board and the condition rotation, the

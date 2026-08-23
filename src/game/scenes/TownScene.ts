@@ -15,6 +15,8 @@ import { activeSlot, clearSave, loadSlot, saveTown } from '../../meta/save';
 import { runOfflineProbes } from '../../meta/warfare';
 import { fileCode, openEntry, vaultOf, VAULT_CAP } from '../../meta/vault';
 import { replayFingerprint, type ReplayKind } from '../../meta/replaycode';
+import { contractsAt, contractsEndAt } from '../../content/contracts';
+import { contractPay, contractState } from '../../meta/contracts';
 import { COACH_KEYS } from '../../content/tutorial';
 import { hasSeen, markSeen } from '../../meta/coach';
 import { conditionAfter, conditionAt, conditionEndsAt } from '../../content/conditions';
@@ -168,6 +170,8 @@ export class TownScene extends Phaser.Scene {
   private overlay: Overlay | null = null;
   /** How to rebuild the open overlay after the viewport changes. */
   private overlayBuilder: (() => void) | null = null;
+  /** Which of today's orders had paid out last frame — the banner watches it. */
+  private paidOrders: boolean[] = [];
 
   constructor() {
     super('town');
@@ -426,7 +430,10 @@ export class TownScene extends Phaser.Scene {
       case 'wall': {
         if (cell === this.lastPaintedCell && !isTap) return;
         this.lastPaintedCell = cell;
-        if (placeWall(this.town, cell)) this.saveSoon();
+        // Pass the clock: without it the segment is credited against
+        // whatever day lastSeen happens to hold, and wire laid just after
+        // midnight would count towards a sheet that is already discarded.
+        if (placeWall(this.town, cell, Date.now())) this.saveSoon();
         return;
       }
       case 'erase': {
@@ -764,6 +771,96 @@ export class TownScene extends Phaser.Scene {
    * fought yourself was made of commands the config never held, and a
    * "replay" of one would be a battle nobody fought.
    */
+  /**
+   * Today's standing orders (v1.12).
+   *
+   * There is nothing to claim here. A contract pays the instant it finishes,
+   * because this is a game built to be left alone for a day and a reward that
+   * expires because nobody tapped it punishes exactly that. The screen is for
+   * reading what today asks, not for collecting a debt.
+   */
+  private showContracts(): void {
+    if (this.overlay) return;
+    const now = Date.now();
+    const today = contractsAt(now);
+    const state = contractState(this.town, now);
+    const done = state.paid.filter(Boolean).length;
+    const ov = new Overlay(this, this.layout, {
+      title: 'DAY ORDERS',
+      subtitle: `${done} of ${today.length} filled · new orders in ${untilLabel(
+        contractsEndAt(now) - now,
+      )}`,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { font, gap } = this.layout;
+
+    today.forEach((contract, i) => {
+      const at = Math.min(contract.goal, state.progress[i] ?? 0);
+      const paid = state.paid[i] === true;
+      const pay = state.pay[i] ?? contractPay(this.town, contract);
+      ov.paragraph(
+        `${contract.label} — ${paid ? 'FILLED' : `${at}/${contract.goal}`}`,
+        font.body,
+        paid ? COLORS.olive : COLORS.ink,
+        { gapAfter: Math.round(gap / 4) },
+      );
+      ov.paragraph(contract.brief, font.tiny, COLORS.inkDim, {
+        gapAfter: Math.round(gap / 4),
+      });
+      ov.paragraph(
+        `${paid ? 'PAID' : 'PAYS'} +${pay.supplies} SUP · +${pay.fuel} FUEL · +${pay.intel} INT`,
+        font.tiny,
+        paid ? COLORS.olive : COLORS.inkDim,
+        { gapAfter: gap },
+      );
+    });
+
+    ov.paragraph(
+      'Three a day — one on the front, one at home behind the wire, one in ' +
+        'the yard — and they pay the moment they are filled, not when you ' +
+        'come back to collect. The rate is your band on the board. Orders ' +
+        'never pay standing: that is the one number that falls on its own, ' +
+        'and a daily faucet of it would quietly undo the whole board.',
+      font.tiny,
+      COLORS.inkDim,
+      { center: true },
+    );
+
+    ov.footer('CLOSE', () => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    });
+  }
+
+  /**
+   * Contracts are filled deep in the meta layer — mid-raid, mid-probe — so
+   * the town notices by WATCHING the sheet rather than by being told. A
+   * completion that happened during a raid surfaces the moment you are back
+   * in the base, which is when it is worth reading.
+   */
+  private checkContracts(now: number): void {
+    const state = contractState(this.town, now);
+    if (this.paidOrders.length !== state.paid.length) {
+      this.paidOrders = [...state.paid];
+      return;
+    }
+    const today = contractsAt(now);
+    state.paid.forEach((paid, i) => {
+      if (!paid || this.paidOrders[i]) return;
+      const contract = today[i];
+      const pay = state.pay[i];
+      if (!contract || !pay) return;
+      this.setBanner(
+        `ORDER FILLED — ${contract.label}  +${pay.supplies} SUP  +${pay.fuel} FUEL  +${pay.intel} INT`,
+        6,
+      );
+      audio.sfx('radio');
+    });
+    this.paidOrders = [...state.paid];
+  }
+
   private showVault(): void {
     if (this.overlay) return;
     const now = Date.now();
@@ -1216,6 +1313,7 @@ export class TownScene extends Phaser.Scene {
       if (!this.demoMode) saveTown(this.town);
     }
     if (this.bannerTtl > 0) this.bannerTtl -= deltaMs / 1000;
+    this.checkContracts(now);
 
     this.drawTown(now);
     this.updateHud(now);
@@ -1591,6 +1689,15 @@ export class TownScene extends Phaser.Scene {
       label: 'REPLAY VAULT',
       sub: vault.length > 0 ? `${vault.length}/${VAULT_CAP}` : 'EMPTY',
       onTap: () => this.openOverlay(() => this.showVault()),
+    });
+    // "STANDING ORDERS" is already the offline-defense policy on this tab, so
+    // the daily ones are DAY ORDERS — different thing, different word.
+    const sheet = contractState(town, Date.now());
+    rows.push({
+      id: 'contracts',
+      label: 'DAY ORDERS',
+      sub: `${sheet.paid.filter(Boolean).length}/${sheet.paid.length}`,
+      onTap: () => this.openOverlay(() => this.showContracts()),
     });
 
     // Share-code duels (v1.2): no server, no ladder — a snapshot and a boast.

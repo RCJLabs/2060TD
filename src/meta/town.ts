@@ -36,6 +36,7 @@ import type { VaultEntry } from './vault';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
+import { creditContracts, normalizeContracts, type ContractState } from './contracts';
 
 /**
  * The persistent town (M2): the base that exists between battles, generates
@@ -250,6 +251,13 @@ export interface TownState {
    * written before the vault simply has none to show.
    */
   vault?: VaultEntry[];
+  /**
+   * Today's standing orders and how far along they are (v1.12). WHICH three
+   * are in force is a function of the clock, so only the progress is kept —
+   * along with the day it belongs to, so a stale block is replaced rather
+   * than credited against orders it never saw.
+   */
+  contracts?: ContractState;
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -295,6 +303,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     squads: newSquadRecords(),
     log: newWarLog(now),
     vault: [],
+    contracts: normalizeContracts(undefined, now),
     assaultLevel: 1,
     victories: 0,
     defeats: 0,
@@ -566,6 +575,7 @@ export function queueTrain(town: TownState, structureId: number, kind: string, n
   town.fuel -= meta.fuel;
   s.trainQueue = s.trainQueue ?? [];
   s.trainQueue.push(kind);
+  creditContracts(town, 'trained', 1, now);
   if (s.trainQueue.length === 1) {
     s.trainEndsAt = now + meta.seconds * researchEffects(town).trainTime * 1000;
   }
@@ -656,6 +666,7 @@ export function place(town: TownState, kind: string, cell: CellIndex, now: numbe
   const seconds = cost.seconds * buildSpeedFactor(town);
   if (seconds > 0) structure.buildEndsAt = now + seconds * 1000;
   town.structures.push(structure);
+  creditContracts(town, 'built', 1, now);
   return true;
 }
 
@@ -666,10 +677,16 @@ export function canPlaceWall(town: TownState, cell: CellIndex): PlaceError {
   return cellsFree(town, [cell]);
 }
 
-export function placeWall(town: TownState, cell: CellIndex): boolean {
+/**
+ * `now` is optional only because every caller that predates daily contracts
+ * did not have one to give; it decides which day's orders the segment counts
+ * towards, so a caller with a clock should pass it.
+ */
+export function placeWall(town: TownState, cell: CellIndex, now?: number): boolean {
   if (canPlaceWall(town, cell) !== null) return false;
   town.supplies -= defenseCatalogFor(town.faction).walls['wall']!.supplyCost ?? 0;
   town.walls.push({ cell, kind: 'wall' });
+  creditContracts(town, 'walls', 1, now ?? town.lastSeen);
   return true;
 }
 
@@ -965,6 +982,7 @@ export function applySiegeResult(town: TownState, outcome: SiegeOutcome, now: nu
     town.fuel += loot.fuel;
     town.assaultLevel++;
     town.victories++;
+    creditContracts(town, 'siegesWon', 1, now);
   } else {
     applyDefeat(town);
   }
@@ -977,6 +995,8 @@ export function applyCounterResult(town: TownState, outcome: SiegeOutcome, now: 
   if (outcome.victory) {
     town.supplies += 120 + 60 * town.frontline.tier;
     town.victories++;
+    creditContracts(town, 'countersHeld', 1, now);
+    creditContracts(town, 'siegesWon', 1, now);
   } else {
     applyDefeat(town);
   }
@@ -1027,6 +1047,7 @@ export function applyMissionResult(
   town.supplies += rewardSupplies;
   town.fuel += rewardFuel;
   town.victories++;
+  creditContracts(town, 'siegesWon', 1, now);
 
   const granted: string[] = [];
   if (firstClear) {

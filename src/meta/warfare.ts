@@ -38,6 +38,7 @@ import {
   type TownState,
 } from './town';
 import { recordBattle } from './vault';
+import { creditContracts } from './contracts';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -454,6 +455,15 @@ export function applyRaidResult(
   // before anything else, because the record is written in the same men the
   // loss line just deducted. A duel counts as tier 1 — it is still a fight.
   warLog(town).raids++;
+  // Today's orders (v1.12). One call site per metric: a contract counted from
+  // two places would drift, and nothing in the save could say which was right.
+  const razed = Object.values(resolution.destroyed).reduce((a, b) => a + b, 0);
+  creditContracts(town, 'structuresRazed', razed, now);
+  creditContracts(town, 'raidLoot', resolution.loot.supplies, now);
+  if (resolution.cleared) {
+    creditContracts(town, 'postsTaken', 1, now);
+    if (base.tier >= 3) creditContracts(town, 'deepPost', 1, now);
+  }
   const roster = squadRoster(town);
   const foughtTier = Math.max(1, base.tier);
   for (const ret of resolution.squads) {
@@ -586,6 +596,7 @@ export function scoutTarget(
   if (town.intel < cost) return false;
   town.intel -= cost;
   town.frontline.scouted.push(targetKey(tier, variant));
+  creditContracts(town, 'scouted', 1, now ?? town.lastSeen);
   return true;
 }
 
@@ -679,6 +690,7 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
     const log = warLog(town);
     if (held) log.probesHeld++;
     else log.probesBreached++;
+    if (held) creditContracts(town, 'probesHeld', 1, entry.at);
     // The defense log keeps four; the vault keeps ten, and keeps them as
     // codes — so the probe that got through is still watchable next week.
     recordBattle(town, {

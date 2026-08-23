@@ -440,6 +440,39 @@ command, and the config never held it; a "replay" of one would be a battle nobod
 Recording those would mean a command log and a second replay path, which is a different
 feature.
 
+### 5.11 Day orders *(v1.12)*
+
+Three standing orders a day, posted off the same fixed epoch as the field-condition
+rotation: no server, no stored schedule, no way for two saves to disagree about what today
+asks. One per **category** — one on the front, one behind the wire, one in the yard — so the
+day always has something for whatever the commander happens to be doing.
+
+Three separate pools of different sizes (5 offensive, 4 defensive, 6 at home) give a
+sixty-day cycle before the exact triple repeats. A single pool of fifteen would repeat
+every fifteen days and pin each order to the same weekday forever.
+
+Only the **progress** is stored, alongside the day index it belongs to, so a sheet found on
+disk from yesterday is replaced rather than credited against orders it never saw. What each
+filled order *paid* is stored as well: a raid can fill an order and move the commander's
+band in the same breath, so a screen that re-priced it from the current band would sometimes
+print a figure nobody was ever paid.
+
+Two rules make orders fit the rest of the design rather than fight it:
+
+- **An order pays itself the moment it is filled**, not when it is claimed. This is a game
+  built to be left alone for a day, and a reward that expires because nobody tapped it
+  punishes exactly the play pattern everything else encourages. The screen exists to read
+  what today asks, not to collect a debt.
+- **Orders never pay standing.** Standing is the one number in the game that falls on its
+  own, and a daily faucet of it would quietly undo the decay the whole board is built
+  around. An errand pays wages: Supplies, Fuel and Intel.
+
+Goals are flat; the payout scales with the commander's league band. A tier-5 commander runs
+the same errand a tier-1 one does, and the band is what keeps it worth their afternoon.
+
+Every metric has exactly **one** call site in the meta layer. An order counted from two
+places would drift, and nothing in the save could say which count was right.
+
 ---
 
 ## 6. Presentation

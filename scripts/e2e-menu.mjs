@@ -82,6 +82,19 @@ try {
     throw new Error(`no button matching "${needle}"`);
   };
   const has = async (needle) => (await labels()).some((l) => l.toUpperCase().includes(needle));
+  /**
+   * Wait for a row rather than assuming a fixed settle is enough. A town does
+   * real work on its first frames — offline probes, accrual, a banner — and on
+   * a loaded machine the pause after starting a war is not always the town
+   * being drawn. That is how this harness flaked once.
+   */
+  const hasSoon = async (needle, tries = 16) => {
+    for (let i = 0; i < tries; i++) {
+      if (await has(needle)) return true;
+      await wait(250);
+    }
+    return false;
+  };
 
   mkdirSync('screenshots', { recursive: true });
   await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });
@@ -141,7 +154,11 @@ try {
   await tap('STANDARD', 1800);
   // 'SUPPLY POINT' for the PLA, 'SUPPLY DEPOT' for the USA — the building
   // names are faction flavour, which is itself proof this is another war.
-  check('the second war starts fresh', await has('SUPPLY'), (await labels()).slice(5, 8).join(', '));
+  check(
+    'the second war starts fresh',
+    await hasSoon('SUPPLY'),
+    (await labels()).slice(5, 8).join(', '),
+  );
   await tap('SYS', 600);
   await tap('MAIN MENU', 1500);
   check(

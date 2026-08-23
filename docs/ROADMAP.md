@@ -415,8 +415,23 @@ there is deliberately no sixth faction here.
       every code already shared. Live sieges are deliberately excluded: what
       the commander places during one is a command the config never held, so
       a "replay" of it would be a battle nobody fought.*
-- [ ] **Daily contracts** — three rotating objectives a day, derived from the
-      same LADDER_EPOCH as the condition rotation, so still no server.
+- [x] **Daily contracts** *(v1.12)* — *three DAY ORDERS a day off the same
+      fixed epoch as the condition rotation, so still no server and no way for
+      two saves to disagree about what today asks. One per CATEGORY — the
+      front, the wire, the yard — so the day always has something for whatever
+      the commander happens to be doing, and three pools of different sizes
+      (5, 4, 6) mean the exact triple does not come round for sixty days;
+      one pool of fifteen would repeat every fifteen and pin each order to the
+      same weekday forever. Only the PROGRESS is stored, with the day it
+      belongs to, so a stale sheet is replaced rather than credited against
+      orders it never saw. Two design calls worth naming: an order PAYS ITSELF
+      the instant it is filled rather than waiting to be claimed — this is a
+      game built to be left alone for a day, and a reward that expires because
+      nobody tapped it punishes exactly that — and orders never pay STANDING,
+      because standing is the one number that falls on its own and a daily
+      faucet of it would quietly undo the whole board. Goals are flat and the
+      payout scales with the commander's band instead, so a deep-ladder
+      commander runs the same errand for wages worth their afternoon.*
 - [x] **Boot screen and code splitting** *(v1.7)* — *the page painted nothing
       until 420KB of engine had been fetched, parsed and booted. A boot card
       now lives in index.html itself — inline styles, no fonts, no images, no
