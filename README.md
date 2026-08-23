@@ -17,6 +17,28 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.7: something to look at while it loads
+
+**The first paint is no longer a black rectangle.** A boot card lives in
+`index.html` itself — inline styles, no webfont, no image, no second request —
+so it is on screen before any of the 420KB engine has been fetched, and it
+comes down on the first rendered frame.
+
+- **It fails honestly.** An inline timer, which still runs when the module is
+  the thing that failed to load, swaps the card to `LINK FAILED — RELOAD TO
+  RETRY`. A card that spins forever tells a player nothing.
+- **Code splitting was measured, and mostly declined.** Phaser is 1.48MB of the
+  1.75MB bundle; the game itself is 269KB. Deferring scenes off the critical
+  path buys about **3%** for real load-order risk, so it isn't in here.
+  Splitting the *engine* into its own chunk buys something real: its hash
+  doesn't change between releases, so a returning player re-downloads 82KB of
+  app instead of 422KB of gzip.
+- **The single-file build is now a build.** `npm run build:single` produces the
+  artifact from the real built page rather than a hand-maintained copy of it,
+  so the boot card, the styles and the viewport meta can't drift from what the
+  deployed site serves — and `scripts/e2e-boot.mjs` boots that file from
+  `file://` and plays it. Nothing had ever tested that build before.
+
 ## Current state — v1.6: eight kinds of problem
 
 **Tier 8 is no longer tier 2 with more hit points.** The Front Line generator
@@ -451,7 +473,8 @@ npm test           # sim + meta suites (pathfinding, combat, siege, town,
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
                    # or -- --shapes for the eight base archetypes)
-npm run build      # typecheck + production build
+npm run build      # typecheck + production build (engine in its own chunk)
+npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
@@ -461,6 +484,7 @@ node scripts/e2e-menu.mjs            # menu → settings → war → back to men
 node scripts/e2e-share.mjs           # code out, code in, duel fought
 node scripts/e2e-league.mjs          # standing overlay + a full condition rotation
 node scripts/e2e-tutorial.mjs        # the coach: taught once, and never again
+node scripts/e2e-boot.mjs            # boot card under throttling + the single file
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

@@ -1,8 +1,8 @@
 {
   "name": "last-line",
   "private": true,
-  "version": "1.6.0",
-  "description": "LAST LINE (working title) — hybrid tower defense / base builder set in a modern alternate-history war",
+  "version": "1.7.0",
+  "description": "LAST LINE (working title) \u2014 hybrid tower defense / base builder set in a modern alternate-history war",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "screenshot": "node scripts/screenshot.mjs",
-    "balance": "tsx src/tools/balance.ts"
+    "balance": "tsx src/tools/balance.ts",
+    "build:single": "SINGLE_FILE=1 vite build --outDir dist-single --emptyOutDir && node scripts/single-file.mjs"
   },
   "dependencies": {
     "phaser": "^3.85.0"

@@ -369,8 +369,24 @@ there is deliberately no sixth faction here.
       smaller than a base.
 - [ ] **Daily contracts** — three rotating objectives a day, derived from the
       same LADDER_EPOCH as the condition rotation, so still no server.
-- [ ] **Boot screen and code splitting** — 1.74MB / 418KB gzip currently paints
-      nothing until Phaser boots.
+- [x] **Boot screen and code splitting** *(v1.7)* — *the page painted nothing
+      until 420KB of engine had been fetched, parsed and booted. A boot card
+      now lives in index.html itself — inline styles, no fonts, no images, no
+      second request — so it is on screen at the FIRST paint, and comes down on
+      the first rendered frame. An inline timer, which still runs when the
+      module is what failed, turns a card that would spin forever into one that
+      says so.*
+      *Code splitting was measured and mostly declined: Phaser is 1.48MB of the
+      1.75MB bundle and the game itself is 269KB, so deferring scenes off the
+      critical path buys about 3% for real load-order risk. Splitting the
+      ENGINE into its own chunk buys something real instead — its hash does not
+      change between releases, so a returning player re-downloads 82KB of app
+      rather than 422KB of gzip.*
+      *`npm run build:single` plus scripts/single-file.mjs now produce the
+      artifact from the real built page rather than a hand-written copy of it,
+      and scripts/e2e-boot.mjs throttles to 1 Mbit/s to prove the card is up
+      while the engine is genuinely still arriving — then boots the single file
+      from file:// and plays it. Nothing anywhere had tested that build before.*
 - [ ] **Make the panel wrap** — rows and headings are one unwrapped line, which
       has now forced two workarounds and a 26-character cap enforced by tests.
 

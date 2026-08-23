@@ -6,6 +6,7 @@ import { RaidScene } from './game/scenes/RaidScene';
 import { ReplayScene } from './game/scenes/ReplayScene';
 import { SiegeScene } from './game/scenes/SiegeScene';
 import { TownScene } from './game/scenes/TownScene';
+import { dismissBootCard } from './game/boot';
 import { devicePixelRatioCapped } from './game/layout';
 import { initMobileShell } from './game/mobile';
 import { COLORS, css } from './game/palette';
@@ -72,6 +73,9 @@ const game = new Phaser.Game({
   fps: demo !== null ? { forceSetTimeOut: true, target: 60 } : undefined,
   scene,
 });
+
+// The boot card is DOM and comes down on the first rendered frame.
+dismissBootCard(game);
 
 /**
  * Test seam: the headless harness taps buttons by label. Rects come back in
