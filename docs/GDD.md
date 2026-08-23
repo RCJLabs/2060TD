@@ -379,7 +379,8 @@ src/game/      Phaser 3 rendering & input: scenes (Town, Siege, RaidPlanner, Rep
                HUD, interpolated rendering on top of sim ticks.
 src/content/   Data-driven definitions: units, emplacements, buildings, waves, missions.
                Factions are data, not code.
-src/meta/      Saves (versioned JSON, localStorage + export/import file), timers,
+src/meta/      Saves (versioned JSON, three localStorage war slots + export/import
+               file), timers,
                offline resolution (accrue + fast-forward probes headlessly on load).
 ```
 

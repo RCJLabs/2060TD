@@ -10,7 +10,7 @@ import {
   type FactionId,
 } from '../../content/factions';
 import { TECHS, TECH_BY_ID } from '../../content/research';
-import { clearSave, loadTown, saveTown } from '../../meta/save';
+import { activeSlot, clearSave, loadSlot, saveTown } from '../../meta/save';
 import { runOfflineProbes } from '../../meta/warfare';
 import { conditionAfter, conditionAt, conditionEndsAt } from '../../content/conditions';
 import {
@@ -134,6 +134,8 @@ export class TownScene extends Phaser.Scene {
   private tool: Tool = { type: 'select' };
   private selectedId: number | null = null;
   private demoMode = false;
+  /** Which war slot `this.town` came from; -1 until one is loaded. */
+  private loadedSlot = -1;
   private saveTimer = 0;
   private banner = '';
   private bannerTtl = 0;
@@ -164,8 +166,11 @@ export class TownScene extends Phaser.Scene {
 
     if (this.demoMode) {
       this.town = makeShowcaseTown(now);
-    } else if (!this.town) {
-      const town = loadTown(now);
+    } else if (!this.town || this.loadedSlot !== activeSlot()) {
+      // The scene instance outlives scene.start, so a cached town would follow
+      // the player from one war slot into another. Reload when the slot moves.
+      this.loadedSlot = activeSlot();
+      const town = loadSlot(this.loadedSlot, now);
       const away = now - town.lastSeen;
       // Probes hit BEFORE accrual: the war didn't pause while you were gone.
       const probes = runOfflineProbes(town, now);

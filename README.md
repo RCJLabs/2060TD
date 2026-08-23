@@ -17,6 +17,24 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.4: three wars
+
+**Three save slots, so trying another faction never costs you the one you
+have.** Before this there was a single save and one destructive `NEW WAR`
+button, which put four fifths of the content behind it.
+
+- **The menu is the slot list.** Each row is a war: `1 · UNITED STATES` with
+  its tier and league band on the right, or `EMPTY` with `NEW WAR`. Tap a war
+  to resume it, tap an empty slot to start one there.
+- **Slot 1 is the original storage key**, deliberately. Anyone already playing
+  finds their war exactly where they left it, with nothing to migrate.
+- **Erasing is its own mode and takes two taps.** `ERASE A WAR` flips the slot
+  list into erase mode; the first tap on a war arms it, the second takes it —
+  and takes exactly that one.
+- A slot only counts as a war once a faction and difficulty are picked, so
+  abandoning the faction screen leaves the slot empty rather than filling it
+  with a husk.
+
 ## Current state — v1.3: the board
 
 **Standing you have to keep standing on.** The tier says how far up the ladder

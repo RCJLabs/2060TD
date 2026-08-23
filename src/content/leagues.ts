@@ -15,6 +15,8 @@ export type LeagueId = 'irregulars' | 'line' | 'vanguard' | 'shock' | 'iron';
 export interface League {
   id: LeagueId;
   label: string;
+  /** Four characters or fewer, for a row that also has to carry a name. */
+  short: string;
   /** Standing at or above this holds the band. */
   floor: number;
   /** Ladder loot multiplier while the band is held. */
@@ -35,6 +37,7 @@ export const LEAGUES: League[] = [
   {
     id: 'irregulars',
     label: 'IRREGULARS',
+    short: 'IRR',
     floor: 0,
     loot: 1,
     probePressure: 0,
@@ -44,6 +47,7 @@ export const LEAGUES: League[] = [
   {
     id: 'line',
     label: 'THE LINE',
+    short: 'LINE',
     floor: 150,
     loot: 1.06,
     probePressure: 0,
@@ -53,6 +57,7 @@ export const LEAGUES: League[] = [
   {
     id: 'vanguard',
     label: 'VANGUARD',
+    short: 'VGD',
     floor: 400,
     loot: 1.12,
     probePressure: 1,
@@ -62,6 +67,7 @@ export const LEAGUES: League[] = [
   {
     id: 'shock',
     label: 'SHOCK',
+    short: 'SHK',
     floor: 800,
     loot: 1.2,
     probePressure: 1,
@@ -71,6 +77,7 @@ export const LEAGUES: League[] = [
   {
     id: 'iron',
     label: 'IRON',
+    short: 'IRON',
     floor: 1400,
     loot: 1.3,
     probePressure: 2,

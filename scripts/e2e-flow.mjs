@@ -1,5 +1,5 @@
 /**
- * E2E smoke of the first-run flow: main menu → NEW WAR → faction pick →
+ * E2E smoke of the first-run flow: main menu → empty war slot → faction pick →
  * difficulty pick → town → MISSION 1 → briefing → commence → mission siege. Run with
  * FACTION=china to smoke the Eastern Tide side, VIEWPORT=phone-portrait
  * (see VIEWPORTS) to smoke a different screen.
@@ -151,7 +151,8 @@ try {
   await wait(2500);
   await shot('menu');
 
-  await tap('NEW WAR', 1200); // the front door, ahead of the faction pick
+  // The menu is a slot list from v1.4: an empty slot IS the new-war button.
+  await tap('1 · EMPTY', 1200);
   await shot('intro');
 
   await tap(FACTION_LABEL[FACTION]);

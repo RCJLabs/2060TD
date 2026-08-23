@@ -321,6 +321,70 @@ replaying cleared missions.
 
 ---
 
+## M8 — v1.4+: the depth pass *(in progress)*
+
+M0–M7 built every mechanic the original plan named. This milestone is the
+audit that followed: what the game is short of is depth, not breadth, so
+there is deliberately no sixth faction here.
+
+- [x] **Multiple save slots** *(v1.4)* — *three wars at once. Before this there
+      was one save, so starting a war as another faction meant erasing the one
+      you had, which put four fifths of the content behind a destructive
+      button. Slot 1 IS the original storage key, so nobody loses a war to the
+      upgrade. The menu is the slot list; erasing takes two taps and takes
+      exactly one war. Found and fixed a real bug on the way: TownScene caches
+      its town across scene.start, so switching slots would have shown the
+      wrong war.*
+- [ ] **First-contact tutorial** — a guided first siege (the maze rule shown by
+      a wave walking around a wall, one forced CP purchase, one power called),
+      plus first-use hints in the raid planner. The game is currently opaque
+      for its first ten minutes.
+- [ ] **Deep Front Line** — 8–10 wall templates instead of 3, plus base
+      ARCHETYPES that change the problem rather than the numbers: bunker
+      complex, dispersed depot, mountain pass. Tier 8 should be a different
+      puzzle, not tier 2 with more HP — and since v1.3 the ladder is the
+      endgame.
+- [ ] **Music and a real mixer** — ambient loops per scene and separate
+      MUSIC/SFX volume. Today: 14 procedural SFX, zero music, one on/off.
+      This is the one M6 line item that never fully landed.
+- [ ] **Veterancy and named squads** — squads that survive raids accrue a rank
+      carried as a per-squad attacker mod, so the loss line in the raid report
+      becomes a cost instead of a number.
+- [ ] **Service record** — lifetime stats, per-faction records, season
+      placements, a standing sparkline. The league layer already generates
+      this data and it has nowhere to live.
+- [ ] **Replay vault + replay codes** — keep the last ~10 battles and pack one
+      into a shareable string. A replay is a config plus a seed, so it is
+      smaller than a base.
+- [ ] **Daily contracts** — three rotating objectives a day, derived from the
+      same LADDER_EPOCH as the condition rotation, so still no server.
+- [ ] **Boot screen and code splitting** — 1.74MB / 418KB gzip currently paints
+      nothing until Phaser boots.
+- [ ] **Make the panel wrap** — rows and headings are one unwrapped line, which
+      has now forced two workarounds and a 26-character cap enforced by tests.
+
+### Original-plan gaps found by the M8 audit
+
+Three things the GDD promised that were never built:
+
+- [ ] **Per-squad launch delay** — GDD 5.6 gives each squad "an entry point, a
+      launch delay (0–60s), and a doctrine". The delay is derived from squad
+      index and shown read-only; it was never a choice.
+- [ ] **Restore the last raid plan** — GDD 5.6: "the plan is saved with the
+      replay, so you can iterate on a failed plan directly". RaidScene resets
+      to three empty squads on every entry.
+- [ ] **Gates** — GDD 5.2 lists them; nothing is buildable and the sim has no
+      such tile. The stated function ("let defenders through, close against
+      attackers") does not map onto this game, since nothing of the player's
+      walks. The version that fits is a CP-operated gate the commander opens
+      or closes mid-siege to re-route the maze. Decide, or strike it from
+      the GDD.
+
+Still open, and not a code gap: the game's **name** is provisional. The GDD
+carries the candidates.
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.

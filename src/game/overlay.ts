@@ -206,9 +206,15 @@ export class Overlay {
   }
 
   /** Button inside the scrolling body. */
-  button(rect: Rect, label: string, onTap: () => void, align: 'left' | 'center' = 'center'): Button {
+  button(
+    rect: Rect,
+    label: string,
+    onTap: () => void,
+    opts: { align?: 'left' | 'center'; sub?: string } = {},
+  ): Button {
     const b = makeButton(this.scene, rect.x, rect.y, rect.w, rect.h, label, onTap, {
-      align,
+      align: opts.align ?? 'center',
+      ...(opts.sub !== undefined ? { sub: opts.sub } : {}),
       font: this.layout.font.body,
       container: this.body,
     });

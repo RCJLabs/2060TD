@@ -69,7 +69,7 @@ try {
   await wait(2500);
 
   // A campaign far enough along that the Front Line is unlocked.
-  await tap('NEW WAR', 1200);
+  await tap('1 · EMPTY', 1200); // an empty war slot is the new-war button
   await tap('UNITED STATES', 1200);
   await tap('STANDARD', 1800);
   await page.evaluate(() => {
@@ -85,7 +85,8 @@ try {
   });
   await page.reload({ waitUntil: 'networkidle' });
   await wait(2500);
-  await tap('CONTINUE', 1800);
+  // Slot 1 is still the legacy key, which is why poking it above works.
+  await tap('1 · UNITED STATES', 1800);
 
   // Share: the code comes out of a read-only text box.
   await tap('WAR', 600);

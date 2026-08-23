@@ -56,6 +56,9 @@ describe('league bands', () => {
     for (const league of LEAGUES) {
       expect(leagueAt(league.floor).id).toBe(league.id);
       expect(LEAGUE_BY_ID[league.id]).toBe(league);
+      // The short form shares a row with a faction name on a phone.
+      expect(league.short.length, league.short).toBeLessThanOrEqual(4);
+      expect(league.short.length).toBeGreaterThan(0);
     }
   });
 

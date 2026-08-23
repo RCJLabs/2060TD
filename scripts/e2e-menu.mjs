@@ -1,7 +1,9 @@
 /**
- * The front-end loop (v1.1): main menu → new war → settings → back to the
- * menu → continue. Everything is addressed by label through
- * `window.lastline`, so it runs on any viewport.
+ * The front-end loop: main menu → new war → settings → back to the menu →
+ * resume. From v1.4 that menu is three war slots, so this also proves the
+ * thing slots exist for: starting a second war must not cost you the first.
+ * Everything is addressed by label through `window.lastline`, so it runs on
+ * any viewport.
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -55,7 +57,12 @@ try {
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
-  const labels = () => page.evaluate(() => window.lastline.buttons().map((b) => b.label));
+  // Slot state lives in the right-aligned sub (NEW WAR / T3 · VANGUARD / ERASE),
+  // so the harness reads both halves of a row.
+  const labels = () =>
+    page.evaluate(() =>
+      window.lastline.buttons().map((b) => `${b.label}${b.sub ? ` ${b.sub}` : ''}`),
+    );
   const find = (needle) =>
     page.evaluate((text) => {
       const api = window.lastline;
@@ -81,7 +88,12 @@ try {
   await wait(2500);
 
   check('a fresh boot lands on the menu', await has('NEW WAR'), (await labels()).join(', '));
-  check('with no campaign there is nothing to continue', !(await has('CONTINUE')));
+  check(
+    'with three empty slots',
+    (await has('1 · EMPTY')) && (await has('2 · EMPTY')) && (await has('3 · EMPTY')),
+    (await labels()).join(', '),
+  );
+  check('and nothing to erase', !(await has('ERASE A WAR')));
 
   // Settings, straight from the front door.
   await tap('SETTINGS');
@@ -95,8 +107,8 @@ try {
   await tap('CLOSE');
   check('closing returns to the menu', await has('NEW WAR'));
 
-  // Into the war.
-  await tap('NEW WAR', 1200);
+  // Into the first war, in slot 1.
+  await tap('1 · EMPTY', 1200);
   await tap('UNITED STATES', 1200);
   await tap('STANDARD', 1800);
   check('the town is up', await has('SUPPLY DEPOT'), (await labels()).slice(5, 8).join(', '));
@@ -110,12 +122,46 @@ try {
   await tap('CLOSE', 700);
 
   await tap('MAIN MENU', 1500);
-  check('the SYS tab walks back to the menu', await has('NEW WAR'), (await labels()).join(', '));
-  check('the campaign is now offered', await has('CONTINUE THE WAR'));
+  check('the SYS tab walks back to the menu', await has('3 · EMPTY'), (await labels()).join(', '));
+  check('war 1 is now on the board', await has('1 · UNITED STATES'));
+  check('and there is something to erase', await has('ERASE A WAR'));
+
+  // A second war, in a second slot. This is the whole point of slots.
+  await tap('2 · EMPTY', 1200);
+  await tap('PLA EXPEDITIONARY FORCE', 1200);
+  await tap('STANDARD', 1800);
+  // 'SUPPLY POINT' for the PLA, 'SUPPLY DEPOT' for the USA — the building
+  // names are faction flavour, which is itself proof this is another war.
+  check('the second war starts fresh', await has('SUPPLY'), (await labels()).slice(5, 8).join(', '));
+  await tap('SYS', 600);
+  await tap('MAIN MENU', 1500);
+  check(
+    'both wars are on the board at once',
+    (await has('1 · UNITED STATES')) && (await has('2 · PLA EXPEDITIONARY FORCE')),
+    (await labels()).join(', '),
+  );
   await page.screenshot({ path: `screenshots/e2e-menu-${VIEWPORT}.png` });
 
-  await tap('CONTINUE', 1800);
-  check('continue resumes the town', await has('SUPPLY DEPOT'));
+  await tap('1 · UNITED STATES', 1800);
+  check('and the first one resumes', await has('SUPPLY DEPOT'));
+  const faction = await page.evaluate(() =>
+    window.lastline.texts().find((t) => t.includes('UNITED STATES')),
+  );
+  check('as the war it was', faction !== undefined, faction ?? 'no faction line');
+  await tap('SYS', 600);
+  await tap('MAIN MENU', 1500);
+
+  // Erasing takes two taps and takes exactly one war.
+  await tap('ERASE A WAR', 700);
+  check('erase mode marks the wars', await has('ERASE'), (await labels()).join(', '));
+  await tap('2 · PLA', 700);
+  check('the first tap only arms it', await has('TAP AGAIN'), (await labels()).join(', '));
+  await tap('TAP AGAIN', 900);
+  check(
+    'the second tap takes that war and only that war',
+    (await has('2 · EMPTY')) && (await has('1 · UNITED STATES')),
+    (await labels()).join(', '),
+  );
 
   await browser.close();
   if (errors.length) {

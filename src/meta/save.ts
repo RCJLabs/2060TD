@@ -12,6 +12,54 @@ import { newTown, unlockAll, type TownState } from './town';
 export const SAVE_KEY = 'lastline_save_v1';
 export const SCHEMA = 6;
 
+/**
+ * Three war slots (v1.4). Before this there was one save, so starting a war as
+ * another faction meant erasing the one you had — which put four fifths of the
+ * content behind a destructive button.
+ *
+ * Slot 1 IS the original key, deliberately: anyone who was already playing
+ * finds their war exactly where they left it, with nothing to migrate.
+ */
+export const SLOT_COUNT = 3;
+const SLOT_PREF_KEY = 'lastline_slot';
+
+export function slotKey(slot: number): string {
+  return slot <= 1 ? SAVE_KEY : `${SAVE_KEY}_s${slot}`;
+}
+
+const clampSlot = (slot: number): number =>
+  Number.isFinite(slot) ? Math.min(SLOT_COUNT, Math.max(1, Math.round(slot))) : 1;
+
+/** Read lazily so a headless import of this module never touches storage. */
+let active: number | null = null;
+
+export function activeSlot(): number {
+  if (active === null) {
+    active = 1;
+    try {
+      const raw = localStorage.getItem(SLOT_PREF_KEY);
+      if (raw !== null) active = clampSlot(Number(raw));
+    } catch {
+      // storage unavailable: slot 1 it is
+    }
+  }
+  return active;
+}
+
+export function setActiveSlot(slot: number): void {
+  active = clampSlot(slot);
+  try {
+    localStorage.setItem(SLOT_PREF_KEY, String(active));
+  } catch {
+    // storage unavailable: the choice holds for this session only
+  }
+}
+
+/** Test seam: forget the cached slot so a fresh storage stub is re-read. */
+export function resetSlotCache(): void {
+  active = null;
+}
+
 export function serialize(town: TownState): string {
   return JSON.stringify({ schema: SCHEMA, savedAt: town.lastSeen, town });
 }
@@ -168,9 +216,28 @@ export function deserialize(json: string): TownState | null {
   }
 }
 
-export function loadTown(now: number): TownState {
+/**
+ * The war in a slot, or null when the slot holds nothing worth resuming.
+ *
+ * A file written before the faction pick is not a war — TownScene saves as
+ * soon as it has a town, so an abandoned first run leaves a difficulty-less
+ * husk behind. That rule lives here rather than in the menu, because every
+ * caller that asks "is there a war here?" needs the same answer.
+ */
+export function readSlot(slot: number): TownState | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(slotKey(slot));
+    if (!raw) return null;
+    const town = deserialize(raw);
+    return town && town.campaign.difficulty !== null ? town : null;
+  } catch {
+    return null;
+  }
+}
+
+export function loadSlot(slot: number, now: number): TownState {
+  try {
+    const raw = localStorage.getItem(slotKey(slot));
     if (raw) {
       const town = deserialize(raw);
       if (town) return town;
@@ -181,21 +248,27 @@ export function loadTown(now: number): TownState {
   return newTown(now);
 }
 
-export function saveTown(town: TownState): void {
+export function saveSlot(slot: number, town: TownState): void {
   try {
-    localStorage.setItem(SAVE_KEY, serialize(town));
+    localStorage.setItem(slotKey(slot), serialize(town));
   } catch {
     // storage unavailable: play on without persistence
   }
 }
 
-export function clearSave(): void {
+export function clearSlot(slot: number): void {
   try {
-    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(slotKey(slot));
   } catch {
     // ignore
   }
 }
+
+// The unqualified calls act on whichever war is open, which is what every
+// scene means when it says "save". Only the menu picks a slot.
+export const loadTown = (now: number): TownState => loadSlot(activeSlot(), now);
+export const saveTown = (town: TownState): void => saveSlot(activeSlot(), town);
+export const clearSave = (): void => clearSlot(activeSlot());
 
 /** Browser-only: hands the player their save as a downloaded JSON file. */
 export function downloadSave(town: TownState): void {
