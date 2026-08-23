@@ -261,6 +261,48 @@ export class Overlay {
     return b;
   }
 
+  /**
+   * A button that flows by the height it ACTUALLY renders at, wrapping its
+   * label inside the card.
+   *
+   * Same argument as paragraph(), with more at stake. A block reserved by a
+   * guessed line count is a block the next one draws over — and on a button
+   * what gets overlapped is a tap target, not prose. Worse, an unwrapped
+   * label centred in a box narrower than itself does not overflow politely:
+   * it runs off BOTH edges of a phone, which is exactly what the faction
+   * picker did to every name longer than "UNITED STATES".
+   */
+  flowButton(
+    label: string,
+    onTap: () => void,
+    opts: {
+      align?: 'left' | 'center';
+      sub?: string;
+      width?: number;
+      gapAfter?: number;
+      font?: number;
+    } = {},
+  ): Button {
+    const size = opts.font ?? this.layout.font.body;
+    const width = Math.min(this.card.w, opts.width ?? this.card.w);
+    const x = this.card.x + Math.round((this.card.w - width) / 2);
+    const y = this.card.y + this.cursor - this.scrollY;
+    const b = this.button({ x, y, w: width, h: this.layout.rowH }, label, onTap, {
+      align: opts.align ?? 'center',
+      ...(opts.sub !== undefined ? { sub: opts.sub } : {}),
+    });
+    // Two passes, like the drawer: wrap first so the label reports the height
+    // it will really draw at, then size the row around what it reported.
+    const padX = Math.round(size * 1.1);
+    const subW = b.subWidth();
+    b.setWrap(Math.max(size * 4, width - padX * 2 - (subW > 0 ? subW + padX : 0)));
+    const h = Math.max(this.layout.rowH, b.labelHeight() + Math.round(size * 1.1));
+    b.setRect(x, y, width, h);
+    this.cursor += h + (opts.gapAfter ?? this.layout.gap);
+    this.contentH = this.cursor;
+    return b;
+  }
+
   /** Button pinned below the card — always reachable, never scrolls away. */
   footer(label: string, onTap: () => void, index = 0, of = 1): Button {
     const { pad, rowH, width } = this.layout;

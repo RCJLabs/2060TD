@@ -83,6 +83,45 @@ try {
   };
   const has = async (needle) => (await labels()).some((l) => l.toUpperCase().includes(needle));
   /**
+   * Every button label, checked against its own box: centred vertically, and
+   * inside it horizontally.
+   *
+   * Both halves have failed in this project. A top-origin label is only
+   * centred by the code that measures it, so a button nobody laid out again
+   * after construction drew its text flush against the top of the box. And an
+   * unwrapped label centred in a box narrower than itself does not clip — it
+   * runs off BOTH edges of a phone. Neither shows up in a label-based
+   * assertion, because the text is all still there and still findable.
+   */
+  const misfits = () =>
+    page.evaluate(() => {
+      const api = window.lastline;
+      const rects = api.textRects();
+      const bad = [];
+      for (const b of api.buttons()) {
+        const t = rects.find((r) => r.text === b.label);
+        if (!t) continue;
+        const offset = Math.abs(b.y + b.h / 2 - (t.y + t.h / 2)) / api.dpr;
+        const spill =
+          Math.max(0, b.x - t.x, t.x + t.w - (b.x + b.w)) / api.dpr;
+        if (offset > 3 || spill > 1) {
+          bad.push(`${b.label} (off ${Math.round(offset)}px, spill ${Math.round(spill)}px)`);
+        }
+      }
+      return bad;
+    });
+  /** Nothing drawn by the top layer may leave the screen sideways. */
+  const offscreen = () =>
+    page.evaluate(() => {
+      const api = window.lastline;
+      const top = Math.max(...api.textRects().map((r) => r.depth));
+      return api
+        .textRects()
+        .filter((r) => r.depth === top)
+        .filter((r) => r.x / api.dpr < -1 || (r.x + r.w) / api.dpr > window.innerWidth + 1)
+        .map((r) => `${r.text.slice(0, 30)} @${Math.round(r.x / api.dpr)}`);
+    });
+  /**
    * Wait for a row rather than assuming a fixed settle is enough. A town does
    * real work on its first frames — offline probes, accrual, a banner — and on
    * a loaded machine the pause after starting a war is not always the town
@@ -107,11 +146,24 @@ try {
     (await labels()).join(', '),
   );
   check('and nothing to erase', !(await has('ERASE A WAR')));
+  {
+    const bad = await misfits();
+    check('every menu row holds its label square in its box', bad.length === 0, bad.join(' ; '));
+    const out = await offscreen();
+    check('and nothing on the front door runs off the screen', out.length === 0, out.join(' ; '));
+  }
 
   // Settings, straight from the front door.
   await tap('SETTINGS');
   check('the menu opens settings', await has('EFFECTS'), (await labels()).join(', '));
   check('with a mixer, not one switch', await has('MUSIC'), (await labels()).join(', '));
+  {
+    // Settings rows are plain overlay buttons — laid out once at construction
+    // and never again. They are the case a row that only centres itself when
+    // something re-lays it out gets wrong, so this is where that is checked.
+    const bad = await misfits();
+    check('settings rows hold their labels square in the box', bad.length === 0, bad.join(' ; '));
+  }
   // Five stops on a button: walk it all the way round and back to where it was.
   const level = () => labels().then((l) => l.find((x) => x.startsWith('MUSIC')));
   const start = await level();
@@ -131,7 +183,19 @@ try {
 
   // Into the first war, in slot 1.
   await tap('1 · EMPTY', 1200);
+  {
+    // The faction picker is where the long labels live: a faction name plus an
+    // operation name is a phrase, and on a phone it has to wrap or leave.
+    const bad = await misfits();
+    check('the faction picker holds its labels too', bad.length === 0, bad.join(' ; '));
+    const out = await offscreen();
+    check('and keeps every command on the screen', out.length === 0, out.join(' ; '));
+  }
   await tap('UNITED STATES', 1200);
+  {
+    const bad = await misfits();
+    check('so does the commitment screen', bad.length === 0, bad.join(' ; '));
+  }
   await tap('STANDARD', 1800);
   check('the town is up', await has('SUPPLY DEPOT'), (await labels()).slice(5, 8).join(', '));
 

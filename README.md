@@ -17,6 +17,32 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.16.1: the front door, squared up
+
+Two formatting bugs on the first two screens anyone sees, both from the v1.13
+switch to top-anchored labels.
+
+- **Every button drew its label flush against the top of its own box.** A
+  top-origin label is only centred by the code that measures it, and that code
+  lived in `setRect` — so any button nobody laid out again after construction
+  (the whole main menu, the faction picker, settings) sat wrong. Buttons now
+  place themselves on creation, and re-place on every change that alters the
+  label's height: a new label, a new font size, a new wrap width.
+- **The faction picker ran off both edges of a phone.** `PLA EXPEDITIONARY
+  FORCE — OP. EASTERN TIDE` is a phrase, not a label; unwrapped and centred in
+  a box narrower than itself, it doesn't clip politely, it spills out of both
+  sides. Overlay rows can now flow by the height they actually render at, the
+  same two-pass measure the drawer has used since v1.13, and the picker's
+  pitch lines are measured prose instead of a reserved line count.
+- **The intro and commitment screens flow their own headers**, the way the main
+  menu already did: a title pinned to the top of the screen leaves a hole
+  between itself and a body that centres on its own. Their scrims are opaque
+  too — a first-run card had a town HUD showing through its title.
+- **Guarded, and the guard was proved.** `e2e-menu` now checks every button
+  label against its own box — centred vertically, inside it horizontally — on
+  the menu, in settings, in the picker and on the commitment screen. Removing
+  the fix makes it fail; that is the only reason to trust it.
+
 ## Current state — v1.16: the plan is still there
 
 **The planner reset to three empty formations every time you walked in.** The GDD

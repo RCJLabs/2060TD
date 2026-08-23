@@ -1228,18 +1228,37 @@ export class TownScene extends Phaser.Scene {
   /** First run, screen 1: alternate-history framing and the faction choice. */
   private showIntro(): void {
     if (this.overlay) return;
-    const ov = new Overlay(this, this.layout, {
-      title: '2060TD',
-      subtitle:
-        'An alternate history. 2027. A coordinated offensive — China, Russia, ' +
+    // No pinned title, and no half-transparent scrim. A title pinned to the
+    // top of the screen leaves a hole between itself and a body that centres
+    // on its own; flowing the hero inside the card centres the whole
+    // composition as one block, which is what the main menu already does. The
+    // scrim is opaque because a first-run card has nothing behind it worth
+    // seeing — only a town HUD showing through the title.
+    const ov = new Overlay(this, this.layout, { scrim: 1, container: this.board.ui });
+    this.overlay = ov;
+    const { gap, font } = this.layout;
+    const air = this.layout.compact ? gap : Math.round(gap * 2);
+    const hero = (value: string, size: number, color: number, gapAfter: number): void => {
+      ov.paragraph(value, size, color, {
+        center: true,
+        width: Math.min(ov.card.w, this.layout.px(560)),
+        gapAfter,
+        lineSpacing: Math.round(size * 0.5),
+      });
+    };
+    hero('2060TD', font.hero, COLORS.ink, air);
+    hero(
+      'An alternate history. 2027. A coordinated offensive — China, Russia, ' +
         'North Korea — strikes the American mainland and UN forces worldwide. ' +
         'The fiction depicts militaries and machines, not peoples.',
-      scrim: 0.94,
-      container: this.board.ui,
+      font.tiny,
+      COLORS.inkDim,
+      Math.round(air * 1.4),
+    );
+    ov.paragraph('Five commands are hiring. Pick your war:', font.body, COLORS.ink, {
+      center: true,
+      gapAfter: gap,
     });
-    this.overlay = ov;
-    const { rowH, gap, font } = this.layout;
-    ov.centered(ov.flow(Math.round(font.body * 1.6)), 'Five commands are hiring. Pick your war:', font.body);
 
     const pick = (faction: FactionId): void => {
       ov.close();
@@ -1255,12 +1274,17 @@ export class TownScene extends Phaser.Scene {
     };
     for (const faction of FACTION_IDS) {
       const flavor = flavorFor(faction);
-      ov.button(
-        ov.flow(rowH, Math.round(gap / 2)),
+      // Both blocks are measured. A faction name plus an operation name is a
+      // phrase, not a label — on a phone it wraps, and so does the pitch under
+      // it. Reserving a line count for either is how the picker came to draw
+      // its rows off both edges of the screen and its pitches into the row
+      // below.
+      ov.flowButton(
         `${flavor.faction} — ${flavor.operation.split(' — ')[0]!.replace('OPERATION ', 'OP. ')}`,
         () => pick(faction),
+        { gapAfter: Math.round(gap / 2) },
       );
-      ov.centered(ov.flow(Math.round(font.tiny * 1.8)), flavor.pitch, font.tiny, COLORS.inkDim);
+      ov.paragraph(flavor.pitch, font.tiny, COLORS.inkDim, { center: true, gapAfter: gap });
     }
   }
 
@@ -1268,15 +1292,28 @@ export class TownScene extends Phaser.Scene {
   private showDifficulty(): void {
     if (this.overlay) return;
     const flavor = flavorFor(this.town.faction);
-    const ov = new Overlay(this, this.layout, {
-      title: flavor.operation,
-      subtitle: flavor.situation.replace(/\n/g, ' '),
-      scrim: 0.94,
-      container: this.board.ui,
-    });
+    // Screen 2 of the same card, laid out the same way: everything measured,
+    // everything in one centred block. An operation name is long enough to
+    // wrap on a phone, and a pinned one would take the body's space with it.
+    const ov = new Overlay(this, this.layout, { scrim: 1, container: this.board.ui });
     this.overlay = ov;
-    const { rowH, font } = this.layout;
-    ov.centered(ov.flow(Math.round(font.body * 1.8)), 'CHOOSE YOUR COMMITMENT:', font.body);
+    const { gap, font } = this.layout;
+    const air = this.layout.compact ? gap : Math.round(gap * 2);
+    ov.paragraph(flavor.operation, font.title, COLORS.ink, {
+      center: true,
+      width: Math.min(ov.card.w, this.layout.px(560)),
+      gapAfter: Math.round(gap * 0.8),
+      lineSpacing: Math.round(font.title * 0.4),
+    });
+    ov.paragraph(flavor.situation.replace(/\n/g, ' '), font.tiny, COLORS.inkDim, {
+      center: true,
+      width: Math.min(ov.card.w, this.layout.px(560)),
+      gapAfter: air,
+    });
+    ov.paragraph('CHOOSE YOUR COMMITMENT:', font.body, COLORS.ink, {
+      center: true,
+      gapAfter: gap,
+    });
 
     const pick = (difficulty: 'standard' | 'hard'): void => {
       this.town.campaign.difficulty = difficulty;
@@ -1287,8 +1324,8 @@ export class TownScene extends Phaser.Scene {
       // Rebuild the scene so every faction-flavored label refreshes.
       this.scene.restart({});
     };
-    ov.button(ov.flow(rowH), 'STANDARD — hold the line', () => pick('standard'));
-    ov.button(ov.flow(rowH), 'HARD — +30% hostiles', () => pick('hard'));
+    ov.flowButton('STANDARD — hold the line', () => pick('standard'));
+    ov.flowButton('HARD — +30% hostiles', () => pick('hard'));
   }
 
   // ---- frame update -----------------------------------------------------------------

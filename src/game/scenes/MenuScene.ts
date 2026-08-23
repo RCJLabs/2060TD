@@ -10,7 +10,7 @@ import {
   SLOT_COUNT,
 } from '../../meta/save';
 import { tick } from '../../meta/town';
-import { layoutOf, onLayoutChange, type Layout, type Rect } from '../layout';
+import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { COLORS } from '../palette';
 import { buildSettings } from '../settingsOverlay';
@@ -105,14 +105,22 @@ export class MenuScene extends Phaser.Scene {
     // else, so the whole composition centres as one block instead of leaving
     // a hole between a pinned title and the buttons.
     const ov = new Overlay(this, this.layout, { scrim: 1 });
-    const { rowH, gap, font, compact, px } = this.layout;
+    const { gap, font, compact, px } = this.layout;
 
-    /** One column for the whole menu, not a monitor-wide stretch. */
-    const column = (rect: Rect, max = px(420)): Rect => {
-      const w = Math.min(rect.w, max);
-      return { ...rect, x: rect.x + Math.round((rect.w - w) / 2), w };
-    };
-    const menuRow = (): Rect => column(ov.flow(rowH, Math.round(gap * 0.8)));
+    // One column for the whole menu, not a monitor-wide stretch.
+    const menuWidth = px(420);
+    const menuGap = Math.round(gap * 0.8);
+    /**
+     * A menu row that grows to hold its own label. Every one of these carries
+     * a faction name the content layer is free to lengthen, so the height is
+     * measured rather than reserved — PLA EXPEDITIONARY FORCE on a phone is
+     * two lines, and a one-line reservation put it through the row below.
+     */
+    const menuButton = (
+      label: string,
+      onTap: () => void,
+      opts: { align?: 'left' | 'center'; sub?: string } = {},
+    ) => ov.flowButton(label, onTap, { ...opts, width: menuWidth, gapAfter: menuGap });
     /**
      * Deliberate breathing room between blocks. Measuring the text also took
      * away the slack that over-estimated heights used to provide by accident,
@@ -162,7 +170,7 @@ export class MenuScene extends Phaser.Scene {
 
     for (const { slot, town } of wars) {
       if (!town) {
-        const row = ov.button(menuRow(), `${slot} · EMPTY`, () => this.startWar(slot), {
+        const row = menuButton(`${slot} · EMPTY`, () => this.startWar(slot), {
           align: 'left',
           sub: this.eraseMode ? '' : 'NEW WAR',
         });
@@ -173,8 +181,7 @@ export class MenuScene extends Phaser.Scene {
       // and offline accrual read true without the menu resolving anyone's war.
       tick(town, now);
       const armed = this.wipeArmedSlot === slot && now <= this.wipeArmedUntil;
-      ov.button(
-        menuRow(),
+      menuButton(
         armed ? `TAP AGAIN — ERASES WAR ${slot}` : `${slot} · ${flavorFor(town.faction).faction}`,
         () => (this.eraseMode ? this.eraseSlot(slot) : this.enterWar(slot)),
         {
@@ -206,15 +213,15 @@ export class MenuScene extends Phaser.Scene {
     }
 
     if (fought.length > 0) {
-      ov.button(menuRow(), this.eraseMode ? 'CANCEL' : 'ERASE A WAR', () => {
+      menuButton(this.eraseMode ? 'CANCEL' : 'ERASE A WAR', () => {
         this.eraseMode = !this.eraseMode;
         this.wipeArmedSlot = 0;
         this.wipeArmedUntil = 0;
         this.rebuild();
       });
     }
-    ov.button(menuRow(), 'SETTINGS', () => this.showSettings());
-    ov.button(menuRow(), 'TRAINING RANGE', () => {
+    menuButton('SETTINGS', () => this.showSettings());
+    menuButton('TRAINING RANGE', () => {
       window.location.search = '?playground=1';
     });
 

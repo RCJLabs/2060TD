@@ -302,6 +302,17 @@ playtesting shows degenerate tactics.
 - Field defenses cost 5–40 CP; powers 30–80 CP with cooldowns.
 - Unspent CP partially converts to salvage (Supplies) on victory — hoarding is a choice.
 
+### 5.5a Buttons and rows *(v1.13, v1.16.1)*
+
+Every row in this game is measured, never reserved. A label is drawn from a
+top-anchored origin and centred by measuring the block it renders as, so a row
+that wraps stays inside its own box instead of overlapping the tap target below
+it. Two rules follow from that and are worth stating, because both were learned
+by shipping the opposite: a button re-places its label whenever anything changes
+that label's height, and a phrase that can outgrow its box must be given a wrap
+width rather than trusted to clip — a centred label in a box narrower than
+itself runs off both edges.
+
 ### 5.6 Raid planning & doctrines
 
 Each deployed squad gets: an entry point (revealed map-edge sectors), a launch delay (0–60s),

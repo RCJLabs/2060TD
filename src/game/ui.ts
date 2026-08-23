@@ -170,6 +170,22 @@ export function makeButton(
           .text(x + width - padX, y, opts.sub, mono(fontSize, COLORS.inkDim))
           .setOrigin(1, 0)
       : undefined;
+  /**
+   * The rect the label is currently centred inside. A top-origin label has to
+   * be placed by measuring, and it has to be RE-placed every time something
+   * changes its height — a new label, a new font size, a new wrap width. The
+   * button used to be centred only by setRect, which meant a button nobody
+   * laid out again after construction (every overlay button: the menu, the
+   * faction picker) drew its text flush against the top of its own box.
+   */
+  const rect = { x, y, w: width, h: height };
+  const place = (): void => {
+    const pad = Math.round(fontSize * 1.1);
+    const top = rect.y + Math.max(0, Math.round((rect.h - label.height) / 2));
+    label.setPosition(align === 'center' ? rect.x + rect.w / 2 : rect.x + pad, top);
+    sub?.setPosition(rect.x + rect.w - pad, top);
+  };
+  place();
   if (opts.container) {
     opts.container.add(bg);
     opts.container.add(label);
@@ -257,25 +273,29 @@ export function makeButton(
       if (visible) refresh();
     },
     setLabel(value: string) {
-      if (label.text !== value) label.setText(value);
+      if (label.text === value) return;
+      label.setText(value);
+      place(); // a new label is a new height
     },
     setSub(value: string) {
       if (sub && sub.text !== value) sub.setText(value);
     },
     setRect(nx: number, ny: number, nw: number, nh: number) {
       bg.setPosition(nx, ny).setSize(nw, nh);
-      // Pad from the row's own height would grow with a wrapped row; pad from
-      // the FONT, so a three-line row has the same inset as a one-line one.
-      const pad = Math.round(fontSize * 1.1);
-      // Centre the label block in the row, and sit the sub on its first line.
-      const top = ny + Math.max(0, Math.round((nh - label.height) / 2));
-      label.setPosition(align === 'center' ? nx + nw / 2 : nx + pad, top);
-      sub?.setPosition(nx + nw - pad, top);
+      rect.x = nx;
+      rect.y = ny;
+      rect.w = nw;
+      rect.h = nh;
+      // Pad comes from the FONT, not the row's own height: a three-line row
+      // gets the same inset as a one-line one.
+      place();
     },
     setFont(size: number) {
+      if (fontSize === size) return;
       fontSize = size;
       label.setFontSize(size);
       sub?.setFontSize(size);
+      place();
     },
     /**
      * Wrap the label inside `width` device px, or null to leave it on one
@@ -287,6 +307,7 @@ export function makeButton(
       if (wrap === width) return;
       if (width === null) label.setWordWrapWidth(undefined as unknown as number);
       else label.setWordWrapWidth(width);
+      place(); // wrapping changes the line count, which changes the height
     },
     /** Height of the label block as it currently renders. */
     labelHeight() {
