@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { music } from '../music';
 import {
   ARCHETYPE_BY_ID,
   MAP_H,
@@ -149,6 +150,7 @@ export class RaidScene extends Phaser.Scene {
   }
 
   create(): void {
+    music.play('planning');
     // A challenge fights the code that was pasted; the ladder picks its own.
     this.base = this.challenge ? this.challenge.base : targetFor(this.town, this.variant);
 

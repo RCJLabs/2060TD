@@ -97,12 +97,21 @@ try {
 
   // Settings, straight from the front door.
   await tap('SETTINGS');
-  check('the menu opens settings', await has('SOUND'), (await labels()).join(', '));
-  const before = (await labels()).find((l) => l.startsWith('SOUND'));
-  await tap('SOUND');
-  const after = (await labels()).find((l) => l.startsWith('SOUND'));
-  check('a toggle flips and the page redraws', before !== after, `${before} → ${after}`);
-  await tap('SOUND'); // put it back
+  check('the menu opens settings', await has('EFFECTS'), (await labels()).join(', '));
+  check('with a mixer, not one switch', await has('MUSIC'), (await labels()).join(', '));
+  // Five stops on a button: walk it all the way round and back to where it was.
+  const level = () => labels().then((l) => l.find((x) => x.startsWith('MUSIC')));
+  const start = await level();
+  const walked = [start];
+  for (let i = 0; i < 5; i++) {
+    await tap('MUSIC', 500);
+    walked.push(await level());
+  }
+  check(
+    'the mixer steps through its stops and wraps',
+    new Set(walked).size === 5 && walked[5] === start,
+    walked.join(' → '),
+  );
   check('the menu settings offer no MAIN MENU link', !(await has('MAIN MENU')));
   await tap('CLOSE');
   check('closing returns to the menu', await has('NEW WAR'));
@@ -176,5 +185,11 @@ try {
     console.log('\nMENU OK: front door, settings from both sides, and the walk back.');
   }
 } finally {
-  process.kill(-vite.pid, 'SIGTERM');
+  // A stray dev server from an interrupted run leaves this pid invalid; a
+  // cleanup failure must not masquerade as a test result.
+  try {
+    process.kill(-vite.pid, 'SIGTERM');
+  } catch {
+    /* already gone */
+  }
 }

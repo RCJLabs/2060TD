@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { music } from '../music';
 import { campaignFor, flavorFor } from '../../content/factions';
 import { leagueOf } from '../../meta/ladder';
 import {
@@ -38,6 +39,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    music.play('quiet');
     this.layout = layoutOf(this);
     this.wipeArmedUntil = 0;
     this.wipeArmedSlot = 0;

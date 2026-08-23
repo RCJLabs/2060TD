@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { music } from '../music';
 import type { MissionDef } from '../../content/campaign';
 import { campaignFor, flavorFor, type FactionId } from '../../content/factions';
 import type { SimConfig } from '../../sim/types';
@@ -41,6 +42,7 @@ export class BriefingScene extends Phaser.Scene {
   }
 
   create(): void {
+    music.play('quiet');
     this.layout = layoutOf(this);
     this.buildPage();
     onLayoutChange(this, () => {

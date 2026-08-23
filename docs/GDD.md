@@ -383,10 +383,31 @@ palette with faction accents:
 Faction accent hues: USA olive, China crimson `#a83232`, Russia rust `#8c5a2b`, NK slate
 `#5c6670`, UN blue `#4a7fa5`.
 
-### 6.2 Audio (M6)
+### 6.2 Audio
 
-Radio chatter and static as UI feedback; distant artillery ambience; sparse percussion-led
-score that only surfaces during sieges. Silence is part of the tone.
+Synthesized, never sampled: there are no audio assets in this project and the
+artifact ships as one HTML file, so everything is built from oscillators and
+filtered noise in the gritty register.
+
+**Effects** are texture, not a show — clicks, gunfire ticks, breaches, radio
+blips, end-of-battle stingers — throttled per sound so a firefight does not
+stack into noise.
+
+**The score** *(v1.8)* is three moods of one idea: the same bleak interval set
+(minor pentatonic with the flat second in place of the fourth) played sparser
+or tighter. A continuous detuned drone underneath, a heartbeat pulse whose rate
+is the mood, and voices two octaves up that only sound when the mood's density
+lets them. QUIET has no pulse at all — a room with a radio on. PLANNING adds
+one every four beats. BATTLE is the same music with a pulse every other beat.
+Changing mood slides the drone rather than restarting it, so moving between
+scenes has no seam.
+
+Because the score is data (`content/score.ts`) and the synth is separate
+(`game/music.ts`), the musical decisions are testable without a browser.
+
+**The mixer** is two buses — effects and music — set independently in five
+stops, because a bed that competes with the gunfire is not a bed.
+
 
 ### 6.3 Teaching *(v1.5)*
 

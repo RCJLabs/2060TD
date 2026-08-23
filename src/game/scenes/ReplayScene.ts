@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { music } from '../music';
 import { defenseCatalogFor, raidCatalogFor, type FactionId } from '../../content/factions';
 import { DT, Engine } from '../../sim/engine';
 import type { SimConfig } from '../../sim/types';
@@ -49,6 +50,7 @@ export class ReplayScene extends Phaser.Scene {
   }
 
   create(): void {
+    music.play('quiet');
     const faction = this.replay.faction ?? 'usa';
     const catalog =
       this.replay.kind === 'raid' ? raidCatalogFor(faction) : defenseCatalogFor(faction);

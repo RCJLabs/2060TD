@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { music } from '../music';
 import { FIRST_SIEGE } from '../../content/tutorial';
 import { Coach } from '../coach';
 import { bonusMet, missionSiege, type MissionDef } from '../../content/campaign';
@@ -116,6 +117,7 @@ export class SiegeScene extends Phaser.Scene {
   }
 
   create(): void {
+    music.play('battle');
     this.demoMode =
       !this.fromTown && new URLSearchParams(window.location.search).get('demo') === '1';
     this.tool = null;

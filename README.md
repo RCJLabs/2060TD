@@ -17,6 +17,32 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.8: something to listen to
+
+**The game had fourteen sound effects and no music at all.** It has a score
+now — synthesized, like everything else here, because there are no audio assets
+in this project and the artifact is one HTML file.
+
+- **Three moods of one idea.** The same bleak interval set — minor pentatonic
+  with the flat second where the fourth should be — played sparser or tighter.
+  `QUIET` has no pulse at all: a room with a radio on. `PLANNING` adds a
+  heartbeat every four beats. `BATTLE` is the same music with a pulse every
+  other beat.
+- **No seams.** A continuous detuned drone sits under everything and *slides*
+  between moods rather than stopping and starting, so moving from the town into
+  a siege doesn't click.
+- **The score is content, not an asset.** `content/score.ts` decides what notes
+  exist and when, and it's pure — so the musical decisions are tested:
+  densities that rise with the situation, one voice per beat maximum, nothing
+  subsonic or shrill, and a bar that plays the same way every time it comes
+  round. `game/music.ts` is only the synth, scheduled on a WebAudio lookahead
+  so the bed doesn't stagger when the main thread gets busy — which, during a
+  siege, is always.
+- **A real mixer.** Music and effects ride separate buses and are set
+  independently, in five stops on a button (the touch kit has no slider and
+  doesn't need one). A pre-v1.8 `SOUND: OFF` migrates to silence, not to a
+  surprise soundtrack.
+
 ## Current state — v1.7: something to look at while it loads
 
 **The first paint is no longer a black rectangle.** A boot card lives in
@@ -469,7 +495,7 @@ npm run dev        # the game (faction pick → town → missions/raids loop)
                    # add &faction=china|russia|nk|un to demos for the other wars
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, leagues, conditions,
-                   # share codes, determinism)
+                   # archetypes, the coach, the score, share codes, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
                    # or -- --shapes for the eight base archetypes)

@@ -355,9 +355,19 @@ there is deliberately no sixth faction here.
       Intel. A new ARCHETYPES matrix in the balance harness enforces the design
       rule (spread, and no walls at a tier where a shape is offered) and
       overturned the obvious bunker design — see docs/BALANCE.md.*
-- [ ] **Music and a real mixer** — ambient loops per scene and separate
-      MUSIC/SFX volume. Today: 14 procedural SFX, zero music, one on/off.
-      This is the one M6 line item that never fully landed.
+- [x] **Music and a real mixer** *(v1.8)* — *the last M6 line item that never
+      landed. There are no audio assets in this project and the artifact is one
+      HTML file, so the score is synthesized like the SFX are — which makes it
+      a CONTENT problem rather than an asset problem. content/score.ts decides
+      what notes exist and when (pure, and therefore tested: densities, ranges,
+      one voice a beat, a bar that plays the same way every time it comes
+      round); game/music.ts is only the synth, on a WebAudio lookahead so the
+      bed does not stagger when the main thread gets busy during a siege.
+      Three moods of one idea — the same bleak interval set played sparser or
+      tighter — and the drone slides between them rather than restarting, so a
+      scene change has no seam. Music and effects ride separate buses, mixed
+      separately in five stops on a button, and a pre-v1.8 SOUND: OFF migrates
+      to silence rather than to a surprise soundtrack.*
 - [ ] **Veterancy and named squads** — squads that survive raids accrue a rank
       carried as a per-squad attacker mod, so the loss line in the raid report
       becomes a cost instead of a number.

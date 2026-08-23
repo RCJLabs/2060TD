@@ -24,6 +24,15 @@ type SfxName =
   | 'victory'
   | 'defeat';
 
+/**
+ * Headroom: what "100%" actually means on each bus. Battle sound is texture,
+ * not a show, and a bed that competes with the gunfire is not a bed.
+ */
+const SFX_HEADROOM = 0.22;
+const MUSIC_HEADROOM = 0.1;
+
+const clamp01 = (v: number): number => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+
 /** Per-sound minimum interval (ms) — battle ticks would stack into noise. */
 const THROTTLE_MS: Partial<Record<SfxName, number>> = {
   shot: 75,
@@ -36,8 +45,11 @@ const THROTTLE_MS: Partial<Record<SfxName, number>> = {
 class AudioKit {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private music: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
-  private muted = false;
+  /** 0..1, from the device mixer. SFX and music ride separate buses. */
+  private sfxLevel = 1;
+  private musicLevel = 0.5;
   private readonly lastAt = new Map<SfxName, number>();
 
   private ensure(): AudioContext | null {
@@ -48,8 +60,13 @@ class AudioKit {
       try {
         this.ctx = new Ctor();
         this.master = this.ctx.createGain();
-        this.master.gain.value = this.muted ? 0 : 0.22;
+        this.master.gain.value = this.sfxLevel * SFX_HEADROOM;
         this.master.connect(this.ctx.destination);
+        // A second bus, so the mixer can hold the score down under gunfire
+        // without also turning the gunfire down.
+        this.music = this.ctx.createGain();
+        this.music.gain.value = this.musicLevel * MUSIC_HEADROOM;
+        this.music.connect(this.ctx.destination);
         const seconds = 1;
         this.noiseBuffer = this.ctx.createBuffer(1, this.ctx.sampleRate * seconds, this.ctx.sampleRate);
         const data = this.noiseBuffer.getChannelData(0);
@@ -68,15 +85,37 @@ class AudioKit {
     this.ensure();
   }
 
-  setMuted(muted: boolean): void {
-    this.muted = muted;
+  /** The shared context, created on demand. Null when audio is unavailable. */
+  context(): AudioContext | null {
+    return this.ensure();
+  }
+
+  /** The music bus. The score connects here, never to the destination. */
+  musicBus(): GainNode | null {
+    this.ensure();
+    return this.music;
+  }
+
+  setSfxVolume(level: number): void {
+    this.sfxLevel = clamp01(level);
     if (this.master && this.ctx) {
-      this.master.gain.setTargetAtTime(muted ? 0 : 0.22, this.ctx.currentTime, 0.01);
+      this.master.gain.setTargetAtTime(this.sfxLevel * SFX_HEADROOM, this.ctx.currentTime, 0.02);
     }
   }
 
-  isMuted(): boolean {
-    return this.muted;
+  setMusicVolume(level: number): void {
+    this.musicLevel = clamp01(level);
+    if (this.music && this.ctx) {
+      this.music.gain.setTargetAtTime(this.musicLevel * MUSIC_HEADROOM, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  sfxVolume(): number {
+    return this.sfxLevel;
+  }
+
+  musicVolume(): number {
+    return this.musicLevel;
   }
 
   private tone(
@@ -130,7 +169,7 @@ class AudioKit {
   }
 
   sfx(name: SfxName): void {
-    if (this.muted) return;
+    if (this.sfxLevel <= 0) return;
     const ctx = this.ensure();
     if (!ctx || !this.master) return;
 

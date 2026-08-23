@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from './audio';
+import { music } from './music';
 import type { Layout } from './layout';
 import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
@@ -160,6 +161,7 @@ export function makeButton(
   bg.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
     ev?.stopPropagation();
     audio.unlock(); // first gesture wakes the audio context
+    music.resume(); // …and the score, which asked before it was allowed
     if (!enabled) return;
     pressed = true; // visible press state matters more without a hover cursor
     refresh();

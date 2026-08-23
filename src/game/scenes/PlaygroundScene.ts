@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { music } from '../music';
 import { M1_CATALOG } from '../../content/catalog';
 import { DT, Engine } from '../../sim/engine';
 import type { AttackerProfile } from '../../sim/types';
@@ -42,6 +43,7 @@ export class PlaygroundScene extends Phaser.Scene {
   }
 
   create(): void {
+    music.play('quiet');
     this.children.removeAll();
     this.engine = new Engine(
       {

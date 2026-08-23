@@ -196,5 +196,11 @@ try {
     console.log('\nCOACH OK: taught once, on the first battle, and never again.');
   }
 } finally {
-  process.kill(-vite.pid, 'SIGTERM');
+  // A stray dev server from an interrupted run leaves this pid invalid; a
+  // cleanup failure must not masquerade as a test result.
+  try {
+    process.kill(-vite.pid, 'SIGTERM');
+  } catch {
+    /* already gone */
+  }
 }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { music } from '../music';
 import { BUILDABLE_KINDS, CHARGE_CAP, CHARGE_PRICES } from '../../content/buildings';
 import type { MissionDef } from '../../content/campaign';
 import {
@@ -259,6 +260,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   create(): void {
+    music.play('quiet');
     this.tool = { type: 'select' };
     this.selectedId = null;
     this.lastPaintedCell = -1;
@@ -1404,7 +1406,9 @@ export class TownScene extends Phaser.Scene {
       {
         id: 'settings',
         label: 'SETTINGS',
-        sub: `${settings.mute ? 'MUTED' : 'SOUND'}${settings.colorblind ? ' · CB' : ''}`,
+        sub:
+          `${settings.sfx <= 0 && settings.music <= 0 ? 'MUTED' : 'SOUND'}` +
+          `${settings.colorblind ? ' · CB' : ''}`,
         onTap: () => this.openOverlay(() => this.showSettings()),
       },
       {

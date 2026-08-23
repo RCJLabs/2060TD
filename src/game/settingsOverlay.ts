@@ -5,7 +5,13 @@ import type { TownState } from '../meta/town';
 import type { Layout } from './layout';
 import { Overlay } from './overlay';
 import { COLORS } from './palette';
-import { applySettings, loadSettings, saveSettings } from './settings';
+import {
+  applySettings,
+  loadSettings,
+  nextVolume,
+  saveSettings,
+  volumeLabel,
+} from './settings';
 
 /**
  * One settings screen, opened from the main menu and from inside the war
@@ -61,11 +67,18 @@ export function buildSettings(
   };
 
   heading('DEVICE');
-  toggle('SOUND', !settings.mute, () => {
-    const next = { ...loadSettings(), mute: !settings.mute };
-    saveSettings(next);
-    applySettings(next);
-  });
+  /** Five stops on a button: the touch kit has no slider, and does not need one. */
+  const volume = (label: string, key: 'music' | 'sfx'): void => {
+    const level = settings[key];
+    ov.button(ov.flow(rowH), `${label}: ${volumeLabel(level)}`, () => {
+      const next = { ...loadSettings(), [key]: nextVolume(level) };
+      saveSettings(next);
+      applySettings(next);
+      opts.rebuild();
+    });
+  };
+  volume('EFFECTS', 'sfx');
+  volume('MUSIC', 'music');
   toggle('COLORBLIND PALETTE', settings.colorblind, () => {
     const next = { ...loadSettings(), colorblind: !settings.colorblind };
     saveSettings(next);
