@@ -5,11 +5,14 @@ import { RaidScene } from './game/scenes/RaidScene';
 import { ReplayScene } from './game/scenes/ReplayScene';
 import { SiegeScene } from './game/scenes/SiegeScene';
 import { TownScene } from './game/scenes/TownScene';
+import { initMobileShell } from './game/mobile';
 import { COLORS, css } from './game/palette';
 import { applySettings, loadSettings } from './game/settings';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.
 applySettings(loadSettings());
+// Touch CSS, rotate prompt, and the fullscreen toggle for phones.
+initMobileShell();
 
 const params = new URLSearchParams(window.location.search);
 // Demo modes drive screenshots/smoke tests: headless browsers throttle
@@ -31,6 +34,8 @@ new Phaser.Game({
   parent: 'app',
   width: 1280,
   height: 768,
+  // Right-click is the cancel gesture and long-press must not pop a menu.
+  disableContextMenu: true,
   backgroundColor: css(COLORS.bgField),
   scale: {
     mode: Phaser.Scale.FIT,

@@ -194,6 +194,10 @@ map; `F` Front Line. SFX and colorblind-palette toggles live in the utility row.
 The sandbox (`?playground=1`): `1/2/3` wall/M2/erase, `W` militia, `B` sapper,
 `SPACE` mixed wave.
 
+**Mobile:** play in landscape — phones get a rotate prompt, and the `⛶` button
+goes fullscreen (locking landscape where the platform allows). Tap an armed
+tool's button again to cancel it — the touch stand-in for right-click/`ESC`.
+
 ## Project layout
 
 ```

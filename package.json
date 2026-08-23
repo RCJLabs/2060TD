@@ -1,7 +1,7 @@
 {
   "name": "last-line",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "LAST LINE (working title) — hybrid tower defense / base builder set in a modern alternate-history war",
   "type": "module",
   "scripts": {

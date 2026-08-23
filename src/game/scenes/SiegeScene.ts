@@ -251,6 +251,16 @@ export class SiegeScene extends Phaser.Scene {
   }
 
   private setTool(tool: Tool | null): void {
+    // Tapping the armed tool's button again disarms it — the touch-device
+    // stand-in for right-click/ESC.
+    if (
+      tool !== null &&
+      this.tool !== null &&
+      tool.type === this.tool.type &&
+      ('kind' in tool ? tool.kind : null) === ('kind' in this.tool ? this.tool.kind : null)
+    ) {
+      tool = null;
+    }
     this.tool = tool;
     for (const key of [...SETUP_TOOL_KEYS, ...COMBAT_TOOL_KEYS, 'erase', 'a10', 'arty']) {
       const active =

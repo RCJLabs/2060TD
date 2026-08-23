@@ -299,6 +299,16 @@ export class TownScene extends Phaser.Scene {
   }
 
   private setTool(tool: Tool): void {
+    // Tapping the armed tool's button again returns to select — the
+    // touch-device stand-in for right-click/ESC.
+    if (
+      tool.type !== 'select' &&
+      tool.type !== 'move' &&
+      tool.type === this.tool.type &&
+      ('kind' in tool ? tool.kind : null) === ('kind' in this.tool ? this.tool.kind : null)
+    ) {
+      tool = { type: 'select' };
+    }
     this.tool = tool;
     for (const kind of BUILDABLE_KINDS) {
       this.buttons[kind]?.setActive(tool.type === 'build' && tool.kind === kind);
