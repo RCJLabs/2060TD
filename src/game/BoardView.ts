@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { Layout, Rect } from './layout';
+import { modalOpen } from './modal';
 import { makeButton, type Button } from './ui';
 
 /**
@@ -220,6 +221,8 @@ export class BoardView {
   }
 
   private inBoard(pointer: Phaser.Input.Pointer): boolean {
+    // A modal owns every gesture: the board must not pan under a briefing.
+    if (modalOpen()) return false;
     return (
       pointer.x >= this.rect.x &&
       pointer.x <= this.rect.x + this.rect.w &&
@@ -278,6 +281,11 @@ export class BoardView {
     });
 
     input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
+      if (modalOpen()) {
+        this.dragging = false;
+        this.pinching = false;
+        return;
+      }
       const [p1, p2] = [input.pointer1, input.pointer2];
       if (p1?.isDown && p2?.isDown) {
         // Pinch: scale by the change in finger separation, anchored so the

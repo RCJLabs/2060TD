@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import type { Layout, Rect } from './layout';
+import { popModal, pushModal } from './modal';
 import { COLORS } from './palette';
-import { makeButton, mono, type Button } from './ui';
+import { DRAG_SLOP, makeButton, mono, type Button } from './ui';
 
 /**
  * Full-screen overlays (briefings, research, logs, the faction pick) as one
@@ -25,9 +26,12 @@ export class Overlay {
   private cursor = 0;
   private scrollY = 0;
   private contentH = 0;
-  private dragging = false;
+  /** `downTime` of the press that owns the current drag; -1 when idle. */
+  private dragPress = -1;
   private dragMoved = 0;
   private lastY = 0;
+  private velocity = 0;
+  private fling = 0;
   private closed = false;
   private closeHandler?: () => void;
 
@@ -97,6 +101,11 @@ export class Overlay {
     this.objects.push(this.own(this.body));
 
     this.bindScroll();
+    pushModal();
+    // A scene change can drop an overlay without anyone closing it; unwind
+    // the modal count there rather than leaving the board deaf.
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.close());
+    scene.events.once(Phaser.Scenes.Events.DESTROY, () => this.close());
     // Content is flowed by the caller right after this returns; centre it
     // vertically on the next frame if it does not fill the card.
     scene.events.once(Phaser.Scenes.Events.POST_UPDATE, () => this.settle());
@@ -200,26 +209,47 @@ export class Overlay {
       p.y <= this.card.y + this.card.h;
 
     // A press that lands on one of the card's buttons stops the scene-level
-    // pointer-down from being emitted at all, so the drag starts on movement.
+    // pointer down/up from being emitted at all, so the drag is tracked from
+    // what the pointer reports: a press this drag has not seen is a new
+    // gesture, anchored on where the finger landed.
     const move = (p: Phaser.Input.Pointer): void => {
-      if (this.closed || !p.isDown) {
-        this.dragging = false;
+      if (this.closed) return;
+      if (!p.isDown) {
+        up();
         return;
       }
-      if (!this.dragging) {
+      if (this.dragPress !== p.downTime) {
         if (!inCard(p)) return;
-        this.dragging = true;
+        this.dragPress = p.downTime;
         this.dragMoved = 0;
-        this.lastY = p.y;
-        return;
+        this.velocity = 0;
+        this.fling = 0;
+        this.lastY = p.downY;
       }
       const dy = p.y - this.lastY;
       this.lastY = p.y;
       this.dragMoved += Math.abs(dy);
-      if (this.dragMoved > this.layout.px(8)) this.scrollBy(-dy);
+      if (this.dragMoved <= Math.max(DRAG_SLOP, this.layout.px(6))) return;
+      this.velocity = this.velocity * 0.6 + dy * 0.4;
+      this.scrollBy(-dy);
     };
     const up = (): void => {
-      this.dragging = false;
+      if (this.dragPress < 0) return;
+      this.dragPress = -1;
+      this.fling = Math.abs(this.velocity) > 1 ? -this.velocity : 0;
+      this.velocity = 0;
+    };
+    // The up is usually swallowed by whatever button sits under the thumb.
+    const step = (): void => {
+      if (this.closed) return;
+      if (this.dragPress >= 0) {
+        if (this.scene.input.activePointer.isDown) return;
+        up();
+      }
+      if (Math.abs(this.fling) < 0.5) return;
+      const before = this.scrollY;
+      this.scrollBy(this.fling);
+      this.fling = this.scrollY === before ? 0 : this.fling * 0.88;
     };
     const wheel = (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number): void => {
       if (this.closed || !inCard(p)) return;
@@ -229,7 +259,9 @@ export class Overlay {
     input.on(Phaser.Input.Events.POINTER_UP, up);
     input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, up);
     input.on(Phaser.Input.Events.POINTER_WHEEL, wheel);
+    this.scene.events.on(Phaser.Scenes.Events.UPDATE, step);
     this.closeHandler = () => {
+      this.scene.events.off(Phaser.Scenes.Events.UPDATE, step);
       input.off(Phaser.Input.Events.POINTER_MOVE, move);
       input.off(Phaser.Input.Events.POINTER_UP, up);
       input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, up);
@@ -254,6 +286,7 @@ export class Overlay {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    popModal();
     this.closeHandler?.();
     for (const b of this.buttons) b.destroy();
     this.mask.destroy();

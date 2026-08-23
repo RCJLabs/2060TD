@@ -260,7 +260,14 @@ replaying cleared missions.
       and a viewport change destroyed an open overlay instead of re-flowing it. The
       E2E harness now taps by label through a live-button seam and runs the whole
       first-run flow across six viewports, asserting no strays outside the camera
-      partition.*
+      partition. A follow-up pass fixed touch scrolling: the same swallowed
+      pointer-up left each drag anchored to the previous gesture, so every second
+      swipe snapped the drawer to the top. Drags now key off the pointer's own
+      press identity, anchor on `downY`, carry a flick, retire on a frame tick
+      rather than on an event a row can eat, and a modal owns the gesture so
+      nothing scrolls or pans behind it. Rows scrolled clear of the list also
+      stop taking input. scripts/e2e-touch.mjs drives real touch events through
+      CDP over all of it.*
 - [ ] Share-code PvP-lite: export base as code, friends raid the snapshot
 - [ ] Leagues, rotating events on the Front Line
 

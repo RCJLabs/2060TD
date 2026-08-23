@@ -1,0 +1,161 @@
+/**
+ * Touch-gesture regression suite for the panel drawer and overlays.
+ *
+ * A finger, unlike a mouse, sends no hover move between gestures — which is
+ * how the v0.9 scroll bug hid: the pointer-up that ended a swipe was
+ * swallowed by the row under the thumb, and the next touch was measured
+ * against a stale anchor, snapping the list back to the top. Playwright's
+ * mouse cannot express that, so these checks drive real touch events through
+ * CDP.
+ *
+ * Covers: a swipe scrolls, a second swipe continues rather than jumping, the
+ * list reaches its end and comes back, a drag across a row never fires it, a
+ * tap does, and a gesture over a modal never reaches the screen beneath it.
+ */
+import { spawn } from 'node:child_process';
+import { chromium } from 'playwright';
+
+const PORT = 5198;
+const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+  stdio: 'ignore',
+  detached: true,
+});
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const failures = [];
+const check = (name, ok, detail) => {
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
+  if (!ok) failures.push(name);
+};
+
+try {
+  const deadline = Date.now() + 30000;
+  for (;;) {
+    try {
+      const res = await fetch(`http://localhost:${PORT}/`);
+      if (res.ok) break;
+    } catch {
+      /* retry */
+    }
+    if (Date.now() > deadline) throw new Error('no server');
+    await wait(300);
+  }
+
+  let browser;
+  try {
+    browser = await chromium.launch();
+  } catch {
+    browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  }
+  const page = await browser.newPage({
+    viewport: { width: 412, height: 915 },
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, x, y) =>
+    cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x, y, radiusX: 8, radiusY: 8, force: 1 }],
+    });
+  const swipe = async (x, fromY, toY, steps = 8) => {
+    await touch('touchStart', x, fromY);
+    for (let i = 1; i <= steps; i++) {
+      await touch('touchMove', x, fromY + ((toY - fromY) * i) / steps);
+      await wait(16);
+    }
+    await touch('touchEnd', x, toY);
+    await wait(320);
+  };
+  const tap = async (x, y) => {
+    await touch('touchStart', x, y);
+    await wait(70);
+    await touch('touchEnd', x, y);
+    await wait(500);
+  };
+  const find = (needle) =>
+    page.evaluate((text) => {
+      const api = window.lastline;
+      const hit = api.buttons().find((b) => b.label.toUpperCase().includes(text));
+      return hit
+        ? { x: (hit.x + hit.w / 2) / api.dpr, y: (hit.y + hit.h / 2) / api.dpr, label: hit.label }
+        : null;
+    }, needle.toUpperCase());
+  /** Top of a named row in CSS px — the scroll position, observed. */
+  const rowTop = (needle) =>
+    page.evaluate((text) => {
+      const api = window.lastline;
+      const hit = api.buttons().find((b) => b.label.toUpperCase().includes(text));
+      return hit ? Math.round(hit.y / api.dpr) : null;
+    }, needle.toUpperCase());
+  const labelOf = (prefix) =>
+    page.evaluate((p) => window.lastline.buttons().find((b) => b.label.startsWith(p))?.label ?? null, prefix);
+
+  await page.goto(`http://localhost:${PORT}/?demo=town`, { waitUntil: 'networkidle' });
+  await wait(2500);
+  const X = 206;
+
+  // Short swipes, so the row being measured stays on screen throughout.
+  const start = await rowTop('SUPPLY DEPOT');
+  await swipe(X, 700, 640);
+  const afterFirst = await rowTop('SUPPLY DEPOT');
+  check(
+    'a swipe scrolls the drawer',
+    afterFirst !== null && start - afterFirst >= 40,
+    `${start} → ${afterFirst}`,
+  );
+
+  // The gesture that used to snap the list back to the top: a fresh touch
+  // after a release the row under the thumb swallowed.
+  await swipe(X, 800, 780);
+  const afterSecond = await rowTop('SUPPLY DEPOT');
+  check(
+    'a second swipe continues instead of jumping',
+    afterSecond !== null && afterSecond < afterFirst,
+    `${afterFirst} → ${afterSecond}`,
+  );
+
+  for (let i = 0; i < 6; i++) await swipe(X, 820, 560);
+  const last = await rowTop('ERASE WALL');
+  check('the last row can be reached', last !== null && last < 915, `ERASE WALL at ${last}`);
+
+  for (let i = 0; i < 8; i++) await swipe(X, 560, 820);
+  const home = await rowTop('SUPPLY DEPOT');
+  check('swiping back reaches the top again', home === start, `${home} vs ${start}`);
+
+  // Tap vs drag, read off a row that reports its own state.
+  await tap((await find('SYS')).x, (await find('SYS')).y);
+  const soundAtRest = await labelOf('SOUND');
+  const soundRow = await find('SOUND');
+  await swipe(soundRow.x, soundRow.y, soundRow.y - 88);
+  check('dragging across a row does not fire it', (await labelOf('SOUND')) === soundAtRest, soundAtRest);
+  const again = await find('SOUND');
+  await tap(again.x, again.y);
+  check('tapping a row still fires it', (await labelOf('SOUND')) !== soundAtRest, await labelOf('SOUND'));
+
+  // A modal owns the gesture: nothing behind it may move.
+  await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });
+  await wait(2500);
+  const behind = await rowTop('SUPPLY DEPOT');
+  await swipe(X, 700, 520);
+  check('a swipe over a modal leaves the screen behind it alone', (await rowTop('SUPPLY DEPOT')) === behind, `${behind}`);
+
+  await browser.close();
+  if (errors.length) {
+    console.error('page errors:');
+    for (const e of errors) console.error(' ', e);
+    failures.push('page errors');
+  }
+  if (failures.length) {
+    console.error(`\n${failures.length} touch check(s) failed: ${failures.join(', ')}`);
+    process.exitCode = 1;
+  } else {
+    console.log('\nTOUCH OK: drawer scrolling, flick, tap-vs-drag and modal isolation all behave.');
+  }
+} finally {
+  process.kill(-vite.pid, 'SIGTERM');
+}

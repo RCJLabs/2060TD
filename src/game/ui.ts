@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from './audio';
 import type { Layout } from './layout';
+import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
 
 /**
@@ -36,7 +37,7 @@ export function mono(
 }
 
 /** Travel (device px) past which a press counts as a drag, not a tap. */
-const DRAG_SLOP = 16;
+export const DRAG_SLOP = 16;
 
 export interface ButtonOptions {
   /** Font size in device px; defaults to a size derived from the height. */
@@ -263,9 +264,13 @@ export class Panel {
   private activeTab: string;
   private scrollY = 0;
   private contentH = 0;
-  private dragging = false;
+  /** `downTime` of the press that owns the current drag; -1 when idle. */
+  private dragPress = -1;
   private dragMoved = 0;
   private lastPointerY = 0;
+  /** Smoothed finger speed, and the decaying flick it becomes on release. */
+  private velocity = 0;
+  private fling = 0;
   private onTabChange?: (id: string) => void;
 
   constructor(
@@ -402,7 +407,10 @@ export class Panel {
           this.rowRoot.add(text);
           this.headings[headingIndex] = text;
         }
-        text.setPosition(list.x + pad, y + rowH * 0.35).setFontSize(font.tiny).setVisible(true);
+        text
+          .setPosition(list.x + pad, y + rowH * 0.35)
+          .setFontSize(font.tiny)
+          .setVisible(y + rowH > list.y && y < list.y + list.h);
         if (text.text !== row.label) text.setText(row.label);
         headingIndex++;
         line++;
@@ -440,7 +448,15 @@ export class Panel {
       button.setSub(row.sub ?? '');
       button.setEnabled(row.enabled !== false);
       button.setActive(row.active === true);
-      button.setVisible(true);
+      // The mask hides scrolled-away rows but does not un-tap them: a row
+      // parked under the status strip would still take a press. Rows leave
+      // the display when clear of the list, and stop taking input as soon as
+      // their middle does.
+      button.setVisible(y + rowH > list.y && y < list.y + list.h);
+      const middle = y + rowH / 2;
+      if (button.bg.input) {
+        button.bg.input.enabled = middle >= list.y && middle <= list.y + list.h;
+      }
       // Re-point the handler without rebuilding the button — the pool is
       // reused across tabs, so the row list owns what a slot does.
       this.taps[poolIndex] = row.onTap;
@@ -500,47 +516,86 @@ export class Panel {
   }
 
   /**
-   * Drag-to-scroll. The rows are interactive buttons, and a button press
-   * stops the scene-level pointer-down/up from ever being emitted, so the
-   * drag has to start from pointer *movement* instead. Buttons carry their
-   * own travel guard, so a flick never fires the row it passes over.
+   * Drag-to-scroll, with a flick. The rows are interactive buttons, and a
+   * button press stops Phaser emitting the scene-level pointer down/up at
+   * all — so a drag both starts and ends from what the pointer itself
+   * reports, never from an event a row can swallow. Without that, the up
+   * that ends one swipe goes missing and the next touch is measured against
+   * a stale anchor, which snaps the list across its whole range.
    */
   private bindScroll(): void {
     const input = this.scene.input;
+
     input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.isDown) {
-        this.dragging = false;
+      if (!pointer.isDown || modalOpen()) {
+        this.releaseDrag();
         return;
       }
-      if (!this.dragging) {
+      if (this.dragPress !== pointer.downTime) {
+        // A press this drag has not seen before: a new gesture starts here,
+        // anchored on where the finger actually landed.
         if (!this.inList(pointer)) return;
-        this.dragging = true;
+        this.dragPress = pointer.downTime;
         this.dragMoved = 0;
-        this.lastPointerY = pointer.y;
-        return;
+        this.velocity = 0;
+        this.fling = 0;
+        this.lastPointerY = pointer.downY;
       }
       const dy = pointer.y - this.lastPointerY;
       this.lastPointerY = pointer.y;
       this.dragMoved += Math.abs(dy);
-      if (this.dragMoved > (this.layout?.px(8) ?? 8)) {
-        this.scrollY -= dy;
-        this.clampScroll();
-        this.relayoutRows();
-      }
+      // Hold off until the travel also cancels the row's tap, so a gesture is
+      // unambiguously one or the other.
+      if (this.dragMoved <= Math.max(DRAG_SLOP, this.layout?.px(6) ?? 6)) return;
+      this.velocity = this.velocity * 0.6 + dy * 0.4;
+      this.scrollBy(-dy);
     });
-    const end = (): void => {
-      this.dragging = false;
-    };
-    input.on(Phaser.Input.Events.POINTER_UP, end);
-    input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, end);
+
+    const release = (): void => this.releaseDrag();
+    input.on(Phaser.Input.Events.POINTER_UP, release);
+    input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, release);
     input.on(
       Phaser.Input.Events.POINTER_WHEEL,
       (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
-        if (!this.inList(pointer)) return;
-        this.scrollY += dy;
-        this.clampScroll();
-        this.relayoutRows();
+        if (modalOpen() || !this.inList(pointer)) return;
+        this.scrollBy(dy);
       },
     );
+
+    // The up that ends a drag is usually swallowed by the row under the
+    // thumb, so the release is detected here too — and the flick coasts.
+    const step = (): void => this.stepScroll();
+    this.scene.events.on(Phaser.Scenes.Events.UPDATE, step);
+    const stop = (): void => {
+      this.scene.events.off(Phaser.Scenes.Events.UPDATE, step);
+    };
+    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
+    this.scene.events.once(Phaser.Scenes.Events.DESTROY, stop);
+  }
+
+  /** End the drag, handing whatever speed it had to the flick. */
+  private releaseDrag(): void {
+    if (this.dragPress < 0) return;
+    this.dragPress = -1;
+    this.fling = Math.abs(this.velocity) > 1 ? -this.velocity : 0;
+    this.velocity = 0;
+  }
+
+  private stepScroll(): void {
+    if (this.dragPress >= 0) {
+      if (this.scene.input.activePointer.isDown) return;
+      this.releaseDrag();
+    }
+    if (Math.abs(this.fling) < 0.5) return;
+    const before = this.scrollY;
+    this.scrollBy(this.fling);
+    // Stop dead at the ends rather than grinding against the clamp.
+    this.fling = this.scrollY === before ? 0 : this.fling * 0.88;
+  }
+
+  private scrollBy(delta: number): void {
+    this.scrollY += delta;
+    this.clampScroll();
+    this.relayoutRows();
   }
 }

@@ -114,6 +114,16 @@ try {
     await wait(250);
   };
 
+  /** Where the scrolling row list is, judged from the rows on screen. */
+  const listAnchor = () =>
+    page.evaluate(() => {
+      const api = window.lastline;
+      const rows = api.buttons().filter((b) => b.h > b.w * 0.12 && b.w > b.h * 2);
+      if (!rows.length) return null;
+      const last = rows[rows.length - 1];
+      return { x: (last.x + last.w / 2) / api.dpr, y: (last.y + last.h / 2) / api.dpr };
+    });
+
   const tap = async (needle, settleMs = 900) => {
     for (let attempt = 0; attempt < 24; attempt++) {
       const hit = await findButton(needle);
@@ -125,6 +135,12 @@ try {
         await page.mouse.click(hit.x, hit.y);
         await wait(settleMs);
         return hit;
+      }
+      // Rows scrolled clear of the list leave the display entirely, so a row
+      // that is simply further down has to be scrolled into view first.
+      if (attempt > 1 && attempt % 2 === 0) {
+        const anchor = await listAnchor();
+        if (anchor) await scrollToward(anchor.x, anchor.y - vh * 0.3);
       }
       await wait(250);
     }

@@ -47,11 +47,16 @@ viewport, in either orientation, and PC is simply the wide case:
   to 1440×900 — asserting no page errors and no object outside the two-camera
   partition on any screen.
 
-Three bugs the rewrite surfaced and fixed: panel rows never fired at all (a
+Bugs the rewrite surfaced and fixed: panel rows never fired at all (a
 button's `stopPropagation` aborts Phaser's scene-level pointer events, which
 the deferred tap dispatch depended on); overlays were drawn twice, once at
-board zoom, because they sat outside both camera layers; and an open overlay
-was destroyed rather than re-flowed when the viewport changed.
+board zoom, because they sat outside both camera layers; an open overlay was
+destroyed rather than re-flowed when the viewport changed; and — because that
+same swallowed pointer-up left the drag anchored to the previous gesture —
+every second swipe snapped the drawer back to the top. Drags are now tracked
+from the pointer's own press identity, carry a flick, and a modal owns the
+gesture so nothing scrolls or pans behind it. `scripts/e2e-touch.mjs` drives
+real touch events through CDP to keep all of that honest.
 
 ## v0.8: standing orders
 
@@ -259,6 +264,7 @@ npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA
+node scripts/e2e-touch.mjs           # touch gestures: scroll, flick, tap-vs-drag
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
