@@ -37,6 +37,7 @@ import {
   type SquadPlan,
 } from '../meta/warfare';
 import { CONDITIONS } from '../content/conditions';
+import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
 import type {
@@ -168,9 +169,9 @@ function tunnelPlanFor(faction: FactionId, base: GeneratedBase, tier: number): S
   return best;
 }
 
-function planManpower(faction: FactionId): number {
+function planManpower(faction: FactionId, plans: SquadPlan[] = RAID_PLANS[faction]): number {
   const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
-  return RAID_PLANS[faction].reduce(
+  return plans.reduce(
     (total, squad) =>
       total +
       Object.entries(squad.units).reduce((s, [kind, n]) => s + (meta[kind] ?? 0) * n, 0),
@@ -481,6 +482,67 @@ function conditionTable(faction: FactionId): string {
   return lines.join('\n');
 }
 
+/**
+ * Veterancy (v1.9). The rank multiplier is small on purpose, so the question
+ * this table has to answer is not "does it win more" — a reference plan that
+ * already clears everything cannot show a 4% edge. It is "does it bring more
+ * men home", because that is what veterancy is FOR: the rank pays in
+ * survivors, and survivors are what carry the rank forward.
+ *
+ * The thin plan is deliberate. At the margin a rank is worth a coin flip; with
+ * the reference force behind it every row reads 100 and the table says nothing.
+ */
+function veterancyTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  // The reference force, unchanged. An earlier pass tried thinning it to force
+  // the clear rate to the margin; that read as "veterancy does nothing" for
+  // China and NK, because a swarm cut in half dies at every rank and a
+  // multiplier cannot save a unit that was never going to survive the volley.
+  // At full strength the signal is monotone for all five.
+  const plan = (vet: number): SquadPlan[] =>
+    RAID_PLANS[faction].map((squad, i) => ({ ...squad, slot: i, vet }));
+  const lines = [
+    `VETERANCY — ${flavor.faction} strike force (${planManpower(faction)} MP), men returned% by tier`,
+    `RANK    |  ×   | ${RAID_TIERS.map((t) => pad(`T${t}`, 4)).join(' | ')} |  MEAN | CLEAR%`,
+    `--------+------+${RAID_TIERS.map(() => '------').join('+')}+-------+-------`,
+  ];
+  for (const rank of RANKS) {
+    const back: number[] = [];
+    let cleared = 0;
+    let runs = 0;
+    for (const tier of RAID_TIERS) {
+      let home = 0;
+      let sent = 0;
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        const base = generateBase(tier, variant, baseKitFor(faction));
+        for (let i = 0; i < SEEDS; i++) {
+          const squads = plan(rank.mult);
+          const config = raidConfig(
+            base,
+            squads,
+            seedOf(tier, variant, i),
+            trainableFor(faction),
+          );
+          const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
+          for (const ret of res.squads) {
+            home += ret.returned;
+            sent += ret.deployed;
+          }
+          if (res.cleared) cleared++;
+          runs++;
+        }
+      }
+      back.push(Math.round((home / sent) * 100));
+    }
+    const mean = back.reduce((a, b) => a + b, 0) / back.length;
+    lines.push(
+      `${rank.name.padEnd(7)} | ${pad(rank.mult.toFixed(2), 4)} | ${back.map((c) => pad(c, 4)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(Math.round((cleared / runs) * 100), 6)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
 function main(): void {
   const started = Date.now();
   const sections: string[] = [];
@@ -493,6 +555,13 @@ function main(): void {
   }
   if (process.argv.includes('--conditions')) {
     console.log(conditionTable('usa'));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--vet')) {
+    // `--vet china` retunes against a swarm instead of an elite handful.
+    const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
+    console.log(veterancyTable(pick));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
@@ -550,6 +619,9 @@ function main(): void {
   }
   sections.push(archetypeTable('usa'));
   sections.push(conditionTable('usa'));
+  // Veterancy pays in survivors, not in wins, so it is measured per faction:
+  // the survival column is the whole claim and the swarms have to show it too.
+  for (const faction of FACTION_IDS) sections.push(veterancyTable(faction));
   for (const faction of FACTION_IDS) {
     sections.push(defenseTable(faction, defenseMatrix(faction)));
     sections.push(
@@ -602,7 +674,7 @@ function main(): void {
 
   if (process.argv.includes('--md')) {
     const md = [
-      '# Balance snapshot (v1.6)',
+      '# Balance snapshot (v1.9)',
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -686,6 +758,19 @@ function main(): void {
       '  that no target can be scouted at any price, so the plan is made against fog and NK loses',
       '  tunnels entirely; a headless matrix that always fights with the layout in hand cannot',
       '  price that, which is why its 1.25× is a judgement and is labelled as one.',
+      '- **Veterancy (v1.9) pays in survivors, not in wins**, and the VETERANCY tables are',
+      '  the proof: from GREEN to CADRE the mean share of the force that walks home rises for',
+      '  every faction (USA 28→34, China 12→16, Russia 18→20, NK 12→20, UN 20→27), while the',
+      '  clear rate barely moves for three of the five. That is the intended shape — a rank is',
+      '  worth a few men, never a win — and it is self-reinforcing by design, because the men',
+      '  who come home are the experience. A +15% top-end multiplier is deliberately too small',
+      '  to substitute for bringing enough people.',
+      '- **The first veterancy table measured the wrong thing.** It thinned the reference force',
+      '  to push the clear rate to the margin, which made the swarm factions read as flat: a',
+      '  China or NK plan cut in half dies at every rank, and a 15% HP bump cannot save a unit',
+      '  that was never going to survive the volley. Measured at full strength the signal is',
+      '  monotone for all five. The lesson is general — a multiplier is invisible at the floor',
+      '  and at the ceiling, so it has to be measured where the units were already living.',
       '- **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before',
       '  anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+',
       '  (everything kills sentry nests).',

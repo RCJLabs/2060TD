@@ -31,6 +31,7 @@ import { M1_CATALOG } from '../content/catalog';
 import { effectsOf, techPrereq, TECH_BY_ID, type ResearchEffects } from '../content/research';
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
+import { newSquadRecords, type SquadRecord } from '../content/veterancy';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
@@ -168,6 +169,12 @@ export interface TownState {
   duels?: string[];
   /** One-shot coach screens already read (content/tutorial.ts keys). */
   seen?: string[];
+  /**
+   * The three standing formations and what they have been through (v1.9).
+   * Indexed by raid-planner slot. Optional: a file written before veterancy
+   * has no roster, and three green squads is the right answer for it.
+   */
+  squads?: SquadRecord[];
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -210,6 +217,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     lastRaid: null,
     duels: [],
     seen: [],
+    squads: newSquadRecords(),
     assaultLevel: 1,
     victories: 0,
     defeats: 0,

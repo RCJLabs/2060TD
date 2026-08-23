@@ -217,7 +217,7 @@ describe('seasons', () => {
 describe('the board and the war', () => {
   const win = {
     cleared: true, ticks: 100, deployed: {}, survivors: {}, losses: {},
-    destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1, powersUsed: {},
+    destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1, powersUsed: {}, squads: [],
   };
   const loss = { ...win, cleared: false, destructionPct: 0.2 };
   const plan: SquadPlan[] = [{ units: { ranger: 1 }, sector: 'W1', doctrine: 'assault' }];

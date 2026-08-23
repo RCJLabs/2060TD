@@ -2,6 +2,13 @@ import { generateBase, lootFor, MAP_H, MAP_W, type GeneratedBase } from '../cont
 import type { Condition } from '../content/conditions';
 import { FAILED_RAID } from '../content/leagues';
 import { RAID_CATALOG } from '../content/catalog';
+import {
+  newSquadRecords,
+  rankMult,
+  recordRaid,
+  SQUAD_SLOTS,
+  type SquadRecord,
+} from '../content/veterancy';
 import { baseKitFor, defenseCatalogFor } from '../content/factions';
 import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
@@ -71,7 +78,23 @@ export interface SquadPlan {
   /** Tunnel insertion (NK): surface at this cell instead of entering at the
    * sector edge. Costs fuel, arrives late (dig time), bypasses the maze. */
   tunnel?: CellIndex;
+  /**
+   * Which standing formation this is (v1.9). Explicit rather than positional
+   * because the launcher drops empty squads from the plan — leave SQD2 at
+   * home and SQD3 must still come back as SQD3, or it inherits a stranger's
+   * experience. Defaults to the plan index.
+   */
+  slot?: number;
+  /**
+   * Veterancy multiplier the formation launched with (content/veterancy.ts).
+   * Baked into the wave here so a replay re-fights the raid with the squad the
+   * player actually sent, not the squad they have now.
+   */
+  vet?: number;
 }
+
+export const slotOf = (squad: SquadPlan, index: number): number =>
+  squad.slot ?? index;
 
 export const SQUAD_DELAY_TICKS = 120; // squads launch 6s apart, in order
 
@@ -163,6 +186,8 @@ export function raidWave(squads: SquadPlan[], trainable: TrainMeta[] = TRAINABLE
           row: spot.row,
           col: spot.col,
           doctrine: squad.doctrine,
+          squad: slotOf(squad, squadIndex),
+          ...(squad.vet !== undefined && squad.vet !== 1 ? { vet: squad.vet } : {}),
         });
         unitIndex++;
       }
@@ -260,10 +285,20 @@ export function raidConfig(
 
 export const RAID_MAX_TICKS = 6000; // 5 minutes of sim time, hard stop
 
+/** What one formation sent, and what walked back. */
+export interface SquadReturn {
+  /** Standing formation index (SquadPlan.slot). */
+  slot: number;
+  deployed: number;
+  returned: number;
+}
+
 export interface RaidResolution {
   cleared: boolean;
   ticks: number;
   deployed: Record<string, number>;
+  /** Per-formation returns, in plan order (v1.9). Empty squads are omitted. */
+  squads: SquadReturn[];
   survivors: Record<string, number>;
   losses: Record<string, number>;
   destroyed: Record<string, number>;
@@ -312,6 +347,20 @@ export function resolveRaid(
     survivors[attacker.profile.kind] = (survivors[attacker.profile.kind] ?? 0) + 1;
   }
   const deployed = planDeployment(squads);
+  // Per-formation attribution: the engine stamped each unit with the squad
+  // that sent it, so a survivor sweep tells us who came back and who didn't.
+  const back = new Map<number, number>();
+  for (const attacker of engine.attackers) {
+    back.set(attacker.squad, (back.get(attacker.squad) ?? 0) + 1);
+  }
+  const squadReturns: SquadReturn[] = squads.map((squad, index) => {
+    const slot = slotOf(squad, index);
+    return {
+      slot,
+      deployed: Object.values(squad.units).reduce((a, b) => a + b, 0),
+      returned: back.get(slot) ?? 0,
+    };
+  });
   const losses: Record<string, number> = {};
   for (const [kind, count] of Object.entries(deployed)) {
     const lost = count - (survivors[kind] ?? 0);
@@ -351,6 +400,7 @@ export function resolveRaid(
     cleared: engine.phase === 'defeat', // the DEFENDER lost its command post
     ticks: engine.tick,
     deployed,
+    squads: squadReturns.filter((r) => r.deployed > 0),
     survivors,
     losses,
     destroyed,
@@ -358,6 +408,23 @@ export function resolveRaid(
     destructionPct: initialTotal > 0 ? destroyedTotal / initialTotal : 0,
     powersUsed,
   };
+}
+
+/**
+ * The town's three standing formations, created on demand. Every caller wants
+ * SQUAD_SLOTS records back, so a file that predates veterancy gets them here
+ * rather than making each reader check.
+ */
+export function squadRoster(town: TownState): SquadRecord[] {
+  if (!Array.isArray(town.squads) || town.squads.length !== SQUAD_SLOTS) {
+    town.squads = newSquadRecords();
+  }
+  return town.squads;
+}
+
+/** The multiplier a formation's units fight at right now. */
+export function squadVet(town: TownState, slot: number): number {
+  return rankMult(squadRoster(town)[slot]?.xp ?? 0);
 }
 
 /** Fold a resolved raid into the town: losses, loot, Front Line progress. */
@@ -375,6 +442,21 @@ export function applyRaidResult(
 ): void {
   for (const [kind, lost] of Object.entries(resolution.losses)) {
     town.army[kind] = Math.max(0, (town.army[kind] ?? 0) - lost);
+  }
+  // Veterancy (v1.9): the formations that went out get their record updated
+  // before anything else, because the record is written in the same men the
+  // loss line just deducted. A duel counts as tier 1 — it is still a fight.
+  const roster = squadRoster(town);
+  const foughtTier = Math.max(1, base.tier);
+  for (const ret of resolution.squads) {
+    const record = roster[ret.slot];
+    if (!record) continue;
+    roster[ret.slot] = recordRaid(record, {
+      deployed: ret.deployed,
+      returned: ret.returned,
+      tier: foughtTier,
+      cleared: resolution.cleared,
+    });
   }
   // Ordnance fired in support is gone from the shared stock.
   for (const [kind, used] of Object.entries(resolution.powersUsed)) {

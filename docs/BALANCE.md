@@ -1,4 +1,4 @@
-# Balance snapshot (v1.6)
+# Balance snapshot (v1.9)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -192,6 +192,46 @@ DUG IN       |  100 |  100 |  100 |   62 |   55 |  83.4 |    -10.0
 FUEL CRISIS  |  100 |  100 |   95 |   63 |   42 |  80.0 |    -13.4
 BLACKOUT     |  100 |  100 |  100 |  100 |   67 |  93.4 |     +0.0
 ATTRITION    |  100 |  100 |   70 |   40 |   55 |  73.0 |    -20.4
+
+VETERANCY — UNITED STATES strike force (27 MP), men returned% by tier
+RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
+--------+------+------+------+------+------+------+-------+-------
+GREEN   | 1.00 |   40 |   47 |   31 |   11 |   11 |  28.0 |     93
+LINE    | 1.04 |   40 |   50 |   31 |   11 |   11 |  28.6 |     93
+VETERAN | 1.09 |   47 |   51 |   33 |   11 |   11 |  30.6 |     93
+CADRE   | 1.15 |   51 |   50 |   44 |   13 |   11 |  33.8 |     93
+
+VETERANCY — PLA EXPEDITIONARY FORCE strike force (28 MP), men returned% by tier
+RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
+--------+------+------+------+------+------+------+-------+-------
+GREEN   | 1.00 |   38 |   11 |    3 |    3 |    3 |  11.6 |     62
+LINE    | 1.04 |   39 |   20 |    3 |    3 |    3 |  13.6 |     63
+VETERAN | 1.09 |   39 |   23 |    3 |    3 |    3 |  14.2 |     62
+CADRE   | 1.15 |   46 |   25 |    3 |    3 |    3 |  16.0 |     62
+
+VETERANCY — RUSSIAN GROUND FORCES strike force (27 MP), men returned% by tier
+RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
+--------+------+------+------+------+------+------+-------+-------
+GREEN   | 1.00 |   61 |   17 |    3 |    9 |    1 |  18.2 |     64
+LINE    | 1.04 |   65 |   22 |    3 |    8 |    2 |  20.0 |     63
+VETERAN | 1.09 |   68 |   22 |    3 |    8 |    3 |  20.8 |     63
+CADRE   | 1.15 |   65 |   22 |    3 |    8 |    3 |  20.2 |     63
+
+VETERANCY — KOREAN PEOPLE'S ARMY strike force (27 MP), men returned% by tier
+RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
+--------+------+------+------+------+------+------+-------+-------
+GREEN   | 1.00 |   53 |    6 |    1 |    0 |    0 |  12.0 |     35
+LINE    | 1.04 |   59 |   11 |    3 |    0 |    0 |  14.6 |     39
+VETERAN | 1.09 |   61 |   19 |    3 |    1 |    0 |  16.8 |     43
+CADRE   | 1.15 |   70 |   28 |    3 |    0 |    0 |  20.2 |     45
+
+VETERANCY — UN COALITION strike force (27 MP), men returned% by tier
+RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
+--------+------+------+------+------+------+------+-------+-------
+GREEN   | 1.00 |   51 |   22 |   24 |    0 |    5 |  20.4 |     68
+LINE    | 1.04 |   56 |   24 |   25 |    0 |    7 |  22.4 |     72
+VETERAN | 1.09 |   59 |   25 |   28 |    0 |    7 |  23.8 |     72
+CADRE   | 1.15 |   60 |   34 |   33 |    0 |    7 |  26.8 |     73
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
@@ -428,6 +468,19 @@ LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
   that no target can be scouted at any price, so the plan is made against fog and NK loses
   tunnels entirely; a headless matrix that always fights with the layout in hand cannot
   price that, which is why its 1.25× is a judgement and is labelled as one.
+- **Veterancy (v1.9) pays in survivors, not in wins**, and the VETERANCY tables are
+  the proof: from GREEN to CADRE the mean share of the force that walks home rises for
+  every faction (USA 28→34, China 12→16, Russia 18→20, NK 12→20, UN 20→27), while the
+  clear rate barely moves for three of the five. That is the intended shape — a rank is
+  worth a few men, never a win — and it is self-reinforcing by design, because the men
+  who come home are the experience. A +15% top-end multiplier is deliberately too small
+  to substitute for bringing enough people.
+- **The first veterancy table measured the wrong thing.** It thinned the reference force
+  to push the clear rate to the margin, which made the swarm factions read as flat: a
+  China or NK plan cut in half dies at every rank, and a 15% HP bump cannot save a unit
+  that was never going to survive the volley. Measured at full strength the signal is
+  monotone for all five. The lesson is general — a multiplier is invisible at the floor
+  and at the ceiling, so it has to be measured where the units were already living.
 - **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before
   anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+
   (everything kills sentry nests).

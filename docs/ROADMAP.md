@@ -368,9 +368,22 @@ there is deliberately no sixth faction here.
       scene change has no seam. Music and effects ride separate buses, mixed
       separately in five stops on a button, and a pre-v1.8 SOUND: OFF migrates
       to silence rather than to a surprise soundtrack.*
-- [ ] **Veterancy and named squads** — squads that survive raids accrue a rank
-      carried as a per-squad attacker mod, so the loss line in the raid report
-      becomes a cost instead of a number.
+- [x] **Veterancy and named squads** *(v1.9)* — *the three raid slots stop
+      being scratch space and become three standing formations with call signs
+      and files: HAMMER, RONIN, TALON for the USA, and a set per faction.
+      GREEN → LINE → VETERAN → CADRE, worth at most +15% health and damage, so
+      a rank is an edge and never a substitute for bringing enough people. One
+      rule carries the whole feature: experience lives in the men, so it walks
+      out with the ones who don't come back — a squad's file scales by its
+      survival fraction every raid, and a wipe puts the name on a fresh set of
+      replacements. The sim needed two things for it: SimConfig.mods.attacker
+      was battle-wide, so WaveEntry now carries a per-squad `vet` multiplier
+      and a `squad` stamp, which also means a resolution can finally say who
+      came back rather than only how many. The plan carries an explicit slot,
+      because the launcher drops empty squads and SQD3 must not come home as
+      SQD2 and inherit a stranger's experience. A VETERANCY matrix per faction
+      keeps it honest: from GREEN to CADRE the share of the force that walks
+      home rises for all five, while the clear rate barely moves.*
 - [ ] **Service record** — lifetime stats, per-faction records, season
       placements, a standing sparkline. The league layer already generates
       this data and it has nowhere to live.

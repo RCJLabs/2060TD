@@ -2,6 +2,7 @@ import { campaignFor, type FactionId } from '../content/factions';
 import { LEAGUES, seasonAt } from '../content/leagues';
 import { PLACEMENT_CAP } from './ladder';
 import { isStandingOrdersId } from '../content/standingOrders';
+import { normalizeSquads } from '../content/veterancy';
 import { newTown, unlockAll, type TownState } from './town';
 
 /**
@@ -205,6 +206,8 @@ export function deserialize(json: string): TownState | null {
     town.duels = Array.isArray(town.duels)
       ? town.duels.filter((d: unknown): d is string => typeof d === 'string').slice(-50)
       : [];
+    // The roster arrived in v1.9; an older file fields three green squads.
+    town.squads = normalizeSquads(town.squads);
     // The coach ledger arrived in v1.5; an older file has simply read nothing.
     town.seen = Array.isArray(town.seen)
       ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)

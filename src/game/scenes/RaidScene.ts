@@ -8,6 +8,12 @@ import {
   type GeneratedBase,
 } from '../../content/bases';
 import { conditionAt } from '../../content/conditions';
+import {
+  nextRank,
+  rankFor,
+  squadName,
+  type SquadRecord,
+} from '../../content/veterancy';
 import { COACH_KEYS } from '../../content/tutorial';
 import { hasSeen, markSeen } from '../../meta/coach';
 import {
@@ -44,6 +50,9 @@ import {
   scoutPrice,
   scoutTarget,
   sectorCells,
+  slotOf,
+  squadRoster,
+  squadVet,
   targetFor,
   tunnelFuelCost,
   tunnelSiteValid,
@@ -78,6 +87,12 @@ const RAID_TABS = [
 ];
 const DOCTRINES = ['assault', 'hunt', 'raze'] as const;
 const DOCTRINE_LABEL: Record<string, string> = { assault: 'ASLT', hunt: 'HUNT', raze: 'RAZE' };
+/** A formation's line in the squad panel: what it has done, in four words. */
+function recordSub(record: SquadRecord | undefined): string {
+  if (!record || record.raids === 0) return 'NO RAIDS';
+  return `${record.raids}R · ${record.clears}C · ${record.lost} LOST`;
+}
+
 /** Fire-plan timing steps (seconds into the assault); null = hold fire. */
 const FIRE_TIMES = [null, 15, 40, 70] as const;
 const FIRE_TARGETS = ['guns', 'cc'] as const;
@@ -95,6 +110,8 @@ export class RaidScene extends Phaser.Scene {
   private squads: SquadPlan[] = [];
   private selectedSquad = 0;
   private result: RaidResolution | null = null;
+  /** Per-formation lines for the battle report; null when nothing was fought. */
+  private squadReport: string[] | null = null;
   private lastConfig: ReturnType<typeof raidConfig> | null = null;
   /** Per-power fire plan: timing index into FIRE_TIMES + target class. */
   private firePlans: Record<string, { timeIndex: number; target: 'guns' | 'cc' }> = {};
@@ -135,13 +152,14 @@ export class RaidScene extends Phaser.Scene {
     this.variant = 0;
     this.selectedSquad = 0;
     this.result = null;
+    this.squadReport = null;
     this.lastConfig = null;
     this.siting = false;
     this.hintUntil = 0;
     this.squads = [
-      { units: {}, sector: 'W1', doctrine: 'assault' },
-      { units: {}, sector: 'N1', doctrine: 'hunt' },
-      { units: {}, sector: 'S1', doctrine: 'raze' },
+      { units: {}, sector: 'W1', doctrine: 'assault', slot: 0 },
+      { units: {}, sector: 'N1', doctrine: 'hunt', slot: 1 },
+      { units: {}, sector: 'S1', doctrine: 'raze', slot: 2 },
     ];
     this.firePlans = {};
     for (const kind of Object.keys(raidCatalogFor(this.town.faction).powers)) {
@@ -404,7 +422,18 @@ export class RaidScene extends Phaser.Scene {
   private launch(): void {
     if (this.result || planUnitCount(this.squads) === 0) return;
     if (this.town.frontline.pendingCounterattack) return;
-    const squads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
+    // Stamp each formation's current rank onto the plan it launches with, so
+    // the config carries it and the replay re-fights the raid with the squad
+    // that actually went out — not the one promoted or gutted since.
+    // Map BEFORE filtering: after the empties are gone the array index is no
+    // longer the slot, and slotOf's index fallback would quietly hand SQD3
+    // SQD2's rank.
+    const squads = this.squads
+      .map((s, i) => {
+        const slot = slotOf(s, i);
+        return { ...s, slot, vet: squadVet(this.town, slot) };
+      })
+      .filter((s) => Object.values(s.units).some((n) => n > 0));
     if (this.town.fuel < tunnelFuelCost(squads)) return;
     // One clock for the whole resolution: the field condition that shapes the
     // battle, prices the loot and pays the standing must be the same one.
@@ -421,6 +450,7 @@ export class RaidScene extends Phaser.Scene {
       ...(condition ? { condition } : {}),
     });
     const standingBefore = this.town.frontline.standing;
+    const xpBefore = squadRoster(this.town).map((r) => r.xp);
     const resolution = resolveRaid(
       config,
       squads,
@@ -437,6 +467,15 @@ export class RaidScene extends Phaser.Scene {
       now,
       this.challenge ? { fingerprint: this.challenge.fingerprint } : undefined,
     );
+    // The promotion (or the demotion) is the point of the loss line, so work
+    // it out here while both sides of the raid are still in hand.
+    const after = squadRoster(this.town);
+    this.squadReport = resolution.squads.map((ret) => {
+      const was = rankFor(xpBefore[ret.slot] ?? 0);
+      const isNow = rankFor(after[ret.slot]?.xp ?? 0);
+      const rank = was.id === isNow.id ? isNow.short : `${was.short} → ${isNow.short}`;
+      return `${squadName(this.town.faction, ret.slot)}  ${ret.returned}/${ret.deployed} back  ·  ${rank}`;
+    });
     this.saveSoon();
     this.result = resolution;
     this.lastConfig = config;
@@ -481,6 +520,47 @@ export class RaidScene extends Phaser.Scene {
     this.result = null;
   }
 
+  /**
+   * The formation's file. Rank is the only thing here that touches the sim;
+   * the rest is the reason the player cares which squad takes the losses.
+   */
+  private showRecord(slot: number): void {
+    if (this.overlay) return;
+    const record = squadRoster(this.town)[slot] ?? { xp: 0, raids: 0, clears: 0, lost: 0 };
+    const rank = rankFor(record.xp);
+    const up = nextRank(record.xp);
+    const ov = new Overlay(this, this.layout, {
+      title: squadName(this.town.faction, slot),
+      subtitle: `${rank.name} — ${rank.tag}`,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { font } = this.layout;
+    const bump = Math.round((rank.mult - 1) * 100);
+    ov.paragraph(
+      `Raids ${record.raids}  ·  Posts taken ${record.clears}  ·  Lost ${record.lost}` +
+        `\nExperience ${record.xp}` +
+        (up ? `  ·  ${up.at - record.xp} to ${up.name}` : '  ·  top of the ladder') +
+        `\nIn the field: ${bump > 0 ? `+${bump}% health and damage` : 'no bonus yet'}`,
+      font.body,
+      COLORS.olive,
+      { center: true },
+    );
+    ov.paragraph(
+      'Experience lives in the men. A formation that comes back whole keeps ' +
+        'everything it learned; one that loses half its strength loses half of ' +
+        'what it knew, because the half that knew it did not come back. Wipe a ' +
+        'squad out and the name goes on a fresh set of replacements.',
+      font.tiny,
+      COLORS.inkDim,
+      { center: true },
+    );
+    ov.footer('CLOSE', () => {
+      ov.close();
+      this.overlay = null;
+    });
+  }
+
   private showResult(res: RaidResolution, standingBefore = this.town.frontline.standing): void {
     const lossLine = Object.entries(res.losses)
       .map(([kind, n]) => `${n}× ${this.trainMeta[kind]?.short ?? kind}`)
@@ -492,6 +572,7 @@ export class RaidScene extends Phaser.Scene {
       `Destruction: ${Math.round(res.destructionPct * 100)}%   Duration: ${Math.floor(res.ticks / 20)}s`,
       `Loot: +${res.loot.supplies} SUP  +${res.loot.fuel} FUEL`,
       lossLine ? `Losses: ${lossLine}` : 'Losses: none',
+      ...(this.squadReport ?? []),
       ...(ordnanceLine ? [`Ordnance expended: ${ordnanceLine}`] : []),
       res.cleared
         ? `Front Line: ${this.town.frontline.wins}/3 to next tier` +
@@ -645,6 +726,7 @@ export class RaidScene extends Phaser.Scene {
       case 'squads': {
         const squad = this.squads[this.selectedSquad]!;
         const rows: PanelRow[] = [{ id: 'h', label: 'SQUADS — pick one, then add units', heading: true }];
+        const roster = squadRoster(this.town);
         this.squads.forEach((sq, i) => {
           const count = Object.values(sq.units).reduce((a, b) => a + b, 0);
           const composition = this.trainable
@@ -653,10 +735,11 @@ export class RaidScene extends Phaser.Scene {
             .join(' ');
           const entry = sq.tunnel !== undefined ? 'TUN' : sq.sector;
           const delay = i * 6 + (sq.tunnel !== undefined ? TUNNEL_DIG_TICKS / 20 : 0);
+          const rank = rankFor(roster[slotOf(sq, i)]?.xp ?? 0);
           rows.push({
             id: `squad_${i}`,
-            label: `SQD${i + 1} ${entry} · ${DOCTRINE_LABEL[sq.doctrine]} · ${count ? composition : 'EMPTY'}`,
-            sub: `T+${delay}s`,
+            label: `${squadName(this.town.faction, slotOf(sq, i))} ${entry} · ${DOCTRINE_LABEL[sq.doctrine]} · ${count ? composition : 'EMPTY'}`,
+            sub: `${rank.short} · T+${delay}s`,
             active: i === this.selectedSquad,
             onTap: () => {
               this.selectedSquad = i;
@@ -665,7 +748,17 @@ export class RaidScene extends Phaser.Scene {
           });
         });
         rows.push(
-          { id: 'h2', label: `SQUAD ${this.selectedSquad + 1} ORDERS`, heading: true },
+          {
+            id: 'h2',
+            label: `${squadName(this.town.faction, this.selectedSquad)} — ORDERS`,
+            heading: true,
+          },
+          {
+            id: 'record',
+            label: `RANK: ${rankFor(roster[this.selectedSquad]?.xp ?? 0).name}`,
+            sub: recordSub(roster[this.selectedSquad]),
+            onTap: () => this.showRecord(this.selectedSquad),
+          },
           {
             id: 'sector',
             label:

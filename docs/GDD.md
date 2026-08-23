@@ -308,6 +308,32 @@ everything possible, race the Command Center), **Raze Economy** (target depots/s
 Powers get auto-trigger rules from a small predicate list. The plan is saved with the replay,
 so you can iterate on a failed plan directly.
 
+### 5.6a Veterancy and named squads *(v1.9)*
+
+The three raid slots are three **standing formations** with call signs (HAMMER, RONIN and
+TALON for the USA; a set per faction) and a file: raids run, posts taken, men lost, and a
+rank — **GREEN → LINE → VETERAN → CADRE**, worth at most +15% health and damage.
+
+One rule carries the system: **experience lives in the men**, so it leaves with the ones
+who don't come back. Each raid a formation's experience becomes `(experience + lesson) ×
+survival fraction` — a squad that comes back whole banks everything, one that loses half
+its strength loses half of what it knew, and a wipe puts the name on a fresh set of
+replacements. The lesson itself is `max(1, tier) × 6`, ×1.5 for a cleared post; experience
+caps a little above cadre so the top rank can absorb one bad afternoon but not a war's
+worth of insurance against being thrown away.
+
+The rank is deliberately small. It is an edge, not a substitute for bringing enough people,
+and it pays in the one currency that compounds: veterans lose fewer men, and the men are
+the experience. The balance harness's per-faction `VETERANCY` matrix (`npm run balance --
+--vet`) enforces exactly that reading — the share of the force that walks home has to rise
+with rank; the clear rate does not have to.
+
+Deterministically, veterancy is a per-squad attacker multiplier baked into the wave at
+launch, so a replay re-fights the raid with the formation that actually went out rather
+than the one promoted or gutted since. Squads carry an explicit slot because the launcher
+drops empty ones from the plan — without it, the third formation would come home as the
+second and inherit a stranger's record.
+
 ### 5.7 Offline probes
 
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).

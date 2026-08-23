@@ -17,6 +17,32 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.9: the men who came back
+
+**The loss line in a raid report was a number.** Now it has names attached to
+it, and a price.
+
+- **Three formations, not three slots.** The raid planner's squads are standing
+  units with call signs — HAMMER, RONIN and TALON for the USA, a set per
+  faction — and each one carries a file: raids, posts taken, men lost, and a
+  rank.
+- **GREEN → LINE → VETERAN → CADRE**, worth at most +15% health and damage. A
+  rank is an edge, not a substitute for bringing enough people; the balance
+  harness's per-faction `VETERANCY` matrix is what keeps it that way.
+- **Experience lives in the men.** That single rule is the whole feature: a
+  formation's file scales by its survival fraction every raid, so a squad that
+  comes back whole keeps everything it learned, one that loses half its
+  strength loses half of what it knew, and a wipe puts the name on a fresh set
+  of replacements. It also means the rank pays for itself in the only currency
+  that matters — veterans lose fewer men, and the men are the experience.
+- **The sim can finally say who came back.** `SimConfig.mods.attacker` was
+  battle-wide, so a wave entry now carries its squad and that squad's
+  multiplier. A resolution reports per-formation returns, which is what puts
+  `HAMMER 6/8 back · LN → VET` in the battle report.
+- **Slots are explicit, and that is not a detail.** The launcher drops empty
+  squads from the plan, so without an explicit slot the third formation would
+  come home as the second and inherit a stranger's experience.
+
 ## Current state — v1.8: something to listen to
 
 **The game had fourteen sound effects and no music at all.** It has a score
@@ -495,10 +521,12 @@ npm run dev        # the game (faction pick → town → missions/raids loop)
                    # add &faction=china|russia|nk|un to demos for the other wars
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, leagues, conditions,
-                   # archetypes, the coach, the score, share codes, determinism)
+                   # archetypes, the coach, the score, veterancy, share codes,
+                   # determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
-                   # or -- --shapes for the eight base archetypes)
+                   # -- --shapes for the eight base archetypes, or
+                   # -- --vet [faction] for the veterancy ranks)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
@@ -511,6 +539,7 @@ node scripts/e2e-share.mjs           # code out, code in, duel fought
 node scripts/e2e-league.mjs          # standing overlay + a full condition rotation
 node scripts/e2e-tutorial.mjs        # the coach: taught once, and never again
 node scripts/e2e-boot.mjs            # boot card under throttling + the single file
+node scripts/e2e-vet.mjs             # named formations, their files, and who came back
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
@@ -559,7 +588,8 @@ src/sim/         Pure-TS deterministic simulation (no Phaser imports):
                  combat resolution, structure levels, seeded PRNG, state hashing
 src/content/     Data, not code: damage table, both factions' defenses, armies,
                  campaigns, base kits, league bands, the rotating field
-                 conditions, and the faction switch (factions.ts)
+                 conditions, the veterancy ranks, and the faction switch
+                 (factions.ts)
 src/meta/        The persistent layer: town state (timers, accrual, gating,
                  wrecks), the siege bridge, warfare/raids, the league ladder
                  (standing, decay, seasons), share codes, versioned saves
@@ -569,10 +599,11 @@ src/game/        Phaser 3 presentation: responsive layout + board camera rig,
 src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
                  assault ladder, doctrines, warfare, factions, leagues,
-                 field conditions, share codes, determinism
+                 field conditions, veterancy, share codes, determinism
 scripts/         Playwright harnesses that drive the real build by button
                  label: first-run flow, menu, touch gestures, raids, share
-                 codes, the league board and the condition rotation
+                 codes, the league board and the condition rotation, the
+                 coach, the boot card, and the squad roster
 ```
 
 **Architecture rule:** `src/sim` never imports Phaser. Same seed + same commands ⇒

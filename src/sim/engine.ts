@@ -60,6 +60,10 @@ export interface Attacker {
   lastDir: Vec2;
   /** Behavior program: what this unit walks toward and melees. */
   doctrine: Doctrine;
+  /** Raid squad that sent it, or -1. Read by the resolution, not the sim. */
+  squad: number;
+  /** Damage multiplier: config-wide attacker mods × this squad's veterancy. */
+  damageMult: number;
   /** Current doctrine target (a structure id; the CC by default). */
   targetId: number;
   /** Perimeter cells of the current target — the path goals. */
@@ -371,7 +375,14 @@ export class Engine {
       while (this.spawnCursor < wave.length && wave[this.spawnCursor]!.atTick <= this.waveTick) {
         const entry = wave[this.spawnCursor++]!;
         const column = entry.col ?? this.config.spawnColumn;
-        this.spawnAttackerAt(this.grid.idx(column, entry.row), entry.kind, events, entry.doctrine);
+        this.spawnAttackerAt(
+          this.grid.idx(column, entry.row),
+          entry.kind,
+          events,
+          entry.doctrine,
+          entry.squad ?? -1,
+          entry.vet ?? 1,
+        );
       }
       this.waveTick++;
 
@@ -438,6 +449,8 @@ export class Engine {
     kind: string,
     events: SimEvent[],
     doctrine: Doctrine = 'assault',
+    squad = -1,
+    vet = 1,
   ): boolean {
     const profile = this.catalog.attackers[kind];
     if (!profile || !this.grid.inBounds(cell)) return false;
@@ -447,7 +460,7 @@ export class Engine {
     const jitter = profile.speedJitter;
     const speed = profile.speed * (1 + rollRange(this.rng, -jitter, jitter));
     const pos = this.grid.centerOf(cell);
-    const maxHp = profile.maxHp * this.atkHpMult;
+    const maxHp = profile.maxHp * this.atkHpMult * vet;
     const attacker: Attacker = {
       id: this.nextId++,
       profile,
@@ -458,6 +471,8 @@ export class Engine {
       prevPos: { ...pos },
       lastDir: { x: 0, y: 0 },
       doctrine,
+      squad,
+      damageMult: this.atkDamageMult * vet,
       targetId: -1, // resolved by doctrine on the first update
       goalCells: this.goalCells,
       path: null,
@@ -1077,7 +1092,7 @@ export class Engine {
         const from = this.grid.cellAt(attacker.pos);
         const result = findPath(this.pathView, from, attacker.goalCells, {
           speed: attacker.speed,
-          wallDps: attacker.profile.wallDps * this.atkDamageMult,
+          wallDps: attacker.profile.wallDps * attacker.damageMult,
         });
         attacker.path = result ? result.cells : null;
         attacker.pathIndex = result && result.cells.length > 1 ? 1 : 0;
@@ -1107,7 +1122,7 @@ export class Engine {
             attacker.weaponCooldown = 1 / weapon.shotsPerSecond;
             this.damageStructure(
               engageTarget,
-              weapon.damage * this.atkDamageMult,
+              weapon.damage * attacker.damageMult,
               weapon.damageType,
               attacker.profile.name,
             );
@@ -1133,7 +1148,7 @@ export class Engine {
           (target === this.cc
             ? attacker.profile.hqDps
             : Math.max(attacker.profile.hqDps, attacker.profile.wallDps)) *
-          this.atkDamageMult;
+          attacker.damageMult;
         const before = target.hp;
         target.hp -= dps * DT;
         if (target === this.cc && before > 0 && target.hp <= 0) {
@@ -1150,7 +1165,7 @@ export class Engine {
         const wall = this.grid.wallAt(targetCell);
         if (wall) {
           attacker.state = 'breaking';
-          if (this.grid.damageWall(targetCell, attacker.profile.wallDps * this.atkDamageMult * DT)) {
+          if (this.grid.damageWall(targetCell, attacker.profile.wallDps * attacker.damageMult * DT)) {
             this.stats.wallsLost++;
             this.lastBreachCell = targetCell;
             events.push({ type: 'wallDestroyed', cell: targetCell });
@@ -1161,7 +1176,7 @@ export class Engine {
         if (blocker && blocker.profile.blocks && blocker.hp > 0) {
           attacker.state = 'breaking';
           // Demolition ignores armor.
-          blocker.hp -= attacker.profile.wallDps * this.atkDamageMult * DT;
+          blocker.hp -= attacker.profile.wallDps * attacker.damageMult * DT;
           break;
         }
 
@@ -1226,7 +1241,7 @@ export class Engine {
           attacker.weaponCooldown = 1 / weapon.shotsPerSecond;
           this.damageStructure(
             engageTarget,
-            weapon.damage * this.atkDamageMult,
+            weapon.damage * attacker.damageMult,
             weapon.damageType,
             attacker.profile.name,
           );
@@ -1251,7 +1266,7 @@ export class Engine {
       const dps =
         (target === this.cc
           ? attacker.profile.hqDps
-          : Math.max(attacker.profile.hqDps, attacker.profile.wallDps)) * this.atkDamageMult;
+          : Math.max(attacker.profile.hqDps, attacker.profile.wallDps)) * attacker.damageMult;
       const before = target.hp;
       target.hp -= dps * DT;
       if (target === this.cc && before > 0 && target.hp <= 0) {

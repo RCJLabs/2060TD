@@ -194,6 +194,18 @@ export interface WaveEntry {
   col?: number;
   /** Behavior program; defaults to assault. */
   doctrine?: Doctrine;
+  /**
+   * Which raid squad sent this unit (index into the plan). Carried through so
+   * a resolution can report per-squad returns; -1 / omitted for anything that
+   * is not a planned raid (sieges, probes, sandbox spawns).
+   */
+  squad?: number;
+  /**
+   * Veterancy multiplier for this unit's HP and damage (content/veterancy.ts).
+   * Stacks on top of the config-wide attacker mods, because those are research
+   * and the weather — this one is the squad. Omit for 1.
+   */
+  vet?: number;
 }
 
 export interface WaveDef {
