@@ -345,11 +345,16 @@ there is deliberately no sixth faction here.
       coach costs seconds, not progress). The planner explains its four tabs
       once on first arrival. One-shot screens are recorded per war and
       REPLAY BRIEFINGS in settings makes them first contact again.*
-- [ ] **Deep Front Line** — 8–10 wall templates instead of 3, plus base
-      ARCHETYPES that change the problem rather than the numbers: bunker
-      complex, dispersed depot, mountain pass. Tier 8 should be a different
-      puzzle, not tier 2 with more HP — and since v1.3 the ladder is the
-      endgame.
+- [x] **Deep Front Line** *(v1.6)* — *eight archetypes instead of three wall
+      templates, each a different question rather than the same one louder:
+      COMPOUND, OPEN CAMP, CORRIDOR, STAR FORT, DISPERSED DEPOT, STRONGPOINTS,
+      KEEP, BUNKER COMPLEX. A shape sets its own wall plan, gun count, economy
+      and structure level, unlocks with depth, and the three targets at any
+      tier are always three DIFFERENT shapes — a choice between identical
+      problems is not a choice. The shape is free intel; the layout still costs
+      Intel. A new ARCHETYPES matrix in the balance harness enforces the design
+      rule (spread, and no walls at a tier where a shape is offered) and
+      overturned the obvious bunker design — see docs/BALANCE.md.*
 - [ ] **Music and a real mixer** — ambient loops per scene and separate
       MUSIC/SFX volume. Today: 14 procedural SFX, zero music, one on/off.
       This is the one M6 line item that never fully landed.

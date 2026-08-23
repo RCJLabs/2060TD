@@ -12,7 +12,13 @@
  */
 import { writeFileSync } from 'node:fs';
 import { buildAssault } from '../content/assaults';
-import { generateBase, MAP_W, type GeneratedBase } from '../content/bases';
+import {
+  generateBase,
+  ARCHETYPES,
+  MAP_W,
+  type ArchetypeId,
+  type GeneratedBase,
+} from '../content/bases';
 import {
   baseKitFor,
   defenseCatalogFor,
@@ -184,6 +190,7 @@ function raidMatrix(
   support?: RaidSupport,
   tunneled = false,
   plansOverride?: SquadPlan[],
+  shape?: ArchetypeId,
 ): RaidRow[] {
   const catalog = raidCatalogFor(faction);
   const kit = baseKitFor(faction);
@@ -197,7 +204,7 @@ function raidMatrix(
     let deployedMp = 0;
     let runs = 0;
     for (let variant = 0; variant < VARIANTS; variant++) {
-      const base = generateBase(tier, variant, kit);
+      const base = generateBase(tier, variant, kit, shape);
       const squads =
         plansOverride ?? (tunneled ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction]);
       for (let i = 0; i < SEEDS; i++) {
@@ -404,6 +411,51 @@ const FORTIFY_MODS: DefenderMods = { wallHp: 1.15, weaponDamage: 1.12 };
  * the ordering they produce is the same everywhere; running all five would
  * quadruple the harness for a table that says the same thing five times.
  */
+/**
+ * The eight ladder shapes measured against the SAME force at the SAME tiers.
+ *
+ * The point of an archetype is that it asks a different question, not that it
+ * asks the same one louder — so what this table has to show is spread. A row
+ * that lands on the compound baseline is a shape that is not doing anything,
+ * and a row at 0 or 100 across the board is a wall or a walkover rather than a
+ * choice. Loot moves with it: the soft shapes carry more economy, so an easy
+ * clear pays for itself and a hard one has to be worth the army.
+ */
+function archetypeTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  const lines = [
+    `ARCHETYPES — ${flavor.faction} strike force (${planManpower(faction)} MP), clear% by tier`,
+    `SHAPE        | FROM | ${RAID_TIERS.map((t) => pad(`T${t}`, 4)).join(' | ')} |  MEAN | DESTR% | MP LOST%`,
+    `-------------+------+${RAID_TIERS.map(() => '------').join('+')}+-------+--------+---------`,
+  ];
+  const withDoctrine = new Set<ArchetypeId>(['bunker', 'star', 'depot']);
+  for (const arch of ARCHETYPES) {
+    const rows = raidMatrix(faction, undefined, false, undefined, arch.id);
+    const clears = rows.map((r) => r.clearPct);
+    const mean = clears.reduce((a, b) => a + b, 0) / clears.length;
+    const destr = rows.reduce((a, r) => a + r.destructionPct, 0) / rows.length;
+    const loss = rows.reduce((a, r) => a + r.lossPct, 0) / rows.length;
+    lines.push(
+      `${arch.name.padEnd(12)} | ${pad(arch.fromTier, 4)} | ${clears.map((c) => pad(c, 4)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(destr.toFixed(0), 6)} | ${pad(loss.toFixed(0), 8)}`,
+    );
+    // The shapes that stop the reference force get a second row with the
+    // doctrine ceiling behind them: a shape you have to prepare for is a
+    // shape; a shape nothing opens is a wall.
+    if (withDoctrine.has(arch.id)) {
+      const armed = raidMatrix(faction, DOCTRINE_SUPPORT, false, undefined, arch.id);
+      const ac = armed.map((r) => r.clearPct);
+      const am = ac.reduce((a, b) => a + b, 0) / ac.length;
+      lines.push(
+        `  └ prepared | ${pad('', 4)} | ${ac.map((c) => pad(c, 4)).join(' | ')} | ` +
+          `${pad(am.toFixed(1), 5)} | ${pad((armed.reduce((a, r) => a + r.destructionPct, 0) / armed.length).toFixed(0), 6)} | ` +
+          `${pad((armed.reduce((a, r) => a + r.lossPct, 0) / armed.length).toFixed(0), 8)}`,
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
 function conditionTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const baseline = raidMatrix(faction).map((r) => r.clearPct);
@@ -434,6 +486,11 @@ function main(): void {
   const sections: string[] = [];
   // Tuning the rotation means running one table twenty times, not the whole
   // harness twenty times: `npm run balance -- --conditions` is that loop.
+  if (process.argv.includes('--shapes')) {
+    console.log(archetypeTable('usa'));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--conditions')) {
     console.log(conditionTable('usa'));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -491,6 +548,7 @@ function main(): void {
       ),
     );
   }
+  sections.push(archetypeTable('usa'));
   sections.push(conditionTable('usa'));
   for (const faction of FACTION_IDS) {
     sections.push(defenseTable(faction, defenseMatrix(faction)));
@@ -544,7 +602,7 @@ function main(): void {
 
   if (process.argv.includes('--md')) {
     const md = [
-      '# Balance snapshot (v1.3)',
+      '# Balance snapshot (v1.6)',
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -605,6 +663,19 @@ function main(): void {
       '  the real ordnance stock and TRIPWIRE is the budget option — the NK section compares',
       '  all three. Orders cost supplies upkeep per action and every probe replay re-issues',
       '  them from the config.',
+      '- **Base archetypes (v1.6) are eight different questions**, and the ARCHETYPES table',
+      '  is what keeps them that way: the shapes have to SPREAD, and none of them may be a',
+      '  wall at a tier where it is actually offered. The band runs OPEN CAMP 99% (the',
+      '  breather) through COMPOUND 94% (the baseline) to BUNKER COMPLEX 71% (33% at the',
+      '  tier it first appears). Prepared rows sit under the three hardest so a shape that',
+      '  stops the reference force can be shown to open for a force that planned for it.',
+      '- **The bunker complex overturned the obvious design.** "Few walls, many guns" was',
+      '  built as more guns and a level deeper, and measured 0% clears at tiers 4 AND 5 —',
+      '  with the doctrine ceiling behind the force. The cause is structural: with no wall',
+      '  line there is no breach to wait for, so every gun engages from the first second.',
+      '  An open base is harder at the SAME gun count, which means the multiplier has to',
+      '  come down. It ships at 0.65× guns, one level deeper: fewest positions on the',
+      '  board, best dug, and the hardest thing on it that can still be taken.',
       '- **Field conditions (v1.3) are trades, not buffs**, and the FIELD CONDITIONS table is',
       '  what enforces that: the pay must rise with the measured difficulty. The rotation lands',
       '  on ±9 points of clear rate around CLEAR LINE — HARD RAIN is the walkover that pays 0.85×,',

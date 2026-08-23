@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
-import { MAP_H, MAP_W, TARGETS_PER_TIER, type GeneratedBase } from '../../content/bases';
+import {
+  ARCHETYPE_BY_ID,
+  MAP_H,
+  MAP_W,
+  TARGETS_PER_TIER,
+  type GeneratedBase,
+} from '../../content/bases';
 import { conditionAt } from '../../content/conditions';
 import { COACH_KEYS } from '../../content/tutorial';
 import { hasSeen, markSeen } from '../../meta/coach';
@@ -557,6 +563,7 @@ export class RaidScene extends Phaser.Scene {
         }
         const condition = conditionAt(now);
         const league = leagueOf(town);
+        const shape = ARCHETYPE_BY_ID[this.base.archetype];
         const blacked = condition.blackout === true && !scouted;
         return [
           {
@@ -566,10 +573,15 @@ export class RaidScene extends Phaser.Scene {
           },
           {
             id: 'target',
+            // The SHAPE is free; the layout still costs Intel. Knowing which
+            // of three targets is a bunker complex and which is an open camp
+            // is the choice the archetypes exist to create.
             label: `TARGET ${this.variant + 1}/${TARGETS_PER_TIER}`,
-            sub: 'NEXT ▸',
+            sub: `${shape.short} ▸`,
             onTap: () => this.cycleTarget(),
           },
+          { id: 'shape', label: shape.name, heading: true },
+          { id: 'shapetag', label: shape.tag, heading: true },
           {
             id: 'scout',
             label: blacked

@@ -272,6 +272,9 @@ export function baseFromShare(shared: SharedBase): GeneratedBase {
     ccLevel: shared.ccLevel,
     walls: shared.walls,
     structures: shared.structures,
+    // A friend's base is whatever they built; it is not one of the ladder's
+    // shapes, and nothing reads the archetype for a duel.
+    archetype: 'compound',
   };
 }
 

@@ -105,9 +105,35 @@ the writing does the work.
 ### The Front Line (endless ladder)
 
 A war map of AI bases in escalating difficulty tiers (DEFCON-style ranks). Raiding advances
-your position; between raids, counter-siege defense events target your base. Handcrafted base
-templates + procedural mutation keep layouts fresh. Standing, leagues and the daily condition
-rotation ride on top of the ladder — see 5.8.
+your position; between raids, counter-siege defense events target your base. Standing, leagues
+and the daily condition rotation ride on top of the ladder — see 5.8; the shapes of the bases
+themselves are in 5.9.
+
+### Base archetypes *(v1.6)*
+
+Eight shapes, each posing a different question rather than the same question with more hit
+points. A shape decides its own wall plan, how many guns it gets relative to the tier
+baseline, how much economy (and therefore how much loot), and whether it is built a level
+deeper.
+
+| Shape | From tier | What it is |
+|---|---|---|
+| COMPOUND | 1 | Walled rectangle, two or three gates. The standard problem. |
+| OPEN CAMP | 1 | Barely wired and thinly gunned. A breather, not a payday. |
+| CORRIDOR | 1 | Two offset wall lines: one way in, and it is long. |
+| STAR FORT | 2 | Diamond wall with two breaches; every approach enfiladed. |
+| DISPERSED DEPOT | 3 | Stores in four corner pens, each with its own gun. Killing the post barely dents the score. |
+| STRONGPOINTS | 3 | Four small pens, one holding the post. Split up or be picked apart. |
+| KEEP | 4 | Two concentric rings with opposite gates; everything covers everything. |
+| BUNKER COMPLEX | 5 | No wire and few positions, each dug a level deeper. The hardest thing on the board. |
+
+Shapes unlock with depth, and the three targets offered at any tier are always three
+**different** shapes — a choice between identical problems is not a choice. Which shape a
+target is comes free with the target list: knowing you are looking at a bunker complex is the
+decision the archetypes exist to create. The **layout** still costs Intel.
+
+The generator is deterministic in `(tier, variant)`, so scouting, raiding and replaying always
+agree about the world.
 
 ---
 

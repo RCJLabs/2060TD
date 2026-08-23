@@ -17,6 +17,36 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.6: eight kinds of problem
+
+**Tier 8 is no longer tier 2 with more hit points.** The Front Line generator
+had three wall templates; it now has eight archetypes, and a shape decides its
+own wall plan, gun count, economy and structure level:
+
+| Shape | From | What it is |
+|---|---|---|
+| COMPOUND | 1 | Walled rectangle, two or three gates. The standard problem. |
+| OPEN CAMP | 1 | Barely wired, thinly gunned. A breather, not a payday. |
+| CORRIDOR | 1 | Two offset wall lines: one way in, and it is long. |
+| STAR FORT | 2 | Diamond wall, two breaches, every approach enfiladed. |
+| DISPERSED DEPOT | 3 | Stores in four corner pens with their own guns. Killing the post barely dents the score. |
+| STRONGPOINTS | 3 | Four small pens, one holding the post. |
+| KEEP | 4 | Two rings, opposite gates, everything covering everything. |
+| BUNKER COMPLEX | 5 | No wire, few positions, each dug a level deeper. |
+
+- **The three targets at any tier are always three different shapes.** A choice
+  between identical problems is not a choice.
+- **The shape is free; the layout still costs Intel.** Knowing you are looking
+  at a bunker complex is the decision archetypes exist to create — knowing
+  where its guns are is still recon.
+- **The harness overturned the obvious bunker design.** "Few walls, many guns"
+  was built as *more* guns dug a level deeper and measured **0% clears at tiers
+  4 and 5**, with the doctrine ceiling behind the force. The cause is
+  structural: with no wall line there is no breach to wait for, so every gun
+  engages from the first second. An open base is harder at the *same* gun
+  count. It ships at 0.65× guns, one level deeper — the fewest positions on the
+  board, the best dug, and the hardest thing on it that can still be taken.
+
 ## Current state — v1.5: first contact
 
 **The game no longer expects you to work it out.** A coach runs over the first
@@ -419,7 +449,8 @@ npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, leagues, conditions,
                    # share codes, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
-                   # or -- --conditions for just the field-condition rotation)
+                   # -- --conditions for the field-condition rotation alone,
+                   # or -- --shapes for the eight base archetypes)
 npm run build      # typecheck + production build
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
 node scripts/e2e-flow.mjs            # first-run flow, desktop

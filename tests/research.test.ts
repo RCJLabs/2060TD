@@ -117,8 +117,12 @@ describe('engine mods', () => {
 });
 
 describe('raid fire support', () => {
+  // An armour escort, because the assertion below is about whether ordnance
+  // reaches structures — and two riflemen never break a tier-1 gun line, on
+  // any of the ladder's shapes. Measured: 43-57% destruction with the tank,
+  // a flat 0% without it.
   const squads: SquadPlan[] = [
-    { units: { ranger: 2 }, sector: 'W1', doctrine: 'assault' },
+    { units: { ranger: 4, abrams: 1 }, sector: 'W1', doctrine: 'assault' },
   ];
 
   it('auto-powers strike structures, spend charges, and stay deterministic', () => {
@@ -138,7 +142,7 @@ describe('raid fire support', () => {
     expect(second).toEqual(first);
     expect(first.powersUsed['arty']).toBe(1);
     expect(first.powersUsed['a10']).toBe(1);
-    // A 155 on the command post plus a two-ranger escort beats tier 1.
+    // A 155 on the post, a gun run on the line, and armour to walk in behind.
     expect(first.destructionPct).toBeGreaterThan(0);
   });
 
@@ -152,6 +156,7 @@ describe('raid fire support', () => {
       ccLevel: 1,
       walls: [],
       structures: [],
+      archetype: 'compound' as const,
     };
     const config = raidConfig(bare, squads, 7, trainableFor('usa'), {
       powerCharges: { arty: 1 },
