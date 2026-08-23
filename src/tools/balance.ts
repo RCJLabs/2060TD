@@ -80,6 +80,39 @@ const RAID_PLANS: Record<FactionId, SquadPlan[]> = {
   ],
 };
 
+/**
+ * The v1.0 air thesis, offense side: roughly the same manpower, flown. Two
+ * squads of rotors and a small ground tail, so the run still has something
+ * to hold ground while the air layer works.
+ */
+const AIR_RAID_PLANS: Record<FactionId, SquadPlan[]> = {
+  usa: [
+    { units: { reaper: 2 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { reaper: 2 }, sector: 'N1', doctrine: 'assault' },
+    { units: { ranger: 2, engineer: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  china: [
+    { units: { wz10: 2 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { wz10: 2 }, sector: 'N1', doctrine: 'assault' },
+    { units: { rifle: 2, sapper: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  russia: [
+    { units: { ka52: 2 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { ka52: 1 }, sector: 'N1', doctrine: 'assault' },
+    { units: { motorrifle: 2, demoteam: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  nk: [
+    { units: { an2: 4 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { an2: 4 }, sector: 'N1', doctrine: 'assault' },
+    { units: { nkrifle: 3, tunneler: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  un: [
+    { units: { nh90: 2 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { nh90: 2 }, sector: 'N1', doctrine: 'assault' },
+    { units: { peacekeeper: 2, unsapper: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+};
+
 /** Deterministic gallery head for a base: the first valid site among fixed
  * offsets from the command post, east side first (behind most wall lines). */
 function nkTunnelCell(base: GeneratedBase): number | undefined {
@@ -372,6 +405,12 @@ function main(): void {
   // UN defense experiment: the Engineer Corps HQ parked behind the post,
   // its repair aura over the CC and the inner guns.
   const UN_ENG_BAY: LayoutStructure[] = [{ cell: idx(29, 11), kind: 'engBay', level: 1 }];
+  // Air cover for the reference line: one mount forward of the wall, one over
+  // the command post, which is what a player would actually build.
+  const AA_COVER: LayoutStructure[] = [
+    { cell: idx(24, 11), kind: 'aa', level: 2 },
+    { cell: idx(29, 12), kind: 'aa', level: 2 },
+  ];
 
   for (const faction of FACTION_IDS) {
     sections.push(raidTable(faction, raidMatrix(faction)));
@@ -400,6 +439,14 @@ function main(): void {
     sections.push(
       raidTable(faction, raidMatrix(faction, DOCTRINE_SUPPORT), ' — STRIKE doctrine + fire plan'),
     );
+    // The air thesis: the maze is irrelevant, the mounts are not.
+    sections.push(
+      raidTable(
+        faction,
+        raidMatrix(faction, undefined, false, AIR_RAID_PLANS[faction]),
+        ' — AIR RAID (rotors + a ground tail)',
+      ),
+    );
   }
   for (const faction of FACTION_IDS) {
     sections.push(defenseTable(faction, defenseMatrix(faction)));
@@ -409,6 +456,11 @@ function main(): void {
         defenseMatrix(faction, undefined, [], STANDING_ORDERS.holdfast),
         ' — HOLDFAST standing orders',
       ),
+    );
+    // The defense side of the air thesis: the same ladder, with two mounts
+    // that can elevate added to the reference line.
+    sections.push(
+      defenseTable(faction, defenseMatrix(faction, undefined, AA_COVER), ' — WITH AA COVER'),
     );
     if (faction === 'nk') {
       // The weakest floor gets the full preset comparison.

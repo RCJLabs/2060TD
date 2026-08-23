@@ -266,7 +266,7 @@ export const SILENT_TUNNELS: MissionDef[] = [
       },
     ],
     siegeOverrides: { suppliesPerWave: 120, startingCp: 60 },
-    unlocks: ['arty', 'cc3', 'motorpool'],
+    unlocks: ['arty', 'cc3', 'motorpool', 'aa', 'airfield'],
     unlockNote: 'REQUISITION: KN-09 SALVO · HQ LEVEL 3 · ARMOR CAVE',
     reward: { supplies: 1100, fuel: 280 },
     bonus: { id: 'ccAbove90', label: 'ABOVE AND BELOW — HQ above 90%' },

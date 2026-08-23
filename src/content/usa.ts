@@ -45,10 +45,52 @@ export const USA_STRUCTURES: Record<string, StructureProfile> = {
     blocks: true,
     targetable: true,
     supplyCost: 100,
-    weapon: { damageType: 'kinetic', damage: 22, shotsPerSecond: 1.6, range: 5.5 },
+    weapon: { damageType: 'kinetic', damage: 22, shotsPerSecond: 1.6, range: 5.5  },
     levels: [
-      { maxHp: 380, weapon: { damageType: 'kinetic', damage: 29, shotsPerSecond: 1.6, range: 5.5 } },
-      { maxHp: 470, weapon: { damageType: 'kinetic', damage: 37, shotsPerSecond: 1.6, range: 5.5 } },
+      { maxHp: 380, weapon: { damageType: 'kinetic', damage: 29, shotsPerSecond: 1.6, range: 5.5  } },
+      { maxHp: 470, weapon: { damageType: 'kinetic', damage: 37, shotsPerSecond: 1.6, range: 5.5  } },
+    ],
+  },
+  aaSite: {
+    kind: 'aaSite',
+    name: 'M1097 Avenger',
+    maxHp: 240,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    // Firebase air cover: it watches the sky and nothing else.
+    weapon: { damageType: 'flak', damage: 52, shotsPerSecond: 0.9, range: 7.0, targets: 'air' },
+    levels: [
+      { maxHp: 300, weapon: { damageType: 'flak', damage: 66, shotsPerSecond: 0.9, range: 7.0, targets: 'air' } },
+      { maxHp: 370, weapon: { damageType: 'flak', damage: 82, shotsPerSecond: 0.95, range: 7.4, targets: 'air' } },
+    ],
+  },
+  manpads: {
+    kind: 'manpads',
+    name: 'Stinger Team',
+    maxHp: 90,
+    footprint: 1,
+    blocks: false,
+    targetable: true,
+    cpCost: 24,
+    // Two men and a tube: no help at all against the ground, and the only
+    // thing a commander can put up once the rotors are already inbound.
+    weapon: { damageType: 'flak', damage: 62, shotsPerSecond: 0.7, range: 5.5, targets: 'air' },
+  },
+  aa: {
+    kind: 'aa',
+    name: 'FIM-92 Stinger Site',
+    maxHp: 220,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    supplyCost: 140,
+    // Missiles: by far the longest reach in the war. It can depress onto
+    // infantry, and the flak column makes sure that is a waste of a warhead.
+    weapon: { damageType: 'flak', damage: 58, shotsPerSecond: 0.75, range: 7.5, targets: 'both' },
+    levels: [
+      { maxHp: 280, weapon: { damageType: 'flak', damage: 74, shotsPerSecond: 0.75, range: 7.5, targets: 'both' } },
+      { maxHp: 350, weapon: { damageType: 'flak', damage: 92, shotsPerSecond: 0.8, range: 8.0, targets: 'both' } },
     ],
   },
   mortar: {

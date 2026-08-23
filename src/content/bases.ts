@@ -15,6 +15,12 @@ export const TARGETS_PER_TIER = 3;
 export interface BaseKit {
   /** Tower kinds by role: [basic anti-infantry, area denial, anti-armor]. */
   towers: [string, string, string];
+  /**
+   * The mount that can elevate (v1.0) — what makes an air raid a fight. It is
+   * a dedicated air asset: a compound's air cover must not double as a quiet
+   * ground-defence buff on every base in the ladder.
+   */
+  aa: string;
   cache: string;
   dump: string;
 }
@@ -22,6 +28,7 @@ export interface BaseKit {
 /** China's Front Line kit (the default: USA raids China). */
 export const CHINA_BASE_KIT: BaseKit = {
   towers: ['hmgTower', 'qlzTower', 'atgmTower'],
+  aa: 'aaSite',
   cache: 'supplyCache',
   dump: 'fuelDump',
 };
@@ -30,6 +37,7 @@ export const CHINA_BASE_KIT: BaseKit = {
  * two per compound before then erased PLA infantry raids outright (M5 pass). */
 export const USA_BASE_KIT: BaseKit = {
   towers: ['m2nest', 'autocannon', 'mortar'],
+  aa: 'aaSite',
   cache: 'supplyDepot',
   dump: 'fuelDepot',
 };
@@ -100,7 +108,11 @@ export function generateBase(
     const cells = big ? footprint2(origin) : [origin];
     if (y < 1 || y + (big ? 1 : 0) > MAP_H - 2 || !occupancy.free(cells)) return false;
     occupancy.block(cells);
-    structures.push({ cell: origin, kind, level });
+    // Compound mounts stay at level 1 however deep the ladder goes. They are
+    // there to answer rotors, not to be a quiet ground-defence buff on every
+    // base a raider has to cross — flak is priced badly against the ground,
+    // and an upgraded one at tier 5 would still be another gun in the line.
+    structures.push({ cell: origin, kind, level: kind === kit.aa ? 1 : level });
     return true;
   };
 
@@ -210,24 +222,43 @@ export function generateBase(
 
   // ---- towers ------------------------------------------------------------------
   const towerCount = Math.min(8, 3 + Math.floor(tier / 2));
+  // Air cover is an ADDITION to the compound, never a substitution. Swapping
+  // a gun for a mount made every ground raid measurably easier — the exact
+  // opposite of what the layer is for.
+  const aaCount = tier >= 6 ? 2 : tier >= 2 ? 1 : 0;
   const towerKind = (i: number): string => {
     if (tier >= 3 && i % 3 === 2) return kit.towers[2]; // anti-armor
     if (tier >= 2 && i % 2 === 1) return kit.towers[1]; // area denial
     return kit.towers[0];
   };
   let placed = 0;
-  for (let i = 0; i < towerSpots.length && placed < towerCount; i++) {
+  let mounts = 0;
+  for (
+    let i = 0;
+    i < towerSpots.length && (placed < towerCount || mounts < aaCount);
+    i++
+  ) {
     const [sx, sy] = towerSpots[i]!;
-    if (putStructure(towerKind(placed), sx + ri(rng, -1, 1), sy + ri(rng, -1, 1), false)) {
-      placed++;
+    // Mounts sit mid-line and mid-depth, not tucked at the back where a
+    // standoff run would never have to enter their envelope.
+    const wantAa = mounts < aaCount && (i === 2 || i === 5 || placed >= towerCount);
+    const kind = wantAa ? kit.aa : towerKind(placed);
+    if (putStructure(kind, sx + ri(rng, -1, 1), sy + ri(rng, -1, 1), false)) {
+      if (wantAa) mounts++;
+      else placed++;
     }
   }
   // Fill any shortfall with guards hugging the command post.
   const fallback: [number, number][] = [
     [ccX - 2, ccY - 1], [ccX + 3, ccY - 1], [ccX - 2, ccY + 2], [ccX + 3, ccY + 2],
   ];
-  for (let i = 0; i < fallback.length && placed < towerCount; i++) {
-    if (putStructure(towerKind(placed), fallback[i]![0], fallback[i]![1], false)) placed++;
+  for (let i = 0; i < fallback.length && (placed < towerCount || mounts < aaCount); i++) {
+    const wantAa = mounts < aaCount;
+    const kind = wantAa ? kit.aa : towerKind(placed);
+    if (putStructure(kind, fallback[i]![0], fallback[i]![1], false)) {
+      if (wantAa) mounts++;
+      else placed++;
+    }
   }
 
   const name = `GRID ${tier}-${variant + 1} “${CODENAMES[(seed >>> 3) % CODENAMES.length]}”`;
@@ -250,6 +281,10 @@ export function lootFor(kind: string, tier: number): { supplies: number; fuel: n
     case 'autocannon':
     case 'mortar':
       return { supplies: 25 + 10 * tier, fuel: 0 };
+    // Mounts carry missiles: worth more to strip, and paid partly in fuel.
+    case 'aa':
+    case 'aaSite':
+      return { supplies: 30 + 12 * tier, fuel: 10 + 5 * tier };
     case 'cc':
       return { supplies: 250 + 90 * tier, fuel: 50 + 20 * tier };
     default:

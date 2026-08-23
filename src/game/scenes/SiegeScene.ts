@@ -44,8 +44,8 @@ type Tool =
   | { type: 'erase' }
   | { type: 'power'; kind: string };
 
-const SETUP_TOOL_KEYS = ['wall', 'm2nest', 'autocannon', 'mortar'] as const;
-const COMBAT_TOOL_KEYS = ['depmg', 'foxhole', 'claymore', 'hesco'] as const;
+const SETUP_TOOL_KEYS = ['wall', 'm2nest', 'autocannon', 'mortar', 'aa'] as const;
+const COMBAT_TOOL_KEYS = ['depmg', 'foxhole', 'claymore', 'hesco', 'manpads'] as const;
 
 /**
  * M1: the siege vertical slice. Build the permanent layer in setup/prep with
@@ -200,6 +200,7 @@ export class SiegeScene extends Phaser.Scene {
     e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(22, 13), kind: 'm2nest' });
     e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(25, 12), kind: 'autocannon' });
     e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(26, 9), kind: 'mortar' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(25, 15), kind: 'aa' });
     e.enqueue({ tick: 0, type: 'startAssault' });
 
     // Jump into mid-wave-2 so screenshots land on the action even when the
@@ -216,6 +217,7 @@ export class SiegeScene extends Phaser.Scene {
     e.command({ tick: e.tick + 3, type: 'placeStructure', cell: idx(21, 11), kind: 'depmg' });
     e.command({ tick: e.tick + 5, type: 'placeStructure', cell: idx(19, 12), kind: 'claymore' });
     e.command({ tick: e.tick + 10, type: 'castPower', kind: 'arty', target: { x: 19.5, y: 12.5 } });
+
 
   }
 

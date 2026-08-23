@@ -391,12 +391,14 @@ export function queuedManpower(town: TownState): number {
 export function manpowerCapOf(town: TownState): number {
   let barracksLevels = 0;
   let motorpoolLevels = 0;
+  let airfieldLevels = 0;
   for (const s of town.structures) {
     if (s.wrecked || (s.buildEndsAt !== undefined && s.upgradingTo === undefined)) continue;
     if (s.kind === 'barracks') barracksLevels += s.level;
     if (s.kind === 'motorpool') motorpoolLevels += s.level;
+    if (s.kind === 'airfield') airfieldLevels += s.level;
   }
-  return manpowerCap(barracksLevels, motorpoolLevels);
+  return manpowerCap(barracksLevels, motorpoolLevels, airfieldLevels);
 }
 
 export function armySize(town: TownState): number {
@@ -647,7 +649,7 @@ function buildLimitsFor(town: TownState): NonNullable<SimConfig['buildLimits']> 
     if (!BASELINE_UNLOCKS.includes(kind) && !isUnlocked(town, kind)) structures[kind] = 0;
   }
   // Field kinds have no CC count; when locked they get an explicit zero.
-  for (const kind of ['depmg', 'foxhole', 'claymore', 'hesco']) {
+  for (const kind of ['depmg', 'foxhole', 'claymore', 'hesco', 'manpads']) {
     if (!isUnlocked(town, kind)) structures[kind] = 0;
   }
   return { structures, walls: g.walls };

@@ -95,4 +95,18 @@ export const CHINA_ATTACKERS: Record<string, AttackerProfile> = {
     },
     speedJitter: 0.03,
   },
+  wz10: {
+    kind: 'wz10',
+    name: 'WZ-10 Gunship',
+    maxHp: 210,
+    speed: 3.0,
+    armor: 'air',
+    wallDps: 0,
+    hqDps: 26,
+    cpValue: 12,
+    air: true,
+    // Rocket pods: shorter reach than a drone, far more weight of fire.
+    weapon: { damageType: 'explosive', damage: 34, shotsPerSecond: 0.8, range: 4.0 },
+    speedJitter: 0.05,
+  },
 };

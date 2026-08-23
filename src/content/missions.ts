@@ -45,12 +45,14 @@ export const HOLD_THE_LINE: SiegeDef = {
         ...series(340, 40, 2, 'rifle', [12]),
       ],
     },
-    // W2 — the maze lesson: a sapper leads, the swarm pours through the hole.
+    // W2 — the maze lesson, twice over: a sapper leads the swarm through the
+    // hole, and a pair of WZ-10s ignore the hole entirely.
     {
       entries: [
         entry(0, 'sapper', 12),
         ...series(60, 36, 10, 'militia', [4, 8, 16, 20]),
         ...series(260, 40, 4, 'rifle', [12]),
+        ...series(180, 90, 2, 'wz10', [9, 15]),
       ],
     },
     // W3 — suppression: grenadiers stand off and shell defenses, sappers flank.

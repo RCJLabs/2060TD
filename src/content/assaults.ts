@@ -21,6 +21,8 @@ export interface AssaultRoster {
   ranged: string;
   lightVehicle: string;
   heavy: string;
+  /** v1.0: the rotors that make a wall irrelevant. */
+  gunship: string;
 }
 
 export const CHINA_ASSAULT_ROSTER: AssaultRoster = {
@@ -30,6 +32,7 @@ export const CHINA_ASSAULT_ROSTER: AssaultRoster = {
   ranged: 'grenadier',
   lightVehicle: 'zbd',
   heavy: 'type99',
+  gunship: 'wz10',
 };
 
 export const USA_ASSAULT_ROSTER: AssaultRoster = {
@@ -39,6 +42,7 @@ export const USA_ASSAULT_ROSTER: AssaultRoster = {
   ranged: 'javelin',
   lightVehicle: 'humvee',
   heavy: 'abrams',
+  gunship: 'reaper',
 };
 
 export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAULT_ROSTER): SiegeDef {
@@ -97,7 +101,22 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
     });
   }
 
-  const tierName = level >= 5 ? 'ARMORED OFFENSIVE' : level >= 3 ? 'COMBINED ASSAULT' : 'PROBING ATTACK';
+  // Wave 6 (level 4+) — the sky. Rotors ignore the maze entirely, so a line
+  // with no mount that can elevate simply watches them work.
+  if (level >= 4) {
+    const rotors = 1 + Math.floor((level - 4) / 2);
+    waves.push({
+      entries: [
+        ...series(0, 40, n(3), roster.line, [6, 12, 18]),
+        ...series(120, 70, rotors, roster.gunship, [8, 16, 12]),
+        ...series(300, 50, n(2), roster.ranged, [10, 14]),
+        ...(level >= 6 ? series(420, 90, rotors, roster.gunship, [12, 10]) : []),
+      ],
+    });
+  }
+
+  const tierName =
+    level >= 5 ? 'ARMORED OFFENSIVE' : level >= 3 ? 'COMBINED ASSAULT' : 'PROBING ATTACK';
 
   return {
     name: `LEVEL ${level} — ${tierName}`,

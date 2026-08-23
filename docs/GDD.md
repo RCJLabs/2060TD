@@ -133,7 +133,7 @@ data-driven so later factions are content drops, not engine work.
 | Humvee CROWS | Fast harasser, light gun |
 | M1 Abrams | Heavy breakthrough armor |
 | Stryker ICV | Mid armor, carries a squad |
-| Reaper Drone *(later)* | Air, precision strikes |
+| MQ-9 Reaper (v1.0) | Air: ignores the maze, dies to flak |
 
 | Emplacements (permanent) | Role |
 |---|---|
@@ -141,7 +141,7 @@ data-driven so later factions are content drops, not engine work.
 | 25mm Autocannon | Anti-light-vehicle |
 | TOW Battery | Slow, huge single-target anti-armor |
 | 120mm Mortar Pit | Long-range splash, min range |
-| Stinger Site | Anti-air *(when air arrives)* |
+| Stinger Site | Anti-air — longest reach in the war, flak (v1.0) |
 | ECM Jammer | Slows/disrupts in radius |
 
 | Field defenses (CP) | Powers (CP) |
@@ -176,7 +176,7 @@ data-driven so later factions are content drops, not engine work.
 | Type 88 HMG Nest | Conscript wave (spawn defenders) |
 | QLZ Auto-Grenade (AoE anti-swarm) | Sandbag line |
 | HJ-8 ATGM Battery (anti-elite) | PLZ Saturation Barrage (huge AoE, long CD) |
-| PGZ Flak (anti-air later) | Smoke screen (towers miss, cover repairs) |
+| PGZ-95 Flak (v1.0) | Smoke screen (towers miss, cover repairs) |
 
 ### 4.3 Russia — Armor & Artillery *(v0.5+)*
 
@@ -230,7 +230,7 @@ Offline accrual caps at storage capacity; default 8h of production banked.
 
 Command Center (HQ; its level gates everything), Supply Depot, Storage Bunker, Fuel Depot,
 Barracks, Motor Pool, Research Lab, Engineering Bay (build/repair speed), Radar Station
-(Intel + scouting, M6), Airfield (M6+), Walls & Gates (gates let defenders through, close
+(Intel + scouting, M6), Airfield (v1.0 — trains the faction's aircraft and raises the manpower cap), Walls & Gates (gates let defenders through, close
 against attackers), Emplacement foundations.
 
 ### 5.3 The maze rule (core mechanic)
@@ -353,6 +353,7 @@ src/meta/      Saves (versioned JSON, localStorage + export/import file), timers
 
 - v0.1 ships **defense only** and must be fun with one faction defending.
 - Air units, Intel/tech tree, and factions 3–5 stay out until their milestone. No early nibbling.
+  *(All three have since shipped: factions at v0.3–v0.7, the tech tree at v0.4, the air layer at v1.0.)*
 - All balance numbers are placeholder until the harness (M5); don't hand-tune before then.
 - No servers, accounts, or real-time PvP in any current milestone.
 

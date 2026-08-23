@@ -257,7 +257,7 @@ export const BLUE_LINE: MissionDef[] = [
       },
     ],
     siegeOverrides: { suppliesPerWave: 120, startingCp: 60 },
-    unlocks: ['arty', 'cc3', 'motorpool'],
+    unlocks: ['arty', 'cc3', 'motorpool', 'aa', 'airfield'],
     unlockNote: 'REQUISITION: 105MM BATTERY · CP LEVEL 3 · VEHICLE COMPOUND',
     reward: { supplies: 1100, fuel: 280 },
     bonus: { id: 'ccAbove90', label: 'TWELVE FLAGS AT DAWN — CP above 90%' },

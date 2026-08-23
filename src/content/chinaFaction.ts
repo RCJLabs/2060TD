@@ -61,6 +61,33 @@ export const CHINA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
       { maxHp: 450, weapon: { damageType: 'shaped', damage: 72, shotsPerSecond: 0.5, range: 5.4 } },
     ],
   },
+  manpads: {
+    kind: 'manpads',
+    name: 'QW-2 MANPADS Team',
+    maxHp: 90,
+    footprint: 1,
+    blocks: false,
+    targetable: true,
+    cpCost: 20,
+    // Two men and a tube: no help at all against the ground, and the only
+    // thing a commander can put up once the rotors are already inbound.
+    weapon: { damageType: 'flak', damage: 52, shotsPerSecond: 0.7, range: 5.0, targets: 'air' },
+  },
+  aa: {
+    kind: 'aa',
+    name: 'PGZ-95 Flak',
+    maxHp: 260,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    supplyCost: 120,
+    // Quad 25mm: it sprays both layers, and the ground layer barely notices.
+    weapon: { damageType: 'flak', damage: 26, shotsPerSecond: 2.2, range: 6.0, targets: 'both' },
+    levels: [
+      { maxHp: 330, weapon: { damageType: 'flak', damage: 33, shotsPerSecond: 2.2, range: 6.0, targets: 'both' } },
+      { maxHp: 410, weapon: { damageType: 'flak', damage: 41, shotsPerSecond: 2.4, range: 6.3, targets: 'both' } },
+    ],
+  },
   mortar: {
     kind: 'mortar',
     name: 'PP-87 Mortar Pit',
@@ -136,6 +163,7 @@ export const CHINA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   radar: rename(ECONOMY_STRUCTURES['radar']!, 'Signals Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Militia Barracks'),
   motorpool: rename(ECONOMY_STRUCTURES['motorpool']!, 'Vehicle Park'),
+  airfield: rename(ECONOMY_STRUCTURES['airfield']!, 'Rotary Wing Pad'),
 };
 
 export const CHINA_TOWN_WALLS: Record<string, WallDef> = {
@@ -188,4 +216,5 @@ export const CHINA_TRAINABLE: TrainMeta[] = [
   { kind: 'grenadier', name: 'Grenadier', short: 'GRN', supplies: 120, fuel: 15, seconds: 22, manpower: 2, facility: 'barracks' },
   { kind: 'zbd', name: 'ZBD-04 IFV', short: 'ZBD', supplies: 170, fuel: 55, seconds: 32, manpower: 3, facility: 'motorpool' },
   { kind: 'type99', name: 'Type 99 MBT', short: 'T99', supplies: 400, fuel: 125, seconds: 58, manpower: 7, facility: 'motorpool' },
+  { kind: 'wz10', name: 'WZ-10 Gunship', short: 'WZ1', supplies: 330, fuel: 190, seconds: 60, manpower: 6, facility: 'airfield' },
 ];

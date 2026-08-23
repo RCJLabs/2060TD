@@ -17,7 +17,45 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.9: mobile-first
+## Current state — v1.0: the air layer
+
+**Walls are irrelevant to a helicopter.** The last unchecked mechanic from
+the GDD landed: air units that ignore the maze entirely, and the anti-air
+mounts that are the only real answer to them.
+
+- **Flying ignores the grid.** An air unit does no pathfinding at all — no
+  walls, no blockers, no breaching. It runs straight at whatever its doctrine
+  wants, shoots it, and everything you spent on the maze buys you nothing.
+  Mines are buried and lobbed shells land on the ground, so neither reaches
+  it; a wire-guided ATGM cannot track it either.
+- **The answer is a gun that can elevate.** Every faction gets a permanent
+  **AA mount** (FIM-92 Stinger Site, PGZ-95 Flak, ZSU-23, ZPU-4 quad,
+  Skyguard 35mm) and a CP-priced **MANPADS team** for rotors that arrive
+  mid-wave. Ordinary guns can point up — the damage table just prices that
+  badly. Flak is devastating against air and nearly useless against anything
+  else, so a mount is a real slot decision, not a free upgrade.
+- **Every mount outranges every aircraft**, deliberately. The first tuning
+  pass had the Reaper standing off beyond the shorter mounts and killing them
+  for free, which makes AA a decoration rather than a decision.
+- **Five aircraft, one per faction:** MQ-9 Reaper (patient, precise), WZ-10
+  (rocket weight of fire), Ka-52 (armoured, slow-cycling), AN-2 Colt (cheap,
+  quick, made of canvas), NH90 (mid-pack, comes home). All trained at the new
+  **Airfield**, which also raises your manpower cap.
+- **Both sides feel it.** The assault ladder sends rotors from level 4, the
+  campaign's late missions put them over your wire, and generated Front Line
+  compounds carry a dedicated air-defence launcher from tier 2 — so a raid
+  flown on rotors stops being free exactly where the ladder starts asking
+  for a plan.
+
+**Measured, both directions** (`docs/BALANCE.md`, 3,450+ battles): an air
+raid clears a tier-1 compound — which has no mount — 100% of the time for
+14–19% losses; from tier 2 the losses roughly triple and the clears fall
+away. On defense, a reference line with two mounts holds level 4 at 100% and
+level 5 at 80–100% for the USA, UN, China and Russia; the KPA's cheap quads
+sit one step below, which is what "cheapest kit in the war" is supposed to
+cost. Without a mount, the same line loses at level 4 — a maze cannot shoot.
+
+## v0.9: mobile-first
 
 **The presentation layer was rebuilt around the phone.** Everything before
 this shipped as a fixed 1280×768 canvas scaled to fit, which on a phone meant
@@ -285,7 +323,7 @@ map; `F` Front Line. SFX and colorblind-palette toggles live in the utility row.
 |---|---|
 | Left-click / drag | Use selected tool (walls drag-paint; guns place per click) |
 | Right-click / `ESC` | Cancel tool |
-| `1`–`4` | Build item (setup/prep: wall, M2, autocannon, mortar · combat: MG, foxhole, claymore, HESCO) |
+| `1`–`5` | Build item (setup/prep: wall, M2, autocannon, mortar, AA mount · combat: MG, foxhole, claymore, HESCO, MANPADS) |
 | `E` | Erase / refund (setup & prep only) |
 | `Q` / `W` | Arm A-10 gun run / 155mm fire mission, then click the target |
 | `SPACE` | Start assault / skip prep / return to base when it's over |

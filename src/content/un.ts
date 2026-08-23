@@ -80,4 +80,18 @@ export const UN_ATTACKERS: Record<string, AttackerProfile> = {
     weapon: { damageType: 'kinetic', damage: 38, shotsPerSecond: 0.5, range: 3.5 },
     speedJitter: 0.05,
   },
+  nh90: {
+    kind: 'nh90',
+    name: 'NH90 Gunship',
+    maxHp: 220,
+    speed: 2.8,
+    armor: 'air',
+    wallDps: 0,
+    hqDps: 24,
+    cpValue: 12,
+    air: true,
+    // Mid-pack in the air as on the ground, and it comes home more often.
+    weapon: { damageType: 'kinetic', damage: 30, shotsPerSecond: 0.9, range: 4.0 },
+    speedJitter: 0.05,
+  },
 };

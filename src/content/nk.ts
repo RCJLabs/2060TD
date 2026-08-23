@@ -68,4 +68,19 @@ export const NK_ATTACKERS: Record<string, AttackerProfile> = {
     weapon: { damageType: 'kinetic', damage: 30, shotsPerSecond: 0.5, range: 3.4 },
     speedJitter: 0.05,
   },
+  an2: {
+    kind: 'an2',
+    name: 'AN-2 Colt',
+    maxHp: 90,
+    speed: 3.6,
+    armor: 'air',
+    wallDps: 0,
+    hqDps: 20,
+    cpValue: 6,
+    air: true,
+    // A canvas biplane with a bomb rack: cheap, quick, and gone the moment
+    // anything with a proximity fuse looks at it.
+    weapon: { damageType: 'explosive', damage: 22, shotsPerSecond: 0.7, range: 3.2 },
+    speedJitter: 0.08,
+  },
 };

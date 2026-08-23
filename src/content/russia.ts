@@ -83,4 +83,18 @@ export const RU_ATTACKERS: Record<string, AttackerProfile> = {
     },
     speedJitter: 0.04,
   },
+  ka52: {
+    kind: 'ka52',
+    name: 'Ka-52 Alligator',
+    maxHp: 300,
+    speed: 2.6,
+    armor: 'air',
+    wallDps: 0,
+    hqDps: 30,
+    cpValue: 15,
+    air: true,
+    // Overbuilt in the sky too: armoured, slow to cycle, hits like a train.
+    weapon: { damageType: 'explosive', damage: 52, shotsPerSecond: 0.5, range: 4.0 },
+    speedJitter: 0.04,
+  },
 };

@@ -16,12 +16,31 @@ import type {
   SimStats,
   StandingOrderTarget,
   StructureProfile,
+  TargetLayer,
+  Weapon,
   Vec2,
   WaveEntry,
 } from './types';
 
 export const TICKS_PER_SECOND = 20;
 export const DT = 1 / TICKS_PER_SECOND;
+/** How close a flyer gets to its target's edge before working it over. */
+const AIR_STANDOFF = 0.6;
+
+/**
+ * Which layer a weapon engages when its profile does not say (v1.0).
+ *
+ * A gun on a mount can elevate, so the default is both layers — a line with
+ * no dedicated flak is not helpless, just bad at it, which is what the `air`
+ * column of the damage table prices. Two kinds of weapon never look up:
+ * lobbed ordnance, which lands on the ground by definition, and wire-guided
+ * shaped charges, which cannot track something moving through the sky.
+ */
+function layerOf(weapon: Weapon): TargetLayer {
+  if (weapon.targets) return weapon.targets;
+  if (weapon.flightSeconds !== undefined || weapon.damageType === 'shaped') return 'ground';
+  return 'both';
+}
 
 /** Omit that distributes over union types (plain Omit collapses the union). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -834,7 +853,9 @@ export class Engine {
         }
       } else {
         for (const attacker of this.attackers) {
-          if (attacker.hp <= 0) continue;
+          // Shells and gun runs are laid on the ground; the answer to air is
+          // a gun that can elevate, which is the whole point of AA cover.
+          if (attacker.hp <= 0 || attacker.profile.air) continue;
           if (inShape(shape, attacker.pos.x, attacker.pos.y)) {
             this.damageAttacker(attacker, impact.damage, impact.damageType);
           }
@@ -859,7 +880,7 @@ export class Engine {
         const t = profile.trigger;
         let tripped = false;
         for (const attacker of this.attackers) {
-          if (attacker.hp <= 0) continue;
+          if (attacker.hp <= 0 || attacker.profile.air) continue; // buried: flyers pass over
           const dx = attacker.pos.x - structure.center.x;
           const dy = attacker.pos.y - structure.center.y;
           if (dx * dx + dy * dy <= t.radius * t.radius) {
@@ -869,7 +890,7 @@ export class Engine {
         }
         if (tripped) {
           for (const attacker of this.attackers) {
-            if (attacker.hp <= 0) continue;
+            if (attacker.hp <= 0 || attacker.profile.air) continue;
             const dx = attacker.pos.x - structure.center.x;
             const dy = attacker.pos.y - structure.center.y;
             if (dx * dx + dy * dy <= t.splashRadius * t.splashRadius) {
@@ -887,7 +908,12 @@ export class Engine {
       structure.weaponCooldown = Math.max(0, structure.weaponCooldown - DT);
       if (structure.weaponCooldown > 0) continue;
 
-      const target = this.acquireAttacker(structure.center, weapon.range, weapon.minRange ?? 0);
+      const target = this.acquireAttacker(
+        structure.center,
+        weapon.range,
+        weapon.minRange ?? 0,
+        layerOf(weapon),
+      );
       if (!target) continue;
       structure.weaponCooldown = 1 / weapon.shotsPerSecond;
 
@@ -920,13 +946,21 @@ export class Engine {
     }
   }
 
-  private acquireAttacker(origin: Vec2, range: number, minRange: number): Attacker | null {
+  private acquireAttacker(
+    origin: Vec2,
+    range: number,
+    minRange: number,
+    targets: TargetLayer = 'ground',
+  ): Attacker | null {
     let best: Attacker | null = null;
     let bestDistSq = Infinity;
     const rangeSq = range * range;
     const minSq = minRange * minRange;
     for (const attacker of this.attackers) {
       if (attacker.hp <= 0) continue;
+      // A gun engages one layer or the other unless it was built for both.
+      const flying = attacker.profile.air === true;
+      if (flying ? targets === 'ground' : targets === 'air') continue;
       const dx = attacker.pos.x - origin.x;
       const dy = attacker.pos.y - origin.y;
       const distSq = dx * dx + dy * dy;
@@ -1029,6 +1063,12 @@ export class Engine {
         target = this.pickDoctrineTarget(attacker);
         attacker.targetId = target.id;
         attacker.path = null;
+      }
+
+      // Flying units skip the grid entirely — no path, no walls, no blockers.
+      if (attacker.profile.air) {
+        this.updateAirAttacker(attacker, target, events);
+        continue;
       }
 
       // Re-path when the battlefield topology changed since the path was made.
@@ -1151,6 +1191,80 @@ export class Engine {
         attacker.pathIndex++;
       }
     }
+  }
+
+  /**
+   * One tick of flight (v1.0). Air units answer to the same doctrines as the
+   * infantry, but the maze underneath them is irrelevant: they run straight
+   * at what they came for, shoot it from range if they have a weapon, and
+   * fall only to a gun that can elevate. Everything a base spends on walls
+   * buys nothing here — AA cover is the only answer, which is exactly the
+   * planning tension the layer exists to create.
+   */
+  private updateAirAttacker(attacker: Attacker, target: Structure, events: SimEvent[]): void {
+    attacker.path = null;
+    attacker.goalCells = [];
+
+    // Standoff weapons fire the moment their doctrine's prey is in reach.
+    const weapon = attacker.profile.weapon;
+    if (weapon) {
+      const prefer =
+        attacker.doctrine === 'hunt'
+          ? 'defense'
+          : attacker.doctrine === 'raze'
+            ? 'economy'
+            : undefined;
+      const engageTarget = this.acquireStructure(
+        attacker.pos,
+        weapon.range,
+        weapon.minRange ?? 0,
+        prefer,
+      );
+      if (engageTarget) {
+        attacker.state = 'engaging';
+        if (attacker.weaponCooldown <= 0) {
+          attacker.weaponCooldown = 1 / weapon.shotsPerSecond;
+          this.damageStructure(
+            engageTarget,
+            weapon.damage * this.atkDamageMult,
+            weapon.damageType,
+            attacker.profile.name,
+          );
+          events.push({
+            type: 'shot',
+            from: { ...attacker.pos },
+            to: { ...engageTarget.center },
+            damageType: weapon.damageType,
+          });
+        }
+        return;
+      }
+    }
+
+    // Otherwise close on the target and work it over from directly above.
+    const dx = target.center.x - attacker.pos.x;
+    const dy = target.center.y - attacker.pos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const reach = target.profile.footprint / 2 + AIR_STANDOFF;
+    if (dist <= reach) {
+      attacker.state = 'assaulting';
+      const dps =
+        (target === this.cc
+          ? attacker.profile.hqDps
+          : Math.max(attacker.profile.hqDps, attacker.profile.wallDps)) * this.atkDamageMult;
+      const before = target.hp;
+      target.hp -= dps * DT;
+      if (target === this.cc && before > 0 && target.hp <= 0) {
+        this.stats.ccKillerKind ??= attacker.profile.name;
+      }
+      return;
+    }
+
+    attacker.state = 'moving';
+    const budget = attacker.speed * DT;
+    attacker.lastDir = { x: dx / dist, y: dy / dist };
+    attacker.pos.x += (dx / dist) * Math.min(budget, dist);
+    attacker.pos.y += (dy / dist) * Math.min(budget, dist);
   }
 
   private isDefenseStructure(s: Structure): boolean {

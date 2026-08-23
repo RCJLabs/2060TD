@@ -62,6 +62,33 @@ export const NK_TOWN_STRUCTURES: Record<string, StructureProfile> = {
       { maxHp: 470, weapon: { damageType: 'shaped', damage: 72, shotsPerSecond: 0.5, range: 5.2 } },
     ],
   },
+  manpads: {
+    kind: 'manpads',
+    name: 'HT-16PGJ Team',
+    maxHp: 90,
+    footprint: 1,
+    blocks: false,
+    targetable: true,
+    cpCost: 16,
+    // Two men and a tube: no help at all against the ground, and the only
+    // thing a commander can put up once the rotors are already inbound.
+    weapon: { damageType: 'flak', damage: 40, shotsPerSecond: 0.7, range: 4.6, targets: 'air' },
+  },
+  aa: {
+    kind: 'aa',
+    name: 'ZPU-4 Quad Mount',
+    maxHp: 170,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    supplyCost: 70,
+    // Expendable doctrine in the sky: aimed by eye, priced to be built in pairs.
+    weapon: { damageType: 'flak', damage: 17, shotsPerSecond: 2.6, range: 4.8, targets: 'both' },
+    levels: [
+      { maxHp: 215, weapon: { damageType: 'flak', damage: 22, shotsPerSecond: 2.6, range: 4.8, targets: 'both' } },
+      { maxHp: 270, weapon: { damageType: 'flak', damage: 27, shotsPerSecond: 2.8, range: 4.6, targets: 'both' } },
+    ],
+  },
   mortar: {
     kind: 'mortar',
     name: 'Koksan Gun Pit',
@@ -137,6 +164,7 @@ export const NK_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   radar: rename(ECONOMY_STRUCTURES['radar']!, 'RGB Listening Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Light Infantry School'),
   motorpool: rename(ECONOMY_STRUCTURES['motorpool']!, 'Armor Cave'),
+  airfield: rename(ECONOMY_STRUCTURES['airfield']!, 'Camouflaged Airstrip'),
 };
 
 /** Cheap even at the wall line: stacked rock and sandbags, breached fast. */
@@ -189,4 +217,5 @@ export const NK_TRAINABLE: TrainMeta[] = [
   { kind: 'tunneler', name: 'Tunnel Sapper Team', short: 'TUN', supplies: 90, fuel: 0, seconds: 18, manpower: 2, facility: 'barracks' },
   { kind: 'rpg7', name: 'RPG-7 Team', short: 'RPG', supplies: 100, fuel: 10, seconds: 20, manpower: 2, facility: 'barracks' },
   { kind: 'chonma', name: 'Chonma-ho MBT', short: 'CHM', supplies: 260, fuel: 80, seconds: 44, manpower: 5, facility: 'motorpool' },
+  { kind: 'an2', name: 'AN-2 Colt', short: 'AN2', supplies: 150, fuel: 70, seconds: 30, manpower: 3, facility: 'airfield' },
 ];

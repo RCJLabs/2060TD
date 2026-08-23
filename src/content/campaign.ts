@@ -34,7 +34,7 @@ export interface MissionDef {
 }
 
 /** Kinds available from the first minute of a new campaign. */
-export const BASELINE_UNLOCKS = ['wall', 'supplyDepot', 'm2nest'];
+export const BASELINE_UNLOCKS = ['wall', 'supplyDepot', 'm2nest', 'manpads'];
 
 /** Every progression-gated content key, in campaign order. */
 export const ALL_UNLOCK_KEYS = [
@@ -55,6 +55,8 @@ export const ALL_UNLOCK_KEYS = [
   'arty',
   'cc3',
   'motorpool',
+  'aa',
+  'airfield',
 ];
 
 const t = (col: number, row: number, atTick: number, kind: string): WaveEntry => ({
@@ -345,6 +347,8 @@ export const CAMPAIGN: MissionDef[] = [
       'CASCADE TO COOS BAY — everything moved at dusk.',
       'Six pushes on the board. Militia, engineers, launchers, armor, and',
       'a Type 99 signature at the back of the column.',
+      'New on the board: rotors. WZ-10s came over the wire at the fifth push',
+      'and the wall did nothing — walls never do. Stingers ship with the relief.',
       'No relief until dawn. Short prep windows. Ration the ordnance.',
       'Hold.',
     ],
@@ -380,6 +384,9 @@ export const CAMPAIGN: MissionDef[] = [
           entry(0, 't72', 12),
           ...series(60, 55, 2, 'zbd', [8, 16]),
           ...series(120, 50, 4, 'grenadier', [6, 10, 14, 18]),
+          // The maze is irrelevant to these two. Nothing on the board can
+          // elevate — that is the lesson, and the reason for the requisition.
+          ...series(200, 80, 2, 'wz10', [7, 17]),
         ],
       },
       {
@@ -387,11 +394,12 @@ export const CAMPAIGN: MissionDef[] = [
           entry(0, 'type99', 12),
           ...series(80, 55, 2, 'zbd', [8, 16]),
           ...series(140, 40, 8, 'rifle', [6, 10, 14, 18]),
+          ...series(240, 90, 2, 'wz10', [10, 14]),
         ],
       },
     ],
     siegeOverrides: { suppliesPerWave: 110, prepSeconds: 18 },
-    unlocks: [],
+    unlocks: ['aa'],
     reward: { supplies: 900, fuel: 200 },
     bonus: { id: 'ccAbove90', label: 'DAWN CAME ANYWAY — CC above 90%' },
   },
@@ -453,7 +461,7 @@ export const CAMPAIGN: MissionDef[] = [
       },
     ],
     siegeOverrides: { suppliesPerWave: 120, startingCp: 60 },
-    unlocks: [],
+    unlocks: ['airfield'],
     reward: { supplies: 1200, fuel: 300 },
     bonus: { id: 'noStructuresLost', label: 'NOT ONE STEP BACK — no structures lost' },
   },

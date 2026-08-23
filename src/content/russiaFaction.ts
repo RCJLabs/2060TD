@@ -53,10 +53,37 @@ export const RUSSIA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
     blocks: true,
     targetable: true,
     supplyCost: 110,
-    weapon: { damageType: 'kinetic', damage: 26, shotsPerSecond: 1.3, range: 5.0 },
+    weapon: { damageType: 'kinetic', damage: 26, shotsPerSecond: 1.3, range: 5.0  },
     levels: [
-      { maxHp: 500, weapon: { damageType: 'kinetic', damage: 34, shotsPerSecond: 1.3, range: 5.0 } },
-      { maxHp: 620, weapon: { damageType: 'kinetic', damage: 43, shotsPerSecond: 1.3, range: 5.0 } },
+      { maxHp: 500, weapon: { damageType: 'kinetic', damage: 34, shotsPerSecond: 1.3, range: 5.0  } },
+      { maxHp: 620, weapon: { damageType: 'kinetic', damage: 43, shotsPerSecond: 1.3, range: 5.0  } },
+    ],
+  },
+  manpads: {
+    kind: 'manpads',
+    name: 'Igla Team',
+    maxHp: 90,
+    footprint: 1,
+    blocks: false,
+    targetable: true,
+    cpCost: 26,
+    // Two men and a tube: no help at all against the ground, and the only
+    // thing a commander can put up once the rotors are already inbound.
+    weapon: { damageType: 'flak', damage: 74, shotsPerSecond: 0.7, range: 4.6, targets: 'air' },
+  },
+  aa: {
+    kind: 'aa',
+    name: 'ZSU-23 Emplacement',
+    maxHp: 380,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    supplyCost: 150,
+    // Heavy, cheap to feed, half-blind: it kills what flies over it, not past it.
+    weapon: { damageType: 'flak', damage: 44, shotsPerSecond: 1.3, range: 4.2, targets: 'both' },
+    levels: [
+      { maxHp: 480, weapon: { damageType: 'flak', damage: 56, shotsPerSecond: 1.3, range: 4.2, targets: 'both' } },
+      { maxHp: 600, weapon: { damageType: 'flak', damage: 70, shotsPerSecond: 1.4, range: 4.5, targets: 'both' } },
     ],
   },
   mortar: {
@@ -134,6 +161,7 @@ export const RUSSIA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   radar: rename(ECONOMY_STRUCTURES['radar']!, 'GRU Signals Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Conscript Barracks'),
   motorpool: rename(ECONOMY_STRUCTURES['motorpool']!, 'Tank Park'),
+  airfield: rename(ECONOMY_STRUCTURES['airfield']!, 'Forward Airstrip'),
 };
 
 /** Overbuilt even at the wall line: slabs and berms, dearer per segment. */
@@ -186,4 +214,5 @@ export const RUSSIA_TRAINABLE: TrainMeta[] = [
   { kind: 'rpg', name: 'RPG-29 Team', short: 'RPG', supplies: 140, fuel: 15, seconds: 24, manpower: 3, facility: 'barracks' },
   { kind: 'btr', name: 'BTR-82A', short: 'BTR', supplies: 190, fuel: 60, seconds: 34, manpower: 3, facility: 'motorpool' },
   { kind: 't72', name: 'T-72B3', short: 'T72', supplies: 380, fuel: 120, seconds: 56, manpower: 7, facility: 'motorpool' },
+  { kind: 'ka52', name: 'Ka-52 Alligator', short: 'KA5', supplies: 430, fuel: 230, seconds: 74, manpower: 7, facility: 'airfield' },
 ];

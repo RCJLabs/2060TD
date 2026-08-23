@@ -18,6 +18,9 @@ interface Effect {
   life: number;
 }
 
+/** How high the air layer rides above its own shadow, in world px. */
+const AIR_LIFT = 15;
+
 export interface GhostPreview {
   cell: CellIndex;
   /** Structure or wall kind being placed ('erase' for the erase tool). */
@@ -273,25 +276,36 @@ export class BattleRenderer {
 
   private drawAttackers(g: Phaser.GameObjects.Graphics, alpha: number): void {
     const c = this.cell;
-    for (const attacker of this.engine.attackers) {
-      const p = this.lerpPos(attacker, alpha);
-      const px = p.x * c;
-      const py = p.y * c;
-      if (attacker.lastDir.x !== 0 || attacker.lastDir.y !== 0) {
-        this.facings.set(attacker.id, Math.atan2(attacker.lastDir.y, attacker.lastDir.x));
-      }
-      this.drawAttackerBody(g, attacker, px, py);
+    // Ground layer first, then the air layer above it: altitude has to read
+    // at a glance, because it decides which of your guns can answer.
+    for (const flying of [false, true]) {
+      for (const attacker of this.engine.attackers) {
+        if ((attacker.profile.air === true) !== flying) continue;
+        const p = this.lerpPos(attacker, alpha);
+        const px = p.x * c;
+        const py = p.y * c;
+        if (attacker.lastDir.x !== 0 || attacker.lastDir.y !== 0) {
+          this.facings.set(attacker.id, Math.atan2(attacker.lastDir.y, attacker.lastDir.x));
+        }
+        if (flying) {
+          // The shadow is the honest position; the body is where it is in the sky.
+          g.fillStyle(0x000000, 0.35);
+          g.fillEllipse(px, py + 3, 16, 7);
+        }
+        const y = py - (flying ? AIR_LIFT : 0);
+        this.drawAttackerBody(g, attacker, px, y);
 
-      if (attacker.state === 'breaking') {
-        g.lineStyle(2, COLORS.tracer, 0.8);
-        g.strokeCircle(px, py, 12);
-      } else if (attacker.state === 'engaging') {
-        g.lineStyle(1, COLORS.tracerExplosive, 0.6);
-        g.strokeCircle(px, py, 11);
-      }
+        if (attacker.state === 'breaking') {
+          g.lineStyle(2, COLORS.tracer, 0.8);
+          g.strokeCircle(px, y, 12);
+        } else if (attacker.state === 'engaging') {
+          g.lineStyle(1, COLORS.tracerExplosive, 0.6);
+          g.strokeCircle(px, y, 11);
+        }
 
-      const hpFrac = attacker.hp / attacker.maxHp;
-      if (hpFrac < 1) this.hpBar(g, px, py - 16, 20, hpFrac, false);
+        const hpFrac = attacker.hp / attacker.maxHp;
+        if (hpFrac < 1) this.hpBar(g, px, y - 16, 20, hpFrac, false);
+      }
     }
   }
 
@@ -410,6 +424,27 @@ export class BattleRenderer {
         g.fillCircle(0, 0, 5);
         g.lineStyle(3, body, 1);
         g.lineBetween(0, 0, 16, 0);
+        g.restore();
+        break;
+      }
+      // ---- the air layer: rotor disc over a fuselage, facing its run ----------
+      case 'reaper':
+      case 'wz10':
+      case 'ka52':
+      case 'an2':
+      case 'nh90': {
+        const angle = this.facings.get(attacker.id) ?? 0;
+        g.save();
+        g.translateCanvas(px, py);
+        g.rotateCanvas(angle);
+        g.lineStyle(1, body, 0.45);
+        g.strokeCircle(0, 0, 13); // the disc: nothing on the ground reaches it
+        g.fillStyle(dark, 1);
+        g.fillTriangle(-9, -5, -9, 5, 13, 0);
+        g.lineStyle(1, body, 1);
+        g.strokeTriangle(-9, -5, -9, 5, 13, 0);
+        g.lineStyle(2, body, 0.9);
+        g.lineBetween(-7, -9, -7, 9); // tail plane
         g.restore();
         break;
       }

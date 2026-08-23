@@ -16,8 +16,11 @@ export type CellIndex = number;
 
 // ---- combat model -----------------------------------------------------------
 
-export type ArmorClass = 'none' | 'light' | 'heavy' | 'structure';
-export type DamageType = 'smallArms' | 'kinetic' | 'explosive' | 'shaped';
+export type ArmorClass = 'none' | 'light' | 'heavy' | 'structure' | 'air';
+export type DamageType = 'smallArms' | 'kinetic' | 'explosive' | 'shaped' | 'flak';
+
+/** What a weapon can engage. Everything is ground-only unless it says so. */
+export type TargetLayer = 'ground' | 'air' | 'both';
 
 /** damage multiplier = DAMAGE_MULT[damageType][armorClass] (content/damage.ts) */
 export type DamageTable = Record<DamageType, Record<ArmorClass, number>>;
@@ -34,6 +37,12 @@ export interface Weapon {
   splashRadius?: number;
   /** Seconds of shell flight; omit for hitscan. */
   flightSeconds?: number;
+  /**
+   * Which layer this weapon can engage (v1.0). Defaults to 'ground': a rifle
+   * pit cannot elevate, and a Stinger crew cannot shoot infantry. Lobbed
+   * ordnance (flightSeconds) only ever lands on the ground layer.
+   */
+  targets?: TargetLayer;
 }
 
 // ---- profiles -----------------------------------------------------------------
@@ -61,6 +70,12 @@ export interface AttackerProfile {
    * within radius, hp/second, capped at their max. Never heals itself.
    */
   heal?: { perSecond: number; radius: number };
+  /**
+   * Flies (v1.0). Air units ignore the grid entirely — no pathfinding, no
+   * walls, no blockers — and only weapons that can elevate may engage them.
+   * Mines and lobbed ordnance pass under them.
+   */
+  air?: boolean;
   /** ± fraction rolled onto speed at spawn via the seeded PRNG. */
   speedJitter: number;
 }

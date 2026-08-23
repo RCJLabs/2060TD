@@ -232,7 +232,22 @@ replaying cleared missions.
       Harness identity vs its own no-medic control: −18 points of tier-1 losses,
       +13 points of tier-3 clears; the Engineer Corps HQ aura turns the MID L4
       assault from a 60% hold into 100%.*
-- [ ] Air layer: air units + AA emplacements
+- [x] Air layer: air units + AA emplacements *(v1.0)*
+      — *AttackerProfile.air: flying units skip pathfinding entirely (no walls, no
+      blockers, no breaching) and run straight at their doctrine target. Weapon.targets
+      picks the layer; the engine defaults hitscan guns to BOTH layers and keeps lobbed
+      ordnance and wire-guided shaped charges on the ground, so a line with no flak is
+      bad at air rather than helpless. New 'air' armor class and 'flak' damage type:
+      flak is devastating against air and near-useless against everything else, which
+      is what makes a mount a slot decision. Every faction gets a permanent AA mount, a
+      CP-priced MANPADS team (baseline-unlocked, so rotors are never unanswerable to a
+      commander who is present), an aircraft, and the Airfield that trains it. Every
+      mount deliberately outranges every aircraft — the first pass let the Reaper stand
+      off and kill the short mounts for free. Generated compounds carry a dedicated
+      air-only launcher from tier 2 (additive, never replacing a gun, and level 1, so
+      air cover is not a quiet ground-defence buff). Harness: air raids clear an
+      uncovered tier-1 compound 100% for 14-19% losses and bleed 58-100% from tier 3;
+      two mounts restore the L4 hold to 100% for four of five factions.*
 - [x] Offline defense doctrines — STANDING ORDERS (preset CP-spending policy) *(v0.8)*
       — *SimConfig.standingOrders: a defender CP policy the engine executes during
       combat, so offline probes fight back with the Command Points their kills earn.

@@ -88,6 +88,35 @@ export const CHINA_BASE: Record<string, StructureProfile> = {
     ],
   },
 
+  // v1.0: the compound's flak mount. A raid flown on rotors has to plan
+  // around these the way a ground raid plans around the ATGM towers.
+  aa: {
+    kind: 'aa',
+    name: 'PGZ-95 Flak',
+    maxHp: 260,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    weapon: { damageType: 'flak', damage: 26, shotsPerSecond: 2.2, range: 6.0, targets: 'both' },
+    levels: [
+      { maxHp: 330, weapon: { damageType: 'flak', damage: 33, shotsPerSecond: 2.2, range: 6.0, targets: 'both' } },
+      { maxHp: 410, weapon: { damageType: 'flak', damage: 41, shotsPerSecond: 2.4, range: 6.3, targets: 'both' } },
+    ],
+  },
+  aaSite: {
+    kind: 'aaSite',
+    name: 'HQ-17 Launcher',
+    maxHp: 250,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    // Compound air cover: quick to cycle, blind to everything on foot.
+    weapon: { damageType: 'flak', damage: 44, shotsPerSecond: 1.1, range: 6.6, targets: 'air' },
+    levels: [
+      { maxHp: 315, weapon: { damageType: 'flak', damage: 56, shotsPerSecond: 1.1, range: 6.6, targets: 'air' } },
+      { maxHp: 390, weapon: { damageType: 'flak', damage: 70, shotsPerSecond: 1.2, range: 6.9, targets: 'air' } },
+    ],
+  },
   supplyCache: {
     kind: 'supplyCache',
     name: 'Supply Cache',

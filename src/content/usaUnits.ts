@@ -78,6 +78,22 @@ export const USA_UNITS: Record<string, AttackerProfile> = {
     weapon: { damageType: 'explosive', damage: 60, shotsPerSecond: 0.5, range: 4.0 },
     speedJitter: 0.03,
   },
+  reaper: {
+    kind: 'reaper',
+    name: 'MQ-9 Reaper',
+    maxHp: 150,
+    speed: 2.2,
+    armor: 'air',
+    wallDps: 0,
+    hqDps: 18,
+    cpValue: 12,
+    air: true,
+    // Hellfires: precise, patient, and helpless once a Flak mount ranges it.
+    // Its reach sits inside the mounts deliberately — a drone that outranges
+    // every gun in the game does not have an identity, it has immunity.
+    weapon: { damageType: 'shaped', damage: 70, shotsPerSecond: 0.32, range: 4.0 },
+    speedJitter: 0.04,
+  },
 };
 
 export interface TrainMeta {
@@ -89,7 +105,7 @@ export interface TrainMeta {
   seconds: number;
   manpower: number;
   /** Which building trains it. */
-  facility: 'barracks' | 'motorpool';
+  facility: 'barracks' | 'motorpool' | 'airfield';
 }
 
 export const TRAINABLE: TrainMeta[] = [
@@ -98,6 +114,7 @@ export const TRAINABLE: TrainMeta[] = [
   { kind: 'javelin', name: 'Javelin Team', short: 'JAV', supplies: 130, fuel: 20, seconds: 22, manpower: 3, facility: 'barracks' },
   { kind: 'humvee', name: 'Humvee CROWS', short: 'HMV', supplies: 160, fuel: 50, seconds: 30, manpower: 3, facility: 'motorpool' },
   { kind: 'abrams', name: 'M1 Abrams', short: 'ABR', supplies: 420, fuel: 130, seconds: 60, manpower: 8, facility: 'motorpool' },
+  { kind: 'reaper', name: 'MQ-9 Reaper', short: 'RPR', supplies: 380, fuel: 200, seconds: 66, manpower: 6, facility: 'airfield' },
 ];
 
 export const TRAIN_META: Record<string, TrainMeta> = Object.fromEntries(
@@ -105,6 +122,10 @@ export const TRAIN_META: Record<string, TrainMeta> = Object.fromEntries(
 );
 
 /** Base manpower plus per-facility-level bonuses. */
-export function manpowerCap(barracksLevels: number, motorpoolLevels: number): number {
-  return 6 + 5 * barracksLevels + 6 * motorpoolLevels;
+export function manpowerCap(
+  barracksLevels: number,
+  motorpoolLevels: number,
+  airfieldLevels = 0,
+): number {
+  return 6 + 5 * barracksLevels + 6 * motorpoolLevels + 4 * airfieldLevels;
 }

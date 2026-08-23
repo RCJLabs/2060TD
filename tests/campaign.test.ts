@@ -70,7 +70,12 @@ describe('campaign content', () => {
       expect(isSpecial || inCatalog, `unknown unlock key ${key}`).toBe(true);
     }
     for (const key of BASELINE_UNLOCKS) {
-      expect(key in TOWN_META || key in M1_CATALOG.walls).toBe(true);
+      // Baseline covers town buildings, walls, and the battle-layer pieces a
+      // commander always has — the MANPADS tube among them, so rotors are
+      // never unanswerable to someone actually at the board.
+      const known =
+        key in TOWN_META || key in M1_CATALOG.walls || key in M1_CATALOG.structures;
+      expect(known, `baseline unlock ${key} is not real content`).toBe(true);
     }
   });
 

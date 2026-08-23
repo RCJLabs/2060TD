@@ -251,6 +251,16 @@ export function drawStructureGlyph(
       g.lineStyle(2, COLORS.olive, 1);
       g.lineBetween(px, py - 2, px + 13, py - 2);
       break;
+    case 'airfield':
+      buildingBase(g, px, py, cell, COLORS.steel);
+      // A strip with its centreline, and a pad marking off one end.
+      g.fillStyle(COLORS.ink, 0.5);
+      g.fillRect(px - 14, py - 5, 28, 10);
+      g.lineStyle(2, COLORS.sand, 0.9);
+      g.lineBetween(px - 11, py, px + 11, py);
+      g.lineStyle(2, COLORS.olive, 1);
+      g.strokeCircle(px + 9, py - 9, 4);
+      break;
     case 'radar':
       buildingBase(g, px, py, cell, COLORS.intel);
       // Dish on a mast, angled skyward, plus a signal tick.
@@ -312,6 +322,29 @@ export function drawStructureGlyph(
     case 'claymore':
       g.fillStyle(COLORS.signal, 0.9);
       g.fillTriangle(px + 4, py - 5, px + 4, py + 5, px - 6, py);
+      break;
+    // ---- the air layer (v1.0) ------------------------------------------------
+    // AA reads as barrels pointed UP: quad tubes on a mount, drawn splayed so
+    // the one emplacement that cannot help against infantry is obvious.
+    case 'aa': {
+      turretBase(g, px, py, hostile);
+      g.fillStyle(hostile ? COLORS.crimson : COLORS.olive, 1);
+      g.fillCircle(px, py, 6);
+      g.lineStyle(2, COLORS.steel, 1);
+      g.lineBetween(px - 2, py - 2, px - 9, py - 11);
+      g.lineBetween(px + 2, py - 2, px + 9, py - 11);
+      g.lineBetween(px - 4, py, px - 12, py - 6);
+      g.lineBetween(px + 4, py, px + 12, py - 6);
+      break;
+    }
+    case 'manpads':
+      // Two men and a tube, over open ground: no revetment to draw.
+      g.fillStyle(COLORS.steel, 0.3);
+      g.fillCircle(px, py, 9);
+      g.fillStyle(COLORS.steel, 1);
+      g.fillCircle(px, py + 2, 4);
+      g.lineStyle(2, COLORS.intel, 1);
+      g.lineBetween(px - 5, py + 4, px + 7, py - 8);
       break;
     default:
       turretBase(g, px, py, hostile);

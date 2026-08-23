@@ -250,7 +250,7 @@ export const EASTERN_TIDE: MissionDef[] = [
       },
     ],
     siegeOverrides: { suppliesPerWave: 120, startingCp: 60 },
-    unlocks: ['arty', 'cc3', 'motorpool'],
+    unlocks: ['arty', 'cc3', 'motorpool', 'aa', 'airfield'],
     unlockNote: 'REQUISITION: PLZ-05 SATURATION · HQ LEVEL 3 · VEHICLE PARK',
     reward: { supplies: 1100, fuel: 280 },
     bonus: { id: 'ccAbove90', label: 'THE SAND HELD — HQ above 90%' },

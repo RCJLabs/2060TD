@@ -79,6 +79,33 @@ export const TEST_ATTACKERS: Record<string, AttackerProfile> = {
     weapon: { damageType: 'explosive', damage: 60, shotsPerSecond: 0.5, range: 4.0 },
     speedJitter: 0,
   },
+  // v1.0 air-layer fixtures: a flyer with no weapon (pure closer) and one
+  // that stands off. Both ignore the grid by profile.
+  flyer: {
+    kind: 'flyer',
+    name: 'Flyer',
+    maxHp: 120,
+    speed: 2,
+    armor: 'air',
+    wallDps: 0,
+    hqDps: 20,
+    cpValue: 8,
+    air: true,
+    speedJitter: 0,
+  },
+  gunFlyer: {
+    kind: 'gunFlyer',
+    name: 'Gun Flyer',
+    maxHp: 120,
+    speed: 2,
+    armor: 'air',
+    wallDps: 0,
+    hqDps: 20,
+    cpValue: 8,
+    air: true,
+    weapon: { damageType: 'explosive', damage: 30, shotsPerSecond: 1, range: 3.5 },
+    speedJitter: 0,
+  },
   bruiser: {
     kind: 'bruiser',
     name: 'Bruiser',

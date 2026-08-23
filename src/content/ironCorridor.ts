@@ -252,7 +252,7 @@ export const IRON_CORRIDOR: MissionDef[] = [
       },
     ],
     siegeOverrides: { suppliesPerWave: 120, startingCp: 60 },
-    unlocks: ['arty', 'cc3', 'motorpool'],
+    unlocks: ['arty', 'cc3', 'motorpool', 'aa', 'airfield'],
     unlockNote: 'REQUISITION: TOS-1A SALVO · BUNKER LEVEL 3 · TANK PARK',
     reward: { supplies: 1100, fuel: 280 },
     bonus: { id: 'ccAbove90', label: 'THE CONCRETE HELD — bunker above 90%' },

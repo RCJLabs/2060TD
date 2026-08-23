@@ -74,6 +74,17 @@ export const ECONOMY_STRUCTURES: Record<string, StructureProfile> = {
     targetable: true,
     levels: [{ maxHp: 520 }, { maxHp: 630 }],
   },
+  // v1.0: the air layer's home. Big, soft, and the first thing a raider
+  // with a doctrine goes looking for.
+  airfield: {
+    kind: 'airfield',
+    name: 'Airfield',
+    maxHp: 480,
+    footprint: 2,
+    blocks: true,
+    targetable: true,
+    levels: [{ maxHp: 600 }, { maxHp: 730 }],
+  },
 };
 
 // ---- town metadata ---------------------------------------------------------------
@@ -187,6 +198,15 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
     generatesIntel: [4, 7, 11],
     intelCap: [150, 300, 500],
   },
+  airfield: {
+    kind: 'airfield',
+    name: 'Airfield',
+    levels: [
+      { supplies: 700, fuel: 250, seconds: 150 },
+      { supplies: 1500, fuel: 550, seconds: 300 },
+      { supplies: 2800, fuel: 1000, seconds: 480 },
+    ],
+  },
   m2nest: {
     kind: 'm2nest',
     name: 'M2 MG Nest',
@@ -214,6 +234,15 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
       { supplies: 650, fuel: 180, seconds: 60 },
     ],
   },
+  aa: {
+    kind: 'aa',
+    name: 'FIM-92 Stinger Site',
+    levels: [
+      { supplies: 140, fuel: 40, seconds: 20 },
+      { supplies: 340, fuel: 110, seconds: 40 },
+      { supplies: 720, fuel: 240, seconds: 70 },
+    ],
+  },
 };
 
 /** Kinds the player can construct in town (order = build menu order). */
@@ -225,9 +254,11 @@ export const BUILDABLE_KINDS = [
   'radar',
   'barracks',
   'motorpool',
+  'airfield',
   'm2nest',
   'autocannon',
   'mortar',
+  'aa',
 ] as const;
 
 // ---- Command Center gating ---------------------------------------------------------
@@ -247,7 +278,8 @@ export const CC_GATING: CcGating[] = [
     walls: 50,
     counts: {
       supplyDepot: 2, fuelDepot: 1, storageBunker: 1, engBay: 0, radar: 0,
-      barracks: 1, motorpool: 0, m2nest: 2, autocannon: 1, mortar: 0,
+      barracks: 1, motorpool: 0, airfield: 0,
+      m2nest: 2, autocannon: 1, mortar: 0, aa: 0,
     },
   },
   {
@@ -255,7 +287,8 @@ export const CC_GATING: CcGating[] = [
     walls: 80,
     counts: {
       supplyDepot: 3, fuelDepot: 2, storageBunker: 2, engBay: 1, radar: 1,
-      barracks: 1, motorpool: 1, m2nest: 3, autocannon: 2, mortar: 1,
+      barracks: 1, motorpool: 1, airfield: 1,
+      m2nest: 3, autocannon: 2, mortar: 1, aa: 2,
     },
   },
   {
@@ -263,7 +296,8 @@ export const CC_GATING: CcGating[] = [
     walls: 120,
     counts: {
       supplyDepot: 4, fuelDepot: 3, storageBunker: 3, engBay: 1, radar: 1,
-      barracks: 2, motorpool: 1, m2nest: 4, autocannon: 3, mortar: 2,
+      barracks: 2, motorpool: 1, airfield: 1,
+      m2nest: 4, autocannon: 3, mortar: 2, aa: 3,
     },
   },
 ];

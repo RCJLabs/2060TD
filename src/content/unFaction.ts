@@ -60,6 +60,33 @@ export const UN_TOWN_STRUCTURES: Record<string, StructureProfile> = {
       { maxHp: 510, weapon: { damageType: 'shaped', damage: 68, shotsPerSecond: 0.5, range: 5.3 } },
     ],
   },
+  manpads: {
+    kind: 'manpads',
+    name: 'Mistral Team',
+    maxHp: 90,
+    footprint: 1,
+    blocks: false,
+    targetable: true,
+    cpCost: 22,
+    // Two men and a tube: no help at all against the ground, and the only
+    // thing a commander can put up once the rotors are already inbound.
+    weapon: { damageType: 'flak', damage: 56, shotsPerSecond: 0.7, range: 5.2, targets: 'air' },
+  },
+  aa: {
+    kind: 'aa',
+    name: 'Skyguard 35mm',
+    maxHp: 250,
+    footprint: 1,
+    blocks: true,
+    targetable: true,
+    supplyCost: 130,
+    // Radar-cued twin 35mm: nothing exceptional, and it is always where it should be.
+    weapon: { damageType: 'flak', damage: 34, shotsPerSecond: 1.5, range: 6.0, targets: 'both' },
+    levels: [
+      { maxHp: 315, weapon: { damageType: 'flak', damage: 43, shotsPerSecond: 1.5, range: 6.0, targets: 'both' } },
+      { maxHp: 390, weapon: { damageType: 'flak', damage: 54, shotsPerSecond: 1.6, range: 6.3, targets: 'both' } },
+    ],
+  },
   mortar: {
     kind: 'mortar',
     name: 'AMOS Mortar Pit',
@@ -142,6 +169,7 @@ export const UN_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   radar: rename(ECONOMY_STRUCTURES['radar']!, 'Signals & Liaison Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Multinational Barracks'),
   motorpool: rename(ECONOMY_STRUCTURES['motorpool']!, 'Vehicle Compound'),
+  airfield: rename(ECONOMY_STRUCTURES['airfield']!, 'Coalition Air Wing'),
 };
 
 /** Mid-pack at the wall line too: T-walls and true HESCO. */
@@ -195,4 +223,5 @@ export const UN_TRAINABLE: TrainMeta[] = [
   { kind: 'nlaw', name: 'NLAW Team', short: 'NLW', supplies: 120, fuel: 15, seconds: 22, manpower: 3, facility: 'barracks' },
   { kind: 'vab', name: 'VAB APC', short: 'VAB', supplies: 170, fuel: 50, seconds: 30, manpower: 3, facility: 'motorpool' },
   { kind: 'leo1', name: 'Leopard 1A5', short: 'LEO', supplies: 350, fuel: 110, seconds: 52, manpower: 6, facility: 'motorpool' },
+  { kind: 'nh90', name: 'NH90 Gunship', short: 'NH9', supplies: 340, fuel: 180, seconds: 58, manpower: 6, facility: 'airfield' },
 ];
