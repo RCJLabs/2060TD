@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { downloadSave, pickAndImportSave } from '../meta/save';
+import { forgetCoach } from '../meta/coach';
+import { downloadSave, pickAndImportSave, saveTown } from '../meta/save';
 import type { TownState } from '../meta/town';
 import type { Layout } from './layout';
 import { Overlay } from './overlay';
@@ -84,6 +85,13 @@ export function buildSettings(
       void pickAndImportSave().then((imported) => {
         if (imported) opts.onImport?.(imported);
       });
+    });
+    // The coach is one-shot by design, which is exactly why there has to be a
+    // way back to it — a first battle is not a good time to be taking notes.
+    ov.button(ov.flow(rowH), 'REPLAY BRIEFINGS', () => {
+      forgetCoach(town);
+      saveTown(town);
+      opts.rebuild();
     });
   }
 

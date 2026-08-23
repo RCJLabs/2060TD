@@ -335,10 +335,16 @@ there is deliberately no sixth faction here.
       exactly one war. Found and fixed a real bug on the way: TownScene caches
       its town across scene.start, so switching slots would have shown the
       wrong war.*
-- [ ] **First-contact tutorial** — a guided first siege (the maze rule shown by
-      a wave walking around a wall, one forced CP purchase, one power called),
-      plus first-use hints in the raid planner. The game is currently opaque
-      for its first ten minutes.
+- [x] **First-contact tutorial** *(v1.5)* — *a coach over the first battle a
+      commander ever fights, saying the three things that are opaque and not
+      discoverable by poking: the wire is a ROUTE, kills pay a budget, and that
+      budget dies with the siege. content/tutorial.ts is the script and the
+      cursor; game/coach.ts is only the plate it sits on. Two rules the cursor
+      enforces — a line is never flashed past (every step serves a dwell), and
+      a step never traps anyone (the dwell also ends the hold, so ignoring the
+      coach costs seconds, not progress). The planner explains its four tabs
+      once on first arrival. One-shot screens are recorded per war and
+      REPLAY BRIEFINGS in settings makes them first contact again.*
 - [ ] **Deep Front Line** — 8–10 wall templates instead of 3, plus base
       ARCHETYPES that change the problem rather than the numbers: bunker
       complex, dispersed depot, mountain pass. Tier 8 should be a different

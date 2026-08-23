@@ -166,6 +166,8 @@ export interface TownState {
   lastRaid: RaidRecord | null;
   /** Fingerprints of share codes already cleared: each pays loot once. */
   duels?: string[];
+  /** One-shot coach screens already read (content/tutorial.ts keys). */
+  seen?: string[];
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -207,6 +209,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     shieldUntil: 0,
     lastRaid: null,
     duels: [],
+    seen: [],
     assaultLevel: 1,
     victories: 0,
     defeats: 0,

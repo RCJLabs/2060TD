@@ -12,6 +12,8 @@ export interface BriefingData {
   /** Fully-built battle config; this scene only displays and forwards it. */
   config: SimConfig;
   faction: FactionId;
+  /** Forwarded to the siege: run the first-contact coach (v1.5). */
+  coach?: boolean;
 }
 
 /**
@@ -66,6 +68,7 @@ export class BriefingScene extends Phaser.Scene {
       fromTown: true,
       battle: { type: 'mission', missionId: this.briefing.mission.id },
       faction: this.briefing.faction ?? 'usa',
+      ...(this.briefing.coach ? { coach: true } : {}),
     });
   }
 

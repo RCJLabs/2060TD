@@ -17,6 +17,30 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.5: first contact
+
+**The game no longer expects you to work it out.** A coach runs over the first
+battle a commander ever fights, and says the three things that are opaque and
+undiscoverable:
+
+- **The wire is a route, not a barrier.** Attackers walk around it or break
+  through it, whichever costs them less. That is the whole mechanic and
+  nothing on screen says it.
+- **Kills pay Command Points**, and CP is *this battle's* budget — field guns,
+  mines, fire missions. It does not carry home.
+- **What CP buys is temporary.** The gun you place mid-wave is gone when the
+  siege ends; the emplacements you build in town are what holds the place
+  while you are away.
+
+It stays out of the way. Every line serves a dwell so it is never flashed past,
+and the dwell also ends any hold — ignoring the coach costs you a few seconds
+and never blocks progress on an action you were not going to take. A tap serves
+the rest of a line, because reading fast should not be punished.
+
+The **raid planner** explains its four tabs once, on first arrival. One-shot
+screens are remembered per war, and **REPLAY BRIEFINGS** in settings makes them
+first contact again — a first battle is not a good time to be taking notes.
+
 ## Current state — v1.4: three wars
 
 **Three save slots, so trying another faction never costs you the one you
@@ -405,6 +429,7 @@ node scripts/e2e-touch.mjs           # touch gestures: scroll, flick, tap-vs-dra
 node scripts/e2e-menu.mjs            # menu → settings → war → back to menu
 node scripts/e2e-share.mjs           # code out, code in, duel fought
 node scripts/e2e-league.mjs          # standing overlay + a full condition rotation
+node scripts/e2e-tutorial.mjs        # the coach: taught once, and never again
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

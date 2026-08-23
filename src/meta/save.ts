@@ -205,6 +205,10 @@ export function deserialize(json: string): TownState | null {
     town.duels = Array.isArray(town.duels)
       ? town.duels.filter((d: unknown): d is string => typeof d === 'string').slice(-50)
       : [];
+    // The coach ledger arrived in v1.5; an older file has simply read nothing.
+    town.seen = Array.isArray(town.seen)
+      ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)
+      : [];
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;

@@ -12,6 +12,8 @@ import {
 import { TECHS, TECH_BY_ID } from '../../content/research';
 import { activeSlot, clearSave, loadSlot, saveTown } from '../../meta/save';
 import { runOfflineProbes } from '../../meta/warfare';
+import { COACH_KEYS } from '../../content/tutorial';
+import { hasSeen, markSeen } from '../../meta/coach';
 import { conditionAfter, conditionAt, conditionEndsAt } from '../../content/conditions';
 import {
   leagueAt,
@@ -453,6 +455,18 @@ export class TownScene extends Phaser.Scene {
     return this.missions()[this.town.campaign.next] ?? null;
   }
 
+  /**
+   * True once, on the first battle this commander ever fights, and marked as
+   * spent immediately. Quitting a coached siege still counts as having been
+   * shown it — the alternative is re-teaching someone who walked away.
+   */
+  private claimCoach(): boolean {
+    if (this.demoMode || hasSeen(this.town, COACH_KEYS.firstSiege)) return false;
+    markSeen(this.town, COACH_KEYS.firstSiege);
+    saveTown(this.town);
+    return true;
+  }
+
   private launchMission(): void {
     this.launchMissionAt(this.nextMission());
   }
@@ -465,6 +479,7 @@ export class TownScene extends Phaser.Scene {
       mission,
       config: missionConfig(this.town, mission, Date.now() >>> 0),
       faction: this.town.faction,
+      ...(this.claimCoach() ? { coach: true } : {}),
     });
   }
 
@@ -621,6 +636,7 @@ export class TownScene extends Phaser.Scene {
       fromTown: true,
       battle: { type: 'skirmish' },
       faction: this.town.faction,
+      ...(this.claimCoach() ? { coach: true } : {}),
     });
   }
 
@@ -638,6 +654,7 @@ export class TownScene extends Phaser.Scene {
       fromTown: true,
       battle: { type: 'counter' },
       faction: this.town.faction,
+      ...(this.claimCoach() ? { coach: true } : {}),
     });
   }
 

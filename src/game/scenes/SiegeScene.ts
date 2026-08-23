@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { FIRST_SIEGE } from '../../content/tutorial';
+import { Coach } from '../coach';
 import { bonusMet, missionSiege, type MissionDef } from '../../content/campaign';
 import { campaignFor, defenseCatalogFor, flavorFor, type FactionId } from '../../content/factions';
 import { HOLD_THE_LINE } from '../../content/missions';
@@ -25,6 +27,8 @@ export interface SiegeLaunchData {
   battle?: BattleTag;
   /** Whose defense kit fights this battle (default 'usa'). */
   faction?: FactionId;
+  /** Run the first-contact coach over this battle (v1.5). */
+  coach?: boolean;
 }
 
 const CELL = 32;
@@ -67,6 +71,12 @@ export class SiegeScene extends Phaser.Scene {
   private faction: FactionId = 'usa';
   private paused = false;
   private pausedText!: Phaser.GameObjects.Text;
+  /** First-contact coach (v1.5): only ever on a commander's first battle. */
+  private coach: Coach | null = null;
+  private wantCoach = false;
+  /** Field defenses placed and fire missions called DURING combat. */
+  private deployed = 0;
+  private casts = 0;
 
   private board!: BoardView;
   private panel!: Panel;
@@ -91,6 +101,9 @@ export class SiegeScene extends Phaser.Scene {
         ? urlFaction
         : 'usa');
     this.paused = false;
+    this.wantCoach = data?.coach === true;
+    this.deployed = 0;
+    this.casts = 0;
   }
 
   private get mission(): MissionDef | null {
@@ -163,6 +176,13 @@ export class SiegeScene extends Phaser.Scene {
     onLayoutChange(this, () => this.applyLayout());
     this.bindInput();
 
+    // After applyLayout: the coach measures its plate against the board rect,
+    // so it cannot be built before there is a layout to measure against.
+    this.coach =
+      this.wantCoach && !this.demoMode
+        ? new Coach(this, this.layout, this.board.ui, FIRST_SIEGE)
+        : null;
+
     if (this.demoMode) this.applyDemoScript();
   }
 
@@ -175,6 +195,7 @@ export class SiegeScene extends Phaser.Scene {
     this.primary.setRect(board.x + (board.w - w) / 2, board.y + board.h - rowH - pad, w, rowH);
     this.primary.setFont(font.body);
     this.pausedText.setPosition(board.x + board.w / 2, board.y + board.h / 2).setFontSize(font.title);
+    this.coach?.applyLayout(this.layout);
     if (this.overlay) {
       this.overlay.close();
       this.overlay = null;
@@ -315,6 +336,7 @@ export class SiegeScene extends Phaser.Scene {
         // Aim at the cell centre: a fingertip is wider than a pixel.
         target: { x: cellX + 0.5, y: cellY + 0.5 },
       });
+      if (this.engine.phase === 'combat') this.casts++;
       this.setTool(null);
       return;
     }
@@ -330,6 +352,8 @@ export class SiegeScene extends Phaser.Scene {
     } else if (isTap) {
       // Structures place on tap only — drag-placing towers is a misclick machine.
       this.engine.command({ type: 'placeStructure', cell, kind: this.tool.kind });
+      // Only combat placements are FIELD defenses; the rest are fortification.
+      if (this.engine.phase === 'combat') this.deployed++;
     }
   }
 
@@ -340,7 +364,8 @@ export class SiegeScene extends Phaser.Scene {
   // ---- sim stepping ------------------------------------------------------------------
 
   override update(_time: number, deltaMs: number): void {
-    if (this.paused) {
+    const held = this.runCoach(deltaMs / 1000);
+    if (this.paused || held) {
       this.battle.draw(1, deltaMs / 1000, { showPaths: this.showPaths });
       this.updateHud();
       return;
@@ -362,6 +387,32 @@ export class SiegeScene extends Phaser.Scene {
       powerPreview: this.currentPowerPreview(),
     });
     this.updateHud();
+  }
+
+  /**
+   * Advance the coach and report whether it wants the battle held. It reads a
+   * projection of the engine rather than the engine itself, so the script is
+   * testable without a scene.
+   */
+  private runCoach(dtSeconds: number): boolean {
+    const coach = this.coach;
+    if (!coach || coach.done) return false;
+    const e = this.engine;
+    const held = coach.update(
+      {
+        phase: e.phase,
+        waveIndex: e.waveIndex,
+        cp: Math.floor(e.cp),
+        kills: e.stats.kills,
+        deployed: this.deployed,
+        casts: this.casts,
+      },
+      dtSeconds,
+    );
+    const tab = coach.takeTab();
+    // Naming a tab is no use if it is not the one on screen.
+    if (tab && this.panel.tab !== tab) this.panel.setTab(tab);
+    return held;
   }
 
   private handleEvents(events: SimEvent[]): void {

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { MAP_H, MAP_W, TARGETS_PER_TIER, type GeneratedBase } from '../../content/bases';
 import { conditionAt } from '../../content/conditions';
+import { COACH_KEYS } from '../../content/tutorial';
+import { hasSeen, markSeen } from '../../meta/coach';
 import {
   canTunnel,
   flavorFor,
@@ -211,6 +213,14 @@ export class RaidScene extends Phaser.Scene {
     this.applyLayout();
     onLayoutChange(this, () => this.applyLayout());
     this.redrawBase();
+
+    // The planner is the second thing in the game that has to be taught, and
+    // the only one with four tabs. Once, on first arrival, and never again.
+    if (!this.demoMode && !this.challenge && !hasSeen(this.town, COACH_KEYS.raidPlanner)) {
+      markSeen(this.town, COACH_KEYS.raidPlanner);
+      this.saveSoon();
+      this.showPlannerBriefing();
+    }
 
     const kb = this.input.keyboard;
     kb?.on('keydown-ESC', () => this.goHome());
@@ -423,6 +433,38 @@ export class RaidScene extends Phaser.Scene {
     this.result = resolution;
     this.lastConfig = config;
     this.showResult(resolution, standingBefore);
+  }
+
+  /** First arrival at the planner: what the four tabs are for. */
+  private showPlannerBriefing(): void {
+    if (this.overlay) return;
+    const ov = new Overlay(this, this.layout, {
+      title: 'THE FRONT LINE',
+      subtitle: 'A raid is planned, not driven. The plan is the whole skill.',
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { font } = this.layout;
+    ov.paragraph(
+      'TARGET — pick a post and buy its layout with Intel. Recon is the one\n' +
+        'advantage you can purchase; going in blind is a real choice, not a\n' +
+        'mistake.\n\n' +
+        'MUSTER — put trained units into squads. What you send can be lost,\n' +
+        'permanently, so send what the picture justifies.\n\n' +
+        'SQUADS — give each squad an entry sector and a doctrine: ASLT drives\n' +
+        'for the command post, HUNT strips the guns, RAZE burns the economy.\n\n' +
+        'FIRE — book ordnance in advance. Nobody flies it live; you are writing\n' +
+        'the fire plan before the first shot.\n\n' +
+        'Then the raid resolves end to end and hands you the replay. Everything\n' +
+        'there is to learn is in that replay.',
+      font.body,
+      COLORS.ink,
+      { lineSpacing: Math.round(font.body * 0.4) },
+    );
+    ov.footer('UNDERSTOOD', () => {
+      ov.close();
+      this.overlay = null;
+    });
   }
 
   private clearResult(): void {

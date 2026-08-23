@@ -362,7 +362,28 @@ Faction accent hues: USA olive, China crimson `#a83232`, Russia rust `#8c5a2b`, 
 Radio chatter and static as UI feedback; distant artillery ambience; sparse percussion-led
 score that only surfaces during sieges. Silence is part of the tone.
 
-### 6.3 Writing style
+### 6.3 Teaching *(v1.5)*
+
+Three things about this game are opaque on a first run and none of them can be
+discovered by poking at it: that the wire is a **route** rather than a barrier,
+that kills pay a **budget that only exists during this battle**, and that the
+field guns bought with it **die when the siege does**. A coach says those three
+things over the first battle a commander ever fights, in the order the battle
+raises them, and then never appears again.
+
+Two rules keep it from being an obstacle. A line is never flashed past: every
+step serves a dwell before it can advance. And a step never traps anyone: the
+dwell also ends any hold, so a player who ignores the coach entirely loses a
+few seconds and is never stuck waiting on an action they were not going to
+take. A tap serves the rest of a dwell, because reading fast should not be
+punished.
+
+The raid planner gets one screen on first arrival — it is the only place in the
+game with four tabs and a plan that resolves without you. One-shot screens are
+recorded per war, and REPLAY BRIEFINGS in settings makes them first contact
+again: a first battle is not a good time to be taking notes.
+
+### 6.4 Writing style
 
 Terse military register. Briefings are radio logs and after-action reports, 4–8 lines each.
 Casualty reports use numbers, not adjectives. The war is never cool; the craft is.
