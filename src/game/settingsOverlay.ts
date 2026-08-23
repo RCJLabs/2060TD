@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { forgetCoach } from '../meta/coach';
-import { downloadSave, pickAndImportSave, saveTown } from '../meta/save';
+import { downloadSave, pickAndImportSave, saveTown, SAVE_FILENAME } from '../meta/save';
 import type { TownState } from '../meta/town';
 import type { Layout } from './layout';
 import { Overlay } from './overlay';
@@ -93,7 +93,22 @@ export function buildSettings(
   if (opts.town) {
     const town = opts.town;
     heading('CAMPAIGN FILE');
-    ov.button(ov.flow(rowH), 'EXPORT SAVE', () => downloadSave(town));
+    // The row says what happened. An export has three outcomes — the file was
+    // handed over, the viewer said no, or this page cannot save files at all —
+    // and a button that looks identical in all three is how the hosted build
+    // came to have a dead EXPORT SAVE nobody noticed.
+    const exportRow = ov.button(ov.flow(rowH), 'EXPORT SAVE', () => {
+      exportRow.setLabel('EXPORTING…');
+      void downloadSave(town).then((result) => {
+        exportRow.setLabel(
+          result === 'saved'
+            ? `SAVED — ${SAVE_FILENAME}`
+            : result === 'declined'
+              ? 'EXPORT CANCELLED'
+              : 'EXPORT UNAVAILABLE HERE',
+        );
+      });
+    });
     ov.button(ov.flow(rowH), 'IMPORT SAVE', () => {
       void pickAndImportSave().then((imported) => {
         if (imported) opts.onImport?.(imported);

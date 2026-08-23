@@ -300,16 +300,68 @@ export const loadTown = (now: number): TownState => loadSlot(activeSlot(), now);
 export const saveTown = (town: TownState): void => saveSlot(activeSlot(), town);
 export const clearSave = (): void => clearSlot(activeSlot());
 
-/** Browser-only: hands the player their save as a downloaded JSON file. */
-export function downloadSave(town: TownState): void {
-  if (typeof document === 'undefined') return;
-  const blob = new Blob([serialize(town)], { type: 'application/json' });
+/**
+ * The file the player gets. Unlike SAVE_KEY this IS a label — it is the name
+ * on a file in somebody's downloads folder — so it carries the game's name.
+ */
+export const SAVE_FILENAME = '2060td-save.json';
+
+/** What became of an export. The settings screen says which, out loud. */
+export type ExportResult = 'saved' | 'declined' | 'unavailable';
+
+/**
+ * The claude.ai artifact viewer's file-save capability, or null anywhere else.
+ *
+ * The hosted build runs in a sandbox that grants no download permission at
+ * all, so the anchor below is inert there — the link is clicked, nothing
+ * happens, and the player is told nothing. `claude.use()` is the sanctioned
+ * way in; on GitHub Pages, in the single-file build and in dev there is no
+ * `window.claude` at all and this is simply null.
+ */
+interface ViewerDownloads {
+  save(request: { filename: string; data: string }): Promise<unknown>;
+}
+async function viewerDownloads(): Promise<ViewerDownloads | null> {
+  const host = (globalThis as { claude?: { use?: (name: string) => Promise<unknown> } }).claude;
+  if (typeof host?.use !== 'function') return null;
+  try {
+    return ((await host.use('downloads')) as ViewerDownloads | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Browser-only: hands the player their save as a JSON file.
+ *
+ * Two routes, because the game runs in two kinds of page. In an ordinary
+ * browser an anchor with `download` is the whole story. In the artifact viewer
+ * that anchor does nothing — page-initiated saves are blocked — so the file
+ * goes through the viewer's own save prompt, which the player can decline.
+ * Declining is a real answer and is reported as one; the old version could not
+ * tell the difference between a save, a refusal and a dead link.
+ */
+export async function downloadSave(town: TownState): Promise<ExportResult> {
+  if (typeof document === 'undefined') return 'unavailable';
+  const json = serialize(town);
+  const viewer = await viewerDownloads();
+  if (viewer) {
+    try {
+      await viewer.save({ filename: SAVE_FILENAME, data: json });
+      return 'saved';
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      return code === 'declined' || code === 'rate_limited' ? 'declined' : 'unavailable';
+    }
+  }
+  const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = 'lastline-save.json';
+  anchor.download = SAVE_FILENAME;
   anchor.click();
   URL.revokeObjectURL(url);
+  return 'saved';
 }
 
 /** Browser-only: file-picker import. Resolves null if unreadable/invalid. */

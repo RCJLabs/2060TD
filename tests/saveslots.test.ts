@@ -11,6 +11,8 @@ import {
   serialize,
   setActiveSlot,
   slotKey,
+  downloadSave,
+  SAVE_FILENAME,
   SAVE_KEY,
   SLOT_COUNT,
 } from '../src/meta/save';
@@ -137,5 +139,104 @@ describe('save slots', () => {
     expect(readSlot(1)).toBeNull();
     expect(() => saveTown(war())).not.toThrow();
     expect(loadTown(T0).campaign.difficulty).toBeNull(); // a fresh town
+  });
+});
+
+/**
+ * Exporting the campaign file (v1.17.1). The game runs in two kinds of page and
+ * only one of them can be handed a file by a link: the claude.ai artifact
+ * viewer grants a page no download permission at all, so the anchor route is
+ * silently inert there. These cover the fork, including the outcomes the old
+ * version could not tell apart — a save, a refusal, and a dead link.
+ */
+describe('exporting the campaign file', () => {
+  const town = () => newTown(T0, 'usa');
+  /** A minimal document that records the anchor an export would have clicked. */
+  function installDocument(): { clicks: { href: string; download: string }[] } {
+    const clicks: { href: string; download: string }[] = [];
+    (globalThis as Record<string, unknown>)['document'] = {
+      createElement: () => {
+        const a = { href: '', download: '', click: () => clicks.push({ href: a.href, download: a.download }) };
+        return a;
+      },
+    };
+    (globalThis as Record<string, unknown>)['Blob'] = class {
+      constructor(public parts: string[]) {}
+    };
+    (globalThis as Record<string, unknown>)['URL'] = {
+      createObjectURL: () => 'blob:save',
+      revokeObjectURL: () => undefined,
+    };
+    return { clicks };
+  }
+  const clearHost = () => {
+    delete (globalThis as Record<string, unknown>)['claude'];
+    delete (globalThis as Record<string, unknown>)['document'];
+  };
+
+  beforeEach(clearHost);
+
+  it('falls back to a download link in an ordinary browser', async () => {
+    const { clicks } = installDocument();
+    await expect(downloadSave(town())).resolves.toBe('saved');
+    expect(clicks).toHaveLength(1);
+    expect(clicks[0]!.download).toBe(SAVE_FILENAME);
+    clearHost();
+  });
+
+  it('goes through the viewer when the page has been granted saves', async () => {
+    installDocument();
+    const offered: { filename: string; data: string }[] = [];
+    (globalThis as Record<string, unknown>)['claude'] = {
+      use: (name: string) =>
+        Promise.resolve(
+          name === 'downloads'
+            ? {
+                save: (r: { filename: string; data: string }) => {
+                  offered.push(r);
+                  return Promise.resolve({ status: 'saved' });
+                },
+              }
+            : null,
+        ),
+    };
+    await expect(downloadSave(town())).resolves.toBe('saved');
+    expect(offered).toHaveLength(1);
+    expect(offered[0]!.filename).toBe(SAVE_FILENAME);
+    // What is offered is the save itself, readable back as one.
+    expect(JSON.parse(offered[0]!.data)).toMatchObject({ town: { version: 6 } });
+    clearHost();
+  });
+
+  it('tells a refusal apart from a failure', async () => {
+    installDocument();
+    const refuse = (code: string) => {
+      (globalThis as Record<string, unknown>)['claude'] = {
+        use: () => Promise.resolve({ save: () => Promise.reject({ code }) }),
+      };
+      return downloadSave(town());
+    };
+    await expect(refuse('declined')).resolves.toBe('declined');
+    await expect(refuse('rate_limited')).resolves.toBe('declined');
+    await expect(refuse('too_large')).resolves.toBe('unavailable');
+    clearHost();
+  });
+
+  it('uses the anchor when the viewer serves no saves at all', async () => {
+    // use() resolving null is the documented "not served here" answer, and it
+    // is indistinguishable from not granted — so the page just takes the other
+    // road rather than trying to work out which.
+    const { clicks } = installDocument();
+    (globalThis as Record<string, unknown>)['claude'] = { use: () => Promise.resolve(null) };
+    await expect(downloadSave(town())).resolves.toBe('saved');
+    expect(clicks).toHaveLength(1);
+    clearHost();
+  });
+
+  it('carries the game\'s name, not the save key\'s', async () => {
+    // SAVE_KEY is an address and keeps its old name forever; a FILENAME is a
+    // label on something the player will look at in a folder.
+    expect(SAVE_FILENAME).toContain('2060td');
+    expect(SAVE_KEY).toContain('lastline');
   });
 });

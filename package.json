@@ -1,7 +1,7 @@
 {
   "name": "2060td",
   "private": true,
-  "version": "1.17.0",
+  "version": "1.17.1",
   "description": "2060TD — hybrid tower defense / base builder set in a modern alternate-history war",
   "type": "module",
   "scripts": {

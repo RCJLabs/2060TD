@@ -17,6 +17,27 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.17.1: EXPORT SAVE actually exports
+
+**In the hosted artifact, EXPORT SAVE did nothing.** The claude.ai viewer grants a
+page no download permission, so the `<a download>` was clicked, the browser ignored
+it, and the player was told nothing — the button looked identical whether it worked,
+was refused, or was inert.
+
+- **Two routes, because the game runs in two kinds of page.** In an ordinary browser
+  (GitHub Pages, the single-file build, dev) the anchor is still the whole story. In
+  the artifact viewer the file now goes through the viewer's own save prompt, reached
+  the sanctioned way — `claude.use('downloads')`, which is simply `null` everywhere
+  else, so there is no host sniffing and no branch on where the page thinks it is.
+- **The row says what happened**: `SAVED — 2060td-save.json`, `EXPORT CANCELLED` when
+  the viewer declines, `EXPORT UNAVAILABLE HERE` when the page cannot save at all.
+  Declining is a real answer and now reads as one.
+- **The file carries the game's name.** `SAVE_FILENAME` is `2060td-save.json` — a
+  filename is a label on something the player will look at in a folder, unlike
+  `SAVE_KEY`, which is an address and keeps its old name forever.
+- **Both routes are covered by tests and by `e2e-menu`**, which stands in for a viewer
+  that saves and for one that refuses, and checks the outcome rather than the click.
+
 ## Current state — v1.17: gates
 
 **The GDD promised gates in its first draft and never got them** — and the function it

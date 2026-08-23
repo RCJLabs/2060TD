@@ -205,6 +205,85 @@ try {
   check('the same settings screen opens in-game', await has('COLORBLIND'));
   check('in-game settings offer the way back', await has('MAIN MENU'));
   check('and the campaign file', await has('EXPORT SAVE'));
+
+  // Export has to work in two kinds of page, and until v1.17.1 it only worked
+  // in one: the artifact viewer grants a page no download permission, so the
+  // anchor was clicked and nothing happened, silently. Both routes are checked
+  // here, and both are checked by their OUTCOME — the row says what became of
+  // the file, which is the part that was missing.
+  const exportLabel = async () =>
+    (await labels()).find((l) => /EXPORT|SAVED —/.test(l.toUpperCase())) ?? '';
+  await page.evaluate(() => {
+    // Swallow the real download so the run does not leave a file behind, and
+    // record that the anchor route was actually taken.
+    window.__saved = [];
+    const make = document.createElement.bind(document);
+    document.createElement = (tag) => {
+      const el = make(tag);
+      if (tag === 'a') {
+        el.click = () => window.__saved.push(el.download);
+      }
+      return el;
+    };
+  });
+  await tap('EXPORT SAVE', 900);
+  const anchored = await page.evaluate(() => window.__saved);
+  check(
+    'an ordinary browser gets the file through a download link',
+    anchored.length === 1 && anchored[0] === '2060td-save.json',
+    anchored.join(', '),
+  );
+  check(
+    'and the row says the file went',
+    /SAVED — 2060TD-SAVE\.JSON/.test((await exportLabel()).toUpperCase()),
+    await exportLabel(),
+  );
+
+  // Now stand in for the viewer: a host that serves the save capability must be
+  // used instead of the link, and a refusal must read as a refusal.
+  await tap('CLOSE', 700);
+  await page.evaluate(() => {
+    window.__offered = [];
+    window.__decline = false;
+    window.claude = {
+      use: (name) =>
+        Promise.resolve(
+          name === 'downloads'
+            ? {
+                save: (req) => {
+                  window.__offered.push(req.filename);
+                  return window.__decline
+                    ? Promise.reject({ code: 'declined' })
+                    : Promise.resolve({ status: 'saved' });
+                },
+              }
+            : null,
+        ),
+    };
+  });
+  await tap('SETTINGS', 900);
+  await tap('EXPORT SAVE', 900);
+  const offered = await page.evaluate(() => window.__offered);
+  const stillAnchored = await page.evaluate(() => window.__saved.length);
+  check(
+    'a viewer that can save files is used instead of the link',
+    offered.length === 1 && offered[0] === '2060td-save.json' && stillAnchored === 1,
+    `offered ${offered.join(', ')} · anchor clicks ${stillAnchored}`,
+  );
+  await tap('CLOSE', 700);
+  await page.evaluate(() => {
+    window.__decline = true;
+  });
+  await tap('SETTINGS', 900);
+  await tap('EXPORT SAVE', 900);
+  check(
+    'and a viewer that says no reads as cancelled, not as saved',
+    /CANCELLED/.test((await exportLabel()).toUpperCase()),
+    await exportLabel(),
+  );
+  await page.evaluate(() => {
+    delete window.claude;
+  });
   await tap('CLOSE', 700);
 
   await tap('MAIN MENU', 1500);
