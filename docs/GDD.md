@@ -310,6 +310,19 @@ everything possible, race the Command Center), **Raze Economy** (target depots/s
 Powers get auto-trigger rules from a small predicate list. The plan is saved with the replay,
 so you can iterate on a failed plan directly.
 
+The delay is a picker with seven stops — 0/6/12/20/30/45/60 seconds after LAUNCH — and the
+first three are the old fixed stagger, so the plan the planner opens on is one the picker can
+say. Tunnel dig time is added on top of the order: a gallery squad told T+0 still surfaces
+when the ground opens, because the order is when the ground is opened, not when the men are
+already up. A plan that names no delay falls back to the stagger, which is why every replay
+recorded before v1.15 re-fights the battle it recorded rather than a new one.
+
+What the choice is worth is measured (`npm run balance -- --delay`) and it is a trade in both
+directions: **mass takes the base, patience brings the men home.** Widening the stagger raises
+the share of the force that walks back and lowers the clear rate, and the size of that penalty
+is the faction — the USA can trickle at no cost to the objective, the KPA cannot trickle at
+all. Sending the assault formation in LAST is a blunder in all five.
+
 ### 5.6a Veterancy and named squads *(v1.9)*
 
 The three raid slots are three **standing formations** with call signs (HAMMER, RONIN and

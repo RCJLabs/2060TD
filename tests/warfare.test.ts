@@ -18,7 +18,9 @@ import {
 } from '../src/meta/town';
 import {
   applyRaidResult,
+  delayOf,
   isScouted,
+  nextDelay,
   planDeployment,
   raidConfig,
   raidWave,
@@ -26,7 +28,10 @@ import {
   runOfflineProbes,
   scoutTarget,
   sectorCells,
+  DELAY_STEPS,
   SECTOR_IDS,
+  SQUAD_DELAY_TICKS,
+  TUNNEL_DIG_TICKS,
   type SquadPlan,
 } from '../src/meta/warfare';
 
@@ -78,6 +83,96 @@ describe('base generator', () => {
     expect(lootFor('cc', 7).supplies).toBeGreaterThan(lootFor('cc', 1).supplies);
     expect(t7.structures.some((s) => s.kind === 'atgmTower')).toBe(true);
     expect(t1.structures.some((s) => s.kind === 'atgmTower')).toBe(false);
+  });
+});
+
+describe('ordered launch delays', () => {
+  const at = (wave: { entries: { kind: string; atTick: number }[] }, kind: string): number =>
+    Math.min(...wave.entries.filter((e) => e.kind === kind).map((e) => e.atTick));
+
+  it('reproduces the old fixed stagger when no delay was ordered', () => {
+    // Every plan written before v1.15 omits the field. If the fallback drifted,
+    // every stored replay would re-fight a different battle than it recorded.
+    const plain: SquadPlan[] = [
+      { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault' },
+      { units: { javelin: 1 }, sector: 'N1', doctrine: 'hunt' },
+      { units: { humvee: 1 }, sector: 'S2', doctrine: 'raze' },
+    ];
+    plain.forEach((squad, i) => expect(delayOf(squad, i)).toBe((i * SQUAD_DELAY_TICKS) / 20));
+    const wave = raidWave(plain);
+    expect(at(wave, 'ranger')).toBe(0);
+    expect(at(wave, 'javelin')).toBe(SQUAD_DELAY_TICKS);
+    expect(at(wave, 'humvee')).toBe(2 * SQUAD_DELAY_TICKS);
+  });
+
+  it('puts a squad on the field at the second it was ordered to', () => {
+    const wave = raidWave([
+      { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault', delay: 30 },
+      { units: { javelin: 1 }, sector: 'N1', doctrine: 'hunt', delay: 45 },
+    ]);
+    expect(at(wave, 'ranger')).toBe(30 * 20);
+    expect(at(wave, 'javelin')).toBe(45 * 20);
+  });
+
+  it('lets the order invert the slots — the third squad can lead', () => {
+    // The point of the picker: slot order is a label, not a schedule.
+    const wave = raidWave([
+      { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault', slot: 0, delay: 45 },
+      { units: { javelin: 1 }, sector: 'N1', doctrine: 'hunt', slot: 1, delay: 20 },
+      { units: { humvee: 1 }, sector: 'S2', doctrine: 'raze', slot: 2, delay: 0 },
+    ]);
+    expect(at(wave, 'humvee')).toBeLessThan(at(wave, 'javelin'));
+    expect(at(wave, 'javelin')).toBeLessThan(at(wave, 'ranger'));
+    // The names still belong to the slots they were assigned, not to arrival order.
+    const humvee = wave.entries.find((e) => e.kind === 'humvee')!;
+    expect(humvee.squad).toBe(2);
+  });
+
+  it('adds the dig on top of the order for a tunneled squad', () => {
+    const wave = raidWave([
+      { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault', delay: 0, tunnel: 400 },
+    ]);
+    // T+0 means the ground opens at zero, not that the squad is already up.
+    expect(at(wave, 'ranger')).toBe(TUNNEL_DIG_TICKS);
+  });
+
+  it('refuses a delay that would stall the raid past the clock', () => {
+    // A hand-edited or corrupted plan must not be able to sit out the battle.
+    const wave = raidWave([
+      { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault', delay: 9000 },
+      { units: { javelin: 1 }, sector: 'N1', doctrine: 'hunt', delay: -30 },
+    ]);
+    expect(at(wave, 'ranger')).toBe(60 * 20);
+    expect(at(wave, 'javelin')).toBe(0);
+  });
+
+  it('walks every stop and wraps, starting from the default plan', () => {
+    const walked: number[] = [];
+    let value = 0;
+    for (let i = 0; i < DELAY_STEPS.length; i++) {
+      value = nextDelay(value);
+      walked.push(value);
+    }
+    expect(new Set(walked).size).toBe(DELAY_STEPS.length);
+    expect(value).toBe(0); // all the way round, back where it started
+    // The default stagger is expressible in the picker's own vocabulary.
+    for (const seconds of [0, 6, 12]) expect(DELAY_STEPS).toContain(seconds);
+    // Anything off the list lands on the first stop rather than nowhere.
+    expect(nextDelay(37)).toBe(DELAY_STEPS[0]);
+  });
+
+  it('changes the battle: holding a squad back changes the outcome hash', () => {
+    const base = generateBase(3, 7);
+    const together: SquadPlan[] = [
+      { units: { abrams: 2, ranger: 3 }, sector: 'W1', doctrine: 'assault', delay: 0 },
+      { units: { abrams: 2, ranger: 3 }, sector: 'N1', doctrine: 'assault', delay: 0 },
+    ];
+    const staggered = together.map((s, i) => ({ ...s, delay: i === 1 ? 60 : 0 }));
+    const a = resolveRaid(raidConfig(base, together, 5), together, base.tier);
+    const b = resolveRaid(raidConfig(base, staggered, 5), staggered, base.tier);
+    // Same units, same sectors, same seed — only the clock differs, and a raid
+    // that lands in two halves is not the raid that lands at once.
+    expect(a).not.toEqual(b);
   });
 });
 

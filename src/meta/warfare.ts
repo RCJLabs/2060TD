@@ -99,6 +99,34 @@ export interface SquadPlan {
    * player actually sent, not the squad they have now.
    */
   vet?: number;
+  /**
+   * Seconds after LAUNCH this formation crosses the line (v1.15). Omit for the
+   * default stagger — slot order, six seconds apart — which is exactly what
+   * every plan did before the delay was a choice, so nothing that predates it
+   * fights a different battle.
+   *
+   * Tunnel dig time is added on top: a gallery squad ordered to T+0 still
+   * surfaces when the ground opens, not before.
+   */
+  delay?: number;
+}
+
+/**
+ * The delays a commander can order, in seconds. The first three are the old
+ * fixed stagger, so the default plan is expressible in the same vocabulary the
+ * player edits in — a picker whose starting value is not one of its own stops
+ * is a picker that lies on the first tap.
+ */
+export const DELAY_STEPS = [0, 6, 12, 20, 30, 45, 60];
+
+/** What this squad's delay actually is, default stagger included. */
+export const delayOf = (squad: SquadPlan, index: number): number =>
+  squad.delay ?? index * (SQUAD_DELAY_TICKS / 20);
+
+/** The next stop up the list, wrapping at the top. */
+export function nextDelay(seconds: number): number {
+  const at = DELAY_STEPS.indexOf(seconds);
+  return DELAY_STEPS[at === -1 ? 0 : (at + 1) % DELAY_STEPS.length]!;
 }
 
 export const slotOf = (squad: SquadPlan, index: number): number =>
@@ -172,7 +200,8 @@ export function raidWave(squads: SquadPlan[], trainable: TrainMeta[] = TRAINABLE
     const cells = sectorCells(squad.sector);
     const mouthCol = tunneled ? squad.tunnel! % MAP_W : 0;
     const mouthRow = tunneled ? Math.floor(squad.tunnel! / MAP_W) : 0;
-    const baseTick = squadIndex * SQUAD_DELAY_TICKS + (tunneled ? TUNNEL_DIG_TICKS : 0);
+    const ordered = Math.max(0, Math.min(60, Math.round(delayOf(squad, squadIndex))));
+    const baseTick = ordered * 20 + (tunneled ? TUNNEL_DIG_TICKS : 0);
     let unitIndex = 0;
     // Deterministic composition order: the faction's trainable order, then count.
     for (const meta of trainable) {

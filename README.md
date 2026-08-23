@@ -17,6 +17,40 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.15: order the clock
+
+**Squads crossed the line on a fixed conveyor** — slot 1 at T+0, slot 2 at T+6, slot 3
+at T+12, shown read-only. The GDD had promised a launch delay since the first draft.
+Now it's a picker.
+
+- **Seven stops: 0 / 6 / 12 / 20 / 30 / 45 / 60 seconds.** The first three are the old
+  stagger on purpose. A picker whose opening value isn't one of its own stops corrects
+  itself on the first tap instead of obeying it.
+- **Nothing that predates it fights a different battle.** A plan that names no delay
+  falls back to the stagger it always had, so every replay in the vault re-fights the
+  raid it recorded. The delay rides in the wave's own arrival ticks, which replay codes
+  already carried — no format change.
+- **The dig is added on top, not folded in.** A gallery squad ordered to T+0 still
+  surfaces when the ground opens. The number you ordered and the number the ground
+  imposes are different facts, and only one of them is yours.
+- **It's a trade, and `--delay` says what kind.** Mass takes the base; patience brings
+  the men home. Widening the stagger raises the share of the force that walks back and
+  lowers the clear rate — and the size of that penalty is the faction. The USA trickles
+  for free (clear rate flat at 92–93%, men home 24→32%); the KPA can't trickle at all
+  (all-at-once 17.2/58%, wide 5.6/26%). Sending the assault formation in last is a
+  blunder in all five.
+- **Time is currently free in a raid, and that's recorded as a finding.** Raids run
+  59–125s against a 300s stop and never time out, because a raided garrison gets no CP
+  and never repairs — it can't use the minute you hand it. The fix is the standing-orders
+  trickle on raided bases; filed, not bolted on, because it moves every number in
+  `docs/BALANCE.md`.
+
+## Current state — v1.14: the game is called 2060TD
+
+The working title is retired. `LAST LINE` was provisional from the first commit; the
+game ships as **2060TD**. The save key still reads `lastline_save_v1` — a key is an
+address, not a label, and renaming it would strand every existing campaign.
+
 ## Current state — v1.13: the panel wraps
 
 **Panel rows were one line each**, cut off with an ellipsis worked out from a
@@ -622,8 +656,9 @@ npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # share codes, replay codes, day orders, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
-                   # -- --shapes for the eight base archetypes, or
-                   # -- --vet [faction] for the veterancy ranks)
+                   # -- --shapes for the eight base archetypes,
+                   # -- --vet [faction] for the veterancy ranks, or
+                   # -- --delay [faction] for the launch-delay patterns)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
@@ -640,6 +675,7 @@ node scripts/e2e-vet.mjs             # named formations, their files, and who ca
 node scripts/e2e-record.mjs          # the service record, and that it never draws over itself
 node scripts/e2e-vault.mjs           # a battle filed, copied out as a string, and played back in
 node scripts/e2e-orders.mjs          # the day's orders, filled by actually playing
+node scripts/e2e-delay.mjs           # the launch-delay picker, and the plan following it
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

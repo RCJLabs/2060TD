@@ -492,6 +492,71 @@ function conditionTable(faction: FactionId): string {
  * The thin plan is deliberate. At the margin a rank is worth a coin flip; with
  * the reference force behind it every row reads 100 and the table says nothing.
  */
+/**
+ * Ordered launch delays (v1.15). The same force, the same tiers, the same
+ * seeds — only the clock differs. The question a picker has to answer before it
+ * earns its row: is WHEN a real choice, or is one schedule simply correct?
+ */
+function delayTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  const PATTERNS: { name: string; delays: number[] }[] = [
+    { name: 'ALL AT ONCE', delays: [0, 0, 0] },
+    { name: 'DEFAULT', delays: [0, 6, 12] },
+    { name: 'WIDE', delays: [0, 20, 45] },
+    { name: 'SEQUENTIAL', delays: [0, 30, 60] },
+    { name: 'LEAD LAST', delays: [12, 6, 0] },
+  ];
+  const lines = [
+    `LAUNCH DELAYS — ${flavor.faction} strike force (${planManpower(faction)} MP), men returned% by tier`,
+    `PATTERN     | T+       | ${RAID_TIERS.map((t) => pad(`T${t}`, 4)).join(' | ')} |  MEAN | CLEAR% | SECS | SLOT 1/2/3`,
+    `------------+----------+${RAID_TIERS.map(() => '------').join('+')}+-------+--------+------+-----------`,
+  ];
+  for (const pattern of PATTERNS) {
+    const back: number[] = [];
+    let cleared = 0;
+    let runs = 0;
+    let ticks = 0;
+    const bySlot = [0, 0, 0].map(() => ({ home: 0, sent: 0 }));
+    for (const tier of RAID_TIERS) {
+      let home = 0;
+      let sent = 0;
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        const base = generateBase(tier, variant, baseKitFor(faction));
+        for (let i = 0; i < SEEDS; i++) {
+          const squads = RAID_PLANS[faction].map((squad, at) => ({
+            ...squad,
+            slot: at,
+            delay: pattern.delays[at] ?? 0,
+          }));
+          const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+          const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
+          for (const ret of res.squads) {
+            home += ret.returned;
+            sent += ret.deployed;
+            const seat = bySlot[ret.slot];
+            if (seat) {
+              seat.home += ret.returned;
+              seat.sent += ret.deployed;
+            }
+          }
+          if (res.cleared) cleared++;
+          ticks += res.ticks;
+          runs++;
+        }
+      }
+      back.push(Math.round((home / sent) * 100));
+    }
+    const mean = back.reduce((a, b) => a + b, 0) / back.length;
+    lines.push(
+      `${pattern.name.padEnd(11)} | ${pad(pattern.delays.join('/'), 8)} | ${back.map((c) => pad(c, 4)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(Math.round((cleared / runs) * 100), 6)} | ` +
+        `${pad((ticks / runs / 20).toFixed(0), 4)} | ` +
+        bySlot.map((seat) => pad(Math.round((seat.home / seat.sent) * 100), 3)).join('/'),
+    );
+  }
+  return lines.join('\n');
+}
+
 function veterancyTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   // The reference force, unchanged. An earlier pass tried thinning it to force
@@ -555,6 +620,12 @@ function main(): void {
   }
   if (process.argv.includes('--conditions')) {
     console.log(conditionTable('usa'));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--delay')) {
+    const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
+    console.log(delayTable(pick));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

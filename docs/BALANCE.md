@@ -1,4 +1,4 @@
-# Balance snapshot (v1.9)
+# Balance snapshot (v1.15)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -394,6 +394,73 @@ EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |  100 |    0 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
 ```
+
+## Launch delays (v1.15)
+
+`npm run balance -- --delay [faction]`. The same reference strike force, the same tiers,
+the same seeds — only the clock differs. SLOT 1/2/3 is men-returned% per standing
+formation, SECS the mean length of the battle.
+
+```
+LAUNCH DELAYS — UNITED STATES strike force (27 MP), men returned% by tier
+PATTERN     | T+       |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR% | SECS | SLOT 1/2/3
+------------+----------+------+------+------+------+------+-------+--------+------+-----------
+ALL AT ONCE |    0/0/0 |   38 |   35 |   24 |   12 |   11 |  24.0 |     93 |   59 |  54/ 12/ 18
+DEFAULT     |   0/6/12 |   40 |   47 |   31 |   11 |   11 |  28.0 |     93 |   62 |  50/ 14/ 28
+WIDE        |  0/20/45 |   49 |   45 |   39 |   11 |   12 |  31.2 |     93 |   70 |  51/ 21/ 29
+SEQUENTIAL  |  0/30/60 |   48 |   56 |   30 |   16 |   11 |  32.2 |     92 |   75 |  49/ 32/ 24
+LEAD LAST   |   12/6/0 |   35 |   28 |   17 |   11 |    8 |  19.8 |     92 |   74 |  53/  9/ 11
+
+LAUNCH DELAYS — PLA EXPEDITIONARY FORCE strike force (28 MP)
+ALL AT ONCE |    0/0/0 |   35 |   12 |    3 |    3 |    3 |  11.2 |     60 |   92 |  28/  6/  6
+DEFAULT     |   0/6/12 |   38 |   11 |    3 |    3 |    3 |  11.6 |     62 |   91 |  25/ 10/  7
+WIDE        |  0/20/45 |   55 |   11 |    3 |    3 |    3 |  15.0 |     55 |   95 |  22/ 11/ 14
+SEQUENTIAL  |  0/30/60 |   42 |   12 |    4 |    5 |    3 |  13.2 |     64 |  106 |  23/ 10/ 10
+LEAD LAST   |   12/6/0 |   32 |    8 |    2 |    3 |    3 |    9.6 |    57 |  103 |  25/  3/  5
+
+LAUNCH DELAYS — RUSSIAN FEDERATION strike force
+ALL AT ONCE |    0/0/0 |   50 |   17 |    2 |    9 |    2 |  16.0 |     67 |  114 |  40/ 16/  8
+DEFAULT     |   0/6/12 |   61 |   17 |    3 |    9 |    1 |  18.2 |     64 |  111 |  44/ 16/ 10
+WIDE        |  0/20/45 |   75 |    5 |    3 |    4 |    0 |  17.4 |     47 |  108 |  30/  9/ 18
+SEQUENTIAL  |  0/30/60 |   56 |    4 |    2 |    5 |    0 |  13.4 |     44 |  115 |  29/  9/ 10
+LEAD LAST   |   12/6/0 |   51 |   18 |    2 |    9 |    0 |  16.0 |     65 |  125 |  46/ 13/  8
+
+LAUNCH DELAYS — KOREAN PEOPLE'S ARMY strike force
+ALL AT ONCE |    0/0/0 |   64 |   11 |    4 |    7 |    0 |  17.2 |     58 |   73 |  29/ 11/ 15
+DEFAULT     |   0/6/12 |   53 |    6 |    1 |    0 |    0 |  12.0 |     35 |   68 |  12/  8/ 14
+WIDE        |  0/20/45 |   26 |    2 |    0 |    0 |    0 |    5.6 |    26 |   84 |  11/  4/  4
+SEQUENTIAL  |  0/30/60 |   34 |   11 |    0 |    0 |    0 |    9.0 |    26 |   86 |  11/  7/  9
+LEAD LAST   |   12/6/0 |   61 |   13 |    1 |    2 |    0 |   15.4 |     43 |   71 |  30/  9/ 12
+
+LAUNCH DELAYS — UN COALITION strike force
+ALL AT ONCE |    0/0/0 |   49 |   38 |   27 |    4 |    5 |  24.6 |     74 |   83 |  40/ 19/ 17
+DEFAULT     |   0/6/12 |   51 |   22 |   24 |    0 |    5 |  20.4 |     68 |   90 |  31/ 14/ 18
+WIDE        |  0/20/45 |   55 |   30 |   29 |    0 |    5 |  23.8 |     70 |  102 |  31/ 11/ 28
+SEQUENTIAL  |  0/30/60 |   51 |   37 |   32 |    0 |    4 |  24.8 |     68 |  107 |  31/ 11/ 30
+LEAD LAST   |   12/6/0 |   48 |   22 |   20 |    0 |    4 |  18.8 |     68 |   97 |  36/  7/ 15
+```
+
+- **Mass takes the base; patience brings the men home.** Every faction reads the same two
+  columns in opposite directions: widening the stagger raises MEAN men-returned and lowers
+  CLEAR% — China 62→55, Russia 64→44, NK 35→26 going from the default to WIDE. That is the
+  trade the picker exists to sell, and it is a trade because the two things the player wants
+  are not the same thing.
+- **How much the trade costs is the faction.** The USA can trickle for free (clear% is flat
+  at 92–93 across every pattern, men-back rises 24→32) — quality and response, exactly the
+  identity on the tin. NK cannot trickle at all: ALL AT ONCE is best on BOTH columns
+  (17.2 / 58%) and WIDE collapses it to 5.6 / 26%, because a swarm that arrives in thirds is
+  a swarm that dies in thirds. Russia sits between them and wants its armour together.
+- **LEAD LAST is a blunder in five factions out of five.** Putting the assault formation in
+  behind the hunters is worst or near-worst on both columns everywhere. The picker lets you
+  do it; the numbers say do not. A control row that always loses is worth keeping — it is
+  the evidence that arrival ORDER is doing work, not just arrival SPREAD.
+- **Time is free in a raid, and that is a finding, not a feature.** Raids run 59–125s against
+  a 300s hard stop, and no pattern ever times out, so holding a formation costs the attacker
+  nothing but wall-clock. It is free because a raided garrison gets no CP and never repairs:
+  the base cannot use the minute you hand it. The fix, when it is worth the re-tune, is to
+  give raided bases the v0.8 standing-orders trickle — then dawdling buys the defender
+  something and the trade prices itself. Filed rather than bolted on, because it moves every
+  number in this file.
 
 ## Reading the tables (v0.8 pass)
 

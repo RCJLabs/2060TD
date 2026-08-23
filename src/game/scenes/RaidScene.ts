@@ -42,8 +42,10 @@ import {
 } from '../../meta/town';
 import {
   applyRaidResult,
+  delayOf,
   isScouted,
   FLAT_PAYOUT,
+  nextDelay,
   planUnitCount,
   raidConfig,
   resolveRaid,
@@ -156,10 +158,12 @@ export class RaidScene extends Phaser.Scene {
     this.lastConfig = null;
     this.siting = false;
     this.hintUntil = 0;
+    // Explicit delays, not the omitted default: the picker's first tap must
+    // move the value the player is already reading, not correct it.
     this.squads = [
-      { units: {}, sector: 'W1', doctrine: 'assault', slot: 0 },
-      { units: {}, sector: 'N1', doctrine: 'hunt', slot: 1 },
-      { units: {}, sector: 'S1', doctrine: 'raze', slot: 2 },
+      { units: {}, sector: 'W1', doctrine: 'assault', slot: 0, delay: 0 },
+      { units: {}, sector: 'N1', doctrine: 'hunt', slot: 1, delay: 6 },
+      { units: {}, sector: 'S1', doctrine: 'raze', slot: 2, delay: 12 },
     ];
     this.firePlans = {};
     for (const kind of Object.keys(raidCatalogFor(this.town.faction).powers)) {
@@ -386,6 +390,11 @@ export class RaidScene extends Phaser.Scene {
   private cycleDoctrine(): void {
     const squad = this.squads[this.selectedSquad]!;
     squad.doctrine = DOCTRINES[(DOCTRINES.indexOf(squad.doctrine) + 1) % DOCTRINES.length]!;
+  }
+
+  private cycleDelay(): void {
+    const squad = this.squads[this.selectedSquad]!;
+    squad.delay = nextDelay(delayOf(squad, this.selectedSquad));
   }
 
   // ---- training ---------------------------------------------------------------------
@@ -734,7 +743,7 @@ export class RaidScene extends Phaser.Scene {
             .map((m) => `${sq.units[m.kind]}${m.short.charAt(0)}`)
             .join(' ');
           const entry = sq.tunnel !== undefined ? 'TUN' : sq.sector;
-          const delay = i * 6 + (sq.tunnel !== undefined ? TUNNEL_DIG_TICKS / 20 : 0);
+          const delay = delayOf(sq, i) + (sq.tunnel !== undefined ? TUNNEL_DIG_TICKS / 20 : 0);
           const rank = rankFor(roster[slotOf(sq, i)]?.xp ?? 0);
           rows.push({
             id: `squad_${i}`,
@@ -776,6 +785,18 @@ export class RaidScene extends Phaser.Scene {
             label: `DOCTRINE: ${DOCTRINE_LABEL[squad.doctrine]}`,
             sub: 'NEXT ▸',
             onTap: () => this.cycleDoctrine(),
+          },
+          {
+            id: 'delay',
+            // The dig is stated separately rather than folded in: the number the
+            // player ordered and the number the ground imposes are different
+            // facts, and only one of them is theirs to change.
+            label: `DELAY: T+${delayOf(squad, this.selectedSquad)}s`,
+            sub:
+              squad.tunnel !== undefined
+                ? `+${TUNNEL_DIG_TICKS / 20}s DIG ▸`
+                : 'NEXT ▸',
+            onTap: () => this.cycleDelay(),
           },
           { id: 'h3', label: 'ADD UNITS', heading: true },
         );

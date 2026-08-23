@@ -472,11 +472,20 @@ there is deliberately no sixth faction here.
 
 ### Original-plan gaps found by the M8 audit
 
-Three things the GDD promised that were never built:
+Three things the GDD promised that were never built. One is now closed:
 
-- [ ] **Per-squad launch delay** — GDD 5.6 gives each squad "an entry point, a
-      launch delay (0–60s), and a doctrine". The delay is derived from squad
-      index and shown read-only; it was never a choice.
+- [x] **Per-squad launch delay** *(v1.15)* — GDD 5.6 gives each squad "an entry
+      point, a launch delay (0–60s), and a doctrine". The delay was derived from
+      squad index and shown read-only; it is now a picker with seven stops
+      (0/6/12/20/30/45/60), and the first three ARE the old fixed stagger, so the
+      default plan is expressible in the picker's own vocabulary and every plan
+      written before this release re-fights exactly the battle it recorded.
+      *`--delay` says it is a real trade and says what kind: widening the stagger
+      brings more men home and clears fewer bases, and how much that costs is
+      the faction — the USA trickles for free, NK must arrive all at once or
+      not at all. Holding a formation costs the attacker nothing but wall-clock,
+      because a raided garrison gets no CP and never repairs; the fix is the
+      v0.8 standing-orders trickle on raided bases, filed rather than bolted on.*
 - [ ] **Restore the last raid plan** — GDD 5.6: "the plan is saved with the
       replay, so you can iterate on a failed plan directly". RaidScene resets
       to three empty squads on every entry.
