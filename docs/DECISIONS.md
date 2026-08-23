@@ -1,4 +1,4 @@
-# LAST LINE — Locked Design Decisions
+# 2060TD — Locked Design Decisions
 
 Ten fine-tuning decisions made during the initial brainstorm (2026-08-22), before any code.
 These are the project's constitution: changing one is allowed but is a *decision*, recorded

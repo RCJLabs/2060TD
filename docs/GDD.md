@@ -1,6 +1,8 @@
-# LAST LINE — Game Design Document
+# 2060TD — Game Design Document
 
-*Working title. Candidates: **Last Line**, Sovereign Soil, Fortress Doctrine, Front Line: American Theater.*
+*Named **2060TD**. Earlier candidates — Last Line, Sovereign Soil, Fortress Doctrine,
+Front Line: American Theater — are kept here only as a record of what was considered.
+Note the tension worth resolving one day: the campaign is set in **2027**, not 2060.*
 
 **Genre:** Hybrid tower defense / base builder with idle systems
 **Platform:** Web (desktop-first, mobile-friendly), TypeScript + Phaser 3

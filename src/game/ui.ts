@@ -371,7 +371,7 @@ export class Panel {
 
     this.bg = scene.add.rectangle(0, 0, 10, 10, COLORS.bgPanel).setOrigin(0, 0);
     this.edge = scene.add.rectangle(0, 0, 10, 2, COLORS.gridLine).setOrigin(0, 0);
-    this.titleText = scene.add.text(0, 0, 'LAST LINE', mono(14, COLORS.ink, { fontStyle: 'bold' }));
+    this.titleText = scene.add.text(0, 0, '2060TD', mono(14, COLORS.ink, { fontStyle: 'bold' }));
     this.statusText = scene.add.text(0, 0, '', mono(11, COLORS.inkDim, { lineSpacing: 3 }));
     this.scrollHint = scene.add.rectangle(0, 0, 3, 30, COLORS.gridLine).setOrigin(0, 0).setAlpha(0.6);
     this.rowRoot = scene.add.container(0, 0);

@@ -30,7 +30,7 @@ const tag = /<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/;
 if (!tag.test(html)) throw new Error('no module script tag found in the built index.html');
 const inlined = html.replace(tag, () => `<script type="module">\n${code}\n</script>`);
 
-const out = join(OUT_DIR, 'lastline.html');
+const out = join(OUT_DIR, '2060td.html');
 writeFileSync(out, inlined);
 console.log(`${out} — ${(inlined.length / 1024 / 1024).toFixed(2)}MB, one file, no requests.`);
 

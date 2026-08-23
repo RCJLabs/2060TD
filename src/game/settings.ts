@@ -13,6 +13,7 @@ export interface Settings {
   colorblind: boolean;
 }
 
+/** Old name on purpose — see meta/save.ts: a key is an address, not a label. */
 const KEY = 'lastline_settings_v1';
 
 /**

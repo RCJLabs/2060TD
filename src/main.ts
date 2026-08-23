@@ -80,6 +80,10 @@ dismissBootCard(game);
 /**
  * Test seam: the headless harness taps buttons by label. Rects come back in
  * device px, so `dpr` converts them to the CSS px a synthetic click wants.
+ *
+ * The handle keeps the game's old name for the same reason the save key does:
+ * twelve harnesses address it, and renaming it would be churn with nothing on
+ * the other side of it.
  */
 (window as unknown as Record<string, unknown>)['lastline'] = {
   buttons: () => liveButtons(),

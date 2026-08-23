@@ -13,7 +13,7 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
 const PORT = 5231;
-const SINGLE = resolve('dist-single/lastline.html');
+const SINGLE = resolve('dist-single/2060td.html');
 const EMBED = resolve('dist-single/embed.html');
 
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
@@ -104,7 +104,7 @@ try {
   }
   const first = await card();
   check('the boot card is painted before the game is', first !== null, JSON.stringify(first));
-  check('it says what this is', (first?.text ?? '').includes('LAST LINE'), first?.text);
+  check('it says what this is', (first?.text ?? '').includes('2060TD'), first?.text);
   check('and it covers the screen', first?.covers === true);
   check('while the engine is still in flight', (await booted()) === false);
 
@@ -127,7 +127,7 @@ try {
   const markup = readFileSync(SINGLE, 'utf8');
   check(
     'the single-file build carries the same card',
-    markup.includes('id="boot"') && markup.includes('LAST LINE'),
+    markup.includes('id="boot"') && markup.includes('2060TD'),
     `${(markup.length / 1024 / 1024).toFixed(2)}MB`,
   );
   await page.goto(`file://${SINGLE}`, { waitUntil: 'commit' });

@@ -1229,7 +1229,7 @@ export class TownScene extends Phaser.Scene {
   private showIntro(): void {
     if (this.overlay) return;
     const ov = new Overlay(this, this.layout, {
-      title: 'LAST LINE',
+      title: '2060TD',
       subtitle:
         'An alternate history. 2027. A coordinated offensive — China, Russia, ' +
         'North Korea — strikes the American mainland and UN forces worldwide. ' +

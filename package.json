@@ -1,8 +1,8 @@
 {
-  "name": "last-line",
+  "name": "2060td",
   "private": true,
-  "version": "1.13.0",
-  "description": "LAST LINE (working title) — hybrid tower defense / base builder set in a modern alternate-history war",
+  "version": "1.14.0",
+  "description": "2060TD — hybrid tower defense / base builder set in a modern alternate-history war",
   "type": "module",
   "scripts": {
     "dev": "vite",

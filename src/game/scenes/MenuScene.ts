@@ -140,7 +140,7 @@ export class MenuScene extends Phaser.Scene {
       });
     };
 
-    prose('LAST LINE', font.hero, COLORS.ink, air, px(560));
+    prose('2060TD', font.hero, COLORS.ink, air, px(560));
     prose(
       'An alternate history. 2027. A coordinated offensive — China, Russia, ' +
         'North Korea — strikes the American mainland and UN forces worldwide. ' +

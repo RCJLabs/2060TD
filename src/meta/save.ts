@@ -12,6 +12,11 @@ import { newTown, normalizeWarLog, unlockAll, type TownState } from './town';
  * JSON file. Schema 1 (M2, pre-campaign) saves migrate forward on load.
  */
 
+/**
+ * The storage key keeps the game's OLD name, deliberately and permanently.
+ * The title became 2060TD in v1.14; renaming this key would orphan every save
+ * on every machine that has ever played it. A key is an address, not a label.
+ */
 export const SAVE_KEY = 'lastline_save_v1';
 export const SCHEMA = 6;
 
