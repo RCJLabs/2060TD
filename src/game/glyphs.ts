@@ -81,7 +81,29 @@ export function drawWallGlyph(
   cell: number,
   kind: string,
   hpFraction: number,
+  open = false,
 ): void {
+  // A gate reads as gateposts: closed, the leaves fill the gap; open, only the
+  // posts remain, so the hole in the line is visible from across the board —
+  // which is the point, because that hole is what the attack will aim at.
+  if (kind === 'gate') {
+    const post = Math.max(2, Math.round(cell * 0.18));
+    g.fillStyle(COLORS.steel, 1);
+    g.fillRect(x + 1, y + 1, post, cell - 2);
+    g.fillRect(x + cell - 1 - post, y + 1, post, cell - 2);
+    if (!open) {
+      g.fillStyle(COLORS.sandDark, 1);
+      g.fillRect(x + 1 + post, y + 2, cell - 2 - post * 2, cell - 4);
+      g.fillStyle(COLORS.sand, 0.3 + 0.7 * hpFraction);
+      g.fillRect(x + 2 + post, y + 3, cell - 4 - post * 2, cell - 6);
+      g.lineStyle(1, COLORS.steel, 0.7);
+      g.lineBetween(x + cell / 2, y + 3, x + cell / 2, y + cell - 3);
+    } else {
+      g.lineStyle(1, COLORS.olive, 0.55);
+      g.lineBetween(x + 1 + post, y + cell / 2, x + cell - 1 - post, y + cell / 2);
+    }
+    return;
+  }
   const isHesco = kind === 'hesco';
   g.fillStyle(isHesco ? COLORS.steel : COLORS.sandDark, 1);
   g.fillRect(x + 1, y + 1, cell - 2, cell - 2);

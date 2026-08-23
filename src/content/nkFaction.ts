@@ -170,6 +170,7 @@ export const NK_TOWN_STRUCTURES: Record<string, StructureProfile> = {
 /** Cheap even at the wall line: stacked rock and sandbags, breached fast. */
 export const NK_TOWN_WALLS: Record<string, WallDef> = {
   wall: { kind: 'wall', name: 'Rock Barricade', hp: 145, supplyCost: 8 },
+  gate: { kind: 'gate', name: 'Timber Gate', hp: 80, supplyCost: 11, gateCpCost: 2 },
   hesco: { kind: 'hesco', name: 'Sandbag Rampart', hp: 300, cpCost: 8 },
 };
 

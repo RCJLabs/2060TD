@@ -173,6 +173,7 @@ export const USA_STRUCTURES: Record<string, StructureProfile> = {
 
 export const USA_WALLS: Record<string, WallDef> = {
   wall: { kind: 'wall', name: 'Wall Segment', hp: 150, supplyCost: 10 },
+  gate: { kind: 'gate', name: 'Vehicle Gate', hp: 85, supplyCost: 14, gateCpCost: 3 },
   hesco: { kind: 'hesco', name: 'HESCO Barricade', hp: 350, cpCost: 10 },
 };
 

@@ -45,11 +45,12 @@ const SIEGE_TABS = [
 
 type Tool =
   | { type: 'wall'; kind: string }
+  | { type: 'gate' }
   | { type: 'structure'; kind: string }
   | { type: 'erase' }
   | { type: 'power'; kind: string };
 
-const SETUP_TOOL_KEYS = ['wall', 'm2nest', 'autocannon', 'mortar', 'aa'] as const;
+const SETUP_TOOL_KEYS = ['wall', 'gate', 'm2nest', 'autocannon', 'mortar', 'aa'] as const;
 const COMBAT_TOOL_KEYS = ['depmg', 'foxhole', 'claymore', 'hesco', 'manpads'] as const;
 
 /**
@@ -260,6 +261,7 @@ export class SiegeScene extends Phaser.Scene {
     kb?.on('keydown-THREE', () => this.selectToolSlot(2));
     kb?.on('keydown-FOUR', () => this.selectToolSlot(3));
     kb?.on('keydown-E', () => this.setTool({ type: 'erase' }));
+    kb?.on('keydown-G', () => this.setTool({ type: 'gate' }));
     kb?.on('keydown-Q', () => this.armPower('a10'));
     kb?.on('keydown-W', () => this.armPower('arty'));
     kb?.on('keydown-SPACE', () => this.advancePhase());
@@ -340,6 +342,14 @@ export class SiegeScene extends Phaser.Scene {
       });
       if (this.engine.phase === 'combat') this.casts++;
       this.setTool(null);
+      return;
+    }
+
+    if (this.tool.type === 'gate') {
+      // Tap only: a gate is a decision, and drag-painting decisions across a
+      // wall line is how you spend a fight's worth of CP by accident.
+      if (!isTap) return;
+      this.engine.command({ type: 'toggleGate', cell });
       return;
     }
 
@@ -457,6 +467,18 @@ export class SiegeScene extends Phaser.Scene {
     if (this.tool.type === 'wall') {
       return { cell, kind: this.tool.kind, valid: this.engine.canPlaceWall(this.tool.kind, cell) };
     }
+    if (this.tool.type === 'gate') {
+      // The preview marks which cells the lever actually reaches: a gate, and
+      // one the CP will buy. Everything else under the cursor reads as refused.
+      const wall = this.engine.grid.wallAt(cell);
+      const def = wall ? this.engine.catalog.walls[wall.kind] : undefined;
+      return {
+        cell,
+        kind: 'gate',
+        valid:
+          def?.gateCpCost !== undefined && this.engine.cp >= this.engine.cpPrice(def.gateCpCost),
+      };
+    }
     return {
       cell,
       kind: this.tool.kind,
@@ -506,8 +528,26 @@ export class SiegeScene extends Phaser.Scene {
         ];
         const keys = build ? SETUP_TOOL_KEYS : COMBAT_TOOL_KEYS;
         keys.forEach((kind, i) => {
-          rows.push(this.toolRow(kind, kind === 'wall' || kind === 'hesco', String(i + 1)));
+          rows.push(this.toolRow(kind, kind === 'wall' || kind === 'gate' || kind === 'hesco', String(i + 1)));
         });
+        // Working the gates is only a thing when there are gates to work, and
+        // only in combat — CP is the price, and CP only flows once the shooting
+        // starts. The row states the standing count, so a gate destroyed
+        // mid-siege stops being offered rather than silently failing.
+        const gates = [...e.grid.walls.values()].filter((w) => w.kind === 'gate');
+        if (!build && gates.length > 0) {
+          const def = e.catalog.walls['gate'];
+          const price = e.cpPrice(def?.gateCpCost ?? 0);
+          const shut = gates.filter((w) => w.open !== true).length;
+          rows.push({
+            id: 'gate',
+            label: 'WORK THE GATES [G]',
+            sub: `${price} CP · ${shut}/${gates.length} SHUT`,
+            enabled: e.cp >= price,
+            active: this.tool?.type === 'gate',
+            onTap: () => this.setTool({ type: 'gate' }),
+          });
+        }
         if (build) {
           const cost = e.repairAllCost();
           rows.push(

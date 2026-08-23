@@ -472,7 +472,7 @@ there is deliberately no sixth faction here.
 
 ### Original-plan gaps found by the M8 audit
 
-Three things the GDD promised that were never built. Two are now closed:
+Three things the GDD promised that were never built. All three are now closed:
 
 - [x] **Per-squad launch delay** *(v1.15)* — GDD 5.6 gives each squad "an entry
       point, a launch delay (0–60s), and a doctrine". The delay was derived from
@@ -498,12 +498,21 @@ Three things the GDD promised that were never built. Two are now closed:
       base may be a wall on the next; the ordered delay survives the dropped
       hole, because the clock is a separate decision from the ground).
       NEW PLAN throws it away.
-- [ ] **Gates** — GDD 5.2 lists them; nothing is buildable and the sim has no
-      such tile. The stated function ("let defenders through, close against
-      attackers") does not map onto this game, since nothing of the player's
-      walks. The version that fits is a CP-operated gate the commander opens
-      or closes mid-siege to re-route the maze. Decide, or strike it from
-      the GDD.
+- [x] **Gates** *(v1.17)* — GDD 5.2 listed them; nothing was buildable and the
+      sim had no such tile. The stated function ("let defenders through, close
+      against attackers") describes a game where friendly units walk, and none
+      do here — so the GDD line was rewritten rather than implemented. What
+      shipped is the version that fits: a wall the commander opens and closes
+      mid-siege for CP. Closed it is a wall; open it is a hole, and A* re-costs
+      on the swing, so opening one pulls the assault toward it. It will not
+      close on somebody standing in the gateway, battles begin with every gate
+      shut, and a destroyed gate is a permanent hole.
+      *The price moved because of a measurement: gates were meant to pay for
+      themselves in HP, and `--gates` showed 48 doors in a ring moving the
+      clear rate by one point, because attackers route rather than breach. So
+      a gate costs two segments of the wall allowance instead — ring length is
+      something the player feels, and it is the honest thing to charge for a
+      hole in your own wall.*
 
 Still open, and not a code gap: the game's **name** is provisional. The GDD
 carries the candidates.

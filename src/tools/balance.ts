@@ -497,6 +497,66 @@ function conditionTable(faction: FactionId): string {
  * seeds — only the clock differs. The question a picker has to answer before it
  * earns its row: is WHEN a real choice, or is one schedule simply correct?
  */
+/**
+ * What a gate costs the rest of the time (v1.17).
+ *
+ * A gate's VALUE is a live decision — you open it to route the assault into a
+ * killzone — and a headless harness cannot play that. What it can price is the
+ * standing cost, which is the honest half of the trade: a gate is a door, it
+ * carries about half a wall's HP, and it sits in the ring whether or not
+ * anybody is at the controls. This measures a raid against rings with 0/2/4/8
+ * of their segments swapped for gates, closed and unattended — the base as an
+ * offline probe finds it.
+ */
+function gateTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  const COUNTS = [0, 4, 12, 24, 48];
+  const lines = [
+    `GATES — soft spots in a ${flavor.enemy} ring, unattended, vs the ${flavor.faction} reference force`,
+    `GATES | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST%`,
+    `------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
+  ];
+  for (const gates of COUNTS) {
+    const clears: number[] = [];
+    let sent = 0;
+    let home = 0;
+    for (const tier of RAID_TIERS) {
+      let cleared = 0;
+      let runs = 0;
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        const base = generateBase(tier, variant, baseKitFor(faction));
+        // Deterministic, evenly spread through the ring: the same segments
+        // every run, so the only thing that moves between rows is the count.
+        if (gates > 0) {
+          const step = Math.max(1, Math.floor(base.walls.length / gates));
+          for (let g = 0; g < gates; g++) {
+            const wall = base.walls[g * step];
+            if (wall) wall.kind = 'gate';
+          }
+        }
+        for (let i = 0; i < SEEDS; i++) {
+          const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
+          const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+          const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
+          for (const ret of res.squads) {
+            home += ret.returned;
+            sent += ret.deployed;
+          }
+          if (res.cleared) cleared++;
+          runs++;
+        }
+      }
+      clears.push(Math.round((cleared / runs) * 100));
+    }
+    const mean = clears.reduce((a, b) => a + b, 0) / clears.length;
+    lines.push(
+      `${pad(gates, 5)} | ${clears.map((c) => pad(c, 5)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(Math.round((1 - home / sent) * 100), 8)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
 function delayTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const PATTERNS: { name: string; delays: number[] }[] = [
@@ -620,6 +680,12 @@ function main(): void {
   }
   if (process.argv.includes('--conditions')) {
     console.log(conditionTable('usa'));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--gates')) {
+    const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
+    console.log(gateTable(pick));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

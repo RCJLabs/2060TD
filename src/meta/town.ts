@@ -679,9 +679,29 @@ export function place(town: TownState, kind: string, cell: CellIndex, now: numbe
   return true;
 }
 
-export function canPlaceWall(town: TownState, cell: CellIndex): PlaceError {
-  const def = defenseCatalogFor(town.faction).walls['wall']!;
-  if (town.walls.length >= gating(town).walls) return 'count';
+/**
+ * What the wall line costs in allowance (v1.17). A gate spends TWO segments.
+ *
+ * That price was moved here after measuring. A gate was meant to pay for
+ * itself by carrying half a wall's HP — and `npm run balance -- --gates` says
+ * that costs the defender nothing at all: swapping up to 48 ring segments for
+ * doors moved the clear rate by one point, because attackers ROUTE rather than
+ * breach. Wall HP is not what decides a raid, so it cannot be what prices a
+ * gate. Ring LENGTH is something the player feels on every build, and it is
+ * exactly the right thing to charge for a hole you chose to leave in your own
+ * wall.
+ */
+export const GATE_SEGMENTS = 2;
+
+export function wallSegments(town: TownState): number {
+  return town.walls.reduce((n, w) => n + (w.kind === 'gate' ? GATE_SEGMENTS : 1), 0);
+}
+
+export function canPlaceWall(town: TownState, cell: CellIndex, kind = 'wall'): PlaceError {
+  const def = defenseCatalogFor(town.faction).walls[kind];
+  if (!def) return 'unknown';
+  const cost = kind === 'gate' ? GATE_SEGMENTS : 1;
+  if (wallSegments(town) + cost > gating(town).walls) return 'count';
   if (town.supplies < (def.supplyCost ?? 0)) return 'cost';
   return cellsFree(town, [cell]);
 }
@@ -691,10 +711,16 @@ export function canPlaceWall(town: TownState, cell: CellIndex): PlaceError {
  * did not have one to give; it decides which day's orders the segment counts
  * towards, so a caller with a clock should pass it.
  */
-export function placeWall(town: TownState, cell: CellIndex, now?: number): boolean {
-  if (canPlaceWall(town, cell) !== null) return false;
-  town.supplies -= defenseCatalogFor(town.faction).walls['wall']!.supplyCost ?? 0;
-  town.walls.push({ cell, kind: 'wall' });
+export function placeWall(
+  town: TownState,
+  cell: CellIndex,
+  now?: number,
+  kind = 'wall',
+): boolean {
+  if (canPlaceWall(town, cell, kind) !== null) return false;
+  town.supplies -= defenseCatalogFor(town.faction).walls[kind]!.supplyCost ?? 0;
+  town.walls.push({ cell, kind });
+  // A gate is wire too: the day's orders count the line, not the hardware.
   creditContracts(town, 'walls', 1, now ?? town.lastSeen);
   return true;
 }
@@ -702,8 +728,11 @@ export function placeWall(town: TownState, cell: CellIndex, now?: number): boole
 export function removeWall(town: TownState, cell: CellIndex): boolean {
   const index = town.walls.findIndex((w) => w.cell === cell);
   if (index === -1) return false;
+  // Refund what was actually standing there, not what a wall costs.
+  const kind = town.walls[index]!.kind;
   town.walls.splice(index, 1);
-  town.supplies += defenseCatalogFor(town.faction).walls['wall']!.supplyCost ?? 0;
+  const walls = defenseCatalogFor(town.faction).walls;
+  town.supplies += (walls[kind] ?? walls['wall'])?.supplyCost ?? 0;
   return true;
 }
 

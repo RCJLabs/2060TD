@@ -17,6 +17,35 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.17: gates
+
+**The GDD promised gates in its first draft and never got them** — and the function it
+promised ("let defenders through, close against attackers") describes a game where
+friendly units walk. None do here. So the design was rewritten rather than implemented,
+and what shipped is the version that fits: **the only thing in the game that lets you
+edit the maze during a fight.**
+
+- **Closed it is a wall. Open it is a hole.** Weighted A* re-costs the moment it swings,
+  and a hole is the cheapest cell on the board — so opening a gate *pulls* the assault
+  toward it. Open one to route the attack into a killzone you built; close it to strand
+  whoever came through.
+- **A swing costs Command Points**, so it competes with a turret and a fire mission for
+  the same budget, and only once the shooting has started.
+- **It will not close on somebody standing in the gateway** — which is what makes opening
+  one a commitment rather than a free look.
+- **Battles begin with every gate shut.** A gate is barred when nobody is on the wall.
+  That keeps the whole feature in the battle layer: no save schema change, nothing for a
+  share code or replay code to carry, and an unattended base honest about what it is.
+- **The harness killed the price and picked a better one.** A gate was meant to pay for
+  itself in HP. `npm run balance -- --gates` put 48 doors in a ring — most of the wall
+  line — and moved the clear rate by one point, because attackers route rather than
+  breach. Wall HP is not what decides a raid, so a gate now costs **two segments of the
+  wall allowance**: ring length is a number the player feels and cannot route around.
+- **The harness can now tap the map.** Every E2E check until this one addressed the UI by
+  label, which is fine while every decision is a row in a drawer. A gate is a thing at a
+  place, so `lastline.cell(col,row)` was added and `e2e-gates` presses the gate a player
+  would press — after waiting for the CP, like a player would.
+
 ## Current state — v1.16.1: the front door, squared up
 
 Two formatting bugs on the first two screens anyone sees, both from the v1.13
@@ -710,8 +739,9 @@ npm test           # sim + meta suites (pathfinding, combat, siege, town,
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
                    # -- --shapes for the eight base archetypes,
-                   # -- --vet [faction] for the veterancy ranks, or
-                   # -- --delay [faction] for the launch-delay patterns)
+                   # -- --vet [faction] for the veterancy ranks,
+                   # -- --delay [faction] for the launch-delay patterns, or
+                   # -- --gates [faction] for what a gated ring costs)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
@@ -730,6 +760,7 @@ node scripts/e2e-vault.mjs           # a battle filed, copied out as a string, a
 node scripts/e2e-orders.mjs          # the day's orders, filled by actually playing
 node scripts/e2e-delay.mjs           # the launch-delay picker, and the plan following it
 node scripts/e2e-plan.mjs            # a plan written, fought, and found again on the way back
+node scripts/e2e-gates.mjs           # a gate built in the yard and worked in the fight
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

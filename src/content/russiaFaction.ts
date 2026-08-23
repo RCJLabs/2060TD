@@ -167,6 +167,7 @@ export const RUSSIA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
 /** Overbuilt even at the wall line: slabs and berms, dearer per segment. */
 export const RUSSIA_TOWN_WALLS: Record<string, WallDef> = {
   wall: { kind: 'wall', name: 'Concrete Slab Wall', hp: 190, supplyCost: 12 },
+  gate: { kind: 'gate', name: 'Blast Gate', hp: 105, supplyCost: 17, gateCpCost: 4 },
   hesco: { kind: 'hesco', name: 'Earth Berm', hp: 430, cpCost: 12 },
 };
 

@@ -175,6 +175,7 @@ export const UN_TOWN_STRUCTURES: Record<string, StructureProfile> = {
 /** Mid-pack at the wall line too: T-walls and true HESCO. */
 export const UN_TOWN_WALLS: Record<string, WallDef> = {
   wall: { kind: 'wall', name: 'T-Wall Section', hp: 160, supplyCost: 11 },
+  gate: { kind: 'gate', name: 'Checkpoint Gate', hp: 90, supplyCost: 15, gateCpCost: 3 },
   hesco: { kind: 'hesco', name: 'HESCO Rampart', hp: 360, cpCost: 10 },
 };
 

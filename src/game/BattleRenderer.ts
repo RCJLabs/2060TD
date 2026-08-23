@@ -208,7 +208,15 @@ export class BattleRenderer {
     const grid = this.engine.grid;
     const c = this.cell;
     for (const [cell, wall] of grid.walls) {
-      drawWallGlyph(g, grid.xOf(cell) * c, grid.yOf(cell) * c, c, wall.kind, wall.hp / wall.maxHp);
+      drawWallGlyph(
+        g,
+        grid.xOf(cell) * c,
+        grid.yOf(cell) * c,
+        c,
+        wall.kind,
+        wall.hp / wall.maxHp,
+        wall.open === true,
+      );
     }
   }
 

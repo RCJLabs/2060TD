@@ -53,6 +53,24 @@ export function boardStrays(): string[] {
   return out;
 }
 
+/**
+ * Screen position (device px) of a board cell on the live rig, or null when no
+ * board is on screen or that cell is scrolled out of the board's rectangle.
+ *
+ * The E2E harness has always addressed the UI by label and never the map, which
+ * is fine while every decision is a row in the drawer. A gate is not: it is a
+ * thing at a place, and the only honest way to prove the lever works is to
+ * press the one the player would press.
+ */
+export function boardCellAt(col: number, row: number): { x: number; y: number } | null {
+  for (const rig of rigs) {
+    if (!rig.scene.sys.isActive()) continue;
+    const at = rig.screenOf(col, row);
+    if (at) return at;
+  }
+  return null;
+}
+
 export class BoardView {
   readonly world: Phaser.GameObjects.Container;
   readonly ui: Phaser.GameObjects.Container;
@@ -239,6 +257,18 @@ export class BoardView {
     const row = Math.floor(p.y / this.opts.cell);
     if (col < 0 || row < 0 || col >= this.opts.cols || row >= this.opts.rows) return null;
     return { col, row };
+  }
+
+  /** Inverse of cellAt: where a cell's centre sits on screen, or null when it
+   * is outside the board's own rectangle. */
+  screenOf(col: number, row: number): { x: number; y: number } | null {
+    const world = { x: (col + 0.5) * this.opts.cell, y: (row + 0.5) * this.opts.cell };
+    const view = this.camera.worldView;
+    const x = this.camera.x + ((world.x - view.x) / view.width) * this.camera.width;
+    const y = this.camera.y + ((world.y - view.y) / view.height) * this.camera.height;
+    if (x < this.rect.x || x > this.rect.x + this.rect.w) return null;
+    if (y < this.rect.y || y > this.rect.y + this.rect.h) return null;
+    return { x, y };
   }
 
   /** Fires for a tap on the board that was not a pan or a pinch. */

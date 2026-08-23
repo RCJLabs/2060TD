@@ -47,6 +47,8 @@ import {
   buyCharge,
   canPlace,
   canPlaceWall,
+  wallSegments,
+  GATE_SEGMENTS,
   canResearch,
   caps,
   ccLevel,
@@ -135,7 +137,7 @@ const TABS = [
 type Tool =
   | { type: 'select' }
   | { type: 'build'; kind: string }
-  | { type: 'wall' }
+  | { type: 'wall'; kind: string }
   | { type: 'erase' }
   | { type: 'move'; id: number };
 
@@ -433,7 +435,7 @@ export class TownScene extends Phaser.Scene {
         // Pass the clock: without it the segment is credited against
         // whatever day lastSeen happens to hold, and wire laid just after
         // midnight would count towards a sheet that is already discarded.
-        if (placeWall(this.town, cell, Date.now())) this.saveSoon();
+        if (placeWall(this.town, cell, Date.now(), this.tool.kind)) this.saveSoon();
         return;
       }
       case 'erase': {
@@ -1425,8 +1427,8 @@ export class TownScene extends Phaser.Scene {
       kind = this.tool.kind;
       valid = canPlace(this.town, kind, cell) === null;
     } else if (this.tool.type === 'wall') {
-      kind = 'wall';
-      valid = canPlaceWall(this.town, cell) === null;
+      kind = this.tool.kind;
+      valid = canPlaceWall(this.town, cell, kind) === null;
     } else if (this.tool.type === 'erase') {
       kind = 'erase';
       valid = wallAt(this.town, cell);
@@ -1447,7 +1449,8 @@ export class TownScene extends Phaser.Scene {
       return;
     }
 
-    const footprint = kind && kind !== 'erase' && kind !== 'wall' ? footprintOf(kind) : 1;
+    const footprint =
+      kind && kind !== 'erase' && kind !== 'wall' && kind !== 'gate' ? footprintOf(kind) : 1;
     const color = valid ? COLORS.olive : COLORS.alarm;
     const x = (cell % TOWN_GRID.width) * CELL;
     const y = Math.floor(cell / TOWN_GRID.width) * CELL;
@@ -1513,14 +1516,29 @@ export class TownScene extends Phaser.Scene {
 
     rows.push(
       { id: 'h2', label: 'WALL LINE — drag to paint', heading: true },
-      {
-        id: 'wall',
-        label: 'BUILD WALL',
-        sub: `10S ${town.walls.length}/${g.walls}`,
-        enabled: town.walls.length < g.walls && town.supplies >= 10,
-        active: this.tool.type === 'wall',
-        onTap: () => this.setTool({ type: 'wall' }),
-      },
+      ...(['wall', 'gate'] as const).flatMap((kind) => {
+        const def = defenseCatalogFor(town.faction).walls[kind];
+        if (!def) return [];
+        const cost = def.supplyCost ?? 0;
+        return [
+          {
+            id: kind,
+            label: kind === 'gate' ? `BUILD ${def.name.toUpperCase()}` : 'BUILD WALL',
+            // A gate counts against the same allowance as a wall segment: it is
+            // a piece of the line, and the CP price of working it is the siege's
+            // business, not the yard's.
+            sub:
+              kind === 'gate'
+                ? `${cost}S · 2 SEG · ${def.gateCpCost}CP/SWING`
+                : `${cost}S ${wallSegments(town)}/${g.walls}`,
+            enabled:
+              wallSegments(town) + (kind === 'gate' ? GATE_SEGMENTS : 1) <= g.walls &&
+              town.supplies >= cost,
+            active: this.tool.type === 'wall' && this.tool.kind === kind,
+            onTap: () => this.setTool({ type: 'wall', kind }),
+          },
+        ];
+      }),
       {
         id: 'erase',
         label: 'ERASE WALL',

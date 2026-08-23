@@ -168,6 +168,7 @@ export const CHINA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
 
 export const CHINA_TOWN_WALLS: Record<string, WallDef> = {
   wall: { kind: 'wall', name: 'Compound Wall', hp: 150, supplyCost: 10 },
+  gate: { kind: 'gate', name: 'Compound Gate', hp: 85, supplyCost: 14, gateCpCost: 3 },
   hesco: { kind: 'hesco', name: 'Gabion Wall', hp: 350, cpCost: 10 },
 };
 

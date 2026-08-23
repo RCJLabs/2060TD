@@ -259,8 +259,35 @@ Offline accrual caps at storage capacity; default 8h of production banked.
 
 Command Center (HQ; its level gates everything), Supply Depot, Storage Bunker, Fuel Depot,
 Barracks, Motor Pool, Research Lab, Engineering Bay (build/repair speed), Radar Station
-(Intel + scouting, M6), Airfield (v1.0 — trains the faction's aircraft and raises the manpower cap), Walls & Gates (gates let defenders through, close
-against attackers), Emplacement foundations.
+(Intel + scouting, M6), Airfield (v1.0 — trains the faction's aircraft and raises the manpower cap), Walls & Gates (a gate is a wall the commander can open and close mid-siege for CP; see 5.2a — the older line about letting defenders through described a game where friendly units walk, and none do here), Emplacement foundations.
+
+### 5.2a Gates *(v1.17)*
+
+A gate is a wall with a state, and the only thing in the game that lets the player
+**edit the maze during a fight**.
+
+- **Closed it is a wall.** Attackers path through its HP or route around it, exactly
+  like any other segment.
+- **Open it is a hole.** Weighted A* re-costs the moment it swings, and a hole is the
+  cheapest cell on the board — so opening a gate *pulls* the assault toward it. That is
+  the play: open one to route the attack into a killzone you built, close it to strand
+  whoever came through.
+- **A swing costs Command Points**, so the lever competes with a turret and a fire
+  mission for the same budget, and only during combat — CP does not flow before the
+  shooting starts.
+- **It will not close on somebody standing in the gateway.** That is what makes opening
+  one a commitment rather than a free look.
+- **Battles begin with every gate shut.** A gate is barred when nobody is on the wall,
+  which keeps the whole feature in the battle layer: nothing to store, nothing for a
+  share code or a replay code to carry, and an unattended base is honest about what it
+  is.
+- **A destroyed gate is a permanent hole**, like any destroyed wall.
+- **It costs two segments of the wall allowance.** The intended price was HP — a gate
+  carries about half a wall's — and the harness said that costs the defender nothing:
+  swapping up to 48 ring segments for doors moved the clear rate by a point, because
+  attackers route rather than breach. Wall HP is not what decides a raid, so it cannot
+  be what prices a gate. Ring length is, and it is exactly the right thing to charge for
+  a hole you chose to leave in your own wall.
 
 ### 5.3 The maze rule (core mechanic)
 

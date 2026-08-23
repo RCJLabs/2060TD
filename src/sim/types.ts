@@ -118,6 +118,17 @@ export interface WallDef {
   supplyCost?: number;
   /** Deployable mid-combat for CP (HESCO barricades). */
   cpCost?: number;
+  /**
+   * A gate (v1.17): a wall the commander can open and close mid-siege for this
+   * many CP a throw. Closed it is an ordinary wall — attackers break it or
+   * route around it. Open it is a hole, and every attacker re-paths toward the
+   * cheapest way in, which is the whole point: you open a gate to pull the
+   * assault into a killzone, and close it to strand whoever came through.
+   *
+   * A gate is a door, so it carries less HP than a wall of the same tier. That
+   * is what building one costs you the rest of the time.
+   */
+  gateCpCost?: number;
 }
 
 // ---- powers ---------------------------------------------------------------------
@@ -365,7 +376,8 @@ export type Command =
   | { tick: number; type: 'startAssault' }
   | { tick: number; type: 'skipPrep' }
   | { tick: number; type: 'repairAll' }
-  | { tick: number; type: 'castPower'; kind: string; target: Vec2 };
+  | { tick: number; type: 'castPower'; kind: string; target: Vec2 }
+  | { tick: number; type: 'toggleGate'; cell: CellIndex };
 
 // ---- events -------------------------------------------------------------------------
 
@@ -376,6 +388,7 @@ export type SimEvent =
   | { type: 'aoe'; at: Vec2; radius: number }
   | { type: 'strafePulse'; x0: number; x1: number; y: number }
   | { type: 'wallDestroyed'; cell: CellIndex }
+  | { type: 'gateToggled'; cell: CellIndex; open: boolean }
   | { type: 'structureDestroyed'; id: number; kind: string; at: Vec2 }
   | { type: 'powerCast'; kind: string; at: Vec2 }
   | { type: 'assaultStarted' }

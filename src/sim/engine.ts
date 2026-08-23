@@ -238,7 +238,7 @@ export class Engine {
       neighbors4: (cell, out) => this.grid.neighbors4(cell, out),
       obstacleHpAt: (cell) => {
         const wall = this.grid.wallAt(cell);
-        if (wall) return wall.hp;
+        if (wall && wall.open !== true) return wall.hp;
         const s = this.structureAtCell.get(cell);
         if (s && s.profile.blocks && s.hp > 0) {
           return s.profile.kind === 'cc' ? Infinity : s.hp;
@@ -424,7 +424,7 @@ export class Engine {
   private findSpawnCell(cell: CellIndex): CellIndex | null {
     const open = (c: CellIndex) =>
       this.grid.inBounds(c) &&
-      !this.grid.wallAt(c) &&
+      this.grid.isOpen(c) &&
       !this.structureAtCell.get(c)?.profile.blocks;
     if (open(cell)) return cell;
     const w = this.grid.width;
@@ -510,6 +510,15 @@ export class Engine {
   }
 
   /** CP price after the defender's research discount. */
+  /** Is any ground attacker standing in this cell right now? */
+  private attackerInCell(cell: CellIndex): boolean {
+    for (const a of this.attackers) {
+      if (a.profile.air || a.hp <= 0) continue;
+      if (this.grid.cellAt(a.pos) === cell) return true;
+    }
+    return false;
+  }
+
   cpPrice(cpCost: number): number {
     return Math.ceil(cpCost * this.defCpMult);
   }
@@ -599,6 +608,21 @@ export class Engine {
         for (const s of this.structures) s.hp = s.profile.maxHp;
         this.supplies -= cost;
         this.stats.suppliesSpent += cost;
+        return true;
+      }
+      case 'toggleGate': {
+        const wall = this.grid.wallAt(cmd.cell);
+        const def = wall ? this.catalog.walls[wall.kind] : undefined;
+        if (!wall || def?.gateCpCost === undefined) return false;
+        if (!this.affords({ cpCost: def.gateCpCost })) return false;
+        const opening = wall.open !== true;
+        // A gate cannot close on somebody standing in it. That constraint is
+        // what makes opening one a commitment rather than a free look: the way
+        // out stays open as long as anyone is using it.
+        if (!opening && this.attackerInCell(cmd.cell)) return false;
+        if (!this.grid.setWallOpen(cmd.cell, opening)) return false;
+        this.pay({ cpCost: def.gateCpCost });
+        events.push({ type: 'gateToggled', cell: cmd.cell, open: opening });
         return true;
       }
       case 'castPower': {
@@ -1162,8 +1186,9 @@ export class Engine {
         const targetCell = attacker.path[attacker.pathIndex]!;
 
         // Something in the way (planned, or placed after pathing): demolish it.
+        // An OPEN gate is not in the way — that is what open means.
         const wall = this.grid.wallAt(targetCell);
-        if (wall) {
+        if (wall && wall.open !== true) {
           attacker.state = 'breaking';
           if (this.grid.damageWall(targetCell, attacker.profile.wallDps * attacker.damageMult * DT)) {
             this.stats.wallsLost++;
@@ -1518,7 +1543,7 @@ export class Engine {
     const wallCells = [...this.grid.walls.keys()].sort((a, b) => a - b);
     for (const cell of wallCells) {
       const wall = this.grid.walls.get(cell)!;
-      parts.push(`w${cell}:${wall.kind}:${wall.hp.toFixed(6)}`);
+      parts.push(`w${cell}:${wall.kind}${wall.open === true ? 'o' : ''}:${wall.hp.toFixed(6)}`);
     }
     for (const st of this.structures) {
       parts.push(

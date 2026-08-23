@@ -1,4 +1,4 @@
-# Balance snapshot (v1.15)
+# Balance snapshot (v1.17)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -461,6 +461,43 @@ LEAD LAST   |   12/6/0 |   48 |   22 |   20 |    0 |    4 |  18.8 |     68 |   9
   give raided bases the v0.8 standing-orders trickle — then dawdling buys the defender
   something and the trade prices itself. Filed rather than bolted on, because it moves every
   number in this file.
+
+## Gates (v1.17)
+
+`npm run balance -- --gates [faction]`. The reference strike force against rings with
+0/4/12/24/48 segments swapped for gates — closed and unattended, the base as an offline
+probe finds it.
+
+```
+GATES — soft spots in a PLA ring, unattended, vs the UNITED STATES reference force
+GATES |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
+------+-------+-------+-------+-------+-------+-------+---------
+    0 |   100 |   100 |   100 |   100 |    67 |  93.4 |       72
+    4 |   100 |   100 |   100 |    95 |    67 |  92.4 |       71
+   12 |   100 |   100 |   100 |   100 |    67 |  93.4 |       72
+   24 |   100 |   100 |   100 |   100 |    67 |  93.4 |       72
+   48 |   100 |   100 |   100 |    95 |    67 |  92.4 |       73
+```
+
+- **This table killed the price it was written to confirm.** A gate was meant to pay for
+  itself by carrying about half a wall's HP. Forty-eight doors in a ring — most of the
+  wall line — move the clear rate by one point and men-lost by one. The soft spot is not
+  a cost at all.
+- **The reason is the maze rule doing its job.** Weighted A* sends attackers AROUND
+  walls; a raid is decided by route length and gun coverage, not by wall HP. BALANCE.md
+  already recorded the same effect for field conditions ("wall HP alone barely moves a
+  fixed force, because softer walls just deliver it to the guns sooner"). Gates are that
+  finding a second time, at four times the dose.
+- **So the price moved to the wall allowance**: a gate spends two segments where a wall
+  spends one. Ring LENGTH is a number the player feels on every build and cannot route
+  around, and charging it for a hole you deliberately left in your own wall is the
+  honest version of the trade. The HP difference stays because a door should be a door,
+  but it is flavour, not the price.
+- **What the harness cannot price is the gate's actual value**, because that is a live
+  decision — you open one to pull the assault into a killzone — and no headless matrix
+  plays. The unit tests carry that half: opening a gate re-routes the attack through it,
+  and a unit that cannot break anything is stuck at a shut gate and walking at an open
+  one.
 
 ## Reading the tables (v0.8 pass)
 
