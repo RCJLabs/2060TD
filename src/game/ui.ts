@@ -22,6 +22,12 @@ export interface Button {
   setSub(text: string): void;
   setRect(x: number, y: number, w: number, h: number): void;
   setFont(size: number): void;
+  /** Wrap the label to this width in device px; null leaves it on one line. */
+  setWrap(width: number | null): void;
+  /** Measured height of the label block — what a wrapping list sizes rows by. */
+  labelHeight(): number;
+  /** Measured width of the sub, so a label can be wrapped clear of it. */
+  subWidth(): number;
   destroy(): void;
 }
 
@@ -144,22 +150,25 @@ export function makeButton(
   opts: ButtonOptions = {},
 ): Button {
   const align = opts.align ?? 'left';
-  const fontSize = opts.font ?? Math.max(11, Math.round(height * 0.42));
-  const padX = Math.round(height * 0.32);
+  let fontSize = opts.font ?? Math.max(11, Math.round(height * 0.42));
+  const padX = Math.round(fontSize * 1.1);
 
   const bg = scene.add
     .rectangle(x, y, width, height, COLORS.bgField)
     .setOrigin(0, 0)
     .setStrokeStyle(1, COLORS.gridLine)
     .setInteractive({ useHandCursor: true });
+  // Origin is TOP-left, not middle-left: a label that wraps is a block of
+  // unknown height, and a block is centred by measuring it, not by pinning
+  // its middle to the row's middle and hoping it is one line tall.
   const label = scene.add
-    .text(align === 'center' ? x + width / 2 : x + padX, y + height / 2, text, mono(fontSize))
-    .setOrigin(align === 'center' ? 0.5 : 0, 0.5);
+    .text(align === 'center' ? x + width / 2 : x + padX, y, text, mono(fontSize))
+    .setOrigin(align === 'center' ? 0.5 : 0, 0);
   const sub =
     opts.sub !== undefined
       ? scene.add
-          .text(x + width - padX, y + height / 2, opts.sub, mono(fontSize, COLORS.inkDim))
-          .setOrigin(1, 0.5)
+          .text(x + width - padX, y, opts.sub, mono(fontSize, COLORS.inkDim))
+          .setOrigin(1, 0)
       : undefined;
   if (opts.container) {
     opts.container.add(bg);
@@ -255,13 +264,37 @@ export function makeButton(
     },
     setRect(nx: number, ny: number, nw: number, nh: number) {
       bg.setPosition(nx, ny).setSize(nw, nh);
-      const pad = Math.round(nh * 0.32);
-      label.setPosition(align === 'center' ? nx + nw / 2 : nx + pad, ny + nh / 2);
-      sub?.setPosition(nx + nw - pad, ny + nh / 2);
+      // Pad from the row's own height would grow with a wrapped row; pad from
+      // the FONT, so a three-line row has the same inset as a one-line one.
+      const pad = Math.round(fontSize * 1.1);
+      // Centre the label block in the row, and sit the sub on its first line.
+      const top = ny + Math.max(0, Math.round((nh - label.height) / 2));
+      label.setPosition(align === 'center' ? nx + nw / 2 : nx + pad, top);
+      sub?.setPosition(nx + nw - pad, top);
     },
     setFont(size: number) {
+      fontSize = size;
       label.setFontSize(size);
       sub?.setFontSize(size);
+    },
+    /**
+     * Wrap the label inside `width` device px, or null to leave it on one
+     * line. The height the label reports afterwards is what the caller sizes
+     * the row from — measured, never predicted from a character count.
+     */
+    setWrap(width: number | null) {
+      const wrap = label.style.wordWrapWidth ?? null;
+      if (wrap === width) return;
+      if (width === null) label.setWordWrapWidth(undefined as unknown as number);
+      else label.setWordWrapWidth(width);
+    },
+    /** Height of the label block as it currently renders. */
+    labelHeight() {
+      return label.height;
+    },
+    /** Width the sub takes, so the label can be wrapped clear of it. */
+    subWidth() {
+      return sub && sub.text.length > 0 ? sub.width : 0;
     },
     destroy() {
       liveProbes.delete(probe);
@@ -438,96 +471,128 @@ export class Panel {
     this.relayoutRows();
   }
 
+  /**
+   * Lay the rows out, wrapping anything too long for its column (v1.13).
+   *
+   * Rows used to be one line each, truncated with an ellipsis worked out from
+   * a monospace character width. That cost the game real copy: two systems
+   * grew a second field just to keep a heading short, and four content tables
+   * carry a 26-character cap enforced by tests. Wrapping retires all of it.
+   *
+   * Heights are MEASURED, in two passes. The first sets every label's text
+   * and wrap width and reads back the height it actually renders at; the
+   * second places the rows now that each line's tallest row is known. A
+   * predicted height would be the same guess that put this project's overlay
+   * bugs on screen twice — and here it would be worse, because a row that is
+   * short by a line does not overlap prose, it overlaps a tap target.
+   */
   private relayoutRows(): void {
     if (!this.layout) return;
     const { list, rowH, gap, pad, font, cols } = this.layout;
     const colW = Math.floor((list.w - pad * 2 - gap * (cols - 1)) / cols);
+    const headingW = list.w - pad * 2;
 
-    let line = 0;
-    let colIndex = 0;
+    // ---- pass one: text in, height out --------------------------------------
+    interface Placed {
+      row: PanelRow;
+      /** Pool slot for a button row, or heading slot for a heading. */
+      slot: number;
+      height: number;
+    }
+    const placed: Placed[] = [];
     let poolIndex = 0;
     let headingIndex = 0;
 
     for (const row of this.rows) {
       if (row.heading) {
-        if (colIndex !== 0) {
-          line++;
-          colIndex = 0;
-        }
-        const y = list.y + pad + line * (rowH + gap) - this.scrollY;
         let text = this.headings[headingIndex];
         if (!text) {
           text = this.scene.add.text(0, 0, '', mono(font.tiny, COLORS.inkDim));
           this.rowRoot.add(text);
           this.headings[headingIndex] = text;
         }
-        text
-          .setPosition(list.x + pad, y + rowH * 0.35)
-          .setFontSize(font.tiny)
-          .setVisible(y + rowH > list.y && y < list.y + list.h);
+        text.setFontSize(font.tiny);
+        text.setWordWrapWidth(headingW);
         if (text.text !== row.label) text.setText(row.label);
+        placed.push({
+          row,
+          slot: headingIndex,
+          height: Math.max(rowH, text.height + Math.round(font.tiny * 0.7)),
+        });
         headingIndex++;
-        line++;
         continue;
       }
 
-      const x = list.x + pad + colIndex * (colW + gap);
-      const y = list.y + pad + line * (rowH + gap) - this.scrollY;
       let button = this.pool[poolIndex];
       if (!button) {
         const slot = poolIndex;
-        button = makeButton(
-          this.scene,
-          x,
-          y,
-          colW,
-          rowH,
-          row.label,
-          () => this.tapRow(slot),
-          { font: font.body, sub: '', container: this.rowRoot },
-        );
+        button = makeButton(this.scene, 0, 0, colW, rowH, row.label, () => this.tapRow(slot), {
+          font: font.body,
+          sub: '',
+          container: this.rowRoot,
+        });
         this.pool[poolIndex] = button;
       }
-      button.setRect(x, y, colW, rowH);
       button.setFont(font.body);
-      // Monospace: char width tracks the font size, so the room left for the
-      // label is arithmetic rather than a measure-and-reflow.
-      const charW = font.body * 0.62;
-      const padX = rowH * 0.32;
-      const subChars = (row.sub ?? '').length;
-      const room = Math.floor((colW - padX * 2 - subChars * charW - (subChars ? charW : 0)) / charW);
-      button.setLabel(
-        room > 2 && row.label.length > room ? `${row.label.slice(0, room - 1)}…` : row.label,
-      );
       button.setSub(row.sub ?? '');
+      // The sub owns its corner for the whole block, not just the first line.
+      // Wrapping the label under it would read as two columns that collide.
+      const padX = Math.round(font.body * 1.1);
+      const subW = button.subWidth();
+      button.setWrap(Math.max(font.body * 4, colW - padX * 2 - (subW > 0 ? subW + padX : 0)));
+      button.setLabel(row.label);
       button.setEnabled(row.enabled !== false);
       button.setActive(row.active === true);
-      // The mask hides scrolled-away rows but does not un-tap them: a row
-      // parked under the status strip would still take a press. Rows leave
-      // the display when clear of the list, and stop taking input as soon as
-      // their middle does.
-      button.setVisible(y + rowH > list.y && y < list.y + list.h);
-      const middle = y + rowH / 2;
-      if (button.bg.input) {
-        button.bg.input.enabled = middle >= list.y && middle <= list.y + list.h;
-      }
-      // Re-point the handler without rebuilding the button — the pool is
-      // reused across tabs, so the row list owns what a slot does.
       this.taps[poolIndex] = row.onTap;
+      placed.push({
+        row,
+        slot: poolIndex,
+        height: Math.max(rowH, button.labelHeight() + Math.round(font.body * 1.1)),
+      });
       poolIndex++;
-
-      colIndex++;
-      if (colIndex >= cols) {
-        colIndex = 0;
-        line++;
-      }
     }
-    if (colIndex !== 0) line++;
+
+    // ---- pass two: place, a line at a time ----------------------------------
+    let y = list.y + pad - this.scrollY;
+    let index = 0;
+    while (index < placed.length) {
+      const first = placed[index]!;
+      // A heading always owns its line; buttons fill the columns.
+      const span = first.row.heading
+        ? [first]
+        : placed.slice(index, index + cols).filter((p) => !p.row.heading);
+      const lineH = Math.max(...span.map((p) => p.height));
+
+      span.forEach((entry, col) => {
+        if (entry.row.heading) {
+          const text = this.headings[entry.slot]!;
+          text
+            .setPosition(list.x + pad, y + Math.round((lineH - text.height) / 2))
+            .setVisible(y + lineH > list.y && y < list.y + list.h);
+          return;
+        }
+        const button = this.pool[entry.slot]!;
+        const x = list.x + pad + col * (colW + gap);
+        button.setRect(x, y, colW, lineH);
+        // The mask hides scrolled-away rows but does not un-tap them: a row
+        // parked under the status strip would still take a press. Rows leave
+        // the display when clear of the list, and stop taking input as soon
+        // as their middle does.
+        button.setVisible(y + lineH > list.y && y < list.y + list.h);
+        const middle = y + lineH / 2;
+        if (button.bg.input) {
+          button.bg.input.enabled = middle >= list.y && middle <= list.y + list.h;
+        }
+      });
+
+      y += lineH + gap;
+      index += span.length;
+    }
 
     for (let i = poolIndex; i < this.pool.length; i++) this.pool[i]!.setVisible(false);
     for (let i = headingIndex; i < this.headings.length; i++) this.headings[i]!.setVisible(false);
 
-    this.contentH = line * (rowH + gap) + pad * 2;
+    this.contentH = y - (list.y - this.scrollY) + pad - gap;
     this.clampScroll();
     this.updateScrollHint();
   }

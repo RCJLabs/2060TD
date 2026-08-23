@@ -118,9 +118,9 @@ export interface Archetype {
   /** Six characters or fewer: the target row already carries a count. */
   short: string;
   /**
-   * One line of what-this-is for the planner. Panel headings are a single
-   * unwrapped line in a narrow rail, so this is capped and the suite enforces
-   * it — the prose version lives in the GDD.
+   * One line of what-this-is for the planner, drawn next to the shape's name.
+   * Rows wrap since v1.13, so the suite's cap is editorial rather than
+   * structural — the prose version lives in the GDD.
    */
   tag: string;
   /** First ladder tier this shape appears on. */

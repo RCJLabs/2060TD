@@ -30,10 +30,10 @@ export interface Condition {
   /** One line of radio-log framing for the planner. */
   blurb: string;
   /**
-   * Terse mechanical summary, and what the day pays. Both are drawn as panel
-   * headings, which are one unwrapped line in a narrow rail — keep them short
-   * (the conditions suite enforces a cap) and put the prose in `blurb`, which
-   * only ever appears inside an overlay that wraps.
+   * Terse mechanical summary, and what the day pays. The planner draws them
+   * as one row, joined; panel rows wrap since v1.13, so the length cap the
+   * suite still enforces is about READING, not about the drawer's width.
+   * Prose belongs in `blurb`, which has an overlay to itself.
    */
   effect: string;
   pay: string;

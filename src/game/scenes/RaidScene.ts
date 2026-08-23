@@ -663,8 +663,9 @@ export class RaidScene extends Phaser.Scene {
             sub: `${shape.short} ▸`,
             onTap: () => this.cycleTarget(),
           },
-          { id: 'shape', label: shape.name, heading: true },
-          { id: 'shapetag', label: shape.tag, heading: true },
+          // One statement, one row. These were two rows because a row was one
+          // unwrapped line and the pair would not fit; rows wrap now (v1.13).
+          { id: 'shape', label: `${shape.name} — ${shape.tag}`, heading: true },
           {
             id: 'scout',
             label: blacked
@@ -677,8 +678,7 @@ export class RaidScene extends Phaser.Scene {
             onTap: () => this.scout(),
           },
           { id: 'h3', label: `TODAY — ${condition.label}`, heading: true },
-          { id: 'cond', label: condition.effect, heading: true },
-          { id: 'condpay', label: condition.pay, heading: true },
+          { id: 'cond', label: `${condition.effect} · ${condition.pay}`, heading: true },
           {
             id: 'league',
             label: `${league.label} · ${town.frontline.standing} PTS`,

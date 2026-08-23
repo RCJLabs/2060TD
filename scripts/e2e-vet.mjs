@@ -167,6 +167,48 @@ try {
   await tap('CLOSE', 700);
   check('and closes again', !(await copyHas('EXPERIENCE LIVES IN THE MEN')), '');
 
+  // ---- the panel wraps rather than truncating (v1.13) ----------------------------
+  // A squad row carries a name, an entry, a doctrine and a composition, and the
+  // composition grows with every kind sent. It used to be cut off with an
+  // ellipsis worked out from a character count; now the row grows instead.
+  const rowShape = async () =>
+    page.evaluate(() => {
+      const api = window.lastline;
+      const b = api.buttons().find((x) => /ASLT|HUNT|RAZE/.test(x.label));
+      if (!b) return null;
+      const t = api.textRects().find((r) => r.text === b.label);
+      return {
+        label: b.label,
+        rowH: Math.round(b.h),
+        textH: t ? Math.round(t.h) : -1,
+        overflowY: t ? Math.round(t.y + t.h - (b.y + b.h)) : 0,
+        overflowX: t ? Math.round(t.x + t.w - (b.x + b.w)) : 0,
+      };
+    });
+  const empty = await rowShape();
+  await tap('+ RANGER', 250);
+  await tap('+ COMBAT ENGINEER', 250);
+  await tap('+ JAVELIN TEAM', 250);
+  await tap('+ HUMVEE CROWS', 250);
+  await tap('+ M1 ABRAMS', 500);
+  const loaded = await rowShape();
+  check(
+    'a long squad row is not cut off with an ellipsis',
+    loaded !== null && !loaded.label.includes('\u2026'),
+    loaded?.label ?? '(no row)',
+  );
+  check(
+    'it grows to fit instead',
+    loaded !== null && empty !== null && loaded.rowH > empty.rowH,
+    `${empty?.rowH} → ${loaded?.rowH} px`,
+  );
+  check(
+    'and stays inside its own row',
+    loaded !== null && loaded.overflowY <= 1 && loaded.overflowX <= 1,
+    `y+${loaded?.overflowY} x+${loaded?.overflowX}`,
+  );
+  await tap('CLEAR SQUAD', 400);
+
   // ---- the report names who came back -------------------------------------------
   await tap('+ RANGER', 300);
   await tap('+ RANGER', 300);

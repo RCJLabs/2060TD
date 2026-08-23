@@ -90,10 +90,12 @@ describe('the trade', () => {
       expect(condition.loot.fuel).toBeGreaterThan(0);
       expect(condition.effect.length).toBeGreaterThan(4);
       expect(condition.blurb.length).toBeGreaterThan(10);
-      // Panel headings are one unwrapped line in a narrow rail: a long
-      // summary does not shrink, it runs off the edge of the drawer.
-      expect(condition.effect.length, condition.effect).toBeLessThanOrEqual(26);
-      expect(condition.pay.length, condition.pay).toBeLessThanOrEqual(26);
+      // Panel rows wrap since v1.13, so this cap is no longer about the
+      // drawer's width — it is editorial. A summary the player has to READ is
+      // not a summary, and the prose belongs in `blurb`, which has an
+      // overlay to itself.
+      expect(condition.effect.length, condition.effect).toBeLessThanOrEqual(64);
+      expect(condition.pay.length, condition.pay).toBeLessThanOrEqual(64);
       expect(CONDITION_BY_ID[condition.id]).toBe(condition);
     }
     // Exactly one neutral day, and it is the one with no modifiers at all.

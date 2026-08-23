@@ -30,7 +30,7 @@ export interface Rank {
   at: number;
   /** Multiplier on unit HP and damage for this squad's units. */
   mult: number;
-  /** One line for the record panel. Kept under 26 characters (narrow rail). */
+  /** One line for the record panel. Brief because it is read, not measured. */
   tag: string;
 }
 
@@ -116,8 +116,9 @@ export const SQUAD_SLOTS = 3;
 /**
  * Call signs, not unit designations: the radio log is how the player meets
  * these formations, and a call sign is what comes over the radio. Three per
- * faction, one per standing slot, at most eight characters so a squad row
- * still reads as one unwrapped line in the rail.
+ * faction, one per standing slot, and kept to eight characters — not because
+ * the row would overflow (rows wrap since v1.13) but because a call sign that
+ * takes two lines is not a call sign.
  */
 const CALL_SIGNS: Record<FactionId, [string, string, string]> = {
   usa: ['HAMMER', 'RONIN', 'TALON'],

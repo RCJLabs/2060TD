@@ -450,8 +450,25 @@ there is deliberately no sixth faction here.
       and scripts/e2e-boot.mjs throttles to 1 Mbit/s to prove the card is up
       while the engine is genuinely still arriving — then boots the single file
       from file:// and plays it. Nothing anywhere had tested that build before.*
-- [ ] **Make the panel wrap** — rows and headings are one unwrapped line, which
-      has now forced two workarounds and a 26-character cap enforced by tests.
+- [x] **Make the panel wrap** *(v1.13)* — *rows and headings were one line
+      each, cut off with an ellipsis worked out from a monospace character
+      width. Both workarounds it forced are gone: the raid planner drew the
+      shape's name and its tag as two heading rows, and the day's condition as
+      two more, purely because one row could not hold a phrase — each pair is
+      now one row that reads as one statement. Heights are MEASURED in two
+      passes: the first sets every label's text and wrap width and reads back
+      the height it renders at, the second places the rows once each line's
+      tallest is known. A predicted height is the same guess that put this
+      project's overlay bugs on screen twice, and here it would be worse — a
+      row short by a line does not overlap prose, it overlaps a tap target.
+      Buttons gained a measured API (setWrap/labelHeight/subWidth) and their
+      text blocks are now top-anchored and centred by measurement rather than
+      pinned by their middle. The four content caps stay as EDITORIAL bounds
+      at 64 characters rather than structural ones at 26, and `short` fields
+      stay tight because an abbreviation that takes two lines is not an
+      abbreviation. Proved on real content: a squad row loaded with five kinds
+      grows from 28px to 43px instead of being truncated, and e2e-touch sweeps
+      every row on screen for spill.*
 
 ### Original-plan gaps found by the M8 audit
 

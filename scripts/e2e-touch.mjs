@@ -144,6 +144,31 @@ try {
     (await labelOf('TAP AGAIN')) ?? 'nothing armed',
   );
 
+  // Every row keeps its own label inside its own rectangle (v1.13). Rows used
+  // to guarantee this by CUTTING the label with an ellipsis; they guarantee it
+  // by wrapping now, and this is the check that says so for every row on
+  // screen rather than for the one the last change happened to touch.
+  const spill = await page.evaluate(() => {
+    const api = window.lastline;
+    const rects = api.textRects();
+    const worst = [];
+    for (const b of api.buttons()) {
+      const t = rects.find((r) => r.text === b.label);
+      if (!t) continue;
+      // A couple of device px of glyph overhang is antialiasing, not a spill.
+      const dy = Math.round(t.y + t.h - (b.y + b.h));
+      const dx = Math.round(t.x + t.w - (b.x + b.w));
+      if (dy > 3 || dx > 3) worst.push(`${b.label.slice(0, 22)} y+${dy} x+${dx}`);
+    }
+    return { rows: api.buttons().length, worst };
+  });
+  check(
+    'no row label spills out of its row',
+    spill.worst.length === 0,
+    spill.worst.slice(0, 3).join(' | ') || `${spill.rows} rows, all contained`,
+  );
+  check('and none of them is cut off with an ellipsis', !(await labelOf('\u2026')), '');
+
   // A modal owns the gesture: nothing behind it may move.
   await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });
   await wait(2500);

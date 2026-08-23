@@ -17,6 +17,29 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.13: the panel wraps
+
+**Panel rows were one line each**, cut off with an ellipsis worked out from a
+monospace character width. That cost real copy — and it's gone.
+
+- **Two workarounds retired.** The raid planner drew a shape's name and its tag
+  as two heading rows, and the day's condition as two more, purely because one
+  row couldn't hold a phrase. Each pair is now a single row that reads as one
+  statement.
+- **Heights are measured, in two passes.** The first sets every label's text
+  and wrap width and reads back the height it actually renders at; the second
+  places the rows once each line's tallest is known. A predicted height is the
+  same guess that put this project's overlay bugs on screen twice — and here it
+  would be worse: a row short by a line doesn't overlap prose, it overlaps a
+  tap target.
+- **The content caps are editorial now**, not structural: 64 characters because
+  a row the player has to read twice is badly written, not 26 because the
+  drawer would clip it. `short` fields stay tight — an abbreviation that takes
+  two lines isn't an abbreviation.
+- **Proved on real content.** A squad row loaded with five unit kinds grows
+  from 28px to 43px instead of being truncated, and `e2e-touch` sweeps every
+  row on screen to check nothing spills out of its own rectangle.
+
 ## Current state — v1.12: three orders a day
 
 **DAY ORDERS on the WAR tab** — three standing orders, posted daily off the

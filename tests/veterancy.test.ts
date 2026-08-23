@@ -45,10 +45,12 @@ describe('rank table', () => {
     expect(RANKS[RANKS.length - 1]!.mult).toBeLessThanOrEqual(1.2);
   });
 
-  it('fits the narrow rail: short tags and one-line descriptions', () => {
+  it('keeps its abbreviations short and its prose brief', () => {
     for (const rank of RANKS) {
+      // `short` sits beside a launch time in a row's sub: an abbreviation.
       expect(rank.short.length).toBeLessThanOrEqual(3);
-      expect(rank.tag.length).toBeLessThanOrEqual(26);
+      // `tag` is prose. Rows wrap since v1.13, so this is editorial.
+      expect(rank.tag.length).toBeLessThanOrEqual(64);
     }
   });
 
@@ -155,7 +157,7 @@ describe('call signs', () => {
       const names = [0, 1, 2].map((slot) => squadName(faction, slot));
       expect(new Set(names).size).toBe(SQUAD_SLOTS);
       for (const name of names) {
-        // The squad row is one unwrapped line in a narrow rail.
+        // A call sign that needs two lines is not a call sign.
         expect(name.length).toBeLessThanOrEqual(8);
         expect(name).toBe(name.toUpperCase());
       }

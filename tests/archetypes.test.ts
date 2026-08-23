@@ -24,9 +24,11 @@ describe('the archetype table', () => {
       expect(arch.towers).toBeGreaterThan(0);
       expect(arch.economy).toBeGreaterThan(0);
       expect(arch.levelBonus).toBeGreaterThanOrEqual(0);
-      // Both strings share a panel row with a count, and panel rows do not wrap.
+      // `short` is an abbreviation by design — it rides in a row's sub next
+      // to a count — so it stays tight. `tag` is prose, and panel rows wrap
+      // since v1.13, so its cap is editorial rather than structural.
       expect(arch.short.length, arch.short).toBeLessThanOrEqual(6);
-      expect(arch.tag.length, arch.tag).toBeLessThanOrEqual(26);
+      expect(arch.tag.length, arch.tag).toBeLessThanOrEqual(64);
       expect(arch.name.length).toBeGreaterThan(3);
     }
   });

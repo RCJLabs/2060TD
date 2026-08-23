@@ -101,8 +101,9 @@ describe('the day\'s orders', () => {
 
   it('fits the narrow rail, and asks for something in every line', () => {
     for (const c of CONTRACTS) {
-      // Labels are panel headings: one unwrapped line.
-      expect(c.label.length).toBeLessThanOrEqual(26);
+      // Rows wrap since v1.13, so this is editorial: an order the commander
+      // has to read twice is a badly written order.
+      expect(c.label.length).toBeLessThanOrEqual(64);
       expect(c.label).toBe(c.label.toUpperCase());
       expect(c.brief.length).toBeGreaterThan(20);
       expect(c.goal).toBeGreaterThan(0);

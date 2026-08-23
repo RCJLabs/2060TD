@@ -475,6 +475,25 @@ places would drift, and nothing in the save could say which count was right.
 
 ---
 
+## 5.12 A note on the panel *(v1.13)*
+
+Panel rows and headings wrap. Until v1.13 they were one line each, cut off with an ellipsis
+worked out from a monospace character width, and that constraint reached back into the
+content: two systems grew a second field to keep a heading short, and four content tables
+carried a 26-character cap enforced by tests.
+
+Row heights are **measured**, in two passes — the first sets every label's text and wrap
+width and reads the height it renders at, the second places the rows once each line's
+tallest is known. Predicting the height from a character count is the guess that put this
+project's overlay bugs on screen twice; in a list of tap targets it would be worse, because
+a row that is short by a line overlaps the row below it rather than some prose.
+
+The caps that remain are **editorial**: a row the commander has to read twice is a badly
+written row, whatever the drawer's width. Abbreviation fields (`short`) stay tight for the
+same reason — an abbreviation that takes two lines is not one.
+
+---
+
 ## 6. Presentation
 
 ### 6.1 Art direction — "the map table"

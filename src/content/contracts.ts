@@ -38,7 +38,7 @@ export type ContractCategory = 'offense' | 'defense' | 'home';
 
 export interface Contract {
   id: string;
-  /** Panel heading — one unwrapped line in a narrow rail (capped in tests). */
+  /** Panel heading. Rows wrap, so the cap in the suite is editorial. */
   label: string;
   /** What it actually asks, in the radio-log voice. */
   brief: string;
