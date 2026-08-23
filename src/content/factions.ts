@@ -1,10 +1,12 @@
 import type { Catalog } from '../sim/types';
 import { CHINA_ASSAULT_ROSTER, USA_ASSAULT_ROSTER, type AssaultRoster } from './assaults';
 import { CHINA_BASE_KIT, USA_BASE_KIT, type BaseKit } from './bases';
+import { BLUE_LINE } from './blueLine';
 import { ECONOMY_STRUCTURES, TOWN_META, type TownBuildingMeta } from './buildings';
 import { CAMPAIGN, type MissionDef } from './campaign';
 import { M1_CATALOG, RAID_CATALOG } from './catalog';
 import { CHINA_ATTACKERS } from './china';
+import { CHINA_BASE, CHINA_WALLS } from './chinaBase';
 import {
   CHINA_TOWN_POWERS,
   CHINA_TOWN_STRUCTURES,
@@ -23,6 +25,13 @@ import {
 } from './nkFaction';
 import { RU_ATTACKERS } from './russia';
 import { SILENT_TUNNELS } from './silentTunnels';
+import { UN_ATTACKERS } from './un';
+import {
+  UN_TOWN_POWERS,
+  UN_TOWN_STRUCTURES,
+  UN_TOWN_WALLS,
+  UN_TRAINABLE,
+} from './unFaction';
 import {
   RUSSIA_TOWN_POWERS,
   RUSSIA_TOWN_STRUCTURES,
@@ -44,9 +53,9 @@ import { TRAINABLE, USA_UNITS, type TrainMeta } from './usaUnits';
  * your town, and your raids hit bases built from the OTHER side's kit.
  * China and Russia both fight the USA; the USA fights the PLA front.
  */
-export type FactionId = 'usa' | 'china' | 'russia' | 'nk';
+export type FactionId = 'usa' | 'china' | 'russia' | 'nk' | 'un';
 
-export const FACTION_IDS: FactionId[] = ['usa', 'china', 'russia', 'nk'];
+export const FACTION_IDS: FactionId[] = ['usa', 'china', 'russia', 'nk', 'un'];
 
 /** What the player's town fights with, per faction (attackers = the enemy). */
 const CHINA_DEFENSE_CATALOG: Catalog = {
@@ -70,6 +79,15 @@ const NK_DEFENSE_CATALOG: Catalog = {
   structures: NK_TOWN_STRUCTURES,
   walls: NK_TOWN_WALLS,
   powers: NK_TOWN_POWERS,
+  damage: DAMAGE_MULT,
+};
+
+/** The UN fights the China front, like the USA: PLA besiegers, PLA targets. */
+const UN_DEFENSE_CATALOG: Catalog = {
+  attackers: CHINA_ATTACKERS,
+  structures: UN_TOWN_STRUCTURES,
+  walls: UN_TOWN_WALLS,
+  powers: UN_TOWN_POWERS,
   damage: DAMAGE_MULT,
 };
 
@@ -99,11 +117,20 @@ const NK_RAID_CATALOG: Catalog = {
   damage: DAMAGE_MULT,
 };
 
+const UN_RAID_CATALOG: Catalog = {
+  attackers: UN_ATTACKERS,
+  structures: CHINA_BASE,
+  walls: CHINA_WALLS,
+  powers: UN_TOWN_POWERS,
+  damage: DAMAGE_MULT,
+};
+
 const DEFENSE_CATALOGS: Record<FactionId, Catalog> = {
   usa: M1_CATALOG,
   china: CHINA_DEFENSE_CATALOG,
   russia: RUSSIA_DEFENSE_CATALOG,
   nk: NK_DEFENSE_CATALOG,
+  un: UN_DEFENSE_CATALOG,
 };
 
 const RAID_CATALOGS: Record<FactionId, Catalog> = {
@@ -111,6 +138,7 @@ const RAID_CATALOGS: Record<FactionId, Catalog> = {
   china: CHINA_RAID_CATALOG,
   russia: RUSSIA_RAID_CATALOG,
   nk: NK_RAID_CATALOG,
+  un: UN_RAID_CATALOG,
 };
 
 export function defenseCatalogFor(faction: FactionId): Catalog {
@@ -121,14 +149,15 @@ export function raidCatalogFor(faction: FactionId): Catalog {
   return RAID_CATALOGS[faction];
 }
 
-/** The kit enemy Front Line bases are generated from (the OTHER side's kit). */
+/** The kit enemy Front Line bases are generated from (the OTHER side's kit).
+ * USA and UN fight the China front; everyone else raids US firebases. */
 export function baseKitFor(faction: FactionId): BaseKit {
-  return faction === 'usa' ? CHINA_BASE_KIT : USA_BASE_KIT;
+  return faction === 'usa' || faction === 'un' ? CHINA_BASE_KIT : USA_BASE_KIT;
 }
 
 /** The roster that besieges this faction's town (the OTHER side's army). */
 export function enemyRosterFor(faction: FactionId): AssaultRoster {
-  return faction === 'usa' ? CHINA_ASSAULT_ROSTER : USA_ASSAULT_ROSTER;
+  return faction === 'usa' || faction === 'un' ? CHINA_ASSAULT_ROSTER : USA_ASSAULT_ROSTER;
 }
 
 const CAMPAIGNS: Record<FactionId, MissionDef[]> = {
@@ -136,6 +165,7 @@ const CAMPAIGNS: Record<FactionId, MissionDef[]> = {
   china: EASTERN_TIDE,
   russia: IRON_CORRIDOR,
   nk: SILENT_TUNNELS,
+  un: BLUE_LINE,
 };
 
 export function campaignFor(faction: FactionId): MissionDef[] {
@@ -147,6 +177,7 @@ const TRAINABLES: Record<FactionId, TrainMeta[]> = {
   china: CHINA_TRAINABLE,
   russia: RUSSIA_TRAINABLE,
   nk: NK_TRAINABLE,
+  un: UN_TRAINABLE,
 };
 
 export function trainableFor(faction: FactionId): TrainMeta[] {
@@ -158,6 +189,7 @@ const TRAIN_META_BY_FACTION: Record<FactionId, Record<string, TrainMeta>> = {
   china: Object.fromEntries(CHINA_TRAINABLE.map((t) => [t.kind, t])),
   russia: Object.fromEntries(RUSSIA_TRAINABLE.map((t) => [t.kind, t])),
   nk: Object.fromEntries(NK_TRAINABLE.map((t) => [t.kind, t])),
+  un: Object.fromEntries(UN_TRAINABLE.map((t) => [t.kind, t])),
 };
 
 export function trainMetaFor(faction: FactionId): Record<string, TrainMeta> {
@@ -208,6 +240,7 @@ const TOWN_METAS: Record<FactionId, Record<string, TownBuildingMeta>> = {
   china: renameMeta(CHINA_TOWN_STRUCTURES),
   russia: renameMeta(RUSSIA_TOWN_STRUCTURES, overbuilt),
   nk: renameMeta(NK_TOWN_STRUCTURES, expendable),
+  un: renameMeta(UN_TOWN_STRUCTURES), // baseline logistics — the discipline is in the kit
 };
 
 export function townMetaFor(faction: FactionId): Record<string, TownBuildingMeta> {
@@ -215,10 +248,12 @@ export function townMetaFor(faction: FactionId): Record<string, TownBuildingMeta
 }
 
 /** Fraction of cumulative cost charged to repair a wreck. Russia's concrete
- * is cheap to trust and dear to rebuild; nothing the KPA loses was dear. */
+ * is cheap to trust and dear to rebuild; nothing the KPA loses was dear;
+ * the UN's engineer corps restores anything for less than anyone. */
 export function wreckRepairFractionFor(faction: FactionId): number {
   if (faction === 'russia') return 0.42;
   if (faction === 'nk') return 0.25;
+  if (faction === 'un') return 0.2;
   return 0.3;
 }
 
@@ -291,6 +326,17 @@ const FLAVOR: Record<FactionId, FactionFlavor> = {
       'You hold the Humboldt Bay enclave: a sealift harbor dug into\nthe redwood coast. Everything is cheap and buried. Hold the ground.',
     heldLine: 'The ground held. The enclave stays on the map.',
     brokeLine: 'The line broke. What is left is going underground.',
+  },
+  un: {
+    faction: 'UN COALITION',
+    operation: 'OPERATION BLUE LINE — TACOMA CORRIDOR',
+    base: 'CORRIDOR BASE — PORT OF TACOMA',
+    enemy: 'PLA',
+    pitch: 'Mid-pack guns, medics, and engineers. Nothing that falls stays down.',
+    situation:
+      'You hold the Tacoma evacuation corridor: the port, the rail\nspur, and the last open miles of I-5. Twelve flags. One line.',
+    heldLine: 'The corridor held. The convoys sail full.',
+    brokeLine: 'The line broke. The convoys sail light tonight.',
   },
 };
 

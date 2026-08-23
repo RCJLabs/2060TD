@@ -213,6 +213,11 @@ export class BattleRenderer {
         g.lineStyle(1, COLORS.signal, 0.35);
         g.strokeCircle(px, py, (s.profile.trigger?.radius ?? 0.8) * c);
       }
+      if (s.profile.aura && !s.inert) {
+        // Sustainment radius: the blue circle everything shelters inside.
+        g.lineStyle(1, COLORS.unBlue, 0.3);
+        g.strokeCircle(px, py, s.profile.aura.radius * c);
+      }
       if (s.profile.kind === 'cc') {
         this.hpBar(g, px, (s.center.y - 1) * c - 6, 2 * c - 8, s.hp / s.profile.maxHp, true);
       } else if (s.hp < s.profile.maxHp) {
@@ -304,6 +309,7 @@ export class BattleRenderer {
       case 'ranger':
       case 'motorrifle':
       case 'nkrifle':
+      case 'peacekeeper':
         g.fillStyle(body, 1);
         g.fillCircle(px, py, 7);
         g.lineStyle(1, dark, 1);
@@ -325,6 +331,7 @@ export class BattleRenderer {
       case 'engineer':
       case 'demoteam':
       case 'tunneler':
+      case 'unsapper':
         g.fillStyle(body, 1);
         g.fillPoints(
           [
@@ -342,7 +349,8 @@ export class BattleRenderer {
       case 'grenadier':
       case 'javelin':
       case 'rpg':
-      case 'rpg7': {
+      case 'rpg7':
+      case 'nlaw': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
@@ -357,7 +365,8 @@ export class BattleRenderer {
       // ---- light vehicles: small hulls, facing their heading ----------------------
       case 'humvee':
       case 'zbd':
-      case 'btr': {
+      case 'btr':
+      case 'vab': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
@@ -375,7 +384,8 @@ export class BattleRenderer {
       case 'abrams':
       case 'type99':
       case 't72':
-      case 'chonma': {
+      case 'chonma':
+      case 'leo1': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
@@ -389,6 +399,19 @@ export class BattleRenderer {
         g.lineStyle(3, body, 1);
         g.lineBetween(0, 0, 16, 0);
         g.restore();
+        break;
+      }
+      case 'unmedic': {
+        // The only unit in the war that keeps others alive: allegiance
+        // body, blue cross, and the faint reach of the aid it carries.
+        const reach = (attacker.profile.heal?.radius ?? 2.5) * this.cell;
+        g.lineStyle(1, COLORS.unBlue, 0.22);
+        g.strokeCircle(px, py, reach);
+        g.fillStyle(body, 1);
+        g.fillCircle(px, py, 6);
+        g.fillStyle(COLORS.unBlue, 1);
+        g.fillRect(px - 4, py - 1.5, 8, 3);
+        g.fillRect(px - 1.5, py - 4, 3, 8);
         break;
       }
       case 'infiltrator':

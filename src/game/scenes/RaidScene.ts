@@ -100,7 +100,7 @@ export class RaidScene extends Phaser.Scene {
       const pick = params.get('faction');
       this.town = makeRaidShowcase(
         Date.now(),
-        pick === 'china' || pick === 'russia' || pick === 'nk' ? pick : 'usa',
+        pick === 'china' || pick === 'russia' || pick === 'nk' || pick === 'un' ? pick : 'usa',
       );
     }
     this.variant = 0;
@@ -694,7 +694,9 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
         ? { motorrifle: 4, demoteam: 2, rpg: 2, btr: 1, t72: 1 }
         : faction === 'nk'
           ? { nkrifle: 6, infiltrator: 3, tunneler: 2, rpg7: 2, chonma: 1 }
-          : { ranger: 4, engineer: 2, javelin: 2, humvee: 1, abrams: 1 };
+          : faction === 'un'
+            ? { peacekeeper: 4, unmedic: 2, unsapper: 2, nlaw: 2, vab: 1, leo1: 1 }
+            : { ranger: 4, engineer: 2, javelin: 2, humvee: 1, abrams: 1 };
   const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
   place(town, 'barracks', idx(20, 5), now - 600_000);
   town.structures.find((s) => s.kind === 'cc')!.level = 2;
@@ -711,7 +713,9 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
           ? ['motorrifle', 'rpg']
           : faction === 'nk'
             ? ['nkrifle', 'rpg7']
-            : ['ranger', 'javelin'];
+            : faction === 'un'
+              ? ['peacekeeper', 'unmedic']
+              : ['ranger', 'javelin'];
     barracks.trainEndsAt = now + 9_000;
   }
   town.charges = { a10: 2, arty: 1 };

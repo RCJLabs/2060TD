@@ -216,7 +216,22 @@ replaying cleared missions.
       army: light infantry, infiltrators, tunnel sappers (70 wall dps), RPG-7s,
       Chonma-ho. Harness identity: tunnels turn tier 2 into a walkover and 5× the
       tier-4 clears; tunnels + KN-09 plan opens tier 5 (0% → 32%).*
-- [ ] UN Coalition faction + "Blue Line" arc (Mandate system, engineering)
+- [x] UN Coalition faction + "Blue Line" arc (sustainment auras, engineering) *(v0.7)*
+      — *fifth and final GDD faction, built on a new two-sided engine mechanic:
+      sustainment auras. On defense the Engineer Revetment (22 CP field work) and
+      the Engineer Corps HQ (the economy building you now place tactically) repair
+      structures AND walls in radius mid-fight; on offense the Field Medic Team is
+      the only unit in the war that heals other units. Healing is deterministic,
+      additive, capped per target — tuned to out-heal one gun, never two. The kit
+      is deliberately mid-pack everywhere (Peacekeeper MG posts, Milan ATGMs, the
+      fast AMOS twin mortar, Gripen gun pass, precision 105mm battery with 0.9
+      scatter); wreck repairs run 20%, cheapest in the war. Six-mission BLUE LINE
+      arc holds the Tacoma evacuation corridor against the PLA (AEGIS / CORRIDOR
+      ACTUAL voice) — the UN fights the China front, like the USA. Raid army:
+      peacekeepers, medics, engineer breach teams, NLAWs, VAB, Leopard 1A5.
+      Harness identity vs its own no-medic control: −18 points of tier-1 losses,
+      +13 points of tier-3 clears; the Engineer Corps HQ aura turns the MID L4
+      assault from a 60% hold into 100%.*
 - [ ] Air layer: air units + AA emplacements
 - [ ] Offline defense doctrines (preset CP-spending AI for offline sieges)
 - [ ] Share-code PvP-lite: export base as code, friends raid the snapshot

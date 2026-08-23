@@ -56,6 +56,11 @@ export interface AttackerProfile {
   cpValue: number;
   /** Optional ranged weapon, used against defensive structures and the CC. */
   weapon?: Weapon;
+  /**
+   * Sustainment aura (v0.7, UN medics): heals OTHER friendly attackers
+   * within radius, hp/second, capped at their max. Never heals itself.
+   */
+  heal?: { perSecond: number; radius: number };
   /** ± fraction rolled onto speed at spawn via the seeded PRNG. */
   speedJitter: number;
 }
@@ -73,6 +78,12 @@ export interface StructureProfile {
   weapon?: Weapon;
   /** Proximity mine behavior (claymore). */
   trigger?: { radius: number; damage: number; damageType: DamageType; splashRadius: number };
+  /**
+   * Sustainment aura (v0.7, UN engineering): repairs friendly structures
+   * and walls within radius, hp/second, capped at their max. Works through
+   * prep and combat alike — the line is rebuilt while it bleeds.
+   */
+  aura?: { healPerSecond: number; radius: number };
   /** Cost in Supplies — buildable during setup/prep phases. */
   supplyCost?: number;
   /** Cost in Command Points — deployable during combat (field defenses). */
@@ -81,7 +92,7 @@ export interface StructureProfile {
    * Stat overrides per upgrade level: levels[0] applies at level 2, etc.
    * Overrides merge onto the base profile (see Engine.resolveProfile).
    */
-  levels?: Partial<Pick<StructureProfile, 'maxHp' | 'weapon' | 'trigger'>>[];
+  levels?: Partial<Pick<StructureProfile, 'maxHp' | 'weapon' | 'trigger' | 'aura'>>[];
 }
 
 export interface WallDef {

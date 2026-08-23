@@ -65,6 +65,7 @@ const UNLOCK_MISSION: Record<FactionId, Record<string, number>> = {
   china: {},
   russia: {},
   nk: {},
+  un: {},
 };
 for (const faction of FACTION_IDS) {
   for (const mission of campaignFor(faction)) {
@@ -597,7 +598,7 @@ export class TownScene extends Phaser.Scene {
             'American mainland and UN forces worldwide. The fiction depicts',
             'militaries and machines, not peoples.',
             '',
-            'Four commands are hiring. Pick your war:',
+            'Five commands are hiring. Pick your war:',
           ].join('\n'),
           mono(14, COLORS.ink, { lineSpacing: 7, align: 'center' }),
         )
@@ -619,14 +620,14 @@ export class TownScene extends Phaser.Scene {
       const button = makeButton(
         this,
         cx - 290,
-        400 + i * 74,
+        385 + i * 70,
         580,
-        42,
+        40,
         `${flavor.faction} — ${flavor.operation.split(' — ')[0]!.replace('OPERATION ', 'OP. ')}`,
         () => pick(faction),
       );
       const blurb = this.add
-        .text(cx, 400 + i * 74 + 48, flavor.pitch, mono(11, COLORS.inkDim))
+        .text(cx, 385 + i * 70 + 45, flavor.pitch, mono(11, COLORS.inkDim))
         .setOrigin(0.5, 0)
         .setDepth(61);
       button.bg.setDepth(61);

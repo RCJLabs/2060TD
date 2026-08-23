@@ -64,6 +64,8 @@ try {
   await shoot('demo=raid&faction=russia', 3000, 'raid-russia.png'); // RU raids a US firebase
   await shoot('demo=1&faction=nk', 9000, 'demo-nk.png'); // Silent Tunnels battle
   await shoot('demo=raid&faction=nk', 3000, 'raid-nk.png'); // KPA raid with a sited gallery
+  await shoot('demo=1&faction=un', 9000, 'demo-un.png'); // Blue Line battle
+  await shoot('demo=raid&faction=un', 3000, 'raid-un.png'); // UN raid with medics mustered
 
   await browser.close();
 

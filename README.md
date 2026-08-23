@@ -17,9 +17,34 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.6: the war underground
+## Current state — v0.7: the blue line
 
-**North Korea is playable** — the fourth faction, and the first to change how
+**The UN Coalition is playable** — the fifth and final faction from the GDD,
+built on a new engine mechanic that powers both sides of its kit:
+
+- **UN COALITION — Operation Blue Line.** Hold the Tacoma evacuation corridor
+  — the port, the rail spur, and the last open miles of I-5 — through six
+  missions against the PLA push, with the last convoys loading behind you.
+- **Sustainment auras**, the faction signature: the Engineer Revetment (22 CP)
+  and the Engineer Corps HQ repair every structure and wall in radius *while
+  the fight is on* — and on raids the Field Medic Team heals the squad around
+  it. Healing is deterministic, additive, and capped: it out-heals one enemy
+  gun, never two. Where you park the Engineer Corps HQ is the base-planning
+  decision of the faction — the harness measures its aura turning the
+  mid-game L4 assault from a 60% hold into 100%.
+- **Master of none, by the numbers:** every UN gun is deliberately mid-pack —
+  Peacekeeper MG posts, Milan ATGM posts, the fast-cycling AMOS twin mortar,
+  a Gripen gun pass, and a 105mm battery whose only virtue is that it lands
+  exactly where it was asked to. Wreck repairs run 20% of cost, the cheapest
+  in the war.
+- **Loss aversion measured:** the balance snapshot runs the UN raid force
+  against its own control (medics swapped for riflemen) — medics cut tier-1
+  manpower losses by ~18 points and lift tier-3 clears by ~13, and survivors
+  actually come home.
+
+## v0.6: the war underground
+
+North Korea arrived as the fourth faction, and the first to change how
 offense itself works:
 
 - **KOREAN PEOPLE'S ARMY — Operation Silent Tunnels.** Hold the Humboldt Bay
@@ -163,7 +188,7 @@ npm install
 npm run dev        # the game (faction pick → town → missions/raids loop)
                    # ?playground=1 sandbox maze lab · ?demo=1 scripted battle
                    # ?demo=town showcase base · ?demo=raid Front Line planner
-                   # add &faction=china|russia|nk to demos for the other wars
+                   # add &faction=china|russia|nk|un to demos for the other wars
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md)

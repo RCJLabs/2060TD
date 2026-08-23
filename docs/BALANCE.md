@@ -1,4 +1,4 @@
-# Balance snapshot (v0.6)
+# Balance snapshot (v0.7)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -96,6 +96,33 @@ TIER | CLEAR% | DESTR% | MP LOST%
    4 |     22 |     25 |       93
    5 |      0 |     32 |      100
 
+RAID — UN COALITION strike force (27 MP) vs PLA Front Line
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     72 |       41
+   2 |    100 |     76 |       55
+   3 |     85 |     66 |       71
+   4 |     67 |     36 |       89
+   5 |     43 |     37 |       87
+
+RAID — UN COALITION strike force (27 MP) vs PLA Front Line — CONTROL: medics replaced by riflemen
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     69 |       59
+   2 |    100 |     76 |       54
+   3 |     72 |     62 |       68
+   4 |     67 |     36 |       89
+   5 |     42 |     36 |       89
+
+RAID — UN COALITION strike force (27 MP) vs PLA Front Line — STRIKE doctrine + fire plan
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     72 |       31
+   2 |    100 |     81 |       47
+   3 |     98 |     79 |       61
+   4 |     87 |     45 |       84
+   5 |     57 |     41 |       77
+
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
@@ -151,9 +178,30 @@ STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |   95 |   20 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%)
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |   60 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — Engineer Corps HQ on the line
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |   10 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — FORTIFY doctrine
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |   95 |   25 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 ```
 
-## Reading the tables (v0.6 pass)
+## Reading the tables (v0.7 pass)
 
 - **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.
   USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;
@@ -171,6 +219,14 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
   like it. The compensators are price (rebuild fast, repair at 25%), the Koksan pit
   outranging every gun in the game, and the CP battle layer (ambush teams at 20, mines
   at 12) — the reference measures none of those.
+- **UN (sustainment) is measured against its own control**: the CONTROL row runs the
+  same 27 MP with the medics swapped for riflemen. Medics clear the bar where the fight
+  is winnable — tier-1 losses drop ~18 points and tier-3 clears gain ~13 — and go quiet
+  where the force is simply outgunned (tier 4+): healing at 22/s loses to two guns
+  focused, by design. On defense the Engineer Corps HQ row shows the aura the reference
+  can see; the Engineer Revetment (CP layer, 15 hp/s over 3 cells) is the live-play
+  tool the reference cannot. Every UN gun is deliberately mid-pack; the faction wins
+  by still being there in wave three.
 - **Russia (artillery) progresses through fire preparation**: their bare late-game force
   stalls past tier 3 (43/12/0 at t3–5), but a max-cap army behind a TOS-1A fire plan on
   the guns holds 53/52/42 — shell the batteries first, then walk the armor in. Their
@@ -192,5 +248,6 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
   (everything kills sentry nests).
 - M7 changes behind these numbers: tunneled squads surface as one push around the mouth
   after an 8s dig (reserved cells carry the mouths into replays), the Bulsae matches the
-  HJ-8 trade (46/58/72 at 0.5/s), and the Koksan runs a 4.2s cadence with a 3.5 dead zone
-  in exchange for 10.5–11 reach.
+  HJ-8 trade (46/58/72 at 0.5/s), the Koksan runs a 4.2s cadence with a 3.5 dead zone
+  in exchange for 10.5–11 reach, and v0.7 adds sustainment auras: healing is additive,
+  capped per target, and deterministic — it out-heals one gun, never two.

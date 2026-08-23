@@ -91,7 +91,8 @@ export function deserialize(json: string): TownState | null {
       town.faction !== 'usa' &&
       town.faction !== 'china' &&
       town.faction !== 'russia' &&
-      town.faction !== 'nk'
+      town.faction !== 'nk' &&
+      town.faction !== 'un'
     ) {
       town.faction = 'usa';
     }

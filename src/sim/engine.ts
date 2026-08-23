@@ -306,6 +306,7 @@ export class Engine {
     this.applyAutoPowers(events);
     this.applyPendingImpacts(events);
     this.updateStructures(events);
+    this.applyAuras();
     this.updateProjectiles(events);
     this.removeDeadAttackers(events);
     this.updateAttackers(events);
@@ -813,6 +814,54 @@ export class Engine {
       }
     }
     return best;
+  }
+
+  /**
+   * Sustainment auras (v0.7, UN doctrine). Engineer structures repair
+   * friendly structures and walls in radius; medic attackers heal OTHER
+   * attackers in radius. Runs through prep and combat — the line is
+   * rebuilt while it bleeds. Healing is additive and capped per target,
+   * so iteration order cannot change the outcome; sources iterate in
+   * stable id/insertion order regardless.
+   */
+  private applyAuras(): void {
+    if (this.phase !== 'combat' && this.phase !== 'prep' && this.phase !== 'sandbox') return;
+
+    for (const source of this.structures) {
+      const aura = source.profile.aura;
+      if (!aura || source.hp <= 0 || source.inert) continue;
+      const amount = aura.healPerSecond * DT;
+      const r2 = aura.radius * aura.radius;
+      for (const target of this.structures) {
+        if (target.id === source.id || target.hp <= 0 || target.inert) continue;
+        if (target.hp >= target.profile.maxHp) continue;
+        const dx = target.center.x - source.center.x;
+        const dy = target.center.y - source.center.y;
+        if (dx * dx + dy * dy > r2) continue;
+        target.hp = Math.min(target.profile.maxHp, target.hp + amount);
+      }
+      for (const [cell, wall] of this.grid.walls) {
+        if (wall.hp <= 0 || wall.hp >= wall.maxHp) continue;
+        const dx = this.grid.xOf(cell) + 0.5 - source.center.x;
+        const dy = this.grid.yOf(cell) + 0.5 - source.center.y;
+        if (dx * dx + dy * dy > r2) continue;
+        wall.hp = Math.min(wall.maxHp, wall.hp + amount);
+      }
+    }
+
+    for (const medic of this.attackers) {
+      const heal = medic.profile.heal;
+      if (!heal || medic.hp <= 0) continue;
+      const amount = heal.perSecond * DT;
+      const r2 = heal.radius * heal.radius;
+      for (const other of this.attackers) {
+        if (other.id === medic.id || other.hp <= 0 || other.hp >= other.maxHp) continue;
+        const dx = other.pos.x - medic.pos.x;
+        const dy = other.pos.y - medic.pos.y;
+        if (dx * dx + dy * dy > r2) continue;
+        other.hp = Math.min(other.maxHp, other.hp + amount);
+      }
+    }
   }
 
   private updateProjectiles(events: SimEvent[]): void {

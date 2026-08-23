@@ -71,6 +71,11 @@ const RAID_PLANS: Record<FactionId, SquadPlan[]> = {
     { units: { rpg7: 2, tunneler: 2 }, sector: 'N1', doctrine: 'hunt' },
     { units: { infiltrator: 4, nkrifle: 5, tunneler: 1 }, sector: 'S1', doctrine: 'raze' },
   ],
+  un: [
+    { units: { leo1: 1, peacekeeper: 1, unmedic: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { nlaw: 2, unmedic: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { peacekeeper: 2, unsapper: 1, vab: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
 };
 
 /** Deterministic gallery head for a base: the first valid site among fixed
@@ -138,7 +143,12 @@ interface RaidRow {
   lossPct: number;
 }
 
-function raidMatrix(faction: FactionId, support?: RaidSupport, tunneled = false): RaidRow[] {
+function raidMatrix(
+  faction: FactionId,
+  support?: RaidSupport,
+  tunneled = false,
+  plansOverride?: SquadPlan[],
+): RaidRow[] {
   const catalog = raidCatalogFor(faction);
   const kit = baseKitFor(faction);
   const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
@@ -152,7 +162,8 @@ function raidMatrix(faction: FactionId, support?: RaidSupport, tunneled = false)
     let runs = 0;
     for (let variant = 0; variant < VARIANTS; variant++) {
       const base = generateBase(tier, variant, kit);
-      const squads = tunneled ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction];
+      const squads =
+        plansOverride ?? (tunneled ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction]);
       for (let i = 0; i < SEEDS; i++) {
         const config = raidConfig(
           base,
@@ -256,7 +267,11 @@ interface DefenseRow {
   holdPct: number[];
 }
 
-function defenseMatrix(faction: FactionId, mods?: DefenderMods): DefenseRow[] {
+function defenseMatrix(
+  faction: FactionId,
+  mods?: DefenderMods,
+  extraStructures: LayoutStructure[] = [],
+): DefenseRow[] {
   const catalog = defenseCatalogFor(faction);
   const roster = enemyRosterFor(faction);
   const rows: DefenseRow[] = [];
@@ -276,7 +291,7 @@ function defenseMatrix(faction: FactionId, mods?: DefenderMods): DefenseRow[] {
           siege: { ...buildAssault(level, roster), startingSupplies: 0 },
           layout: {
             walls: base.walls.map((w) => ({ ...w })),
-            structures: base.structures.map((s) => ({ ...s })),
+            structures: [...base.structures, ...extraStructures].map((s) => ({ ...s })),
           },
           powerCharges: {},
           ...(mods ? { mods: { defender: mods } } : {}),
@@ -342,8 +357,27 @@ const FORTIFY_MODS: DefenderMods = { wallHp: 1.15, weaponDamage: 1.12 };
 function main(): void {
   const started = Date.now();
   const sections: string[] = [];
+  // UN control experiment: the same 27 MP with the medics swapped for rifles.
+  const UN_NO_MEDICS: SquadPlan[] = [
+    { units: { leo1: 1, peacekeeper: 2 }, sector: 'W1', doctrine: 'assault' },
+    { units: { nlaw: 2, peacekeeper: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { peacekeeper: 2, unsapper: 1, vab: 1 }, sector: 'S1', doctrine: 'raze' },
+  ];
+  // UN defense experiment: the Engineer Corps HQ parked behind the post,
+  // its repair aura over the CC and the inner guns.
+  const UN_ENG_BAY: LayoutStructure[] = [{ cell: idx(29, 11), kind: 'engBay', level: 1 }];
+
   for (const faction of FACTION_IDS) {
     sections.push(raidTable(faction, raidMatrix(faction)));
+    if (faction === 'un') {
+      sections.push(
+        raidTable(
+          faction,
+          raidMatrix(faction, undefined, false, UN_NO_MEDICS),
+          ' — CONTROL: medics replaced by riflemen',
+        ),
+      );
+    }
     if (faction === 'nk') {
       // The faction thesis: the same force, resurfaced inside the wire.
       sections.push(
@@ -363,6 +397,15 @@ function main(): void {
   }
   for (const faction of FACTION_IDS) {
     sections.push(defenseTable(faction, defenseMatrix(faction)));
+    if (faction === 'un') {
+      sections.push(
+        defenseTable(
+          faction,
+          defenseMatrix(faction, undefined, UN_ENG_BAY),
+          ' — Engineer Corps HQ on the line',
+        ),
+      );
+    }
     sections.push(
       defenseTable(faction, defenseMatrix(faction, FORTIFY_MODS), ' — FORTIFY doctrine'),
     );
@@ -375,7 +418,7 @@ function main(): void {
 
   if (process.argv.includes('--md')) {
     const md = [
-      '# Balance snapshot (v0.6)',
+      '# Balance snapshot (v0.7)',
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -386,7 +429,7 @@ function main(): void {
       body,
       '```',
       '',
-      '## Reading the tables (v0.6 pass)',
+      '## Reading the tables (v0.7 pass)',
       '',
       '- **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.',
       '  USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;',
@@ -404,6 +447,14 @@ function main(): void {
       '  like it. The compensators are price (rebuild fast, repair at 25%), the Koksan pit',
       '  outranging every gun in the game, and the CP battle layer (ambush teams at 20, mines',
       '  at 12) — the reference measures none of those.',
+      '- **UN (sustainment) is measured against its own control**: the CONTROL row runs the',
+      '  same 27 MP with the medics swapped for riflemen. Medics clear the bar where the fight',
+      '  is winnable — tier-1 losses drop ~18 points and tier-3 clears gain ~13 — and go quiet',
+      '  where the force is simply outgunned (tier 4+): healing at 22/s loses to two guns',
+      '  focused, by design. On defense the Engineer Corps HQ row shows the aura the reference',
+      '  can see; the Engineer Revetment (CP layer, 15 hp/s over 3 cells) is the live-play',
+      '  tool the reference cannot. Every UN gun is deliberately mid-pack; the faction wins',
+      '  by still being there in wave three.',
       '- **Russia (artillery) progresses through fire preparation**: their bare late-game force',
       '  stalls past tier 3 (43/12/0 at t3–5), but a max-cap army behind a TOS-1A fire plan on',
       '  the guns holds 53/52/42 — shell the batteries first, then walk the armor in. Their',
@@ -425,8 +476,9 @@ function main(): void {
       '  (everything kills sentry nests).',
       '- M7 changes behind these numbers: tunneled squads surface as one push around the mouth',
       '  after an 8s dig (reserved cells carry the mouths into replays), the Bulsae matches the',
-      '  HJ-8 trade (46/58/72 at 0.5/s), and the Koksan runs a 4.2s cadence with a 3.5 dead zone',
-      '  in exchange for 10.5–11 reach.',
+      '  HJ-8 trade (46/58/72 at 0.5/s), the Koksan runs a 4.2s cadence with a 3.5 dead zone',
+      '  in exchange for 10.5–11 reach, and v0.7 adds sustainment auras: healing is additive,',
+      '  capped per target, and deterministic — it out-heals one gun, never two.',
       '',
     ].join('\n');
     writeFileSync('docs/BALANCE.md', md);
