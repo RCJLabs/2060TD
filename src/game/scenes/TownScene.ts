@@ -12,6 +12,15 @@ import {
 import { TECHS, TECH_BY_ID } from '../../content/research';
 import { clearSave, loadTown, saveTown } from '../../meta/save';
 import { runOfflineProbes } from '../../meta/warfare';
+import { conditionAfter, conditionAt, conditionEndsAt } from '../../content/conditions';
+import {
+  leagueAt,
+  seasonEnd,
+  seasonNumber,
+  DECAY_PER_DAY,
+  LEAGUE_BY_ID,
+} from '../../content/leagues';
+import { decayStartsAt, leagueOf, standingToNext } from '../../meta/ladder';
 import { audio } from '../audio';
 import { loadSettings } from '../settings';
 import {
@@ -161,9 +170,24 @@ export class TownScene extends Phaser.Scene {
       // Probes hit BEFORE accrual: the war didn't pause while you were gone.
       const probes = runOfflineProbes(town, now);
       const before = Math.floor(town.supplies + town.fuel);
-      tick(town, now);
-      const gained = Math.floor(town.supplies + town.fuel) - before;
-      if (probes.length > 0) {
+      const settlement = tick(town, now);
+      const placed = settlement.payout.supplies + settlement.payout.fuel;
+      const gained = Math.floor(town.supplies + town.fuel) - before - placed;
+      if (settlement.placement) {
+        // A closed season outranks everything else that happened while away.
+        const record = settlement.placement;
+        const paid = [
+          settlement.payout.supplies > 0 ? `+${settlement.payout.supplies} SUP` : '',
+          settlement.payout.fuel > 0 ? `+${settlement.payout.fuel} FUEL` : '',
+          settlement.payout.intel > 0 ? `+${settlement.payout.intel} INT` : '',
+        ].filter(Boolean).join(' ');
+        this.setBanner(
+          `SEASON ${seasonNumber(record.season)} CLOSED — PLACED ${LEAGUE_BY_ID[record.league].label}` +
+            ` AT ${record.peak} PTS. ${paid || 'NO PLACEMENT PAY AT THIS BAND.'}`,
+          18,
+        );
+        saveTown(town);
+      } else if (probes.length > 0) {
         const held = probes.filter((p) => p.held).length;
         const taken = probes.reduce((n, p) => n + p.suppliesLost + p.fuelLost, 0);
         this.setBanner(
@@ -207,9 +231,10 @@ export class TownScene extends Phaser.Scene {
       } else if (data.battle?.type === 'counter') {
         applyCounterResult(this.town, data.outcome, now);
         this.setBanner(
-          data.outcome.victory
+          (data.outcome.victory
             ? 'COUNTERATTACK REPELLED — THE FRONT LINE HOLDS. BOUNTY PAID.'
-            : 'THE COUNTERATTACK BROKE THROUGH. RAIDERS TOOK THEIR CUT.',
+            : 'THE COUNTERATTACK BROKE THROUGH. RAIDERS TOOK THEIR CUT.') +
+            ` STANDING ${this.town.frontline.standing} · ${leagueOf(this.town).label}.`,
           14,
         );
       } else {
@@ -448,11 +473,10 @@ export class TownScene extends Phaser.Scene {
     action?: { label: string; onTap: () => void; enabled?: boolean },
   ): void {
     const { rowH, gap, font, compact, px } = this.layout;
-    const lines = text.split('\n').length;
-    const textH = Math.round(font.body * 1.5 * lines);
     if (compact || !action) {
-      const r = ov.flow(textH, action ? Math.round(gap / 2) : gap);
-      ov.text(r, text, font.body, color, { lineSpacing: Math.round(font.body * 0.3) });
+      ov.paragraph(text, font.body, color, {
+        gapAfter: action ? Math.round(gap / 2) : gap,
+      });
       if (action) {
         const b = ov.button(ov.flow(rowH), action.label, action.onTap);
         if (action.enabled === false) b.setEnabled(false);
@@ -460,12 +484,15 @@ export class TownScene extends Phaser.Scene {
       return;
     }
     const btnW = px(150);
-    const h = Math.max(textH, rowH);
-    const r = ov.flow(h);
-    ov.text({ ...r, w: r.w - btnW - gap }, text, font.body, color, {
-      lineSpacing: Math.round(font.body * 0.3),
+    const t = ov.paragraph(text, font.body, color, {
+      width: ov.card.w - btnW - gap,
+      minHeight: rowH,
     });
-    const b = ov.button({ x: r.x + r.w - btnW, y: r.y, w: btnW, h: rowH }, action.label, action.onTap);
+    const b = ov.button(
+      { x: ov.card.x + ov.card.w - btnW, y: t.y, w: btnW, h: rowH },
+      action.label,
+      action.onTap,
+    );
     if (action.enabled === false) b.setEnabled(false);
   }
 
@@ -668,6 +695,85 @@ export class TownScene extends Phaser.Scene {
     ov.footer('CLOSE', close);
   }
 
+  /**
+   * The board: standing, the band it buys, what it costs to keep, and the
+   * condition the front is fighting under today.
+   */
+  private showLeague(): void {
+    if (this.overlay) return;
+    const now = Date.now();
+    const fl = this.town.frontline;
+    const league = leagueOf(this.town);
+    const toNext = standingToNext(this.town);
+    const condition = conditionAt(now);
+    const ov = new Overlay(this, this.layout, {
+      title: `THE BOARD — ${league.label}`,
+      subtitle: league.blurb,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+
+    const decayAt = decayStartsAt(this.town);
+    const bleeding = now >= decayAt;
+    this.overlayEntry(
+      ov,
+      `STANDING ${fl.standing}  ·  PEAK ${fl.peak}` +
+        `${toNext === null ? '  ·  TOP OF THE BOARD' : `  ·  ${toNext} TO NEXT BAND`}` +
+        `\nLadder loot ×${league.loot.toFixed(2)}` +
+        `${league.probePressure > 0 ? `  ·  probes +${league.probePressure} level${league.probePressure > 1 ? 's' : ''}` : '  ·  no extra probe pressure'}`,
+      COLORS.olive,
+    );
+    this.overlayEntry(
+      ov,
+      bleeding
+        ? `BLEEDING −${DECAY_PER_DAY}/DAY. Fight anything on the Front Line to stop it.`
+        : `Decay starts in ${untilLabel(decayAt - now)} of silence, then −${DECAY_PER_DAY}/day.`,
+      bleeding ? COLORS.alarm : COLORS.inkDim,
+    );
+
+    const ends = seasonEnd(fl.season);
+    // The placement reads the peak, so show what the peak is currently worth.
+    const placement = leagueAt(fl.peak).placement;
+    const pay = [
+      placement.supplies > 0 ? `${placement.supplies} SUP` : '',
+      placement.fuel > 0 ? `${placement.fuel} FUEL` : '',
+      placement.intel > 0 ? `${placement.intel} INT` : '',
+    ].filter(Boolean).join(' · ');
+    this.overlayEntry(
+      ov,
+      `SEASON ${seasonNumber(fl.season)} ends in ${untilLabel(ends - now)}.` +
+        `\nPlacement pays for the PEAK band, not the closing one: ${pay || 'nothing at this band'}.` +
+        `\nA quarter of the standing carries into the next season.`,
+      COLORS.ink,
+    );
+
+    this.overlayEntry(
+      ov,
+      `TODAY — ${condition.label}  (${untilLabel(conditionEndsAt(now) - now)} left)` +
+        `\n${condition.effect}  ·  ${condition.pay}` +
+        `\n${condition.blurb}` +
+        `\nNext up: ${conditionAfter(now).label}.`,
+      COLORS.signal,
+    );
+
+    if (fl.placements.length > 0) {
+      this.overlayEntry(ov, 'CLOSED SEASONS', COLORS.inkDim);
+      for (const record of fl.placements) {
+        this.overlayEntry(
+          ov,
+          `SEASON ${seasonNumber(record.season)} — ${LEAGUE_BY_ID[record.league].label} at ${record.peak} pts`,
+          COLORS.inkDim,
+        );
+      }
+    }
+    ov.footer('CLOSE', close);
+  }
+
   /** Hand the player their own layout as a string they can paste anywhere. */
   private shareBase(): void {
     const flavor = flavorFor(this.town.faction);
@@ -816,7 +922,17 @@ export class TownScene extends Phaser.Scene {
 
   override update(_time: number, deltaMs: number): void {
     const now = Date.now();
-    tick(this.town, now);
+    const settlement = tick(this.town, now);
+    // A season can turn over with the game open. Rare, but it pays real
+    // resources, so it must never land silently.
+    if (settlement.placement && !this.demoMode) {
+      this.setBanner(
+        `SEASON ${seasonNumber(settlement.placement.season)} CLOSED — PLACED ` +
+          `${LEAGUE_BY_ID[settlement.placement.league].label} AT ${settlement.placement.peak} PTS.`,
+        18,
+      );
+      saveTown(this.town);
+    }
 
     this.saveTimer += deltaMs;
     if (this.saveTimer > 5000) {
@@ -1160,6 +1276,29 @@ export class TownScene extends Phaser.Scene {
       });
     }
 
+    // The board (M7): where you stand, and what the front is like today.
+    if (isUnlocked(town, 'frontline')) {
+      const now = Date.now();
+      const league = leagueOf(town);
+      const toNext = standingToNext(town);
+      const condition = conditionAt(now);
+      rows.push(
+        { id: 'h4', label: 'THE BOARD', heading: true },
+        {
+          id: 'league',
+          label: `${league.label} · ${town.frontline.standing} PTS`,
+          sub: toNext === null ? 'TOP' : `+${toNext}`,
+          onTap: () => this.openOverlay(() => this.showLeague()),
+        },
+        {
+          id: 'condition',
+          label: `TODAY — ${condition.label}`,
+          sub: untilLabel(conditionEndsAt(now) - now),
+          onTap: () => this.openOverlay(() => this.showLeague()),
+        },
+      );
+    }
+
     // Share-code duels (v1.2): no server, no ladder — a snapshot and a boast.
     rows.push({ id: 'h3', label: 'CHALLENGE', heading: true });
     rows.push({
@@ -1386,6 +1525,15 @@ const BIG_KINDS = new Set([
 const footprintOf = (kind: string): number => (BIG_KINDS.has(kind) ? 2 : 1);
 
 /** A prebuilt base for ?demo=town screenshots. Never touches the real save. */
+/** "3H", "2D 4H", "18M" — a countdown a panel row can hold. */
+function untilLabel(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 60_000));
+  if (total < 60) return `${total}M`;
+  const hours = Math.floor(total / 60);
+  if (hours < 48) return `${hours}H`;
+  return `${Math.floor(hours / 24)}D ${hours % 24}H`;
+}
+
 function makeShowcaseTown(now: number): TownState {
   const town = unlockAll(newTown(now));
   town.campaign.difficulty = 'standard';
@@ -1428,6 +1576,10 @@ function makeShowcaseTown(now: number): TownState {
   town.charges = { a10: 2, arty: 1 };
   town.assaultLevel = 3;
   town.victories = 2;
+  // Somewhere mid-board, so the screenshots show a league that has been held.
+  town.frontline.standing = 465;
+  town.frontline.peak = 512;
+  town.frontline.totalWins = 6;
   town.supplies = 740;
   town.fuel = 210;
   town.intel = 85;

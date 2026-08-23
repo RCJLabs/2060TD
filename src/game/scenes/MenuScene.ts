@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { campaignFor, flavorFor } from '../../content/factions';
+import { leagueOf } from '../../meta/ladder';
 import { clearSave, loadTown } from '../../meta/save';
 import { tick, type TownState } from '../../meta/town';
 import { layoutOf, onLayoutChange, type Layout, type Rect } from '../layout';
@@ -107,7 +108,8 @@ export class MenuScene extends Phaser.Scene {
       ov.centered(
         ov.flow(Math.round(font.tiny * 1.6), gap),
         `${next ? `NEXT: M${next.index + 1} ${next.codename}` : 'CAMPAIGN COMPLETE'}` +
-          ` · FRONT LINE TIER ${town.frontline.tier} · ${town.victories} VICTORIES`,
+          ` · TIER ${town.frontline.tier} · ${leagueOf(town).label} ${town.frontline.standing} PTS` +
+          ` · ${town.victories} VICTORIES`,
         font.tiny,
         COLORS.inkDim,
       );

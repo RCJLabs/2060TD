@@ -203,7 +203,7 @@ describe('save migration', () => {
     };
     const town = deserialize(JSON.stringify(legacy))!;
     expect(town).not.toBeNull();
-    expect(town.version).toBe(5); // migrated all the way forward
+    expect(town.version).toBe(6); // migrated all the way forward
     expect(town.faction).toBe('usa'); // pre-faction saves fought the USA war
     expect(town.intel).toBe(0);
     expect(town.research).toEqual({ completed: [], active: null });

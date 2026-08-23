@@ -1,4 +1,6 @@
 import { campaignFor, type FactionId } from '../content/factions';
+import { LEAGUES, seasonAt } from '../content/leagues';
+import { PLACEMENT_CAP } from './ladder';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { newTown, unlockAll, type TownState } from './town';
 
@@ -8,7 +10,7 @@ import { newTown, unlockAll, type TownState } from './town';
  */
 
 export const SAVE_KEY = 'lastline_save_v1';
-export const SCHEMA = 5;
+export const SCHEMA = 6;
 
 export function serialize(town: TownState): string {
   return JSON.stringify({ schema: SCHEMA, savedAt: town.lastSeen, town });
@@ -74,6 +76,56 @@ function migrateV4(legacy: Record<string, unknown>): Record<string, unknown> | n
   return town;
 }
 
+/**
+ * Schema 5 towns predate leagues. A save with a war behind it should not be
+ * dropped at the bottom of a board it has been fighting on for weeks, so the
+ * standing is seeded from the rungs it has already cleared — generously, but
+ * capped well below the top band, which still has to be earned on the clock.
+ */
+function migrateV5(legacy: Record<string, unknown>): Record<string, unknown> | null {
+  if (legacy['version'] !== 5) return null;
+  const at = typeof legacy['lastSeen'] === 'number' ? (legacy['lastSeen'] as number) : 0;
+  const frontline = (legacy['frontline'] ?? {}) as Record<string, unknown>;
+  const totalWins = typeof frontline['totalWins'] === 'number' ? frontline['totalWins'] : 0;
+  const seeded = Math.min(LEAGUES[2]!.floor, Math.max(0, Math.round(totalWins * 12)));
+  return {
+    ...legacy,
+    version: 6,
+    frontline: {
+      ...frontline,
+      standing: seeded,
+      peak: seeded,
+      season: seasonAt(at),
+      settledAt: at,
+      activeAt: at,
+      placements: [],
+    },
+  };
+}
+
+/**
+ * A hand-edited or half-written file can arrive with the league block missing
+ * or nonsensical. Standing is the one number that ticks down on its own, so a
+ * junk timestamp in here would either freeze it or wipe it: repair the block
+ * rather than reject a save over it.
+ */
+function normalizeLadder(town: TownState): void {
+  const fl = town.frontline;
+  const at = Number.isFinite(town.lastSeen) ? town.lastSeen : 0;
+  const num = (value: unknown, fallback: number): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  fl.standing = Math.max(0, Math.round(num(fl.standing, 0)));
+  fl.peak = Math.max(fl.standing, Math.round(num(fl.peak, fl.standing)));
+  fl.season = Math.round(num(fl.season, seasonAt(at)));
+  fl.settledAt = num(fl.settledAt, at);
+  fl.activeAt = num(fl.activeAt, at);
+  fl.placements = Array.isArray(fl.placements)
+    ? fl.placements
+        .filter((p) => p !== null && typeof p === 'object' && typeof p.season === 'number')
+        .slice(0, PLACEMENT_CAP)
+    : [];
+}
+
 export function deserialize(json: string): TownState | null {
   try {
     const data = JSON.parse(json) as { schema?: number; town?: TownState };
@@ -85,7 +137,8 @@ export function deserialize(json: string): TownState | null {
     if (raw['version'] === 2) raw = migrateV2(raw) ?? raw;
     if (raw['version'] === 3) raw = migrateV3(raw) ?? raw;
     if (raw['version'] === 4) raw = migrateV4(raw) ?? raw;
-    if (raw['version'] !== 5) return null;
+    if (raw['version'] === 5) raw = migrateV5(raw) ?? raw;
+    if (raw['version'] !== 6) return null;
     const town = raw as unknown as TownState;
 
     if (
@@ -108,6 +161,7 @@ export function deserialize(json: string): TownState | null {
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;
     if (!town.frontline || typeof town.army !== 'object') return null;
+    normalizeLadder(town);
     return town;
   } catch {
     return null;

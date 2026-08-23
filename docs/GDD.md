@@ -106,7 +106,8 @@ the writing does the work.
 
 A war map of AI bases in escalating difficulty tiers (DEFCON-style ranks). Raiding advances
 your position; between raids, counter-siege defense events target your base. Handcrafted base
-templates + procedural mutation keep layouts fresh. Leagues/events post-1.0.
+templates + procedural mutation keep layouts fresh. Standing, leagues and the daily condition
+rotation ride on top of the ladder — see 5.8.
 
 ---
 
@@ -286,6 +287,49 @@ so you can iterate on a failed plan directly.
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).
 - Full-loss defeat grants a 12h shield. Probes scale to your Front Line tier, slightly soft.
 - Every probe produces a replay — offline losses must always be explainable.
+
+### 5.8 Leagues and field conditions *(v1.3)*
+
+The tier is how far up the ladder you have climbed; **standing** is whether you are still
+there. It is the one number in the game that falls on its own.
+
+**Standing.** Clearing a rung pays `18 + 7 × tier`, scaled by the day's condition. A failed
+raid costs 14, a breached offline probe costs 30, a repelled one pays 5, and a counterattack
+fought in person is ±35/40. Standing never goes below zero.
+
+**Bands.** IRREGULARS (0) → THE LINE (150) → VANGUARD (400) → SHOCK (800) → IRON (1400). A
+band is a trade, not a trophy: it multiplies ladder loot (up to ×1.30) *and* raises the level
+of the probes that hit you while you are away (up to +2). Standing is visibility.
+
+**Decay.** After 36 hours of silence, standing bleeds 30/day. Anything on the Front Line —
+a raid, a counterattack — resets the grace. Offline probes move the number but buy no quiet
+time: sitting behind a garrison is not playing.
+
+**Seasons.** Fourteen days, counted from a fixed epoch so the schedule is a function of the
+clock rather than something a save has to remember. At rollover the season closes, pays a
+**placement** for the *peak* band reached (not the closing one — a spike that decayed away
+still counts), records it, and carries a quarter of the standing forward.
+
+**Field conditions.** One rotating event is in force at a time, changing daily on the same
+epoch-derived schedule. Six of them, never seven — a seven-long pool would pin every
+condition to one weekday forever. Each is a trade, and the pay rises with the measured
+difficulty (`npm run balance -- --conditions` is the check):
+
+| Condition | What it does | Pays |
+|---|---|---|
+| CLEAR LINE | nothing | par |
+| HARD RAIN | target walls −30%, their guns −25% | 0.85× |
+| BLACKOUT | no scouting at any price | 1.25× standing |
+| ATTRITION | your damage +25%, their guns +50% | 1.30× standing, loot ×1.25 |
+| FUEL CRISIS | your units −10% HP, −15% damage | 1.30× standing, fuel loot ×1.8 |
+| DUG IN | target walls +45%, their guns +20% | 1.45× standing, loot ×1.4 |
+
+BLACKOUT carries no simulation modifiers at all: the fog *is* the condition. It is the one
+day that changes how you play rather than what the numbers are — plans are made blind, and
+North Korea loses tunnel insertion entirely (a gallery needs a layout to dig to).
+
+Conditions apply to the Front Line only. Campaign missions are authored, skirmishes are
+practice, and code duels are somebody else's snapshot — none of them are the front.
 
 ---
 

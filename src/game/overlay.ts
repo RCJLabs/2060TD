@@ -169,6 +169,37 @@ export class Overlay {
     return t;
   }
 
+  /**
+   * A block of prose that flows by the height it ACTUALLY renders at.
+   *
+   * flow() reserves space up front, which only works when the caller can
+   * count the lines — and wrapped text cannot be counted in advance. On a
+   * narrow phone one logical line becomes three, the reservation is short by
+   * two, and the next block draws straight over this one. Measuring after the
+   * fact is the only honest way to lay out wrapped copy.
+   */
+  paragraph(
+    value: string,
+    size: number,
+    color = COLORS.ink,
+    opts: { gapAfter?: number; width?: number; minHeight?: number; center?: boolean } = {},
+  ): Phaser.GameObjects.Text {
+    const width = opts.width ?? this.card.w;
+    const rect = {
+      x: this.card.x,
+      y: this.card.y + this.cursor - this.scrollY,
+      w: width,
+      h: 0,
+    };
+    const extra = { lineSpacing: Math.round(size * 0.3) };
+    const t = opts.center
+      ? this.centered(rect, value, size, color, extra)
+      : this.text(rect, value, size, color, extra);
+    this.cursor += Math.max(t.height, opts.minHeight ?? 0) + (opts.gapAfter ?? this.layout.gap);
+    this.contentH = this.cursor;
+    return t;
+  }
+
   /** Button inside the scrolling body. */
   button(rect: Rect, label: string, onTap: () => void, align: 'left' | 'center' = 'center'): Button {
     const b = makeButton(this.scene, rect.x, rect.y, rect.w, rect.h, label, onTap, {

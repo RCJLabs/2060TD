@@ -30,6 +30,7 @@ import {
   type RaidSupport,
   type SquadPlan,
 } from '../meta/warfare';
+import { CONDITIONS } from '../content/conditions';
 import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
 import type {
@@ -393,9 +394,51 @@ const DOCTRINE_SUPPORT: RaidSupport = {
 
 const FORTIFY_MODS: DefenderMods = { wallHp: 1.15, weaponDamage: 1.12 };
 
+/**
+ * The field-condition rotation (M7). A condition is meant to be a trade, so
+ * the only number that matters here is the swing against CLEAR LINE: an easy
+ * day has to be measurably easier and a hard day measurably harder, or the
+ * rotation is flavour text with a loot multiplier stapled on.
+ *
+ * One faction is enough — conditions are flat multipliers on both sides, so
+ * the ordering they produce is the same everywhere; running all five would
+ * quadruple the harness for a table that says the same thing five times.
+ */
+function conditionTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  const baseline = raidMatrix(faction).map((r) => r.clearPct);
+  const lines = [
+    `FIELD CONDITIONS — ${flavor.faction} strike force (${planManpower(faction)} MP), clear% by tier`,
+    `CONDITION    | ${RAID_TIERS.map((t) => pad(`T${t}`, 4)).join(' | ')} |  MEAN | vs CLEAR`,
+    `-------------+${RAID_TIERS.map(() => '------').join('+')}+-------+---------`,
+  ];
+  const meanOf = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const flat = meanOf(baseline);
+  for (const condition of CONDITIONS) {
+    const rows =
+      condition.id === 'clearline'
+        ? baseline
+        : raidMatrix(faction, { condition }).map((r) => r.clearPct);
+    const mean = meanOf(rows);
+    const delta = mean - flat;
+    lines.push(
+      `${condition.label.padEnd(12)} | ${rows.map((c) => pad(c, 4)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(`${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`, 8)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
 function main(): void {
   const started = Date.now();
   const sections: string[] = [];
+  // Tuning the rotation means running one table twenty times, not the whole
+  // harness twenty times: `npm run balance -- --conditions` is that loop.
+  if (process.argv.includes('--conditions')) {
+    console.log(conditionTable('usa'));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   // UN control experiment: the same 27 MP with the medics swapped for rifles.
   const UN_NO_MEDICS: SquadPlan[] = [
     { units: { leo1: 1, peacekeeper: 2 }, sector: 'W1', doctrine: 'assault' },
@@ -448,6 +491,7 @@ function main(): void {
       ),
     );
   }
+  sections.push(conditionTable('usa'));
   for (const faction of FACTION_IDS) {
     sections.push(defenseTable(faction, defenseMatrix(faction)));
     sections.push(
@@ -500,7 +544,7 @@ function main(): void {
 
   if (process.argv.includes('--md')) {
     const md = [
-      '# Balance snapshot (v0.8)',
+      '# Balance snapshot (v1.3)',
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -561,6 +605,16 @@ function main(): void {
       '  the real ordnance stock and TRIPWIRE is the budget option — the NK section compares',
       '  all three. Orders cost supplies upkeep per action and every probe replay re-issues',
       '  them from the config.',
+      '- **Field conditions (v1.3) are trades, not buffs**, and the FIELD CONDITIONS table is',
+      '  what enforces that: the pay must rise with the measured difficulty. The rotation lands',
+      '  on ±9 points of clear rate around CLEAR LINE — HARD RAIN is the walkover that pays 0.85×,',
+      '  DUG IN / FUEL CRISIS / ATTRITION cost 8–10 points and pay 1.3–1.45×. Two readings matter:',
+      '  defender weaponDamage is by far the strongest lever (wall HP alone barely moves a fixed',
+      '  force, because softer walls just deliver it to the guns sooner), and BLACKOUT reads as',
+      '  exactly neutral here BY CONSTRUCTION — it carries no sim modifiers at all. Its cost is',
+      '  that no target can be scouted at any price, so the plan is made against fog and NK loses',
+      '  tunnels entirely; a headless matrix that always fights with the layout in hand cannot',
+      '  price that, which is why its 1.25× is a judgement and is labelled as one.',
       '- **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before',
       '  anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+',
       '  (everything kills sentry nests).',

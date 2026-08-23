@@ -10,7 +10,7 @@ import { devicePixelRatioCapped } from './game/layout';
 import { initMobileShell } from './game/mobile';
 import { COLORS, css } from './game/palette';
 import { applySettings, loadSettings } from './game/settings';
-import { liveButtons } from './game/ui';
+import { liveButtons, liveTexts } from './game/ui';
 import { boardStrays } from './game/BoardView';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.
@@ -79,6 +79,7 @@ const game = new Phaser.Game({
  */
 (window as unknown as Record<string, unknown>)['lastline'] = {
   buttons: () => liveButtons(),
+  texts: () => liveTexts(game.scene.getScenes(true)),
   strays: () => boardStrays(),
   get dpr() {
     return dpr;

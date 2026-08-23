@@ -17,6 +17,36 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.3: the board
+
+**Standing you have to keep standing on.** The tier says how far up the ladder
+you climbed; standing says whether you are still there. It is the only number
+in the game that falls on its own.
+
+- **Five bands, and each one is a trade.** IRREGULARS → THE LINE → VANGUARD →
+  SHOCK → IRON. A band multiplies ladder loot up to ×1.30 — and raises the
+  level of the offline probes that come looking for you by up to two. Standing
+  is visibility, not a trophy.
+- **Silence costs.** Clearing a rung pays `18 + 7 × tier`; a failed raid,
+  a breach, a lost counterattack all take. After 36 hours with nothing on the
+  Front Line, standing bleeds 30 a day. A repelled probe moves the number but
+  buys no quiet time: sitting behind a garrison is not playing.
+- **Fourteen-day seasons that place on your peak.** At rollover the season
+  closes and pays for the *best* band you touched, not the one you happened to
+  be sitting in — a spike that decayed away still counts — then carries a
+  quarter of the standing into the next one. Seasons and conditions are both
+  counted from a fixed epoch, so the schedule is a function of the clock and
+  not of what a save remembers.
+- **A different front every day.** Six field conditions rotate daily. HARD RAIN
+  softens their wire and pays 0.85×; DUG IN, FUEL CRISIS and ATTRITION each
+  cost about nine points of clear rate and pay 1.3–1.45×. Every one is priced
+  against what the balance harness actually measured
+  (`npm run balance -- --conditions`), so no day is a free lunch.
+- **BLACKOUT carries no modifiers at all.** Its cost is that no target can be
+  scouted at any price: you plan against fog, and North Korea loses tunnel
+  insertion entirely, because a gallery needs a layout to dig to. It is the one
+  day that changes how you play rather than what the numbers are.
+
 ## Current state — v1.2: share codes
 
 **Your base, as a string you can paste to a friend.** No server, no
@@ -344,8 +374,10 @@ npm run dev        # the game (faction pick → town → missions/raids loop)
                    # ?demo=town showcase base · ?demo=raid Front Line planner
                    # add &faction=china|russia|nk|un to demos for the other wars
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
-                   # doctrines, warfare, factions, determinism)
-npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md)
+                   # doctrines, warfare, factions, leagues, conditions,
+                   # share codes, determinism)
+npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
+                   # or -- --conditions for just the field-condition rotation)
 npm run build      # typecheck + production build
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
 node scripts/e2e-flow.mjs            # first-run flow, desktop
@@ -354,6 +386,7 @@ VIEWPORT=phone-portrait FACTION=nk \
 node scripts/e2e-touch.mjs           # touch gestures: scroll, flick, tap-vs-drag
 node scripts/e2e-menu.mjs            # menu → settings → war → back to menu
 node scripts/e2e-share.mjs           # code out, code in, duel fought
+node scripts/e2e-league.mjs          # standing overlay + a full condition rotation
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
@@ -401,15 +434,21 @@ src/sim/         Pure-TS deterministic simulation (no Phaser imports):
                  fixed-tick engine, siege phase machine, weighted multi-goal A*,
                  combat resolution, structure levels, seeded PRNG, state hashing
 src/content/     Data, not code: damage table, both factions' defenses, armies,
-                 campaigns, base kits, and the faction switch (factions.ts)
+                 campaigns, base kits, league bands, the rotating field
+                 conditions, and the faction switch (factions.ts)
 src/meta/        The persistent layer: town state (timers, accrual, gating,
-                 wrecks), the siege bridge, warfare/raids, versioned saves
+                 wrecks), the siege bridge, warfare/raids, the league ladder
+                 (standing, decay, seasons), share codes, versioned saves
 src/game/        Phaser 3 presentation: responsive layout + board camera rig,
                  shared glyphs + BattleRenderer, Town/Siege/Briefing/Raid/
                  Replay scenes, touch UI kit, overlays, palette
 src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
-                 assault ladder, doctrines, warfare, factions, determinism
+                 assault ladder, doctrines, warfare, factions, leagues,
+                 field conditions, share codes, determinism
+scripts/         Playwright harnesses that drive the real build by button
+                 label: first-run flow, menu, touch gestures, raids, share
+                 codes, the league board and the condition rotation
 ```
 
 **Architecture rule:** `src/sim` never imports Phaser. Same seed + same commands ⇒

@@ -304,7 +304,20 @@ replaying cleared missions.
       overlay because Phaser cannot take text input and window.prompt mangles a long
       string on a phone. scripts/e2e-share.mjs copies a code out of the game, pastes a
       damaged one (refused), then the real one, and fights the duel.*
-- [ ] Leagues, rotating events on the Front Line
+- [x] Leagues, rotating events on the Front Line *(v1.3)*
+      — *content/leagues.ts is the board: five bands, a standing ledger, a 36h decay grace
+      and a 14-day season, all counted from a fixed epoch so the schedule is a function of
+      the clock and not of what a save remembers. A band multiplies ladder loot AND raises
+      the level of the probes that come looking — standing is visibility, not a trophy.
+      Seasons place on the PEAK band reached, so a spike that decayed away still pays.
+      content/conditions.ts rotates six field conditions daily; each is a trade priced
+      against the measured swing in the balance harness (a new FIELD CONDITIONS matrix,
+      `npm run balance -- --conditions`), and BLACKOUT deliberately carries no sim modifiers
+      at all — its cost is that no target can be scouted at any price. meta/ladder.ts charges
+      decay against a cursor that only advances by the time it actually billed, so settling
+      on every load, redraw and scene change costs exactly what settling once would.
+      scripts/e2e-league.mjs drives Playwright's clock through a whole rotation and asserts
+      the blackout day from what the game says, not from a date copied into a test.*
 
 ---
 

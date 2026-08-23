@@ -1,4 +1,4 @@
-# Balance snapshot (v0.8)
+# Balance snapshot (v1.3)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -167,6 +167,16 @@ TIER | CLEAR% | DESTR% | MP LOST%
    3 |    100 |     62 |       34
    4 |     42 |     39 |       92
    5 |     67 |     42 |       62
+
+FIELD CONDITIONS — UNITED STATES strike force (27 MP), clear% by tier
+CONDITION    |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | vs CLEAR
+-------------+------+------+------+------+------+-------+---------
+CLEAR LINE   |  100 |  100 |  100 |   78 |   70 |  89.6 |     +0.0
+HARD RAIN    |  100 |  100 |  100 |  100 |   95 |  99.0 |     +9.4
+DUG IN       |  100 |  100 |  100 |   37 |   68 |  81.0 |     -8.6
+FUEL CRISIS  |  100 |  100 |   95 |   38 |   67 |  80.0 |     -9.6
+BLACKOUT     |  100 |  100 |  100 |   78 |   70 |  89.6 |     +0.0
+ATTRITION    |  100 |  100 |   70 |   65 |   72 |  81.4 |     -8.2
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
@@ -380,6 +390,16 @@ LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
   the real ordnance stock and TRIPWIRE is the budget option — the NK section compares
   all three. Orders cost supplies upkeep per action and every probe replay re-issues
   them from the config.
+- **Field conditions (v1.3) are trades, not buffs**, and the FIELD CONDITIONS table is
+  what enforces that: the pay must rise with the measured difficulty. The rotation lands
+  on ±9 points of clear rate around CLEAR LINE — HARD RAIN is the walkover that pays 0.85×,
+  DUG IN / FUEL CRISIS / ATTRITION cost 8–10 points and pay 1.3–1.45×. Two readings matter:
+  defender weaponDamage is by far the strongest lever (wall HP alone barely moves a fixed
+  force, because softer walls just deliver it to the guns sooner), and BLACKOUT reads as
+  exactly neutral here BY CONSTRUCTION — it carries no sim modifiers at all. Its cost is
+  that no target can be scouted at any price, so the plan is made against fog and NK loses
+  tunnels entirely; a headless matrix that always fights with the layout in hand cannot
+  price that, which is why its 1.25× is a judgement and is labelled as one.
 - **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before
   anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+
   (everything kills sentry nests).

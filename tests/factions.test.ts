@@ -196,7 +196,7 @@ describe('faction pipeline', () => {
     };
     const migrated = deserialize(JSON.stringify(legacyV3))!;
     expect(migrated).not.toBeNull();
-    expect(migrated.version).toBe(5);
+    expect(migrated.version).toBe(6);
     expect(migrated.faction).toBe('usa');
     expect(migrated.campaign.next).toBe(3);
     expect(migrated.army['ranger']).toBe(2);

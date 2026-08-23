@@ -292,7 +292,7 @@ describe('v0.4 integration', () => {
       },
     };
     const town = deserialize(JSON.stringify(legacy))!;
-    expect(town.version).toBe(5);
+    expect(town.version).toBe(6);
     expect(isUnlocked(town, 'radar')).toBe(true); // m5 grants it now
     expect(isUnlocked(town, 'mortar')).toBe(false); // m6 not cleared
     expect(town.intel).toBe(0);

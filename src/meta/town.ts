@@ -29,9 +29,11 @@ import {
 } from '../content/campaign';
 import { M1_CATALOG } from '../content/catalog';
 import { effectsOf, techPrereq, TECH_BY_ID, type ResearchEffects } from '../content/research';
+import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats } from '../sim/types';
+import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
 
 /**
  * The persistent town (M2): the base that exists between battles, generates
@@ -83,6 +85,29 @@ export interface FrontlineState {
   pendingCounterattack: boolean;
   /** Scouted target keys, "t{tier}v{variant}". */
   scouted: string[];
+  /** League standing (M7). Earned on the ladder, bled by absence. */
+  standing: number;
+  /** Best standing this season — the placement payout reads this, not the
+   * final number, so a peak that decayed away still counts at season end. */
+  peak: number;
+  /** Season index (content/leagues.ts) the standing belongs to. */
+  season: number;
+  /** Decay has been charged through this instant (epoch ms). */
+  settledAt: number;
+  /** Last ladder action (epoch ms) — the decay grace runs from here. */
+  activeAt: number;
+  /** Finished seasons, newest first. */
+  placements: SeasonRecord[];
+}
+
+/** A closed season: where you finished, and what it paid. */
+export interface SeasonRecord {
+  season: number;
+  league: LeagueId;
+  /** Peak standing that season. */
+  peak: number;
+  /** When the season closed (epoch ms). */
+  at: number;
 }
 
 export interface DefenseLogEntry {
@@ -115,7 +140,7 @@ export interface RaidRecord {
 }
 
 export interface TownState {
-  version: 5;
+  version: 6;
   /** Whose war this town fights (M5): decides catalogs, campaign, enemies. */
   faction: FactionId;
   supplies: number;
@@ -150,7 +175,7 @@ export interface TownState {
 
 export function newTown(now: number, faction: FactionId = 'usa'): TownState {
   return {
-    version: 5,
+    version: 6,
     faction,
     supplies: STARTING_SUPPLIES,
     fuel: STARTING_FUEL,
@@ -164,7 +189,19 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     campaign: { next: 0, completed: [], difficulty: null, bonuses: [] },
     unlocked: [...BASELINE_UNLOCKS],
     army: {},
-    frontline: { tier: 1, wins: 0, totalWins: 0, pendingCounterattack: false, scouted: [] },
+    frontline: {
+      tier: 1,
+      wins: 0,
+      totalWins: 0,
+      pendingCounterattack: false,
+      scouted: [],
+      standing: 0,
+      peak: 0,
+      season: seasonAt(now),
+      settledAt: now,
+      activeAt: now,
+      placements: [],
+    },
     defenseLog: [],
     standingOrders: null,
     shieldUntil: 0,
@@ -317,7 +354,12 @@ export function cumulativeCost(
  * Advance real time: accrue generation since lastSeen (offline capped), then
  * complete any finished builds/upgrades. Call every frame and on load.
  */
-export function tick(town: TownState, now: number): void {
+/**
+ * Advance the town to `now`: accrue, finish timers, and settle the ladder.
+ * Returns what the ladder settlement did so the caller can report a closed
+ * season; ignoring the return value is fine everywhere else.
+ */
+export function tick(town: TownState, now: number): LadderSettlement {
   const elapsed = Math.min(
     Math.max(0, now - town.lastSeen),
     OFFLINE_CAP_HOURS * 3_600_000,
@@ -367,6 +409,10 @@ export function tick(town: TownState, now: number): void {
       }
     }
   }
+
+  // Last, so a season placement lands on top of the storage cap rather than
+  // being clipped by the accrual above — the same way raid loot does.
+  return settleLadder(town, now);
 }
 
 // ---- the army ---------------------------------------------------------------------
@@ -847,6 +893,9 @@ export function applyCounterResult(town: TownState, outcome: SiegeOutcome, now: 
     applyDefeat(town);
   }
   town.frontline.pendingCounterattack = false;
+  // A counterattack is the ladder reaching back, so it settles on the board
+  // like a rung does — and it is fought in person, which resets the grace.
+  awardStanding(town, counterAward(outcome.victory), now);
   clampToCaps(town);
 }
 

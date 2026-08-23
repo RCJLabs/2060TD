@@ -1,4 +1,6 @@
 import { generateBase, lootFor, MAP_H, MAP_W, type GeneratedBase } from '../content/bases';
+import type { Condition } from '../content/conditions';
+import { FAILED_RAID } from '../content/leagues';
 import { RAID_CATALOG } from '../content/catalog';
 import { baseKitFor, defenseCatalogFor } from '../content/factions';
 import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
@@ -8,11 +10,19 @@ import type {
   AutoPowerRule,
   Catalog,
   CellIndex,
+  DefenderMods,
   Doctrine,
   SimConfig,
   WaveDef,
   WaveEntry,
 } from '../sim/types';
+import {
+  awardStanding,
+  clearAward,
+  leagueOf,
+  probeAward,
+  scoutingBlocked,
+} from './ladder';
 import { probeConfig, researchEffects, type DefenseLogEntry, type TownState } from './town';
 
 /**
@@ -168,7 +178,30 @@ export interface RaidSupport {
   autoPowers?: AutoPowerRule[];
   /** Ordnance stock committed to this raid (usually the town's charges). */
   powerCharges?: Record<string, number>;
+  /**
+   * Today's field condition (M7). Its attacker mods stack with research on
+   * your units; its defender mods land on the target's guns and walls. Ladder
+   * raids only — campaign, skirmish and code duels leave this out.
+   */
+  condition?: Condition;
 }
+
+/** Research and the weather, multiplied together. */
+function combineAttackerMods(
+  research: AttackerMods | undefined,
+  condition: AttackerMods | undefined,
+): AttackerMods {
+  return {
+    hp: (research?.hp ?? 1) * (condition?.hp ?? 1),
+    damage: (research?.damage ?? 1) * (condition?.damage ?? 1),
+  };
+}
+
+const identityAttacker = (mods: AttackerMods): boolean =>
+  (mods.hp ?? 1) === 1 && (mods.damage ?? 1) === 1;
+
+const identityDefender = (mods: DefenderMods): boolean =>
+  (mods.weaponDamage ?? 1) === 1 && (mods.wallHp ?? 1) === 1 && (mods.cpCost ?? 1) === 1;
 
 export function raidConfig(
   base: GeneratedBase,
@@ -177,8 +210,10 @@ export function raidConfig(
   trainable: TrainMeta[] = TRAINABLE,
   support: RaidSupport = {},
 ): SimConfig {
-  const mods = support.mods;
-  const hasMods = mods && ((mods.hp ?? 1) !== 1 || (mods.damage ?? 1) !== 1);
+  const attacker = combineAttackerMods(support.mods, support.condition?.attacker);
+  const defender = support.condition?.defender;
+  const hasAttacker = !identityAttacker(attacker);
+  const hasDefender = defender !== undefined && !identityDefender(defender);
   // One reserved cell per tunneled squad, in squad order: the renderer draws
   // the mouths, replays re-dig them, and applyRaidResult bills them.
   const mouths = squads.filter((s) => s.tunnel !== undefined).map((s) => s.tunnel!);
@@ -207,7 +242,14 @@ export function raidConfig(
     },
     powerCharges: { ...(support.powerCharges ?? {}) },
     ...(mouths.length > 0 ? { reservedCells: mouths } : {}),
-    ...(hasMods ? { mods: { attacker: mods } } : {}),
+    ...(hasAttacker || hasDefender
+      ? {
+          mods: {
+            ...(hasAttacker ? { attacker } : {}),
+            ...(hasDefender ? { defender: { ...defender } } : {}),
+          },
+        }
+      : {}),
     ...(support.autoPowers && support.autoPowers.length > 0
       ? { autoPowers: support.autoPowers.map((r) => ({ ...r })) }
       : {}),
@@ -231,12 +273,27 @@ export interface RaidResolution {
   powersUsed: Record<string, number>;
 }
 
-/** Run the raid headlessly to its end. Deterministic; the replay re-runs it. */
+/** Loot multipliers a raid is fought under (league band × field condition). */
+export interface LootPayout {
+  supplies: number;
+  fuel: number;
+}
+
+export const FLAT_PAYOUT: LootPayout = { supplies: 1, fuel: 1 };
+
+/**
+ * Run the raid headlessly to its end. Deterministic; the replay re-runs it.
+ *
+ * `payout` scales what the wreckage is worth — the ladder pays by band and by
+ * today's condition, and the battle report has to show the number that
+ * actually reaches the depot, not the sticker price.
+ */
 export function resolveRaid(
   config: SimConfig,
   squads: SquadPlan[],
   tier: number,
   catalog: Catalog = RAID_CATALOG,
+  payout: LootPayout = FLAT_PAYOUT,
 ): RaidResolution {
   const engine = new Engine(config, catalog);
   engine.enqueue({ tick: 0, type: 'startAssault' });
@@ -286,6 +343,9 @@ export function resolveRaid(
     const used = stocked - (engine.powerChargesLeft(kind) ?? stocked);
     if (used > 0) powersUsed[kind] = used;
   }
+
+  loot.supplies = Math.round(loot.supplies * payout.supplies);
+  loot.fuel = Math.round(loot.fuel * payout.fuel);
 
   return {
     cleared: engine.phase === 'defeat', // the DEFENDER lost its command post
@@ -362,6 +422,13 @@ export function applyRaidResult(
     // Every second cleared post triggers a counterattack on your base.
     if (frontline.totalWins % 2 === 0) frontline.pendingCounterattack = true;
   }
+  // The board moves either way (M7): a rung pays standing at today's rate, a
+  // failed raid costs it. Both count as playing, so the decay grace resets.
+  awardStanding(
+    town,
+    resolution.cleared ? clearAward(base.tier, now) : FAILED_RAID,
+    now,
+  );
 
   town.lastRaid = {
     config,
@@ -388,8 +455,18 @@ export function isScouted(town: TownState, tier: number, variant: number): boole
   return town.frontline.scouted.includes(targetKey(tier, variant));
 }
 
-export function scoutTarget(town: TownState, tier: number, variant: number): boolean {
+/**
+ * Buy the layout. Pass `now` to honour the field condition: under BLACKOUT
+ * Signals is down on both sides and no price buys a picture.
+ */
+export function scoutTarget(
+  town: TownState,
+  tier: number,
+  variant: number,
+  now?: number,
+): boolean {
   if (isScouted(town, tier, variant)) return true;
+  if (now !== undefined && scoutingBlocked(now)) return false;
   const cost = scoutPrice(town, tier);
   if (town.intel < cost) return false;
   town.intel -= cost;
@@ -410,8 +487,15 @@ export const DEFENSE_LOG_CAP = 4;
 /** Supplies billed per standing-order action the garrison executes. */
 export const ORDERS_UPKEEP_SUPPLIES = 15;
 
+/**
+ * How hard the probes hit. Standing is visibility (M7): the higher the band,
+ * the heavier the things that come looking while you are away. That is the
+ * price of the loot bonus, and it is why the top of the board is a posting
+ * rather than a trophy.
+ */
 export function probeLevel(town: TownState): number {
-  return Math.max(1, Math.min(town.assaultLevel, town.frontline.tier + 1));
+  const pressure = leagueOf(town).probePressure;
+  return Math.max(1, Math.min(town.assaultLevel, town.frontline.tier + 1) + pressure);
 }
 
 /**
@@ -475,6 +559,10 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
     };
     town.defenseLog.unshift(entry);
     ran.push(entry);
+    // A garrison holding the wire keeps you on the board; a breach is read as
+    // exactly what it is. Neither counts as the commander playing, so this
+    // buys no quiet time against the decay clock.
+    awardStanding(town, probeAward(held), entry.at, false);
 
     if (!held) {
       town.shieldUntil = now + PROBE_SHIELD_MS;

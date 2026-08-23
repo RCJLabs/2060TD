@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MAP_H, MAP_W, TARGETS_PER_TIER, type GeneratedBase } from '../../content/bases';
+import { conditionAt } from '../../content/conditions';
 import {
   canTunnel,
   flavorFor,
@@ -9,6 +10,7 @@ import {
   type FactionId,
 } from '../../content/factions';
 import type { TrainMeta } from '../../content/usaUnits';
+import { ladderPayout, leagueOf } from '../../meta/ladder';
 import { saveTown } from '../../meta/save';
 import {
   armyManpower,
@@ -26,6 +28,7 @@ import {
 import {
   applyRaidResult,
   isScouted,
+  FLAT_PAYOUT,
   planUnitCount,
   raidConfig,
   resolveRaid,
@@ -274,7 +277,7 @@ export class RaidScene extends Phaser.Scene {
   }
 
   private scout(): void {
-    if (scoutTarget(this.town, this.town.frontline.tier, this.variant)) {
+    if (scoutTarget(this.town, this.town.frontline.tier, this.variant, Date.now())) {
       this.saveSoon();
       this.redrawBase();
     }
@@ -385,33 +388,41 @@ export class RaidScene extends Phaser.Scene {
     if (this.town.frontline.pendingCounterattack) return;
     const squads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
     if (this.town.fuel < tunnelFuelCost(squads)) return;
+    // One clock for the whole resolution: the field condition that shapes the
+    // battle, prices the loot and pays the standing must be the same one.
+    const now = Date.now();
     const fx = researchEffects(this.town);
-    const config = raidConfig(this.base, squads, Date.now() >>> 0, this.trainable, {
+    // A duel is somebody's snapshot, not the front: no weather, no bonus.
+    const condition = this.challenge ? undefined : conditionAt(now);
+    const config = raidConfig(this.base, squads, now >>> 0, this.trainable, {
       ...(fx.unitHp !== 1 || fx.unitDamage !== 1
         ? { mods: { hp: fx.unitHp, damage: fx.unitDamage } }
         : {}),
       autoPowers: this.autoPowerRules(),
       powerCharges: { ...this.town.charges },
+      ...(condition ? { condition } : {}),
     });
+    const standingBefore = this.town.frontline.standing;
     const resolution = resolveRaid(
       config,
       squads,
       // A duel pays like a tier-1 post; the ladder itself does not move.
       this.challenge ? 1 : this.base.tier,
       raidCatalogFor(this.town.faction),
+      this.challenge ? FLAT_PAYOUT : ladderPayout(this.town, now),
     );
     applyRaidResult(
       this.town,
       this.base,
       resolution,
       config,
-      Date.now(),
+      now,
       this.challenge ? { fingerprint: this.challenge.fingerprint } : undefined,
     );
     this.saveSoon();
     this.result = resolution;
     this.lastConfig = config;
-    this.showResult(resolution);
+    this.showResult(resolution, standingBefore);
   }
 
   private clearResult(): void {
@@ -420,7 +431,7 @@ export class RaidScene extends Phaser.Scene {
     this.result = null;
   }
 
-  private showResult(res: RaidResolution): void {
+  private showResult(res: RaidResolution, standingBefore = this.town.frontline.standing): void {
     const lossLine = Object.entries(res.losses)
       .map(([kind, n]) => `${n}× ${this.trainMeta[kind]?.short ?? kind}`)
       .join('  ');
@@ -437,6 +448,14 @@ export class RaidScene extends Phaser.Scene {
           (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')
         : 'The post stands. Rebuild and go again.',
     ];
+    // Duels are off the board, so there is no standing line to print.
+    if (!this.challenge) {
+      const delta = this.town.frontline.standing - standingBefore;
+      const league = leagueOf(this.town);
+      lines.push(
+        `Standing: ${delta >= 0 ? '+' : ''}${delta} → ${this.town.frontline.standing} · ${league.label}`,
+      );
+    }
 
     const ov = new Overlay(this, this.layout, {
       title: res.cleared ? 'COMMAND POST DESTROYED' : 'RAID REPELLED',
@@ -446,13 +465,11 @@ export class RaidScene extends Phaser.Scene {
     });
     this.overlay = ov;
     const { font } = this.layout;
-    ov.centered(
-      ov.flow(Math.round(font.body * 1.7 * lines.length)),
-      lines.join('\n'),
-      font.body,
-      res.cleared ? COLORS.olive : COLORS.ink,
-      { lineSpacing: Math.round(font.body * 0.5) },
-    );
+    // Measured, not estimated: on a phone every one of these lines wraps, and
+    // a line-count guess would put the report through the footer.
+    ov.paragraph(lines.join('\n'), font.body, res.cleared ? COLORS.olive : COLORS.ink, {
+      center: true,
+    });
     ov.footer(
       'WATCH REPLAY',
       () => {
@@ -496,6 +513,9 @@ export class RaidScene extends Phaser.Scene {
             { id: 'back', label: 'RETURN TO BASE', sub: '[ESC]', onTap: () => this.goHome() },
           ];
         }
+        const condition = conditionAt(now);
+        const league = leagueOf(town);
+        const blacked = condition.blackout === true && !scouted;
         return [
           {
             id: 'h',
@@ -510,10 +530,23 @@ export class RaidScene extends Phaser.Scene {
           },
           {
             id: 'scout',
-            label: scouted ? 'SCOUTED — LAYOUT KNOWN' : 'SCOUT TARGET',
-            sub: scouted ? '' : `${price} INT`,
-            enabled: !scouted && town.intel >= price,
+            label: blacked
+              ? 'SIGNALS DOWN — NO RECON'
+              : scouted
+                ? 'SCOUTED — LAYOUT KNOWN'
+                : 'SCOUT TARGET',
+            sub: blacked ? 'BLACKOUT' : scouted ? '' : `${price} INT`,
+            enabled: !scouted && !blacked && town.intel >= price,
             onTap: () => this.scout(),
+          },
+          { id: 'h3', label: `TODAY — ${condition.label}`, heading: true },
+          { id: 'cond', label: condition.effect, heading: true },
+          { id: 'condpay', label: condition.pay, heading: true },
+          {
+            id: 'league',
+            label: `${league.label} · ${town.frontline.standing} PTS`,
+            sub: league.loot > 1 ? `LOOT ×${league.loot.toFixed(2)}` : '',
+            heading: true,
           },
           { id: 'h2', label: 'VIEW', heading: true },
           { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
@@ -729,7 +762,10 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
   town.frontline.tier = 2;
   town.frontline.wins = 1;
   town.frontline.totalWins = 4;
-  town.frontline.scouted = ['t2v0', 't2v1', 't2v2'];
+  town.frontline.standing = 312;
+  town.frontline.peak = 340;
+  // Two of three surveyed: the demo shows both a known layout and the fog.
+  town.frontline.scouted = ['t2v0', 't2v1'];
   town.army =
     faction === 'china'
       ? { rifle: 4, sapper: 2, grenadier: 2, zbd: 1, type99: 1 }

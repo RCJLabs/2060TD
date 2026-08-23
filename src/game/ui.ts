@@ -68,6 +68,28 @@ const liveProbes = new Set<() => ButtonProbe & { visible: boolean; dead: boolean
  * Every button currently on screen. The E2E harness taps by label instead of
  * by hard-coded pixels — the layout moves between phones, the labels don't.
  */
+/**
+ * Test seam: every visible string on screen, in draw order. Buttons are
+ * addressable by label, but a report, a banner or an overlay body is not a
+ * button — this is how the headless harness reads the copy the player reads.
+ */
+export function liveTexts(scenes: Phaser.Scene[]): string[] {
+  const found: string[] = [];
+  const walk = (items: Phaser.GameObjects.GameObject[]): void => {
+    for (const item of items) {
+      if (item instanceof Phaser.GameObjects.Container) {
+        if (item.visible) walk(item.list);
+        continue;
+      }
+      if (item instanceof Phaser.GameObjects.Text && item.visible && item.text.length > 0) {
+        found.push(item.text);
+      }
+    }
+  };
+  for (const scene of scenes) walk(scene.children.list);
+  return found;
+}
+
 export function liveButtons(): ButtonProbe[] {
   const out: ButtonProbe[] = [];
   for (const probe of liveProbes) {
