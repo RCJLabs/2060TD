@@ -14,6 +14,7 @@ import { chromium } from 'playwright';
 
 const PORT = 5231;
 const SINGLE = resolve('dist-single/lastline.html');
+const EMBED = resolve('dist-single/embed.html');
 
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
   stdio: 'ignore',
@@ -139,6 +140,17 @@ try {
     labels.some((l) => l.includes('EMPTY') || l.includes('·')),
     labels.join(', ') || 'no buttons',
   );
+
+  // ---- and so does the shell-less page the artifact host actually gets -------------
+  await page.goto(`file://${EMBED}`, { waitUntil: 'commit' });
+  await wait(5000);
+  const embedLabels = await page.evaluate(() => window.lastline?.buttons().map((b) => b.label) ?? []);
+  check(
+    'the shell-less embed page boots the same game',
+    (await booted()) && embedLabels.some((l) => l.includes('EMPTY')),
+    embedLabels.join(', ') || 'no buttons',
+  );
+  check('and clears its card as well', (await card()) === null);
 
   await browser.close();
   if (errors.length) {
