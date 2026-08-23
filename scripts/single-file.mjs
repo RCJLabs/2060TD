@@ -33,3 +33,23 @@ const inlined = html.replace(tag, () => `<script type="module">\n${code}\n</scri
 const out = join(OUT_DIR, 'lastline.html');
 writeFileSync(out, inlined);
 console.log(`${out} — ${(inlined.length / 1024 / 1024).toFixed(2)}MB, one file, no requests.`);
+
+/**
+ * The same page with the document shell taken off, for hosts that supply
+ * their own <html>/<head>/<body> and reject the tags. Derived here rather
+ * than trimmed by hand for the same reason the file above is: two copies of a
+ * page drift the moment either changes.
+ */
+const headInner = /<head>([\s\S]*?)<\/head>/.exec(inlined);
+const bodyInner = /<body>([\s\S]*?)<\/body>/.exec(inlined);
+if (!headInner || !bodyInner) throw new Error('could not find <head>/<body> in the built page');
+const fragment = `${headInner[1]
+  // The host provides these; a second copy inside a body is invalid.
+  .replace(/<meta charset[^>]*>/gi, '')
+  .replace(/<meta\s+name="viewport"[\s\S]*?>/gi, '')
+  .replace(/<link rel="icon"[^>]*>/gi, '')
+  .trim()}\n${bodyInner[1].trim()}\n`;
+
+const frag = join(OUT_DIR, 'embed.html');
+writeFileSync(frag, fragment);
+console.log(`${frag} — ${(fragment.length / 1024 / 1024).toFixed(2)}MB, same page, no shell.`);
