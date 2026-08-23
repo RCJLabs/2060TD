@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BriefingScene } from './game/scenes/BriefingScene';
+import { MenuScene } from './game/scenes/MenuScene';
 import { PlaygroundScene } from './game/scenes/PlaygroundScene';
 import { RaidScene } from './game/scenes/RaidScene';
 import { ReplayScene } from './game/scenes/ReplayScene';
@@ -24,13 +25,17 @@ const params = new URLSearchParams(window.location.search);
 const demo = params.get('demo');
 const playground = params.has('playground');
 
+// Demos boot straight into the screen they exist to show; a real session
+// starts at the front door.
 const scene: Phaser.Types.Scenes.SceneType[] = playground
   ? [PlaygroundScene]
   : demo === '1'
-    ? [SiegeScene, TownScene, BriefingScene, RaidScene, ReplayScene]
+    ? [SiegeScene, TownScene, BriefingScene, RaidScene, ReplayScene, MenuScene]
     : demo === 'raid'
-      ? [RaidScene, TownScene, SiegeScene, BriefingScene, ReplayScene]
-      : [TownScene, SiegeScene, BriefingScene, RaidScene, ReplayScene];
+      ? [RaidScene, TownScene, SiegeScene, BriefingScene, ReplayScene, MenuScene]
+      : demo === 'town'
+        ? [TownScene, SiegeScene, BriefingScene, RaidScene, ReplayScene, MenuScene]
+        : [MenuScene, TownScene, SiegeScene, BriefingScene, RaidScene, ReplayScene];
 
 const host = document.getElementById('app')!;
 

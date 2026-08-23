@@ -112,11 +112,13 @@ try {
   // The gesture that used to snap the list back to the top: a fresh touch
   // after a release the row under the thumb swallowed.
   await swipe(X, 800, 780);
+  // null means the anchor scrolled off the top, which is still forward: the
+  // failure this guards against is the list snapping BACK toward the top.
   const afterSecond = await rowTop('SUPPLY DEPOT');
   check(
     'a second swipe continues instead of jumping',
-    afterSecond !== null && afterSecond < afterFirst,
-    `${afterFirst} → ${afterSecond}`,
+    afterSecond === null || afterSecond < afterFirst,
+    `${afterFirst} → ${afterSecond ?? 'scrolled past'}`,
   );
 
   for (let i = 0; i < 6; i++) await swipe(X, 820, 560);
@@ -127,15 +129,20 @@ try {
   const home = await rowTop('SUPPLY DEPOT');
   check('swiping back reaches the top again', home === start, `${home} vs ${start}`);
 
-  // Tap vs drag, read off a row that reports its own state.
+  // Tap vs drag, read off a row that reports its own state: ABANDON BASE
+  // arms on the first tap, so a tap is visible and costs nothing.
   await tap((await find('SYS')).x, (await find('SYS')).y);
-  const soundAtRest = await labelOf('SOUND');
-  const soundRow = await find('SOUND');
-  await swipe(soundRow.x, soundRow.y, soundRow.y - 88);
-  check('dragging across a row does not fire it', (await labelOf('SOUND')) === soundAtRest, soundAtRest);
-  const again = await find('SOUND');
+  const atRest = await labelOf('ABANDON');
+  const row = await find('ABANDON');
+  await swipe(row.x, row.y, row.y - 88);
+  check('dragging across a row does not fire it', (await labelOf('ABANDON')) === atRest, atRest);
+  const again = (await find('ABANDON')) ?? (await find('TAP AGAIN'));
   await tap(again.x, again.y);
-  check('tapping a row still fires it', (await labelOf('SOUND')) !== soundAtRest, await labelOf('SOUND'));
+  check(
+    'tapping a row still fires it',
+    (await labelOf('TAP AGAIN')) !== null,
+    (await labelOf('TAP AGAIN')) ?? 'nothing armed',
+  );
 
   // A modal owns the gesture: nothing behind it may move.
   await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });

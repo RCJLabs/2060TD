@@ -1,6 +1,6 @@
 /**
- * E2E smoke of the first-run flow: intro → faction pick → difficulty pick →
- * town → MISSION 1 → briefing → commence → mission siege. Run with
+ * E2E smoke of the first-run flow: main menu → NEW WAR → faction pick →
+ * difficulty pick → town → MISSION 1 → briefing → commence → mission siege. Run with
  * FACTION=china to smoke the Eastern Tide side, VIEWPORT=phone-portrait
  * (see VIEWPORTS) to smoke a different screen.
  *
@@ -149,6 +149,9 @@ try {
 
   await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });
   await wait(2500);
+  await shot('menu');
+
+  await tap('NEW WAR', 1200); // the front door, ahead of the faction pick
   await shot('intro');
 
   await tap(FACTION_LABEL[FACTION]);
@@ -173,7 +176,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `E2E OK (${FACTION} @ ${VIEWPORT}): intro → faction → difficulty → town → briefing → mission siege, no page errors.`,
+      `E2E OK (${FACTION} @ ${VIEWPORT}): menu → faction → difficulty → town → briefing → mission siege, no page errors.`,
     );
   }
 } finally {

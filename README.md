@@ -17,6 +17,28 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.1: a front door
+
+**The game now starts at a main menu instead of dropping you into a town.**
+
+- **Main menu** with the alternate-history framing, then the choices that
+  belong there: CONTINUE THE WAR (with the faction, operation, next mission,
+  Front Line tier and victory count read off your save), NEW WAR (two taps —
+  it erases a campaign and there is no undo), SETTINGS, and TRAINING RANGE.
+- **One settings screen, two doors.** Sound, colourblind palette and
+  fullscreen live in a single overlay opened from the menu or from the
+  town's `SYS` tab; in-game it also carries save export/import and a MAIN
+  MENU link. Preferences follow the device, the campaign file follows the
+  campaign, and neither is duplicated in two places with two labels.
+- **A way home.** `SYS → MAIN MENU` writes the campaign to disk and walks
+  back to the front door. It is deliberately absent from a live battle: a
+  siege in progress has consequences, and the way out of one is to fight it.
+
+`scripts/e2e-menu.mjs` walks the whole loop — boot to menu, settings from
+both sides, into the war, and back out to a menu that now offers CONTINUE —
+which is how the first version was caught stacking a fresh settings page on
+top of the old one every time a toggle redrew it.
+
 ## Current state — v1.0: the air layer
 
 **Walls are irrelevant to a helicopter.** The last unchecked mechanic from
@@ -303,6 +325,7 @@ node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA
 node scripts/e2e-touch.mjs           # touch gestures: scroll, flick, tap-vs-drag
+node scripts/e2e-menu.mjs            # menu → settings → war → back to menu
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

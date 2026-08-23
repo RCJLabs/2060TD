@@ -283,6 +283,15 @@ replaying cleared missions.
       nothing scrolls or pans behind it. Rows scrolled clear of the list also
       stop taking input. scripts/e2e-touch.mjs drives real touch events through
       CDP over all of it.*
+- [x] Front end: main menu, shared settings screen, in-game route back *(v1.1)*
+      — *MenuScene is the boot scene for a real session (demos still open on the screen
+      they exist to show). It reads the save rather than owning it: CONTINUE resumes the
+      town, NEW WAR clears the file and lets TownScene run its own faction pick, so there
+      is still exactly one code path for starting a campaign. game/settingsOverlay.ts is
+      one settings screen with two doors — the menu and the town's SYS tab — carrying
+      save export/import and the MAIN MENU link only in-game. Deliberately not offered
+      inside a live siege. scripts/e2e-menu.mjs walks the loop and caught the first
+      version stacking a new settings page over the old one on every toggle.*
 - [ ] Share-code PvP-lite: export base as code, friends raid the snapshot
 - [ ] Leagues, rotating events on the Front Line
 

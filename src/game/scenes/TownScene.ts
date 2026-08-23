@@ -10,10 +10,10 @@ import {
   type FactionId,
 } from '../../content/factions';
 import { TECHS, TECH_BY_ID } from '../../content/research';
-import { clearSave, downloadSave, loadTown, pickAndImportSave, saveTown } from '../../meta/save';
+import { clearSave, loadTown, saveTown } from '../../meta/save';
 import { runOfflineProbes } from '../../meta/warfare';
 import { audio } from '../audio';
-import { loadSettings, saveSettings, applySettings } from '../settings';
+import { loadSettings } from '../settings';
 import {
   applyCounterResult,
   applyMissionResult,
@@ -59,6 +59,7 @@ import { BoardView } from '../BoardView';
 import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
+import { buildSettings } from '../settingsOverlay';
 import { COLORS } from '../palette';
 import { mono, Panel, type PanelRow } from '../ui';
 import type { BattleTag } from './SiegeScene';
@@ -648,6 +649,44 @@ export class TownScene extends Phaser.Scene {
     ov.footer('CLOSE', close);
   }
 
+  /** The shared settings screen, opened from the SYS tab. */
+  private showSettings(): void {
+    if (this.overlay || this.demoMode) return;
+    const close = (): void => {
+      this.overlay?.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    this.overlay = buildSettings(this, this.layout, {
+      container: this.board.ui,
+      town: this.town,
+      onImport: (imported) => {
+        this.town = imported;
+        tick(this.town, Date.now());
+        saveTown(this.town);
+        this.selectedId = null;
+        close();
+        this.setBanner('SAVE IMPORTED.', 6);
+      },
+      rebuild: () => this.openOverlay(() => this.showSettings()),
+      close,
+      toMenu: () => this.toMainMenu(),
+      onPaletteChange: () => {
+        saveTown(this.town);
+        this.scene.restart({});
+      },
+    });
+  }
+
+  /** Back to the front door, with the campaign written down first. */
+  private toMainMenu(): void {
+    if (!this.demoMode) saveTown(this.town);
+    this.overlay?.close();
+    this.overlay = null;
+    this.overlayBuilder = null;
+    this.scene.start('menu');
+  }
+
   /** First run, screen 1: alternate-history framing and the faction choice. */
   private showIntro(): void {
     if (this.overlay) return;
@@ -1124,35 +1163,18 @@ export class TownScene extends Phaser.Scene {
           else this.scale.startFullscreen();
         },
       },
-      { id: 'h2', label: 'SETTINGS', heading: true },
+      { id: 'h2', label: 'GAME', heading: true },
       {
-        id: 'sfx',
-        label: settings.mute ? 'SOUND: OFF' : 'SOUND: ON',
-        active: !settings.mute,
-        onTap: () => this.toggleSfx(),
+        id: 'settings',
+        label: 'SETTINGS',
+        sub: `${settings.mute ? 'MUTED' : 'SOUND'}${settings.colorblind ? ' · CB' : ''}`,
+        onTap: () => this.openOverlay(() => this.showSettings()),
       },
       {
-        id: 'cb',
-        label: settings.colorblind ? 'COLORBLIND: ON' : 'COLORBLIND: OFF',
-        active: settings.colorblind,
-        onTap: () => this.toggleColorblind(),
-      },
-      { id: 'h3', label: 'SAVE', heading: true },
-      { id: 'export', label: 'EXPORT SAVE', onTap: () => downloadSave(this.town) },
-      {
-        id: 'import',
-        label: 'IMPORT SAVE',
-        onTap: () => {
-          void pickAndImportSave().then((imported) => {
-            if (imported) {
-              this.town = imported;
-              tick(this.town, Date.now());
-              saveTown(this.town);
-              this.selectedId = null;
-              this.setBanner('SAVE IMPORTED.', 6);
-            }
-          });
-        },
+        id: 'menu',
+        label: 'MAIN MENU',
+        sub: 'SAVES FIRST',
+        onTap: () => this.toMainMenu(),
       },
       {
         id: 'reset',
@@ -1180,22 +1202,6 @@ export class TownScene extends Phaser.Scene {
             : 'STANDING ORDERS: TRIPWIRE — the garrison seeds mines on the approach and mans the inner line.',
       9,
     );
-  }
-
-  private toggleSfx(): void {
-    const settings = loadSettings();
-    settings.mute = !settings.mute;
-    saveSettings(settings);
-    applySettings(settings);
-  }
-
-  private toggleColorblind(): void {
-    const settings = loadSettings();
-    settings.colorblind = !settings.colorblind;
-    saveSettings(settings);
-    applySettings(settings);
-    // Repaint everything in the new hostile palette.
-    this.scene.restart({});
   }
 
   private selected(): PlacedStructure | null {
