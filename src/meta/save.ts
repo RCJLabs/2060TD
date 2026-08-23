@@ -4,6 +4,7 @@ import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
+import { normalizePlan } from './warfare';
 import { normalizeContracts } from './contracts';
 import { newTown, normalizeWarLog, unlockAll, type TownState } from './town';
 
@@ -227,6 +228,9 @@ export function deserialize(json: string): TownState | null {
     town.vault = normalizeVault(town.vault);
     // The roster arrived in v1.9; an older file fields three green squads.
     town.squads = normalizeSquads(town.squads);
+    // The stored plan arrived in v1.16. Anything unrecognizable is dropped
+    // here rather than at the planner, so what reaches the scene is a plan.
+    town.lastPlan = normalizePlan(town.lastPlan);
     // The coach ledger arrived in v1.5; an older file has simply read nothing.
     town.seen = Array.isArray(town.seen)
       ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)

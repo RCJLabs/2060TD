@@ -21,6 +21,11 @@ import {
   delayOf,
   isScouted,
   nextDelay,
+  normalizePlan,
+  planShortfall,
+  reopenPlan,
+  storePlan,
+  tunnelSiteValid,
   planDeployment,
   raidConfig,
   raidWave,
@@ -83,6 +88,111 @@ describe('base generator', () => {
     expect(lootFor('cc', 7).supplies).toBeGreaterThan(lootFor('cc', 1).supplies);
     expect(t7.structures.some((s) => s.kind === 'atgmTower')).toBe(true);
     expect(t1.structures.some((s) => s.kind === 'atgmTower')).toBe(false);
+  });
+});
+
+describe('reopening the last plan', () => {
+  const written: SquadPlan[] = [
+    { units: { ranger: 3, engineer: 1 }, sector: 'E2', doctrine: 'raze', slot: 0, delay: 20 },
+    { units: {}, sector: 'N1', doctrine: 'hunt', slot: 1, delay: 6 },
+    { units: { humvee: 1 }, sector: 'S2', doctrine: 'assault', slot: 2, delay: 45 },
+  ];
+  // What launch() actually sends: the empty formation is dropped, so the array
+  // index stops being the slot.
+  const launched = written.filter((s) => Object.values(s.units).some((n) => n > 0));
+
+  it('files all three formations even though the launcher sent two', () => {
+    // An empty formation is a decision. A plan that comes back missing the slot
+    // you deliberately left at home is not the plan you wrote.
+    const stored = storePlan(launched);
+    expect(stored).toHaveLength(3);
+    expect(stored[0]!.sector).toBe('E2');
+    expect(stored[1]!.units).toEqual({});
+    expect(stored[2]!.sector).toBe('S2'); // keyed by slot, not by array position
+    expect(stored[2]!.delay).toBe(45);
+  });
+
+  it('reopens the shape and fills it from the army it has now', () => {
+    const stored = storePlan(launched);
+    const plan = reopenPlan(stored, { ranger: 3, engineer: 1, humvee: 1 }, null)!;
+    expect(plan).toHaveLength(3);
+    expect(plan[0]).toMatchObject({ sector: 'E2', doctrine: 'raze', delay: 20, slot: 0 });
+    expect(plan[0]!.units).toEqual({ ranger: 3, engineer: 1 });
+    expect(plan[2]!.units).toEqual({ humvee: 1 });
+  });
+
+  it('trims the plan to the men who came back, lead formation first', () => {
+    // The raid that wrote this plan spent it: one ranger left, no engineers.
+    const stored = storePlan([
+      { units: { ranger: 2 }, sector: 'W1', doctrine: 'assault', slot: 0 },
+      { units: { ranger: 2 }, sector: 'N1', doctrine: 'hunt', slot: 1 },
+    ]);
+    const plan = reopenPlan(stored, { ranger: 3 }, null)!;
+    expect(plan[0]!.units).toEqual({ ranger: 2 }); // made whole first
+    expect(plan[1]!.units).toEqual({ ranger: 1 }); // gets what is left
+    expect(planShortfall(stored, { ranger: 3 })).toEqual({ wanted: 4, fielded: 3 });
+    expect(planShortfall(stored, { ranger: 9 })).toEqual({ wanted: 4, fielded: 4 });
+  });
+
+  it('has nothing to reopen when nothing was ever launched', () => {
+    expect(reopenPlan(undefined, { ranger: 5 }, null)).toBeNull();
+    expect(reopenPlan([], { ranger: 5 }, null)).toBeNull();
+    expect(planShortfall(undefined, { ranger: 5 })).toEqual({ wanted: 0, fielded: 0 });
+  });
+
+  it('keeps a gallery that still works and drops one that does not', () => {
+    const base = generateBase(2, 0);
+    const ccCol = base.ccOrigin % MAP_W;
+    const ccRow = Math.floor(base.ccOrigin / MAP_W);
+    const mouth = ccRow * MAP_W + ccCol + 5;
+    expect(tunnelSiteValid(base, mouth)).toBe(true);
+    const stored = storePlan([
+      { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault', slot: 0, tunnel: mouth, delay: 30 },
+    ]);
+    // Same base: the hole is still where it was dug.
+    expect(reopenPlan(stored, { ranger: 1 }, base)![0]!.tunnel).toBe(mouth);
+    // No target, or a target where that cell is not diggable: the gallery goes.
+    // A mouth was sited on ONE base; on the next it may be a wall.
+    const onWall = storePlan([
+      { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault', slot: 0, tunnel: 0, delay: 30 },
+    ]);
+    const dropped = reopenPlan(onWall, { ranger: 1 }, base)![0]!;
+    expect(dropped.tunnel).toBeUndefined();
+    // The clock survives the hole: how late a formation goes in is a decision
+    // about time, not about the ground.
+    expect(dropped.delay).toBe(30);
+  });
+
+  it('refuses a stored plan that has been corrupted', () => {
+    expect(normalizePlan('not a plan')).toBeUndefined();
+    const junk = normalizePlan([
+      { units: { ranger: -4, ghost: 0 }, sector: 'NOWHERE', doctrine: 'surrender', delay: 9000 },
+      null,
+    ])!;
+    expect(junk).toHaveLength(3);
+    expect(junk[0]!.units).toEqual({}); // negative and zero counts are not men
+    expect(SECTOR_IDS).toContain(junk[0]!.sector);
+    expect(junk[0]!.doctrine).toBe('assault');
+    expect(junk[0]!.delay).toBe(60); // clamped to the top stop, not left to stall
+  });
+
+  it('survives a save round-trip and comes back as the same plan', () => {
+    const town = devTown();
+    town.lastPlan = storePlan(launched);
+    const back = deserialize(serialize(town))!;
+    expect(back.lastPlan).toEqual(town.lastPlan);
+    const plan = reopenPlan(back.lastPlan, { ranger: 3, engineer: 1, humvee: 1 }, null)!;
+    expect(plan[0]!.units).toEqual({ ranger: 3, engineer: 1 });
+    expect(plan[2]!.delay).toBe(45);
+  });
+
+  it('a file written before v1.16 simply has no plan to reopen', () => {
+    const town = devTown();
+    const raw = JSON.parse(serialize(town)) as Record<string, unknown>;
+    delete raw['lastPlan'];
+    const back = deserialize(JSON.stringify(raw))!;
+    expect(back.lastPlan).toBeUndefined();
+    expect(reopenPlan(back.lastPlan, back.army, null)).toBeNull();
   });
 });
 

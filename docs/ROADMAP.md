@@ -472,7 +472,7 @@ there is deliberately no sixth faction here.
 
 ### Original-plan gaps found by the M8 audit
 
-Three things the GDD promised that were never built. One is now closed:
+Three things the GDD promised that were never built. Two are now closed:
 
 - [x] **Per-squad launch delay** *(v1.15)* — GDD 5.6 gives each squad "an entry
       point, a launch delay (0–60s), and a doctrine". The delay was derived from
@@ -486,9 +486,18 @@ Three things the GDD promised that were never built. One is now closed:
       not at all. Holding a formation costs the attacker nothing but wall-clock,
       because a raided garrison gets no CP and never repairs; the fix is the
       v0.8 standing-orders trickle on raided bases, filed rather than bolted on.*
-- [ ] **Restore the last raid plan** — GDD 5.6: "the plan is saved with the
-      replay, so you can iterate on a failed plan directly". RaidScene resets
-      to three empty squads on every entry.
+- [x] **Restore the last raid plan** *(v1.16)* — GDD 5.6: "the plan is saved
+      with the replay, so you can iterate on a failed plan directly". The
+      planner reset to three empty formations on every entry; it now opens on
+      the last plan launched. The plan is FILED, not reconstructed from the
+      replay: a saved raid is its config, but a config is a list of men with
+      arrival ticks, and the decisions above it are only recoverable by
+      inference. Two things are re-checked instead of trusted, because both
+      move between raids — the men (units refill in slot order, capped by
+      what is actually in the yard) and the galleries (a mouth sited on one
+      base may be a wall on the next; the ordered delay survives the dropped
+      hole, because the clock is a separate decision from the ground).
+      NEW PLAN throws it away.
 - [ ] **Gates** — GDD 5.2 lists them; nothing is buildable and the sim has no
       such tile. The stated function ("let defenders through, close against
       attackers") does not map onto this game, since nothing of the player's

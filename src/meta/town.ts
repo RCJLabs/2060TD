@@ -33,6 +33,9 @@ import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
 import { newSquadRecords, type SquadRecord } from '../content/veterancy';
 import type { VaultEntry } from './vault';
+// Type-only, so no runtime edge is added back to warfare.ts (which imports
+// this module) — the same shape as the VaultEntry import above it.
+import type { StoredPlan } from './warfare';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
@@ -258,6 +261,12 @@ export interface TownState {
    * than credited against orders it never saw.
    */
   contracts?: ContractState;
+  /**
+   * The last raid plan launched (v1.16), so the planner opens on it instead of
+   * on three empty formations. Optional: a file written before this simply has
+   * no plan to reopen, and three empty formations is the right answer for it.
+   */
+  lastPlan?: StoredPlan[];
   assaultLevel: number;
   victories: number;
   defeats: number;

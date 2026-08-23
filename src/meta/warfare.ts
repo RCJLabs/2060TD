@@ -52,6 +52,11 @@ import { creditContracts } from './contracts';
 export type SectorId = 'N1' | 'N2' | 'E1' | 'E2' | 'S1' | 'S2' | 'W1' | 'W2';
 export const SECTOR_IDS: SectorId[] = ['N1', 'N2', 'E1', 'E2', 'S1', 'S2', 'W1', 'W2'];
 
+/** The doctrines a formation can be given, in picker order. Lives here rather
+ * than in the scene because a stored plan read off disk has to be checked
+ * against the same list the planner cycles. */
+export const DOCTRINE_IDS: Doctrine[] = ['assault', 'hunt', 'raze'];
+
 const range = (lo: number, hi: number): number[] =>
   Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
 
@@ -109,6 +114,127 @@ export interface SquadPlan {
    * surfaces when the ground opens, not before.
    */
   delay?: number;
+}
+
+/**
+ * The last plan the player launched, kept so the planner opens on it (v1.16).
+ *
+ * Stored rather than reconstructed from the replay. A saved raid IS its config,
+ * but a config is a list of men with arrival ticks — the decisions above it
+ * (which sector, which doctrine, which second, which gallery) are only
+ * recoverable by inference, and inference is how a restored plan quietly stops
+ * being the plan that was written. The three slots are kept even when empty,
+ * because an empty formation is a decision too.
+ */
+export type StoredPlan = Pick<SquadPlan, 'units' | 'sector' | 'doctrine' | 'tunnel' | 'delay'>;
+
+/** Strip a launched plan down to the parts worth reopening. */
+export function storePlan(squads: SquadPlan[]): StoredPlan[] {
+  return Array.from({ length: SQUAD_SLOTS }, (_, slot) => {
+    // Slot order, not array order: launch() drops the empty formations, so the
+    // third entry of what was sent is not necessarily the third formation.
+    const squad = squads.find((s, i) => slotOf(s, i) === slot);
+    if (!squad) return { units: {}, sector: SECTOR_IDS[0]!, doctrine: 'assault' as Doctrine };
+    return {
+      units: { ...squad.units },
+      sector: squad.sector,
+      doctrine: squad.doctrine,
+      ...(squad.tunnel !== undefined ? { tunnel: squad.tunnel } : {}),
+      ...(squad.delay !== undefined ? { delay: squad.delay } : {}),
+    };
+  });
+}
+
+/** A stored plan read back off disk, with anything unrecognizable dropped. */
+export function normalizePlan(raw: unknown): StoredPlan[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const plan = raw.slice(0, SQUAD_SLOTS).map((entry): StoredPlan => {
+    const squad = (entry ?? {}) as Partial<StoredPlan>;
+    const units: Record<string, number> = {};
+    if (squad.units && typeof squad.units === 'object') {
+      for (const [kind, count] of Object.entries(squad.units)) {
+        if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+          units[kind] = Math.min(999, Math.round(count));
+        }
+      }
+    }
+    return {
+      units,
+      sector: SECTOR_IDS.includes(squad.sector as SectorId) ? squad.sector! : SECTOR_IDS[0]!,
+      doctrine: DOCTRINE_IDS.includes(squad.doctrine as Doctrine) ? squad.doctrine! : 'assault',
+      ...(typeof squad.tunnel === 'number' && Number.isInteger(squad.tunnel)
+        ? { tunnel: squad.tunnel }
+        : {}),
+      ...(typeof squad.delay === 'number' && Number.isFinite(squad.delay)
+        ? { delay: Math.max(0, Math.min(60, Math.round(squad.delay))) }
+        : {}),
+    };
+  });
+  while (plan.length < SQUAD_SLOTS) {
+    plan.push({ units: {}, sector: SECTOR_IDS[0]!, doctrine: 'assault' });
+  }
+  return plan;
+}
+
+/**
+ * Reopen the stored plan against today's army and today's target.
+ *
+ * Two things are re-checked rather than trusted, because both can have moved
+ * since the plan was written: the men (the last raid spent them, and a plan
+ * that silently fields soldiers who are dead is worse than no plan) and the
+ * galleries (a mouth was sited on ONE base — on the next target that cell may
+ * be a wall, or the wrong side of the wire). Units fill in slot order, so the
+ * lead formation is made whole first.
+ */
+export function reopenPlan(
+  stored: StoredPlan[] | undefined,
+  army: Record<string, number>,
+  base: GeneratedBase | null,
+): SquadPlan[] | null {
+  const plan = normalizePlan(stored);
+  if (!plan) return null;
+  const budget: Record<string, number> = {};
+  for (const [kind, held] of Object.entries(army)) {
+    budget[kind] = Math.max(0, Math.floor(held));
+  }
+  const squads = plan.map((squad, slot): SquadPlan => {
+    const units: Record<string, number> = {};
+    for (const [kind, wanted] of Object.entries(squad.units)) {
+      const take = Math.min(wanted, budget[kind] ?? 0);
+      if (take > 0) {
+        units[kind] = take;
+        budget[kind] = (budget[kind] ?? 0) - take;
+      }
+    }
+    const keepsTunnel =
+      squad.tunnel !== undefined && base !== null && tunnelSiteValid(base, squad.tunnel);
+    return {
+      units,
+      sector: squad.sector,
+      doctrine: squad.doctrine,
+      slot,
+      ...(keepsTunnel ? { tunnel: squad.tunnel! } : {}),
+      // The delay survives a dropped gallery: how late a formation goes in is a
+      // decision about the clock, not about the hole in the ground.
+      delay: squad.delay ?? slot * (SQUAD_DELAY_TICKS / 20),
+    };
+  });
+  return squads;
+}
+
+/** How much of a stored plan today's army can actually field. */
+export function planShortfall(
+  stored: StoredPlan[] | undefined,
+  army: Record<string, number>,
+): { wanted: number; fielded: number } {
+  const plan = normalizePlan(stored);
+  if (!plan) return { wanted: 0, fielded: 0 };
+  const wanted = plan.reduce(
+    (sum, squad) => sum + Object.values(squad.units).reduce((a, b) => a + b, 0),
+    0,
+  );
+  const reopened = reopenPlan(plan, army, null) ?? [];
+  return { wanted, fielded: planUnitCount(reopened) };
 }
 
 /**

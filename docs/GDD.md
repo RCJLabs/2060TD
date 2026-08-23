@@ -308,7 +308,13 @@ Each deployed squad gets: an entry point (revealed map-edge sectors), a launch d
 and a doctrine — **Hunt Defenses** (prioritize emplacements), **Beeline HQ** (ignore
 everything possible, race the Command Center), **Raze Economy** (target depots/storage).
 Powers get auto-trigger rules from a small predicate list. The plan is saved with the replay,
-so you can iterate on a failed plan directly.
+so you can iterate on a failed plan directly: the planner opens on the last plan launched, not
+on three empty formations. All three slots are kept, empties included — leaving a formation at
+home is a decision, and a plan that comes back missing it is not the plan that was written.
+What returns is the shape; what fills it is today's army, so a plan is trimmed to the men who
+actually came back, lead formation first, and the planner says so rather than leaving it to be
+noticed at the launch button. A gallery is only reopened if it is still diggable on the new
+target; the ordered delay survives the dropped hole. NEW PLAN wipes all three.
 
 The delay is a picker with seven stops — 0/6/12/20/30/45/60 seconds after LAUNCH — and the
 first three are the old fixed stagger, so the plan the planner opens on is one the picker can

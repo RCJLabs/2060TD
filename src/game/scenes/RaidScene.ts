@@ -44,16 +44,20 @@ import {
   applyRaidResult,
   delayOf,
   isScouted,
+  DOCTRINE_IDS,
   FLAT_PAYOUT,
   nextDelay,
+  planShortfall,
   planUnitCount,
   raidConfig,
+  reopenPlan,
   resolveRaid,
   scoutPrice,
   scoutTarget,
   sectorCells,
   slotOf,
   squadRoster,
+  storePlan,
   squadVet,
   targetFor,
   tunnelFuelCost,
@@ -87,7 +91,6 @@ const RAID_TABS = [
   { id: 'squads', label: 'SQUADS' },
   { id: 'fire', label: 'FIRE' },
 ];
-const DOCTRINES = ['assault', 'hunt', 'raze'] as const;
 const DOCTRINE_LABEL: Record<string, string> = { assault: 'ASLT', hunt: 'HUNT', raze: 'RAZE' };
 /** A formation's line in the squad panel: what it has done, in four words. */
 function recordSub(record: SquadRecord | undefined): string {
@@ -158,13 +161,7 @@ export class RaidScene extends Phaser.Scene {
     this.lastConfig = null;
     this.siting = false;
     this.hintUntil = 0;
-    // Explicit delays, not the omitted default: the picker's first tap must
-    // move the value the player is already reading, not correct it.
-    this.squads = [
-      { units: {}, sector: 'W1', doctrine: 'assault', slot: 0, delay: 0 },
-      { units: {}, sector: 'N1', doctrine: 'hunt', slot: 1, delay: 6 },
-      { units: {}, sector: 'S1', doctrine: 'raze', slot: 2, delay: 12 },
-    ];
+    this.squads = RaidScene.freshPlan();
     this.firePlans = {};
     for (const kind of Object.keys(raidCatalogFor(this.town.faction).powers)) {
       this.firePlans[kind] = { timeIndex: 0, target: 'guns' };
@@ -190,6 +187,9 @@ export class RaidScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.hintText = this.add.text(0, 0, '', mono(12, COLORS.signal, { fontStyle: 'bold' })).setOrigin(0.5, 0);
     this.board.ui.add([this.fogText, this.hintText]);
+    // After the hint line exists, not before: reopening says something, and a
+    // scene that talks before it has a mouth talks through the last scene's.
+    this.reopenLastPlan();
 
     // Tunnel siting: a map tap places the selected squad's gallery head.
     this.board.onTap((col, row) => {
@@ -306,6 +306,51 @@ export class RaidScene extends Phaser.Scene {
     this.redrawBase();
   }
 
+  /**
+   * Three empty formations, west/north/south, on the default stagger. Explicit
+   * delays, not the omitted default: the picker's first tap must move the value
+   * the player is already reading, not correct it.
+   */
+  private static freshPlan(): SquadPlan[] {
+    return [
+      { units: {}, sector: 'W1', doctrine: 'assault', slot: 0, delay: 0 },
+      { units: {}, sector: 'N1', doctrine: 'hunt', slot: 1, delay: 6 },
+      { units: {}, sector: 'S1', doctrine: 'raze', slot: 2, delay: 12 },
+    ];
+  }
+
+  /**
+   * Open on the last plan launched (v1.16) instead of on three empty slots —
+   * GDD 5.6: "the plan is saved with the replay, so you can iterate on a failed
+   * plan directly." Iterating means the plan is THERE when you come back.
+   *
+   * What comes back is the shape; what fills it is today's army. A raid spends
+   * men, so the reopened plan is trimmed to what is actually in the yard, and
+   * the trim is said out loud rather than left for the player to notice at the
+   * launch button.
+   */
+  private reopenLastPlan(): void {
+    const reopened = reopenPlan(this.town.lastPlan, this.town.army, this.base);
+    if (!reopened) return;
+    this.squads = reopened;
+    const { wanted, fielded } = planShortfall(this.town.lastPlan, this.town.army);
+    if (wanted === 0) return;
+    this.hint(
+      fielded >= wanted
+        ? 'LAST PLAN REOPENED'
+        : `LAST PLAN REOPENED — ${fielded}/${wanted} STILL IN THE YARD`,
+    );
+  }
+
+  /** Throw the reopened plan away and start from nothing. */
+  private newPlan(): void {
+    if (this.result) return;
+    this.squads = RaidScene.freshPlan();
+    this.selectedSquad = 0;
+    this.siting = false;
+    this.hint('PLAN CLEARED — THREE EMPTY FORMATIONS');
+  }
+
   private hint(message: string): void {
     this.hintText.setText(message);
     this.hintUntil = Date.now() + 2200;
@@ -389,7 +434,7 @@ export class RaidScene extends Phaser.Scene {
 
   private cycleDoctrine(): void {
     const squad = this.squads[this.selectedSquad]!;
-    squad.doctrine = DOCTRINES[(DOCTRINES.indexOf(squad.doctrine) + 1) % DOCTRINES.length]!;
+    squad.doctrine = DOCTRINE_IDS[(DOCTRINE_IDS.indexOf(squad.doctrine) + 1) % DOCTRINE_IDS.length]!;
   }
 
   private cycleDelay(): void {
@@ -444,6 +489,12 @@ export class RaidScene extends Phaser.Scene {
       })
       .filter((s) => Object.values(s.units).some((n) => n > 0));
     if (this.town.fuel < tunnelFuelCost(squads)) return;
+    // File the plan before the battle, from the UNFILTERED three: an empty
+    // formation is a decision, and a plan that comes back missing the slot you
+    // deliberately left at home is not the plan you wrote. Filed here rather
+    // than after the result so a plan that ends in a wipe is still there to
+    // iterate on — which is the whole point of keeping it.
+    this.town.lastPlan = storePlan(this.squads);
     // One clock for the whole resolution: the field condition that shapes the
     // battle, prices the loot and pays the standing must be the same one.
     const now = Date.now();
@@ -809,7 +860,16 @@ export class RaidScene extends Phaser.Scene {
             onTap: () => this.addUnit(meta.kind),
           });
         }
-        rows.push({ id: 'clear', label: 'CLEAR SQUAD', onTap: () => this.clearSquad() });
+        rows.push(
+          { id: 'clear', label: 'CLEAR SQUAD', onTap: () => this.clearSquad() },
+          {
+            id: 'newplan',
+            label: 'NEW PLAN',
+            sub: 'WIPE ALL THREE',
+            enabled: !this.result,
+            onTap: () => this.newPlan(),
+          },
+        );
         return rows;
       }
       default: {

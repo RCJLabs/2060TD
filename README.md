@@ -17,6 +17,33 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.16: the plan is still there
+
+**The planner reset to three empty formations every time you walked in.** The GDD
+has said since its first draft that "the plan is saved with the replay, so you can
+iterate on a failed plan directly" — iterating means the plan is *there* when you
+come back. Now it is.
+
+- **Filed, not reconstructed.** A saved raid *is* its config, but a config is a
+  list of men with arrival ticks; the decisions above it — which sector, which
+  doctrine, which second, which gallery — are only recoverable by inference, and
+  inference is how a restored plan quietly stops being the plan that was written.
+- **All three slots come back, empties included.** Leaving a formation at home is
+  a decision too. The plan is filed by slot rather than by array position, because
+  the launcher drops the empty formations on the way out.
+- **The shape returns; today's army fills it.** A raid spends people, so a
+  reopened plan is capped by what is actually in the yard — lead formation made
+  whole first — and the planner says `LAST PLAN REOPENED — 3/5 STILL IN THE YARD`
+  rather than leaving you to discover it at the launch button.
+- **A gallery is re-checked, not trusted.** A mouth was sited on *one* base; on
+  the next target that cell may be a wall or the wrong side of the wire, so an
+  invalid gallery is dropped. The ordered delay survives it — how late a
+  formation goes in is a decision about the clock, not about the hole.
+- **`NEW PLAN` throws it away**, back to three empty formations on the default
+  stagger.
+- **Filed before the battle, not after**, so a plan that ends in a wipe is still
+  there to iterate on. That is the entire point of keeping it.
+
 ## Current state — v1.15: order the clock
 
 **Squads crossed the line on a fixed conveyor** — slot 1 at T+0, slot 2 at T+6, slot 3
@@ -676,6 +703,7 @@ node scripts/e2e-record.mjs          # the service record, and that it never dra
 node scripts/e2e-vault.mjs           # a battle filed, copied out as a string, and played back in
 node scripts/e2e-orders.mjs          # the day's orders, filled by actually playing
 node scripts/e2e-delay.mjs           # the launch-delay picker, and the plan following it
+node scripts/e2e-plan.mjs            # a plan written, fought, and found again on the way back
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
