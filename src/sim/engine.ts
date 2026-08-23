@@ -14,6 +14,7 @@ import type {
   SimConfig,
   SimEvent,
   SimStats,
+  StandingOrderTarget,
   StructureProfile,
   Vec2,
   WaveEntry,
@@ -156,6 +157,15 @@ export class Engine {
   /** Pre-planned fire missions, sorted by time then kind (deterministic). */
   private readonly autoRules: AutoPowerRule[];
   private autoRuleCursor = 0;
+  /** Standing orders: per-rule next-allowed tick + the latest wall breach. */
+  private orderNextTick: number[] = [];
+  private ordersUsed = 0;
+  private lastBreachCell: CellIndex | null = null;
+
+  /** How many standing-order actions the garrison executed this battle. */
+  get ordersExecuted(): number {
+    return this.ordersUsed;
+  }
 
   constructor(config: SimConfig, catalog: Catalog) {
     this.config = config;
@@ -304,6 +314,7 @@ export class Engine {
     this.applyCommands(events);
     this.updatePhase(events);
     this.applyAutoPowers(events);
+    this.applyStandingOrders(events);
     this.applyPendingImpacts(events);
     this.updateStructures(events);
     this.applyAuras();
@@ -619,6 +630,117 @@ export class Engine {
     }
   }
 
+  // ---- standing orders (v0.8): the unattended defender's CP policy ---------------
+
+  /** The attacker with the most nearby attackers — where the fight is. */
+  private densestAttackerCluster(): Vec2 | null {
+    let best: Attacker | null = null;
+    let bestCount = -1;
+    for (const attacker of this.attackers) {
+      if (attacker.hp <= 0) continue;
+      let count = 0;
+      for (const other of this.attackers) {
+        if (other.hp <= 0) continue;
+        const dx = other.pos.x - attacker.pos.x;
+        const dy = other.pos.y - attacker.pos.y;
+        if (dx * dx + dy * dy <= 9) count++; // within 3 cells, itself included
+      }
+      if (count > bestCount || (count === bestCount && attacker.id < best!.id)) {
+        bestCount = count;
+        best = attacker;
+      }
+    }
+    return best ? { ...best.pos } : null;
+  }
+
+  /** Deterministic search ring: anchor first, then outward, fixed order. */
+  private static readonly ORDER_OFFSETS: [number, number][] = [
+    [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1],
+    [2, 0], [-2, 0], [0, 2], [0, -2], [2, 1], [-2, -1], [1, 2], [-1, -2],
+  ];
+
+  private orderDeployCell(target: StandingOrderTarget, kind: string): CellIndex | null {
+    let anchor: Vec2 | null = null;
+    if (target === 'breach') {
+      anchor = this.lastBreachCell !== null ? this.grid.centerOf(this.lastBreachCell) : null;
+    } else if (target === 'densest') {
+      anchor = this.densestAttackerCluster();
+    } else {
+      // ccApproach: between the post and the fight, three cells out.
+      const threat = this.densestAttackerCluster();
+      if (threat) {
+        const dx = threat.x - this.cc.center.x;
+        const dy = threat.y - this.cc.center.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        anchor =
+          len > 0.001
+            ? { x: this.cc.center.x + (dx / len) * 3, y: this.cc.center.y + (dy / len) * 3 }
+            : null;
+      }
+    }
+    if (!anchor) return null;
+    const ax = Math.floor(anchor.x);
+    const ay = Math.floor(anchor.y);
+    for (const [dc, dr] of Engine.ORDER_OFFSETS) {
+      // The duty officer reinforces AROUND a breach; corking the hole
+      // itself is a live commander's move, not a standing order.
+      if (target === 'breach' && dc === 0 && dr === 0) continue;
+      const x = ax + dc;
+      const y = ay + dr;
+      if (x < 0 || y < 0 || x >= this.grid.width || y >= this.grid.height) continue;
+      const cell = this.grid.idx(x, y);
+      if (this.canPlaceStructure(kind, cell)) return cell;
+    }
+    return null;
+  }
+
+  /**
+   * Standing orders: evaluated every combat tick in rule order, defender
+   * side only. Each rule holds a CP reserve, a hostile threshold, and its
+   * own cooldown; deploys and casts go through the same commands a player
+   * would issue, so prices, limits, and buildability all apply.
+   */
+  private applyStandingOrders(events: SimEvent[]): void {
+    const orders = this.config.standingOrders;
+    if (!orders || this.phase !== 'combat' || this.attackerSide) return;
+    // The duty officer works a 1-second command cycle, not the sim tick,
+    // and the playbook has only so many pages per battle.
+    if (this.tick % TICKS_PER_SECOND !== 0) return;
+    if (orders.maxActions !== undefined && this.ordersUsed >= orders.maxActions) return;
+    for (let i = 0; i < orders.rules.length; i++) {
+      const rule = orders.rules[i]!;
+      if (this.tick < (this.orderNextTick[i] ?? 0)) continue;
+      if (this.cp < rule.cpAtLeast) continue;
+      let hostiles = 0;
+      for (const a of this.attackers) if (a.hp > 0) hostiles++;
+      if (hostiles < (rule.minHostiles ?? 1)) continue;
+
+      let acted = false;
+      if (rule.action === 'power') {
+        const target =
+          rule.target === 'ccApproach'
+            ? { ...this.cc.center }
+            : rule.target === 'breach' && this.lastBreachCell !== null
+              ? this.grid.centerOf(this.lastBreachCell)
+              : this.densestAttackerCluster();
+        if (target) acted = this.castPowerAt(rule.kind, target, events);
+      } else {
+        const cell = this.orderDeployCell(rule.target, rule.kind);
+        if (cell !== null) {
+          acted = this.applyCommand(
+            { tick: this.tick, type: 'placeStructure', cell, kind: rule.kind },
+            events,
+          );
+        }
+      }
+      if (acted) {
+        this.orderNextTick[i] = this.tick + rule.cooldownTicks;
+        this.ordersUsed++;
+        if (orders.maxActions !== undefined && this.ordersUsed >= orders.maxActions) return;
+      }
+    }
+  }
+
   private schedulePower(kind: string, target: Vec2): void {
     const def = this.catalog.powers[kind]!;
     if (def.type === 'strafe') {
@@ -705,6 +827,7 @@ export class Engine {
           if (inShape(shape, center.x, center.y)) {
             if (this.grid.damageWall(cell, wallDamage)) {
               this.stats.wallsLost++;
+              this.lastBreachCell = cell;
               events.push({ type: 'wallDestroyed', cell });
             }
           }
@@ -989,6 +1112,7 @@ export class Engine {
           attacker.state = 'breaking';
           if (this.grid.damageWall(targetCell, attacker.profile.wallDps * this.atkDamageMult * DT)) {
             this.stats.wallsLost++;
+            this.lastBreachCell = targetCell;
             events.push({ type: 'wallDestroyed', cell: targetCell });
           }
           break;

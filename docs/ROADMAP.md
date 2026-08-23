@@ -233,7 +233,17 @@ replaying cleared missions.
       +13 points of tier-3 clears; the Engineer Corps HQ aura turns the MID L4
       assault from a 60% hold into 100%.*
 - [ ] Air layer: air units + AA emplacements
-- [ ] Offline defense doctrines (preset CP-spending AI for offline sieges)
+- [x] Offline defense doctrines — STANDING ORDERS (preset CP-spending policy) *(v0.8)*
+      — *SimConfig.standingOrders: a defender CP policy the engine executes during
+      combat, so offline probes fight back with the Command Points their kills earn.
+      Three role-keyed presets (HOLDFAST breach guns / COUNTERBATTERY stocked
+      ordnance / TRIPWIRE mines) picked from the town panel and carried in the
+      config, so every defense-log replay re-issues them identically. Handicapped
+      to stay below live play: 1s command cadence, hard per-battle action budget,
+      no corking breaches, supplies upkeep per action, real ordnance consumption.
+      Harness: HOLDFAST rows for all five factions + a three-preset comparison on
+      NK — lifts the NK MID floor L4 20%→100%, still collapses at L6; EARLY bases
+      keep losing to armor no orders can answer.*
 - [ ] Share-code PvP-lite: export base as code, friends raid the snapshot
 - [ ] Leagues, rotating events on the Front Line
 

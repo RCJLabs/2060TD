@@ -1,4 +1,5 @@
 import { campaignFor, type FactionId } from '../content/factions';
+import { isStandingOrdersId } from '../content/standingOrders';
 import { newTown, unlockAll, type TownState } from './town';
 
 /**
@@ -98,6 +99,7 @@ export function deserialize(json: string): TownState | null {
     }
     if (typeof town.intel !== 'number' || !Number.isFinite(town.intel)) town.intel = 0;
     if (!town.research) town.research = { completed: [], active: null };
+    if (!isStandingOrdersId(town.standingOrders)) town.standingOrders = null;
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;

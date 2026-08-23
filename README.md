@@ -17,9 +17,35 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.7: the blue line
+## Current state — v0.8: standing orders
 
-**The UN Coalition is playable** — the fifth and final faction from the GDD,
+**Your base now fights back while you're away.** Offline probe raids used to
+meet the permanent layer alone; now the garrison executes the defense
+doctrine you leave behind:
+
+- **Three presets, one button** (the `ORD` slot in the town panel):
+  **HOLDFAST** guns down breaches with your kill-earned Command Points,
+  **COUNTERBATTERY** spends your *stocked ordnance* on massed attackers with
+  mines in between, **TRIPWIRE** seeds the approach with charges and mans the
+  inner line. All role-keyed — every faction executes the same orders through
+  its own kit.
+- **An honest handicap:** the duty officer works a 1-second command cycle
+  with a hard per-battle action budget, reinforces *around* a breach (corking
+  the hole is a live commander's move), and bills supplies upkeep per action.
+  Ordnance fired offline is gone from your stock, exactly like raid fire
+  support.
+- **Measured, not promised:** the balance snapshot now carries HOLDFAST rows
+  for all five factions — it lifts North Korea's mid-game probe floor from
+  20% to 100% at L4 and still collapses at L6, while EARLY bases keep dying
+  to armor no orders can answer. The full three-preset comparison runs on the
+  NK section.
+- **Fully replayable:** orders ride the battle config like everything else,
+  so every defense-log replay re-issues them tick for tick, and the log names
+  the doctrine that fought.
+
+## v0.7: the blue line
+
+The UN Coalition arrived as the fifth and final faction from the GDD,
 built on a new engine mechanic that powers both sides of its kit:
 
 - **UN COALITION — Operation Blue Line.** Hold the Tacoma evacuation corridor

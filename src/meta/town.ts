@@ -29,6 +29,7 @@ import {
 } from '../content/campaign';
 import { M1_CATALOG } from '../content/catalog';
 import { effectsOf, techPrereq, TECH_BY_ID, type ResearchEffects } from '../content/research';
+import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats } from '../sim/types';
 
@@ -92,6 +93,8 @@ export interface DefenseLogEntry {
   fuelLost: number;
   /** What landed the killing blow on the CC, when breached. */
   killer?: string;
+  /** Standing orders that fought this probe (v0.8). */
+  orders?: string;
   /** Full battle config — every offline probe is replayable. */
   config: SimConfig;
 }
@@ -130,6 +133,8 @@ export interface TownState {
   army: Record<string, number>;
   frontline: FrontlineState;
   defenseLog: DefenseLogEntry[];
+  /** Standing orders in force for offline defenses (v0.8); null = none. */
+  standingOrders: StandingOrdersId | null;
   /** No offline probes before this timestamp (post-breach grace). */
   shieldUntil: number;
   /** The last raid fought, kept for the replay viewer. */
@@ -159,6 +164,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     army: {},
     frontline: { tier: 1, wins: 0, totalWins: 0, pendingCounterattack: false, scouted: [] },
     defenseLog: [],
+    standingOrders: null,
     shieldUntil: 0,
     lastRaid: null,
     assaultLevel: 1,
@@ -706,10 +712,14 @@ export function counterattackConfig(town: TownState, seed: number): SimConfig {
 
 /** Headless battle config for one offline probe raid. */
 export function probeConfig(town: TownState, level: number, seed: number): SimConfig {
-  return battleConfig(town, seed, {
+  const config = battleConfig(town, seed, {
     ...probeAssault(level, enemyRosterFor(town.faction)),
     startingSupplies: 0,
   });
+  // Offline defenses fight under the commander's standing orders (v0.8);
+  // the orders ride the config, so the defense log replays them exactly.
+  const orders = standingOrdersFor(town.standingOrders);
+  return orders ? { ...config, standingOrders: orders } : config;
 }
 
 export interface SiegeOutcome {

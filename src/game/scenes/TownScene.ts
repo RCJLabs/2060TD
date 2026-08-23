@@ -54,6 +54,7 @@ import {
   type SiegeOutcome,
   type TownState,
 } from '../../meta/town';
+import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standingOrders';
 import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
 import { COLORS, css } from '../palette';
 import { makeButton, mono, type Button } from '../ui';
@@ -552,7 +553,8 @@ export class TownScene extends Phaser.Scene {
             y,
             `${when}Z · PROBE LV ${entry.level} — ${entry.held ? 'HELD' : 'BREACHED'}` +
               `${!entry.held && entry.killer ? ` (CC LOST TO ${entry.killer.toUpperCase()})` : ''}` +
-              `\n−${entry.suppliesLost} SUP · −${entry.fuelLost} FUEL`,
+              `\n−${entry.suppliesLost} SUP · −${entry.fuelLost} FUEL` +
+              `${entry.orders ? ` · ORDERS: ${entry.orders.toUpperCase()}` : ''}`,
             mono(12, entry.held ? COLORS.olive : COLORS.alarm, { lineSpacing: 4 }),
           )
           .setDepth(61),
@@ -882,12 +884,12 @@ export class TownScene extends Phaser.Scene {
     );
     y += 24;
 
-    const sixth = (bw - 30) / 6;
-    const slotX = (i: number) => x0 + pad + i * (sixth + 6);
-    this.buttons['export'] = makeButton(this, slotX(0), y, sixth, 20, 'EXP', () =>
+    const seventh = (bw - 36) / 7;
+    const slotX = (i: number) => x0 + pad + i * (seventh + 6);
+    this.buttons['export'] = makeButton(this, slotX(0), y, seventh, 20, 'EXP', () =>
       downloadSave(this.town),
     );
-    this.buttons['import'] = makeButton(this, slotX(1), y, sixth, 20, 'IMP', () => {
+    this.buttons['import'] = makeButton(this, slotX(1), y, seventh, 20, 'IMP', () => {
       void pickAndImportSave().then((imported) => {
         if (imported) {
           this.town = imported;
@@ -898,12 +900,15 @@ export class TownScene extends Phaser.Scene {
         }
       });
     });
-    this.buttons['reset'] = makeButton(this, slotX(2), y, sixth, 20, 'RST', () => this.onReset());
-    this.buttons['log'] = makeButton(this, slotX(3), y, sixth, 20, 'LOG', () =>
+    this.buttons['reset'] = makeButton(this, slotX(2), y, seventh, 20, 'RST', () => this.onReset());
+    this.buttons['log'] = makeButton(this, slotX(3), y, seventh, 20, 'LOG', () =>
       this.showDefenseLog(),
     );
-    this.buttons['sfx'] = makeButton(this, slotX(4), y, sixth, 20, '', () => this.toggleSfx());
-    this.buttons['cb'] = makeButton(this, slotX(5), y, sixth, 20, '', () => this.toggleColorblind());
+    this.buttons['orders'] = makeButton(this, slotX(4), y, seventh, 20, '', () =>
+      this.cycleOrders(),
+    );
+    this.buttons['sfx'] = makeButton(this, slotX(5), y, seventh, 20, '', () => this.toggleSfx());
+    this.buttons['cb'] = makeButton(this, slotX(6), y, seventh, 20, '', () => this.toggleColorblind());
     y += 26;
 
     this.bannerText = this.add.text(
@@ -919,6 +924,36 @@ export class TownScene extends Phaser.Scene {
     const settings = loadSettings();
     this.buttons['sfx']?.setLabel(settings.mute ? 'SFX✗' : 'SFX✓');
     this.buttons['cb']?.setLabel(settings.colorblind ? 'CB✓' : 'CB');
+    const orders = this.town.standingOrders;
+    this.buttons['orders']?.setLabel(
+      orders === 'holdfast'
+        ? 'HLD'
+        : orders === 'counterbattery'
+          ? 'CBT'
+          : orders === 'tripwire'
+            ? 'TRP'
+            : 'ORD✗',
+    );
+  }
+
+  /** Standing orders for offline defenses (v0.8): none → the three presets. */
+  private cycleOrders(): void {
+    const cycle: (StandingOrdersId | null)[] = [null, ...STANDING_ORDER_IDS];
+    const index = cycle.indexOf(this.town.standingOrders);
+    const next = cycle[(index + 1) % cycle.length]!;
+    this.town.standingOrders = next;
+    this.saveSoon();
+    this.refreshSettingsButtons();
+    this.setBanner(
+      next === null
+        ? 'STANDING ORDERS RESCINDED — offline defenses fight with the permanent layer only.'
+        : next === 'holdfast'
+          ? 'STANDING ORDERS: HOLDFAST — the garrison guns down breaches with your CP while you are away (supplies upkeep per action).'
+          : next === 'counterbattery'
+            ? 'STANDING ORDERS: COUNTERBATTERY — the garrison spends your STOCKED ORDNANCE on massed attackers, mines in between.'
+            : 'STANDING ORDERS: TRIPWIRE — the garrison seeds mines on the approach and mans the inner line.',
+      9,
+    );
   }
 
   private toggleSfx(): void {

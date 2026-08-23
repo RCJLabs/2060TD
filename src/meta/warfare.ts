@@ -378,6 +378,8 @@ export const PROBE_INTERVAL_MS = 3 * 3_600_000;
 export const PROBE_SHIELD_MS = 12 * 3_600_000;
 export const PROBE_MAX = 3;
 export const DEFENSE_LOG_CAP = 4;
+/** Supplies billed per standing-order action the garrison executes. */
+export const ORDERS_UPKEEP_SUPPLIES = 15;
 
 export function probeLevel(town: TownState): number {
   return Math.max(1, Math.min(town.assaultLevel, town.frontline.tier + 1));
@@ -422,6 +424,16 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
     town.supplies -= suppliesLost;
     town.fuel -= fuelLost;
 
+    // Standing orders spend real stock: ordnance the garrison fired offline
+    // is gone from the shared charges, exactly like raid fire support —
+    // and every executed order bills its supplies upkeep.
+    for (const [kind, stocked] of Object.entries(config.powerCharges ?? {})) {
+      const used = stocked - (engine.powerChargesLeft(kind) ?? stocked);
+      if (used > 0) town.charges[kind] = Math.max(0, (town.charges[kind] ?? 0) - used);
+    }
+    const ordersCost = engine.ordersExecuted * ORDERS_UPKEEP_SUPPLIES;
+    if (ordersCost > 0) town.supplies = Math.max(0, town.supplies - ordersCost);
+
     const entry: DefenseLogEntry = {
       at: town.lastSeen + (i + 1) * PROBE_INTERVAL_MS,
       level,
@@ -429,6 +441,7 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
       suppliesLost,
       fuelLost,
       ...(engine.stats.ccKillerKind ? { killer: engine.stats.ccKillerKind } : {}),
+      ...(config.standingOrders ? { orders: config.standingOrders.id } : {}),
       config,
     };
     town.defenseLog.unshift(entry);

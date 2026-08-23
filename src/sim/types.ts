@@ -245,6 +245,36 @@ export interface AutoPowerRule {
   target: 'cc' | 'guns';
 }
 
+/** Where a standing order acts: the latest wall breach, the command post
+ * approach, or the densest attacker cluster. */
+export type StandingOrderTarget = 'breach' | 'ccApproach' | 'densest';
+
+export interface StandingOrderRule {
+  /** Act only while CP is at or above this reserve. */
+  cpAtLeast: number;
+  /** Deploy a field defense (CP-priced structure kind) or cast a power. */
+  action: 'deploy' | 'power';
+  /** Role kind: 'depmg' | 'foxhole' | 'claymore' … or 'a10' | 'arty'. */
+  kind: string;
+  target: StandingOrderTarget;
+  /** Act only with at least this many hostiles on the field (default 1). */
+  minHostiles?: number;
+  /** Ticks between successful firings of this rule. */
+  cooldownTicks: number;
+}
+
+export interface StandingOrders {
+  /** Preset id, carried for logs and replays. */
+  id: string;
+  /** Evaluated in order on a 1-second command cadence during combat. */
+  rules: StandingOrderRule[];
+  /**
+   * Total actions the garrison may take per battle (the handicap that keeps
+   * an unattended defense below a live commander). Omit for unlimited.
+   */
+  maxActions?: number;
+}
+
 export interface SimConfig {
   width: number;
   height: number;
@@ -265,6 +295,13 @@ export interface SimConfig {
   mods?: { defender?: DefenderMods; attacker?: AttackerMods };
   /** Pre-planned fire missions (hands-off raids). */
   autoPowers?: AutoPowerRule[];
+  /**
+   * Standing orders (v0.8): a defender CP-spending policy the engine
+   * executes during combat — how an unattended base fights back with the
+   * Command Points its kills earn. Config-driven like autoPowers, so
+   * replays of offline defenses re-issue the same orders identically.
+   */
+  standingOrders?: StandingOrders;
   /** Omit for sandbox mode: free placement, manual spawns, no waves. */
   siege?: SiegeDef;
   /** The persistent town, placed free of charge before the battle starts. */

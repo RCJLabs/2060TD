@@ -1,4 +1,4 @@
-# Balance snapshot (v0.7)
+# Balance snapshot (v0.8)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -130,6 +130,13 @@ EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |  100 |  100 |   85 |   20
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 
+DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — HOLDFAST standing orders
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — FORTIFY doctrine
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
@@ -142,6 +149,13 @@ STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |   90 |   50 |   25 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   50
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
@@ -158,6 +172,13 @@ EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   65
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 
+DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
@@ -170,6 +191,27 @@ STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |   80 |   20 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |   80 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — COUNTERBATTERY standing orders
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |   90 |   25 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — TRIPWIRE standing orders
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |   95 |  100 |   20 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
@@ -186,6 +228,13 @@ EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |  100 |   60 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 
+DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — HOLDFAST standing orders
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   95
+LATE (CC3)  |  100 |  100 |  100 |  100 |   45 |   45
+
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — Engineer Corps HQ on the line
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
@@ -201,7 +250,7 @@ MID (CC2)   |  100 |  100 |  100 |   95 |   25 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 ```
 
-## Reading the tables (v0.7 pass)
+## Reading the tables (v0.8 pass)
 
 - **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.
   USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;
@@ -243,6 +292,14 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
   line will stand at standoff range and shell the CC; every breach approach must be inside
   some AT post's arc or that tank ends the siege. The reference base was fixed to overlap
   its arcs, which is also the in-game lesson for players.
+- **Standing orders (v0.8) are the offline defense doctrines**: the HOLDFAST rows show
+  the probe floor when the garrison spends kill-earned CP by policy (a 1-second command
+  cadence and a hard per-battle action budget are the handicap; breach-reactive field
+  guns are the payoff). HOLDFAST lifts chokepointed MID layouts two to three ladder
+  levels and still collapses when outmassed (NK MID L6 stays 0%); COUNTERBATTERY burns
+  the real ordnance stock and TRIPWIRE is the budget option — the NK section compares
+  all three. Orders cost supplies upkeep per action and every probe replay re-issues
+  them from the config.
 - **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before
   anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+
   (everything kills sentry nests).
