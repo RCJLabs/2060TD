@@ -62,6 +62,8 @@ try {
   await shoot('demo=raid&faction=china', 3000, 'raid-china.png'); // PLA raids a US firebase
   await shoot('demo=1&faction=russia', 9000, 'demo-russia.png'); // Iron Corridor battle
   await shoot('demo=raid&faction=russia', 3000, 'raid-russia.png'); // RU raids a US firebase
+  await shoot('demo=1&faction=nk', 9000, 'demo-nk.png'); // Silent Tunnels battle
+  await shoot('demo=raid&faction=nk', 3000, 'raid-nk.png'); // KPA raid with a sited gallery
 
   await browser.close();
 
@@ -70,7 +72,7 @@ try {
     for (const err of errors) console.error(`  ${err}`);
     process.exitCode = 1;
   } else {
-    console.log('OK: demo/town/raid + china variants written, no page errors.');
+    console.log('OK: demo/town/raid + faction variants written, no page errors.');
   }
 } finally {
   process.kill(-vite.pid, 'SIGTERM');

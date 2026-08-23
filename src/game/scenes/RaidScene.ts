@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MAP_H, MAP_W, TARGETS_PER_TIER, type GeneratedBase } from '../../content/bases';
 import {
+  canTunnel,
   flavorFor,
   raidCatalogFor,
   trainableFor,
@@ -32,7 +33,10 @@ import {
   scoutTarget,
   sectorCells,
   targetFor,
+  tunnelFuelCost,
+  tunnelSiteValid,
   SECTOR_IDS,
+  TUNNEL_DIG_TICKS,
   type RaidResolution,
   type SectorId,
   type SquadPlan,
@@ -69,6 +73,10 @@ export class RaidScene extends Phaser.Scene {
   private lastConfig: ReturnType<typeof raidConfig> | null = null;
   /** Per-power fire plan: timing index into FIRE_TIMES + target class. */
   private firePlans: Record<string, { timeIndex: number; target: 'guns' | 'cc' }> = {};
+  /** Tunnel siting mode: the selected squad awaits a map click for its mouth. */
+  private siting = false;
+  private hintUntil = 0;
+  private hintText!: Phaser.GameObjects.Text;
 
   private baseLayer!: Phaser.GameObjects.Graphics;
   private dynLayer!: Phaser.GameObjects.Graphics;
@@ -92,13 +100,15 @@ export class RaidScene extends Phaser.Scene {
       const pick = params.get('faction');
       this.town = makeRaidShowcase(
         Date.now(),
-        pick === 'china' || pick === 'russia' ? pick : 'usa',
+        pick === 'china' || pick === 'russia' || pick === 'nk' ? pick : 'usa',
       );
     }
     this.variant = 0;
     this.selectedSquad = 0;
     this.result = null;
     this.lastConfig = null;
+    this.siting = false;
+    this.hintUntil = 0;
     this.squads = [
       { units: {}, sector: 'W1', doctrine: 'assault' },
       { units: {}, sector: 'N1', doctrine: 'hunt' },
@@ -131,6 +141,26 @@ export class RaidScene extends Phaser.Scene {
       .text(GRID_PX_W / 2, 6, '', mono(11, COLORS.inkDim))
       .setOrigin(0.5, 0)
       .setDepth(5);
+    this.hintText = this.add
+      .text(GRID_PX_W / 2, 26, '', mono(12, COLORS.signal, { fontStyle: 'bold' }))
+      .setOrigin(0.5, 0)
+      .setDepth(6);
+
+    // Tunnel siting: a map click places the selected squad's gallery head.
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.x >= GRID_PX_W || this.result) return;
+      const squad = this.squads[this.selectedSquad]!;
+      if (!this.siting && squad.tunnel === undefined) return;
+      if (!this.scouted()) return;
+      const cell =
+        Math.floor(pointer.y / CELL) * MAP_W + Math.floor(pointer.x / CELL);
+      if (tunnelSiteValid(this.base, cell)) {
+        squad.tunnel = cell;
+        this.siting = false;
+      } else {
+        this.hint('NO DIG — off limits or too close to the command post');
+      }
+    });
 
     // Sector markers around the map edge.
     for (const id of SECTOR_IDS) {
@@ -145,6 +175,19 @@ export class RaidScene extends Phaser.Scene {
           .setOrigin(0.5)
           .setDepth(6),
       );
+    }
+
+    // Demo raids for tunnel factions show a sited gallery out of the box.
+    if (this.demoMode && this.canUseTunnel() && this.squads[1]!.tunnel === undefined) {
+      const ccCol = this.base.ccOrigin % MAP_W;
+      const ccRow = Math.floor(this.base.ccOrigin / MAP_W);
+      for (const [dc, dr] of [[5, 0], [-5, 0], [0, -5], [0, 5]] as const) {
+        const cell = (ccRow + dr) * MAP_W + (ccCol + dc);
+        if (tunnelSiteValid(this.base, cell)) {
+          this.squads[1]!.tunnel = cell;
+          break;
+        }
+      }
     }
 
     this.buildPanel();
@@ -177,8 +220,21 @@ export class RaidScene extends Phaser.Scene {
   private cycleTarget(): void {
     this.variant = (this.variant + 1) % TARGETS_PER_TIER;
     this.base = targetFor(this.town, this.variant);
+    // Galleries are surveyed per target: a new base voids every mouth.
+    for (const squad of this.squads) delete squad.tunnel;
+    this.siting = false;
     this.clearResult();
     this.redrawBase();
+  }
+
+  private hint(message: string): void {
+    this.hintText.setText(message);
+    this.hintUntil = Date.now() + 2200;
+  }
+
+  /** Tunnel insertion needs the doctrine (NK) and a scouted layout to dig to. */
+  private canUseTunnel(): boolean {
+    return canTunnel(this.town.faction) && this.scouted();
   }
 
   private scout(): void {
@@ -236,7 +292,20 @@ export class RaidScene extends Phaser.Scene {
 
   private cycleSector(): void {
     const squad = this.squads[this.selectedSquad]!;
-    squad.sector = SECTOR_IDS[(SECTOR_IDS.indexOf(squad.sector) + 1) % SECTOR_IDS.length] as SectorId;
+    // Tunnel mode sits at the end of the sector cycle for tunnel factions.
+    if (this.siting || squad.tunnel !== undefined) {
+      delete squad.tunnel;
+      this.siting = false;
+      squad.sector = SECTOR_IDS[0]!;
+      return;
+    }
+    const index = SECTOR_IDS.indexOf(squad.sector);
+    if (index === SECTOR_IDS.length - 1 && this.canUseTunnel()) {
+      this.siting = true;
+      this.hint('TUNNEL — click the map to site the gallery head');
+      return;
+    }
+    squad.sector = SECTOR_IDS[(index + 1) % SECTOR_IDS.length] as SectorId;
   }
 
   private cycleDoctrine(): void {
@@ -279,6 +348,7 @@ export class RaidScene extends Phaser.Scene {
     if (this.result || planUnitCount(this.squads) === 0) return;
     if (this.town.frontline.pendingCounterattack) return;
     const squads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
+    if (this.town.fuel < tunnelFuelCost(squads)) return;
     const fx = researchEffects(this.town);
     const config = raidConfig(this.base, squads, Date.now() >>> 0, this.trainable, {
       ...(fx.unitHp !== 1 || fx.unitDamage !== 1
@@ -399,6 +469,7 @@ export class RaidScene extends Phaser.Scene {
       const index = i;
       this.buttons[`squad_${i}`] = makeButton(this, x0 + pad, y, bw, 22, '', () => {
         this.selectedSquad = index;
+        this.siting = false;
         this.refreshSquadButtons();
       });
       y += 25;
@@ -516,12 +587,20 @@ export class RaidScene extends Phaser.Scene {
         .filter((m) => (squad.units[m.kind] ?? 0) > 0)
         .map((m) => `${squad.units[m.kind]}${m.short.charAt(0)}`)
         .join(' ');
+      const entryLabel = squad.tunnel !== undefined ? 'TUN' : squad.sector;
+      const delay = i * 6 + (squad.tunnel !== undefined ? TUNNEL_DIG_TICKS / 20 : 0);
       this.buttons[`squad_${i}`]?.setLabel(
-        `SQD${i + 1} ${squad.sector} · ${DOCTRINE_LABEL[squad.doctrine]} · ${count ? composition : 'EMPTY'} · T+${i * 6}s`,
+        `SQD${i + 1} ${entryLabel} · ${DOCTRINE_LABEL[squad.doctrine]} · ${count ? composition : 'EMPTY'} · T+${delay}s`,
       );
     });
     const squad = this.squads[this.selectedSquad]!;
-    this.buttons['sector']?.setLabel(`SECTOR: ${squad.sector} ▸`);
+    this.buttons['sector']?.setLabel(
+      squad.tunnel !== undefined
+        ? `ENTRY: TUNNEL ${squad.tunnel % MAP_W},${Math.floor(squad.tunnel / MAP_W)} ▸`
+        : this.siting
+          ? 'ENTRY: TUNNEL — CLICK MAP ▸'
+          : `SECTOR: ${squad.sector} ▸`,
+    );
     this.buttons['doctrine']?.setLabel(`DOCTRINE: ${DOCTRINE_LABEL[squad.doctrine]} ▸`);
     for (const meta of this.trainable) {
       this.buttons[`add_${meta.kind}`]?.setEnabled(this.available(meta.kind) > 0 && !this.result);
@@ -545,22 +624,47 @@ export class RaidScene extends Phaser.Scene {
     }
 
     const total = planUnitCount(this.squads);
+    const activeSquads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
+    const galleryFuel = tunnelFuelCost(activeSquads);
     if (town.frontline.pendingCounterattack) {
       this.buttons['launch']?.setLabel('COUNTERATTACK INBOUND — GO DEFEND');
       this.buttons['launch']?.setEnabled(false);
+    } else if (galleryFuel > 0 && town.fuel < galleryFuel) {
+      this.buttons['launch']?.setLabel(`GALLERIES NEED ${galleryFuel} FUEL — HAVE ${Math.floor(town.fuel)}`);
+      this.buttons['launch']?.setEnabled(false);
     } else {
-      this.buttons['launch']?.setLabel(`LAUNCH RAID — ${total} UNITS [SPACE]`);
+      this.buttons['launch']?.setLabel(
+        `LAUNCH RAID — ${total} UNITS${galleryFuel > 0 ? ` · ${galleryFuel}F` : ''} [SPACE]`,
+      );
       this.buttons['launch']?.setEnabled(total > 0 && !this.result && !this.demoLock());
     }
 
-    // Selected squad's sector highlight.
+    if (this.hintUntil <= now) this.hintText.setText('');
+
+    // Selected squad's entry highlight: sector strip, or the gallery mouths.
     const g = this.dynLayer;
     g.clear();
-    const cells = sectorCells(squad.sector);
-    g.fillStyle(COLORS.intel, 0.25);
-    for (const { col, row } of cells) {
-      g.fillRect(col * CELL + 1, row * CELL + 1, CELL - 2, CELL - 2);
+    if (squad.tunnel === undefined && !this.siting) {
+      const cells = sectorCells(squad.sector);
+      g.fillStyle(COLORS.intel, 0.25);
+      for (const { col, row } of cells) {
+        g.fillRect(col * CELL + 1, row * CELL + 1, CELL - 2, CELL - 2);
+      }
     }
+    this.squads.forEach((sq, i) => {
+      if (sq.tunnel === undefined) return;
+      const mx = ((sq.tunnel % MAP_W) + 0.5) * CELL;
+      const my = (Math.floor(sq.tunnel / MAP_W) + 0.5) * CELL;
+      const selected = i === this.selectedSquad;
+      g.lineStyle(selected ? 3 : 2, COLORS.signal, selected ? 1 : 0.7);
+      g.strokeCircle(mx, my, 11);
+      g.lineBetween(mx - 15, my, mx - 6, my);
+      g.lineBetween(mx + 6, my, mx + 15, my);
+      g.lineBetween(mx, my - 15, mx, my - 6);
+      g.lineBetween(mx, my + 6, mx, my + 15);
+      g.fillStyle(COLORS.signal, selected ? 1 : 0.7);
+      g.fillCircle(mx, my, 3);
+    });
   }
 
   private demoLock(): boolean {
@@ -588,7 +692,9 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
       ? { rifle: 4, sapper: 2, grenadier: 2, zbd: 1, type99: 1 }
       : faction === 'russia'
         ? { motorrifle: 4, demoteam: 2, rpg: 2, btr: 1, t72: 1 }
-        : { ranger: 4, engineer: 2, javelin: 2, humvee: 1, abrams: 1 };
+        : faction === 'nk'
+          ? { nkrifle: 6, infiltrator: 3, tunneler: 2, rpg7: 2, chonma: 1 }
+          : { ranger: 4, engineer: 2, javelin: 2, humvee: 1, abrams: 1 };
   const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
   place(town, 'barracks', idx(20, 5), now - 600_000);
   town.structures.find((s) => s.kind === 'cc')!.level = 2;
@@ -603,7 +709,9 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
         ? ['rifle', 'grenadier']
         : faction === 'russia'
           ? ['motorrifle', 'rpg']
-          : ['ranger', 'javelin'];
+          : faction === 'nk'
+            ? ['nkrifle', 'rpg7']
+            : ['ranger', 'javelin'];
     barracks.trainEndsAt = now + 9_000;
   }
   town.charges = { a10: 2, arty: 1 };

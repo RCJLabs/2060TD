@@ -64,6 +64,7 @@ const UNLOCK_MISSION: Record<FactionId, Record<string, number>> = {
   usa: {},
   china: {},
   russia: {},
+  nk: {},
 };
 for (const faction of FACTION_IDS) {
   for (const mission of campaignFor(faction)) {
@@ -586,7 +587,7 @@ export class TownScene extends Phaser.Scene {
             'American mainland and UN forces worldwide. The fiction depicts',
             'militaries and machines, not peoples.',
             '',
-            'Two commands are hiring. Pick your war:',
+            'Four commands are hiring. Pick your war:',
           ].join('\n'),
           mono(14, COLORS.ink, { lineSpacing: 7, align: 'center' }),
         )

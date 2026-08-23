@@ -1,4 +1,4 @@
-# Balance snapshot (v0.3)
+# Balance snapshot (v0.6)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -60,6 +60,42 @@ TIER | CLEAR% | DESTR% | MP LOST%
    4 |     13 |     34 |       94
    5 |     15 |     32 |       96
 
+RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     73 |       58
+   2 |     68 |     48 |       83
+   3 |     33 |     48 |       94
+   4 |      7 |     18 |       98
+   5 |      0 |     22 |      100
+
+RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line — hunt + raze squads TUNNELED
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     81 |       46
+   2 |     98 |     70 |       51
+   3 |     33 |     45 |       94
+   4 |     35 |     36 |       89
+   5 |      0 |     27 |      100
+
+RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line — TUNNELED + STRIKE doctrine + fire plan
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     81 |       32
+   2 |    100 |     72 |       46
+   3 |     33 |     49 |       94
+   4 |     52 |     45 |       83
+   5 |     32 |     38 |       98
+
+RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line — STRIKE doctrine + fire plan
+TIER | CLEAR% | DESTR% | MP LOST%
+-----+--------+--------+---------
+   1 |    100 |     76 |       38
+   2 |     93 |     68 |       67
+   3 |     47 |     57 |       91
+   4 |     22 |     25 |       93
+   5 |      0 |     32 |      100
+
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 ------------+------+------+------+------+------+------
@@ -101,15 +137,40 @@ STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
 EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   85
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%)
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |   80 |   20 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+
+DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
+------------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |   95 |   20 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
 ```
 
-## Reading the tables (v0.5 pass)
+## Reading the tables (v0.6 pass)
 
 - **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.
   USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;
   China (mass) grinds tiers 2–3 with cheap replacements, then needs the late-game army:
   a 33-manpower PLA force with doubled armor clears tier 4–5 at ~70% (verified headlessly).
   Steeper curve + cheaper bodies is the intended faction texture, not a wall.
+- **North Korea (tunnels) rewrites the entry problem, not the force problem**: the TUNNELED
+  row re-sites squads through galleries inside the wire (the harness probes hunt+raze /
+  raze-only / everything per base, like a player adapting to the scout). Tunnels turn
+  tier 2 from a coin flip into a walkover and roughly quadruple tier-4 clears, but a
+  27-MP force that is outmassed stays outmassed — the late answer stacks galleries with
+  the KN-09 plan. Each gallery costs 40 Fuel, the faction tax.
+- **NK defense floor sits one ladder step below China by design** (MID holds L3 at ~80%,
+  L4 at ~20%): rock barricades and sentry nests are the cheapest line in the war and die
+  like it. The compensators are price (rebuild fast, repair at 25%), the Koksan pit
+  outranging every gun in the game, and the CP battle layer (ambush teams at 20, mines
+  at 12) — the reference measures none of those.
 - **Russia (artillery) progresses through fire preparation**: their bare late-game force
   stalls past tier 3 (43/12/0 at t3–5), but a max-cap army behind a TOS-1A fire plan on
   the guns holds 53/52/42 — shell the batteries first, then walk the armor in. Their
@@ -126,8 +187,10 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
   line will stand at standoff range and shell the CC; every breach approach must be inside
   some AT post's arc or that tank ends the siege. The reference base was fixed to overlap
   its arcs, which is also the in-game lesson for players.
-- **Watch items for v0.5**: the EARLY L2→L3 cliff on both sides (armor arrives before
-  anti-armor requisitions), and China MID vs L5+ (Javelin overwatch).
-- M6 changes behind these numbers: HJ-8 posts trade alpha for cadence (same DPS at 0.5/s),
-  research mods ride inside SimConfig (replay-safe), raid fire support strikes structures
-  and walls on the attacker side, and the MID reference base overlaps its AT arcs.
+- **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before
+  anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+
+  (everything kills sentry nests).
+- M7 changes behind these numbers: tunneled squads surface as one push around the mouth
+  after an 8s dig (reserved cells carry the mouths into replays), the Bulsae matches the
+  HJ-8 trade (46/58/72 at 0.5/s), and the Koksan runs a 4.2s cadence with a 3.5 dead zone
+  in exchange for 10.5–11 reach.

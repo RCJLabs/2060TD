@@ -14,7 +14,15 @@ import {
 import { DAMAGE_MULT } from './damage';
 import { EASTERN_TIDE } from './easternTide';
 import { IRON_CORRIDOR } from './ironCorridor';
+import { NK_ATTACKERS } from './nk';
+import {
+  NK_TOWN_POWERS,
+  NK_TOWN_STRUCTURES,
+  NK_TOWN_WALLS,
+  NK_TRAINABLE,
+} from './nkFaction';
 import { RU_ATTACKERS } from './russia';
+import { SILENT_TUNNELS } from './silentTunnels';
 import {
   RUSSIA_TOWN_POWERS,
   RUSSIA_TOWN_STRUCTURES,
@@ -36,9 +44,9 @@ import { TRAINABLE, USA_UNITS, type TrainMeta } from './usaUnits';
  * your town, and your raids hit bases built from the OTHER side's kit.
  * China and Russia both fight the USA; the USA fights the PLA front.
  */
-export type FactionId = 'usa' | 'china' | 'russia';
+export type FactionId = 'usa' | 'china' | 'russia' | 'nk';
 
-export const FACTION_IDS: FactionId[] = ['usa', 'china', 'russia'];
+export const FACTION_IDS: FactionId[] = ['usa', 'china', 'russia', 'nk'];
 
 /** What the player's town fights with, per faction (attackers = the enemy). */
 const CHINA_DEFENSE_CATALOG: Catalog = {
@@ -54,6 +62,14 @@ const RUSSIA_DEFENSE_CATALOG: Catalog = {
   structures: RUSSIA_TOWN_STRUCTURES,
   walls: RUSSIA_TOWN_WALLS,
   powers: RUSSIA_TOWN_POWERS,
+  damage: DAMAGE_MULT,
+};
+
+const NK_DEFENSE_CATALOG: Catalog = {
+  attackers: USA_UNITS,
+  structures: NK_TOWN_STRUCTURES,
+  walls: NK_TOWN_WALLS,
+  powers: NK_TOWN_POWERS,
   damage: DAMAGE_MULT,
 };
 
@@ -75,16 +91,26 @@ const RUSSIA_RAID_CATALOG: Catalog = {
   damage: DAMAGE_MULT,
 };
 
+const NK_RAID_CATALOG: Catalog = {
+  attackers: NK_ATTACKERS,
+  structures: { ...USA_STRUCTURES, ...ECONOMY_STRUCTURES },
+  walls: USA_WALLS,
+  powers: NK_TOWN_POWERS,
+  damage: DAMAGE_MULT,
+};
+
 const DEFENSE_CATALOGS: Record<FactionId, Catalog> = {
   usa: M1_CATALOG,
   china: CHINA_DEFENSE_CATALOG,
   russia: RUSSIA_DEFENSE_CATALOG,
+  nk: NK_DEFENSE_CATALOG,
 };
 
 const RAID_CATALOGS: Record<FactionId, Catalog> = {
   usa: RAID_CATALOG,
   china: CHINA_RAID_CATALOG,
   russia: RUSSIA_RAID_CATALOG,
+  nk: NK_RAID_CATALOG,
 };
 
 export function defenseCatalogFor(faction: FactionId): Catalog {
@@ -109,6 +135,7 @@ const CAMPAIGNS: Record<FactionId, MissionDef[]> = {
   usa: CAMPAIGN,
   china: EASTERN_TIDE,
   russia: IRON_CORRIDOR,
+  nk: SILENT_TUNNELS,
 };
 
 export function campaignFor(faction: FactionId): MissionDef[] {
@@ -119,6 +146,7 @@ const TRAINABLES: Record<FactionId, TrainMeta[]> = {
   usa: TRAINABLE,
   china: CHINA_TRAINABLE,
   russia: RUSSIA_TRAINABLE,
+  nk: NK_TRAINABLE,
 };
 
 export function trainableFor(faction: FactionId): TrainMeta[] {
@@ -129,6 +157,7 @@ const TRAIN_META_BY_FACTION: Record<FactionId, Record<string, TrainMeta>> = {
   usa: Object.fromEntries(TRAINABLE.map((t) => [t.kind, t])),
   china: Object.fromEntries(CHINA_TRAINABLE.map((t) => [t.kind, t])),
   russia: Object.fromEntries(RUSSIA_TRAINABLE.map((t) => [t.kind, t])),
+  nk: Object.fromEntries(NK_TRAINABLE.map((t) => [t.kind, t])),
 };
 
 export function trainMetaFor(faction: FactionId): Record<string, TrainMeta> {
@@ -162,10 +191,23 @@ const overbuilt = (meta: TownBuildingMeta): TownBuildingMeta => ({
   })),
 });
 
+/** Expendable (NK): nothing is precious — town builds cost ~10% less and go
+ * up ~15% faster. The kit's low HP is the price; tunnels are the payoff. */
+const EXPENDABLE_COST = (v: number): number => (v === 0 ? 0 : Math.max(5, Math.round((v * 0.9) / 5) * 5));
+const expendable = (meta: TownBuildingMeta): TownBuildingMeta => ({
+  ...meta,
+  levels: meta.levels.map((level) => ({
+    supplies: EXPENDABLE_COST(level.supplies),
+    fuel: EXPENDABLE_COST(level.fuel),
+    seconds: Math.round(level.seconds * 0.85),
+  })),
+});
+
 const TOWN_METAS: Record<FactionId, Record<string, TownBuildingMeta>> = {
   usa: TOWN_META,
   china: renameMeta(CHINA_TOWN_STRUCTURES),
   russia: renameMeta(RUSSIA_TOWN_STRUCTURES, overbuilt),
+  nk: renameMeta(NK_TOWN_STRUCTURES, expendable),
 };
 
 export function townMetaFor(faction: FactionId): Record<string, TownBuildingMeta> {
@@ -173,9 +215,16 @@ export function townMetaFor(faction: FactionId): Record<string, TownBuildingMeta
 }
 
 /** Fraction of cumulative cost charged to repair a wreck. Russia's concrete
- * is cheap to trust and dear to rebuild. */
+ * is cheap to trust and dear to rebuild; nothing the KPA loses was dear. */
 export function wreckRepairFractionFor(faction: FactionId): number {
-  return faction === 'russia' ? 0.42 : 0.3;
+  if (faction === 'russia') return 0.42;
+  if (faction === 'nk') return 0.25;
+  return 0.3;
+}
+
+/** Tunnel insertion on raids is KPA doctrine — nobody else digs. */
+export function canTunnel(faction: FactionId): boolean {
+  return faction === 'nk';
 }
 
 // ---- flavor: the strings that make the same screens read as different wars ------
@@ -231,6 +280,17 @@ const FLAVOR: Record<FactionId, FactionFlavor> = {
       'You hold the Nome railhead: the Alaskan end of the ice-road\ncorridor. Builds run slow and heavy here. Hold the concrete.',
     heldLine: 'The concrete held. The corridor stays open.',
     brokeLine: 'The line broke. The trains stop somewhere colder tonight.',
+  },
+  nk: {
+    faction: 'KOREAN PEOPLE\'S ARMY',
+    operation: 'OPERATION SILENT TUNNELS — HUMBOLDT ENCLAVE',
+    base: 'ENCLAVE BASE — HUMBOLDT BAY',
+    enemy: 'US ARMY',
+    pitch: 'Cheap guns, long artillery, deep holes. Raid through tunnels, not gates.',
+    situation:
+      'You hold the Humboldt Bay enclave: a sealift harbor dug into\nthe redwood coast. Everything is cheap and buried. Hold the ground.',
+    heldLine: 'The ground held. The enclave stays on the map.',
+    brokeLine: 'The line broke. What is left is going underground.',
   },
 };
 

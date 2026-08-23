@@ -5,6 +5,8 @@ North Korea, China, and Russia attack America and the United Nations. Pick a nat
 town is the battlefield — the walls that protect your economy are the maze your enemies
 fight through.
 
+**Play it now:** https://rcjlabs.github.io/2060TD/
+
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
 - **Offense is the thinking game:** scout, compose a force, assign entry points and
@@ -15,9 +17,36 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.5: the northern front
+## Current state — v0.6: the war underground
 
-**Russia is playable** — the third faction, and the first shipped as a pure content
+**North Korea is playable** — the fourth faction, and the first to change how
+offense itself works:
+
+- **KOREAN PEOPLE'S ARMY — Operation Silent Tunnels.** Hold the Humboldt Bay
+  enclave, a sealift harbor dug into the redwood coast, through six missions
+  against the US counteroffensive — the finale turns your own doctrine against
+  you, with Rangers surfacing from captured galleries inside your wire.
+- **Tunnel insertion**, the faction signature: on the Front Line, any squad can
+  swap its entry sector for a **gallery head you site on the scouted map**
+  (click to dig). The squad surfaces inside the enemy wire as one push after an
+  8-second dig — walls, gates, and the whole maze bypassed — for 40 Fuel per
+  gallery. Mouths are drawn in the replay; validation keeps them off walls and
+  at least 4 cells from the command post.
+- **EXPENDABLE**, the base-building identity: the cheapest kit in the war —
+  builds cost ~10% less and finish ~15% faster, wreck repairs run 25% of cost,
+  ambush teams at 20 CP and directional mines at 12 — but rock barricades carry
+  145 HP, the Tunnel Complex HQ is the softest command post in the game, and
+  the permanent-layer floor sits one ladder step below everyone else's.
+- **The Koksan gun pit** outranges every emplacement in the game (10.5–11
+  cells, with a real 3.5-cell dead zone up close), and the power roles are
+  saturation rocketry: an MRL fire lane and the wide-scatter KN-09 salvo.
+- The balance harness measures the thesis: tunnels turn tier-2 raids from a
+  coin flip into a walkover and quintuple tier-4 clears; tunnels plus a KN-09
+  fire plan open tier 5 entirely (0% → 32% with the fixed reference force).
+
+## v0.5: the northern front
+
+Russia arrived as the third faction, and the first shipped as a pure content
 drop on the role pipeline (no plumbing changes):
 
 - **RUSSIAN GROUND FORCES — Operation Iron Corridor.** Hold the Nome railhead, the
@@ -134,7 +163,7 @@ npm install
 npm run dev        # the game (faction pick → town → missions/raids loop)
                    # ?playground=1 sandbox maze lab · ?demo=1 scripted battle
                    # ?demo=town showcase base · ?demo=raid Front Line planner
-                   # add &faction=china to demos for the Eastern Tide side
+                   # add &faction=china|russia|nk to demos for the other wars
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md)

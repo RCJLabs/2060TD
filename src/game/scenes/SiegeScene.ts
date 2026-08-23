@@ -82,7 +82,9 @@ export class SiegeScene extends Phaser.Scene {
     const urlFaction = new URLSearchParams(window.location.search).get('faction');
     this.faction =
       data?.faction ??
-      (urlFaction === 'china' || urlFaction === 'russia' ? urlFaction : 'usa');
+      (urlFaction === 'china' || urlFaction === 'russia' || urlFaction === 'nk'
+        ? urlFaction
+        : 'usa');
     this.paused = false;
   }
 
@@ -111,7 +113,12 @@ export class SiegeScene extends Phaser.Scene {
         ? HOLD_THE_LINE
         : {
             ...missionSiege(campaignFor(this.faction)[4]!, 'standard'),
-            name: this.faction === 'china' ? 'HOLD THE SAND (SANDBOX)' : 'HOLD THE CONCRETE (SANDBOX)',
+            name:
+              this.faction === 'china'
+                ? 'HOLD THE SAND (SANDBOX)'
+                : this.faction === 'nk'
+                  ? 'HOLD THE GROUND (SANDBOX)'
+                  : 'HOLD THE CONCRETE (SANDBOX)',
             startingSupplies: HOLD_THE_LINE.startingSupplies,
           };
     const config: SimConfig = this.launchConfig ?? {

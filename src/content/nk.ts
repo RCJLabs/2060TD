@@ -1,11 +1,27 @@
 import type { AttackerProfile } from '../sim/types';
 
 /**
- * North Korea — Asymmetric & Tunnels (GDD §4.4). The M3 campaign teaser:
- * infiltrators surface from tunnel mouths INSIDE the perimeter during the
- * INFILTRATION mission. The full faction arrives at M7.
+ * North Korea — Asymmetric & Tunnels (GDD §4.4). Two lives:
+ * - the M3 campaign teaser: infiltrators surface from tunnel mouths INSIDE
+ *   the perimeter during the INFILTRATION mission, and
+ * - from v0.6, the playable faction's raid army: the cheapest bodies in the
+ *   war, weak head-on, built to arrive where the walls aren't — raid squads
+ *   can insert through tunnels and surface inside the enemy base.
+ *
+ * All numbers ride the balance harness (docs/BALANCE.md).
  */
 export const NK_ATTACKERS: Record<string, AttackerProfile> = {
+  nkrifle: {
+    kind: 'nkrifle',
+    name: 'Light Infantry Squad',
+    maxHp: 70,
+    speed: 2.3,
+    armor: 'none',
+    wallDps: 4,
+    hqDps: 12,
+    cpValue: 2,
+    speedJitter: 0.07,
+  },
   infiltrator: {
     kind: 'infiltrator',
     name: 'NK Infiltrator',
@@ -16,5 +32,40 @@ export const NK_ATTACKERS: Record<string, AttackerProfile> = {
     hqDps: 16,
     cpValue: 4,
     speedJitter: 0.08,
+  },
+  tunneler: {
+    kind: 'tunneler',
+    name: 'Tunnel Sapper Team',
+    maxHp: 80,
+    speed: 2.1,
+    armor: 'none',
+    wallDps: 70,
+    hqDps: 11,
+    cpValue: 4,
+    speedJitter: 0.06,
+  },
+  rpg7: {
+    kind: 'rpg7',
+    name: 'RPG-7 Team',
+    maxHp: 70,
+    speed: 2.0,
+    armor: 'none',
+    wallDps: 4,
+    hqDps: 9,
+    cpValue: 3,
+    weapon: { damageType: 'shaped', damage: 40, shotsPerSecond: 0.45, range: 3.8 },
+    speedJitter: 0.06,
+  },
+  chonma: {
+    kind: 'chonma',
+    name: 'Chonma-ho MBT',
+    maxHp: 460,
+    speed: 1.6,
+    armor: 'heavy',
+    wallDps: 22,
+    hqDps: 20,
+    cpValue: 9,
+    weapon: { damageType: 'kinetic', damage: 30, shotsPerSecond: 0.5, range: 3.4 },
+    speedJitter: 0.05,
   },
 };

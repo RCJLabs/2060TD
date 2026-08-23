@@ -201,7 +201,21 @@ replaying cleared missions.
       conscripts, motor rifles, UR demo teams (80 wall dps), RPG-29s, BTR-82A, T-72B3.
       Balance identity verified in the harness: Russia's late game runs through the
       fire plan — shell the guns with thermobarics, then walk the armor in.*
-- [ ] North Korea faction + "Silent Tunnels" arc (tunnel network bypassing mazes)
+- [x] North Korea faction + "Silent Tunnels" arc (tunnel network bypassing mazes) *(v0.6)*
+      — *fourth playable faction, and the first with an offense-side mechanic: raid
+      squads can insert through TUNNELS, surfacing as one push inside the enemy wire
+      after an 8s dig (40 Fuel per gallery, mouths ride SimConfig.reservedCells so
+      replays re-dig them, siting validated against margins/walls/a 4-cell CC
+      standoff). Kit is EXPENDABLE: cheapest everything (builds −10% cost, −15%
+      time, wrecks restore at 25%), softest CC (1350), rock barricades at 145 hp —
+      paid back by the Koksan gun pit outranging every emplacement in the game
+      (10.5–11 reach, 3.5 dead zone) and saturation rocketry (MRL fire lane, KN-09
+      salvo). Six-mission SILENT TUNNELS arc holds the Humboldt Bay enclave
+      (CHOLLIMA / ENCLAVE ACTUAL voice); the finale turns the mechanic on the
+      player — US Rangers surface from captured galleries inside the wire. Raid
+      army: light infantry, infiltrators, tunnel sappers (70 wall dps), RPG-7s,
+      Chonma-ho. Harness identity: tunnels turn tier 2 into a walkover and 5× the
+      tier-4 clears; tunnels + KN-09 plan opens tier 5 (0% → 32%).*
 - [ ] UN Coalition faction + "Blue Line" arc (Mandate system, engineering)
 - [ ] Air layer: air units + AA emplacements
 - [ ] Offline defense doctrines (preset CP-spending AI for offline sieges)

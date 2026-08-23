@@ -12,7 +12,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { buildAssault } from '../content/assaults';
-import { generateBase } from '../content/bases';
+import { generateBase, MAP_W, type GeneratedBase } from '../content/bases';
 import {
   baseKitFor,
   defenseCatalogFor,
@@ -23,7 +23,13 @@ import {
   FACTION_IDS,
   type FactionId,
 } from '../content/factions';
-import { raidConfig, resolveRaid, type RaidSupport, type SquadPlan } from '../meta/warfare';
+import {
+  raidConfig,
+  resolveRaid,
+  tunnelSiteValid,
+  type RaidSupport,
+  type SquadPlan,
+} from '../meta/warfare';
 import { Engine } from '../sim/engine';
 import type {
   CellIndex,
@@ -60,7 +66,60 @@ const RAID_PLANS: Record<FactionId, SquadPlan[]> = {
     { units: { rpg: 2, demoteam: 1 }, sector: 'N1', doctrine: 'hunt' },
     { units: { conscript: 3, motorrifle: 2, demoteam: 1 }, sector: 'S1', doctrine: 'raze' },
   ],
+  nk: [
+    { units: { chonma: 1, nkrifle: 3 }, sector: 'W1', doctrine: 'assault' },
+    { units: { rpg7: 2, tunneler: 2 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { infiltrator: 4, nkrifle: 5, tunneler: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
 };
+
+/** Deterministic gallery head for a base: the first valid site among fixed
+ * offsets from the command post, east side first (behind most wall lines). */
+function nkTunnelCell(base: GeneratedBase): number | undefined {
+  const ccCol = base.ccOrigin % MAP_W;
+  const ccRow = Math.floor(base.ccOrigin / MAP_W);
+  const candidates: [number, number][] = [
+    [5, 0], [-5, 0], [0, -5], [0, 5], [5, 3], [-5, -3], [6, 0], [-6, 0],
+  ];
+  for (const [dc, dr] of candidates) {
+    const cell = (ccRow + dr) * MAP_W + (ccCol + dc);
+    if (tunnelSiteValid(base, cell)) return cell;
+  }
+  return undefined;
+}
+
+/** Which squads go underground: hunt+raze, raze alone, or the whole raid. */
+const TUNNEL_POLICIES: number[][] = [[1, 2], [2], [0, 1, 2]];
+
+/**
+ * A tunnel plan the way a player would pick one: scout the base, try the
+ * sensible options, commit to what works. Five probe seeds (disjoint from
+ * the measurement seeds) score each policy; fixed order + strict improvement
+ * keeps the choice deterministic per base.
+ */
+function tunnelPlanFor(faction: FactionId, base: GeneratedBase, tier: number): SquadPlan[] {
+  const plans = RAID_PLANS[faction];
+  const mouth = nkTunnelCell(base);
+  if (mouth === undefined) return plans;
+  const catalog = raidCatalogFor(faction);
+  const trainable = trainableFor(faction);
+  let best = plans;
+  let bestScore = -1;
+  for (const idxs of TUNNEL_POLICIES) {
+    const candidate = plans.map((p, i) => (idxs.includes(i) ? { ...p, tunnel: mouth } : p));
+    let score = 0;
+    for (let i = 0; i < 5; i++) {
+      const config = raidConfig(base, candidate, seedOf(tier, 99, i), trainable, {});
+      const res = resolveRaid(config, candidate, tier, catalog);
+      score += (res.cleared ? 1000 : 0) + Math.round(res.destructionPct * 100);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+  return best;
+}
 
 function planManpower(faction: FactionId): number {
   const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
@@ -79,10 +138,9 @@ interface RaidRow {
   lossPct: number;
 }
 
-function raidMatrix(faction: FactionId, support?: RaidSupport): RaidRow[] {
+function raidMatrix(faction: FactionId, support?: RaidSupport, tunneled = false): RaidRow[] {
   const catalog = raidCatalogFor(faction);
   const kit = baseKitFor(faction);
-  const squads = RAID_PLANS[faction];
   const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
   const rows: RaidRow[] = [];
 
@@ -94,6 +152,7 @@ function raidMatrix(faction: FactionId, support?: RaidSupport): RaidRow[] {
     let runs = 0;
     for (let variant = 0; variant < VARIANTS; variant++) {
       const base = generateBase(tier, variant, kit);
+      const squads = tunneled ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction];
       for (let i = 0; i < SEEDS; i++) {
         const config = raidConfig(
           base,
@@ -285,6 +344,19 @@ function main(): void {
   const sections: string[] = [];
   for (const faction of FACTION_IDS) {
     sections.push(raidTable(faction, raidMatrix(faction)));
+    if (faction === 'nk') {
+      // The faction thesis: the same force, resurfaced inside the wire.
+      sections.push(
+        raidTable(faction, raidMatrix(faction, undefined, true), ' — hunt + raze squads TUNNELED'),
+      );
+      sections.push(
+        raidTable(
+          faction,
+          raidMatrix(faction, DOCTRINE_SUPPORT, true),
+          ' — TUNNELED + STRIKE doctrine + fire plan',
+        ),
+      );
+    }
     sections.push(
       raidTable(faction, raidMatrix(faction, DOCTRINE_SUPPORT), ' — STRIKE doctrine + fire plan'),
     );
@@ -303,7 +375,7 @@ function main(): void {
 
   if (process.argv.includes('--md')) {
     const md = [
-      '# Balance snapshot (v0.3)',
+      '# Balance snapshot (v0.6)',
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -314,13 +386,24 @@ function main(): void {
       body,
       '```',
       '',
-      '## Reading the tables (v0.5 pass)',
+      '## Reading the tables (v0.6 pass)',
       '',
       '- **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.',
       '  USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;',
       '  China (mass) grinds tiers 2–3 with cheap replacements, then needs the late-game army:',
       '  a 33-manpower PLA force with doubled armor clears tier 4–5 at ~70% (verified headlessly).',
       '  Steeper curve + cheaper bodies is the intended faction texture, not a wall.',
+      '- **North Korea (tunnels) rewrites the entry problem, not the force problem**: the TUNNELED',
+      '  row re-sites squads through galleries inside the wire (the harness probes hunt+raze /',
+      '  raze-only / everything per base, like a player adapting to the scout). Tunnels turn',
+      '  tier 2 from a coin flip into a walkover and roughly quadruple tier-4 clears, but a',
+      '  27-MP force that is outmassed stays outmassed — the late answer stacks galleries with',
+      '  the KN-09 plan. Each gallery costs 40 Fuel, the faction tax.',
+      '- **NK defense floor sits one ladder step below China by design** (MID holds L3 at ~80%,',
+      '  L4 at ~20%): rock barricades and sentry nests are the cheapest line in the war and die',
+      '  like it. The compensators are price (rebuild fast, repair at 25%), the Koksan pit',
+      '  outranging every gun in the game, and the CP battle layer (ambush teams at 20, mines',
+      '  at 12) — the reference measures none of those.',
       '- **Russia (artillery) progresses through fire preparation**: their bare late-game force',
       '  stalls past tier 3 (43/12/0 at t3–5), but a max-cap army behind a TOS-1A fire plan on',
       '  the guns holds 53/52/42 — shell the batteries first, then walk the armor in. Their',
@@ -337,11 +420,13 @@ function main(): void {
       '  line will stand at standoff range and shell the CC; every breach approach must be inside',
       "  some AT post's arc or that tank ends the siege. The reference base was fixed to overlap",
       '  its arcs, which is also the in-game lesson for players.',
-      '- **Watch items for v0.5**: the EARLY L2→L3 cliff on both sides (armor arrives before',
-      '  anti-armor requisitions), and China MID vs L5+ (Javelin overwatch).',
-      '- M6 changes behind these numbers: HJ-8 posts trade alpha for cadence (same DPS at 0.5/s),',
-      '  research mods ride inside SimConfig (replay-safe), raid fire support strikes structures',
-      '  and walls on the attacker side, and the MID reference base overlaps its AT arcs.',
+      '- **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before',
+      '  anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+',
+      '  (everything kills sentry nests).',
+      '- M7 changes behind these numbers: tunneled squads surface as one push around the mouth',
+      '  after an 8s dig (reserved cells carry the mouths into replays), the Bulsae matches the',
+      '  HJ-8 trade (46/58/72 at 0.5/s), and the Koksan runs a 4.2s cadence with a 3.5 dead zone',
+      '  in exchange for 10.5–11 reach.',
       '',
     ].join('\n');
     writeFileSync('docs/BALANCE.md', md);

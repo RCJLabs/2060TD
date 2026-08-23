@@ -303,6 +303,7 @@ export class BattleRenderer {
       case 'rifle':
       case 'ranger':
       case 'motorrifle':
+      case 'nkrifle':
         g.fillStyle(body, 1);
         g.fillCircle(px, py, 7);
         g.lineStyle(1, dark, 1);
@@ -323,6 +324,7 @@ export class BattleRenderer {
         break;
       case 'engineer':
       case 'demoteam':
+      case 'tunneler':
         g.fillStyle(body, 1);
         g.fillPoints(
           [
@@ -339,7 +341,8 @@ export class BattleRenderer {
       // ---- standoff fire teams: arrowheads face their heading ---------------------
       case 'grenadier':
       case 'javelin':
-      case 'rpg': {
+      case 'rpg':
+      case 'rpg7': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
@@ -371,7 +374,8 @@ export class BattleRenderer {
       // ---- main battle tanks: big hulls with turret + barrel -----------------------
       case 'abrams':
       case 'type99':
-      case 't72': {
+      case 't72':
+      case 'chonma': {
         const angle = this.facings.get(attacker.id) ?? 0;
         g.save();
         g.translateCanvas(px, py);
@@ -388,7 +392,8 @@ export class BattleRenderer {
         break;
       }
       case 'infiltrator':
-        g.fillStyle(COLORS.nkSlate, 1);
+        // The M3 cameo keeps its slate tint; in an NK raid they're yours.
+        g.fillStyle(friendly ? body : COLORS.nkSlate, 1);
         g.fillPoints(
           [
             { x: px, y: py - 7 },

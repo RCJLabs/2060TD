@@ -58,9 +58,51 @@ export interface SquadPlan {
   units: Record<string, number>;
   sector: SectorId;
   doctrine: Doctrine;
+  /** Tunnel insertion (NK): surface at this cell instead of entering at the
+   * sector edge. Costs fuel, arrives late (dig time), bypasses the maze. */
+  tunnel?: CellIndex;
 }
 
 export const SQUAD_DELAY_TICKS = 120; // squads launch 6s apart, in order
+
+// ---- tunnel insertion (v0.6, NK doctrine) ----------------------------------------
+
+export const TUNNEL_DIG_TICKS = 160; // 8s: the ground opens after the walkers commit
+export const TUNNEL_FUEL_COST = 40; // per squad: galleries are shored and sealed per raid
+export const TUNNEL_MIN_CC_DIST = 4; // cells from the command post center: off its
+// doorstep, but inside every template's wall ring (compound margin 6-7, star 7-8)
+
+/** Deterministic surfacing ring: mouth first, neighbors, then the radius-2
+ * shoulder — a squad comes up as a platoon, not a file of targets. */
+const TUNNEL_OFFSETS: [number, number][] = [
+  [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1],
+  [2, 0], [-2, 0], [0, 2], [0, -2], [2, 1], [-2, -1], [1, 2], [-1, -2],
+];
+
+export function tunnelCount(squads: SquadPlan[]): number {
+  return squads.filter((s) => s.tunnel !== undefined).length;
+}
+
+export function tunnelFuelCost(squads: SquadPlan[]): number {
+  return tunnelCount(squads) * TUNNEL_FUEL_COST;
+}
+
+/**
+ * Where a gallery may head: inside the map margin, off the wall line, and no
+ * closer than TUNNEL_MIN_CC_DIST to the command post's center — sappers do
+ * not dig into the one building the whole garrison watches.
+ */
+export function tunnelSiteValid(base: GeneratedBase, cell: CellIndex): boolean {
+  const col = cell % MAP_W;
+  const row = Math.floor(cell / MAP_W);
+  if (col < 2 || col > MAP_W - 3 || row < 2 || row > MAP_H - 3) return false;
+  if (base.walls.some((w) => w.cell === cell)) return false;
+  const ccCol = (base.ccOrigin % MAP_W) + 0.5;
+  const ccRow = Math.floor(base.ccOrigin / MAP_W) + 0.5;
+  const dc = col - ccCol;
+  const dr = row - ccRow;
+  return dc * dc + dr * dr >= TUNNEL_MIN_CC_DIST * TUNNEL_MIN_CC_DIST;
+}
 
 export function planUnitCount(squads: SquadPlan[]): number {
   return squads.reduce(
@@ -79,18 +121,32 @@ export function planDeployment(squads: SquadPlan[]): Record<string, number> {
   return deployed;
 }
 
-/** One wave: every squad's units, spread across their sectors, staggered. */
+/** One wave: every squad's units, spread across their sectors, staggered.
+ * Tunneled squads surface around their mouth instead, after the dig delay —
+ * the whole squad comes up inside the wire as one push. */
 export function raidWave(squads: SquadPlan[], trainable: TrainMeta[] = TRAINABLE): WaveDef {
   const entries: WaveEntry[] = [];
   squads.forEach((squad, squadIndex) => {
+    const tunneled = squad.tunnel !== undefined;
     const cells = sectorCells(squad.sector);
-    const baseTick = squadIndex * SQUAD_DELAY_TICKS;
+    const mouthCol = tunneled ? squad.tunnel! % MAP_W : 0;
+    const mouthRow = tunneled ? Math.floor(squad.tunnel! / MAP_W) : 0;
+    const baseTick = squadIndex * SQUAD_DELAY_TICKS + (tunneled ? TUNNEL_DIG_TICKS : 0);
     let unitIndex = 0;
     // Deterministic composition order: the faction's trainable order, then count.
     for (const meta of trainable) {
       const count = squad.units[meta.kind] ?? 0;
       for (let i = 0; i < count; i++) {
-        const spot = cells[(unitIndex * 3) % cells.length]!;
+        let spot: { col: number; row: number };
+        if (tunneled) {
+          const [dc, dr] = TUNNEL_OFFSETS[unitIndex % TUNNEL_OFFSETS.length]!;
+          spot = {
+            col: Math.min(MAP_W - 2, Math.max(1, mouthCol + dc)),
+            row: Math.min(MAP_H - 2, Math.max(1, mouthRow + dr)),
+          };
+        } else {
+          spot = cells[(unitIndex * 3) % cells.length]!;
+        }
         entries.push({
           atTick: baseTick + unitIndex * 4,
           kind: meta.kind,
@@ -123,6 +179,9 @@ export function raidConfig(
 ): SimConfig {
   const mods = support.mods;
   const hasMods = mods && ((mods.hp ?? 1) !== 1 || (mods.damage ?? 1) !== 1);
+  // One reserved cell per tunneled squad, in squad order: the renderer draws
+  // the mouths, replays re-dig them, and applyRaidResult bills them.
+  const mouths = squads.filter((s) => s.tunnel !== undefined).map((s) => s.tunnel!);
   return {
     width: MAP_W,
     height: MAP_H,
@@ -147,6 +206,7 @@ export function raidConfig(
       structures: base.structures.map((s) => ({ ...s })),
     },
     powerCharges: { ...(support.powerCharges ?? {}) },
+    ...(mouths.length > 0 ? { reservedCells: mouths } : {}),
     ...(hasMods ? { mods: { attacker: mods } } : {}),
     ...(support.autoPowers && support.autoPowers.length > 0
       ? { autoPowers: support.autoPowers.map((r) => ({ ...r })) }
@@ -255,6 +315,9 @@ export function applyRaidResult(
   for (const [kind, used] of Object.entries(resolution.powersUsed)) {
     town.charges[kind] = Math.max(0, (town.charges[kind] ?? 0) - used);
   }
+  // Tunnel galleries are dug fresh per raid: fuel per mouth in the config.
+  const mouths = config.reservedCells?.length ?? 0;
+  if (mouths > 0) town.fuel = Math.max(0, town.fuel - mouths * TUNNEL_FUEL_COST);
   town.supplies += resolution.loot.supplies;
   town.fuel += resolution.loot.fuel;
 

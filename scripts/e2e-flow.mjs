@@ -11,7 +11,7 @@ import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const PORT = 5199;
-const FACTION = ['china', 'russia'].includes(process.env.FACTION)
+const FACTION = ['china', 'russia', 'nk'].includes(process.env.FACTION)
   ? process.env.FACTION
   : 'usa';
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
@@ -52,8 +52,8 @@ try {
   await shot('intro');
 
   // Viewport matches the 1280×768 game exactly, so game px == page px.
-  // Faction buttons: 580×42 at cx-290, y = 400 + 74 per row (USA/CHINA/RUSSIA).
-  const factionY = { usa: 421, china: 495, russia: 569 }[FACTION];
+  // Faction buttons: 580×42 at cx-290, y = 400 + 74 per row (USA/CHINA/RUSSIA/NK).
+  const factionY = { usa: 421, china: 495, russia: 569, nk: 643 }[FACTION];
   await page.mouse.click(640, factionY);
   await wait(900);
   await shot('difficulty');
