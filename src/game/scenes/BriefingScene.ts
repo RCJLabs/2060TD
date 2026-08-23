@@ -4,7 +4,8 @@ import { campaignFor, flavorFor, type FactionId } from '../../content/factions';
 import type { SimConfig } from '../../sim/types';
 import { audio } from '../audio';
 import { COLORS } from '../palette';
-import { mono, makeButton } from '../ui';
+import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { Overlay } from '../overlay';
 
 export interface BriefingData {
   mission: MissionDef;
@@ -22,6 +23,8 @@ export class BriefingScene extends Phaser.Scene {
   private revealed = 0;
   private revealTimer = 0;
   private logText!: Phaser.GameObjects.Text;
+  private layout!: Layout;
+  private page: Overlay | null = null;
   private done = false;
 
   constructor() {
@@ -36,52 +39,12 @@ export class BriefingScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { mission } = this.briefing;
-    const width = 1280;
-    const cx = width / 2;
-
-    this.add.rectangle(0, 0, width, 768, COLORS.bgField).setOrigin(0);
-    this.add.rectangle(140, 60, width - 280, 648, COLORS.bgPanel).setOrigin(0);
-    this.add.rectangle(140, 60, width - 280, 2, COLORS.gridLine).setOrigin(0);
-
-    const faction = this.briefing.faction ?? 'usa';
-    this.add
-      .text(
-        cx,
-        92,
-        `MISSION ${mission.index + 1} OF ${campaignFor(faction).length}`,
-        mono(11, COLORS.inkDim),
-      )
-      .setOrigin(0.5, 0);
-    this.add
-      .text(cx, 112, mission.codename, mono(30, COLORS.ink, { fontStyle: 'bold' }))
-      .setOrigin(0.5, 0);
-    this.add
-      .text(cx, 152, flavorFor(faction).operation, mono(10, COLORS.inkDim))
-      .setOrigin(0.5, 0);
-
-    this.add.text(180, 196, 'INCOMING TRANSMISSION', mono(10, COLORS.signal));
-    this.logText = this.add.text(180, 216, '', mono(13, COLORS.ink, { lineSpacing: 8 }));
-
-    this.add.text(180, 470, 'OBJECTIVE', mono(10, COLORS.inkDim));
-    this.add.text(180, 486, mission.objective, mono(13, COLORS.intel));
-    if (mission.bonus) {
-      this.add.text(180, 514, 'BONUS (+50% REWARD)', mono(10, COLORS.inkDim));
-      this.add.text(180, 530, mission.bonus.label, mono(12, COLORS.olive));
-    }
-    this.add.text(
-      180,
-      560,
-      `REWARD: ${mission.reward.supplies} SUPPLIES` +
-        (mission.reward.fuel > 0 ? ` + ${mission.reward.fuel} FUEL` : '') +
-        (mission.unlockNote ? `\nON VICTORY — ${mission.unlockNote}` : ''),
-      mono(11, COLORS.inkDim, { lineSpacing: 5 }),
-    );
-
-    makeButton(this, cx - 240, 636, 220, 34, 'RETURN TO BASE [ESC]', () =>
-      this.scene.start('town', {}),
-    );
-    makeButton(this, cx + 20, 636, 220, 34, 'COMMENCE [SPACE]', () => this.launch());
+    this.layout = layoutOf(this);
+    this.buildPage();
+    onLayoutChange(this, () => {
+      this.layout = layoutOf(this);
+      this.buildPage();
+    });
 
     const kb = this.input.keyboard;
     kb?.on('keydown-SPACE', () => {
@@ -104,6 +67,49 @@ export class BriefingScene extends Phaser.Scene {
       battle: { type: 'mission', missionId: this.briefing.mission.id },
       faction: this.briefing.faction ?? 'usa',
     });
+  }
+
+  /** The briefing page, re-flowed for whatever viewport we are on. */
+  private buildPage(): void {
+    const { mission } = this.briefing;
+    const faction = this.briefing.faction ?? 'usa';
+    this.page?.close();
+    const ov = new Overlay(this, this.layout, {
+      title: mission.codename,
+      subtitle:
+        `MISSION ${mission.index + 1} OF ${campaignFor(faction).length} · ` +
+        flavorFor(faction).operation,
+      scrim: 1,
+    });
+    this.page = ov;
+    const { font, rowH, gap } = this.layout;
+
+    ov.text(ov.flow(Math.round(font.tiny * 1.5), Math.round(gap / 2)), 'INCOMING TRANSMISSION', font.tiny, COLORS.signal);
+    const logRect = ov.flow(Math.round(font.body * 1.9 * mission.briefing.length));
+    this.logText = ov.text(logRect, '', font.body, COLORS.ink, {
+      lineSpacing: Math.round(font.body * 0.6),
+    });
+    this.refreshLog();
+
+    ov.text(ov.flow(Math.round(font.tiny * 1.5), Math.round(gap / 2)), 'OBJECTIVE', font.tiny, COLORS.inkDim);
+    ov.text(ov.flow(Math.round(font.body * 2.4)), mission.objective, font.body, COLORS.intel);
+    if (mission.bonus) {
+      ov.text(ov.flow(Math.round(font.tiny * 1.5), Math.round(gap / 2)), 'BONUS (+50% REWARD)', font.tiny, COLORS.inkDim);
+      ov.text(ov.flow(Math.round(font.body * 1.8)), mission.bonus.label, font.body, COLORS.olive);
+    }
+    ov.text(
+      ov.flow(Math.round(font.tiny * 3.4)),
+      `REWARD: ${mission.reward.supplies} SUPPLIES` +
+        (mission.reward.fuel > 0 ? ` + ${mission.reward.fuel} FUEL` : '') +
+        (mission.unlockNote ? `\nON VICTORY — ${mission.unlockNote}` : ''),
+      font.tiny,
+      COLORS.inkDim,
+      { lineSpacing: Math.round(font.tiny * 0.5) },
+    );
+
+    ov.footer('RETURN TO BASE', () => this.scene.start('town', {}), 0, 2);
+    ov.footer('COMMENCE', () => this.launch(), 1, 2);
+    void rowH;
   }
 
   private refreshLog(): void {

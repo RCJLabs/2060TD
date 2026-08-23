@@ -44,6 +44,7 @@ export class BattleRenderer {
   private readonly scene: Phaser.Scene;
   private readonly engine: Engine;
   private readonly cell: number;
+  private readonly container: Phaser.GameObjects.Container | undefined;
   private readonly hostileStructures: boolean;
   private readonly staticLayer: Phaser.GameObjects.Graphics;
   private readonly dynLayer: Phaser.GameObjects.Graphics;
@@ -53,13 +54,22 @@ export class BattleRenderer {
   /** Last movement heading per attacker id — vehicles keep facing when halted. */
   private readonly facings = new Map<number, number>();
 
-  constructor(scene: Phaser.Scene, engine: Engine, cellPx: number, hostileStructures = false) {
+  constructor(
+    scene: Phaser.Scene,
+    engine: Engine,
+    cellPx: number,
+    hostileStructures = false,
+    /** World container when the scene splits board and HUD across cameras. */
+    container?: Phaser.GameObjects.Container,
+  ) {
     this.scene = scene;
     this.engine = engine;
     this.cell = cellPx;
     this.hostileStructures = hostileStructures;
+    this.container = container;
     this.staticLayer = scene.add.graphics();
     this.dynLayer = scene.add.graphics();
+    container?.add([this.staticLayer, this.dynLayer]);
     this.drawStaticLayer();
   }
 
@@ -88,10 +98,12 @@ export class BattleRenderer {
 
     // Command Center label (the block itself is drawn dynamically for HP shading).
     const cc = this.engine.cc;
-    this.scene.add
+    const label = this.scene.add
       .text(cc.center.x * c, cc.center.y * c, 'CC', mono(13, COLORS.ink, { fontStyle: 'bold' }))
       .setOrigin(0.5)
       .setDepth(5);
+    // Must ride the world layer, or the HUD camera draws a second copy.
+    this.container?.add(label);
   }
 
   // ---- events → transient effects ---------------------------------------------------

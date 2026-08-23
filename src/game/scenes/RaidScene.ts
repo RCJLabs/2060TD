@@ -45,12 +45,19 @@ import { researchEffects } from '../../meta/town';
 import type { AutoPowerRule } from '../../sim/types';
 import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
 import { COLORS } from '../palette';
-import { makeButton, mono, type Button } from '../ui';
+import { BoardView } from '../BoardView';
+import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { Overlay } from '../overlay';
+import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
 const CELL = 32;
-const GRID_PX_W = MAP_W * CELL;
-const GRID_PX_H = MAP_H * CELL;
-const PANEL_W = 256;
+/** Panel tabs for the raid planner. */
+const RAID_TABS = [
+  { id: 'target', label: 'TARGET' },
+  { id: 'muster', label: 'MUSTER' },
+  { id: 'squads', label: 'SQUADS' },
+  { id: 'fire', label: 'FIRE' },
+];
 const DOCTRINES = ['assault', 'hunt', 'raze'] as const;
 const DOCTRINE_LABEL: Record<string, string> = { assault: 'ASLT', hunt: 'HUNT', raze: 'RAZE' };
 /** Fire-plan timing steps (seconds into the assault); null = hold fire. */
@@ -81,12 +88,13 @@ export class RaidScene extends Phaser.Scene {
   private baseLayer!: Phaser.GameObjects.Graphics;
   private dynLayer!: Phaser.GameObjects.Graphics;
   private fogText!: Phaser.GameObjects.Text;
-  private headerText!: Phaser.GameObjects.Text;
-  private armyText!: Phaser.GameObjects.Text;
-  private queueText!: Phaser.GameObjects.Text;
-  private resultTexts: Phaser.GameObjects.GameObject[] = [];
-  private buttons: Record<string, Button> = {};
   private sectorLabels: Phaser.GameObjects.Text[] = [];
+  private board!: BoardView;
+  private panel!: Panel;
+  private layout!: Layout;
+  private drawerOpen = true;
+  private launchButton!: Button;
+  private overlay: Overlay | null = null;
 
   constructor() {
     super('raid');
@@ -121,39 +129,30 @@ export class RaidScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.buttons = {};
-    this.resultTexts = [];
     this.base = targetFor(this.town, this.variant);
 
+    this.board = new BoardView(this, { cols: MAP_W, rows: MAP_H, cell: CELL });
     const staticLayer = this.add.graphics();
     drawFieldBase(staticLayer, MAP_W, MAP_H, CELL, -1); // no home entry strip
     this.baseLayer = this.add.graphics();
     this.dynLayer = this.add.graphics();
+    this.board.world.add([staticLayer, this.baseLayer, this.dynLayer]);
 
     this.fogText = this.add
-      .text(GRID_PX_W / 2, GRID_PX_H / 2, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {
+      .text(0, 0, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {
         ...mono(18, COLORS.inkDim, { align: 'center', lineSpacing: 8 }),
       })
-      .setOrigin(0.5)
-      .setDepth(6);
+      .setOrigin(0.5);
+    this.hintText = this.add.text(0, 0, '', mono(12, COLORS.signal, { fontStyle: 'bold' })).setOrigin(0.5, 0);
+    this.board.ui.add([this.fogText, this.hintText]);
 
-    this.headerText = this.add
-      .text(GRID_PX_W / 2, 6, '', mono(11, COLORS.inkDim))
-      .setOrigin(0.5, 0)
-      .setDepth(5);
-    this.hintText = this.add
-      .text(GRID_PX_W / 2, 26, '', mono(12, COLORS.signal, { fontStyle: 'bold' }))
-      .setOrigin(0.5, 0)
-      .setDepth(6);
-
-    // Tunnel siting: a map click places the selected squad's gallery head.
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.x >= GRID_PX_W || this.result) return;
+    // Tunnel siting: a map tap places the selected squad's gallery head.
+    this.board.onTap((col, row) => {
+      if (this.result || this.overlay) return;
       const squad = this.squads[this.selectedSquad]!;
       if (!this.siting && squad.tunnel === undefined) return;
       if (!this.scouted()) return;
-      const cell =
-        Math.floor(pointer.y / CELL) * MAP_W + Math.floor(pointer.x / CELL);
+      const cell = row * MAP_W + col;
       if (tunnelSiteValid(this.base, cell)) {
         squad.tunnel = cell;
         this.siting = false;
@@ -162,20 +161,26 @@ export class RaidScene extends Phaser.Scene {
       }
     });
 
-    // Sector markers around the map edge.
+    // Sector markers ride the world layer so they pan and zoom with the map.
     for (const id of SECTOR_IDS) {
       const cells = sectorCells(id);
       const mid = cells[Math.floor(cells.length / 2)]!;
-      const inset = 14;
-      const px = mid.col === 0 ? inset : mid.col === MAP_W - 1 ? GRID_PX_W - inset : (mid.col + 0.5) * CELL;
-      const py = mid.row === 0 ? inset : mid.row === MAP_H - 1 ? GRID_PX_H - inset : (mid.row + 0.5) * CELL;
-      this.sectorLabels.push(
-        this.add
-          .text(px, py, id, mono(11, COLORS.intel, { fontStyle: 'bold' }))
-          .setOrigin(0.5)
-          .setDepth(6),
-      );
+      const label = this.add
+        .text((mid.col + 0.5) * CELL, (mid.row + 0.5) * CELL, id, mono(13, COLORS.intel, { fontStyle: 'bold' }))
+        .setOrigin(0.5);
+      this.sectorLabels.push(label);
+      this.board.world.add(label);
     }
+
+    this.panel = new Panel(this, this.board.ui, RAID_TABS);
+    this.panel.onDrawerToggle = () => {
+      this.drawerOpen = !this.drawerOpen;
+      this.applyLayout();
+    };
+    this.launchButton = makeButton(this, 0, 0, 10, 10, '', () => this.launch(), {
+      align: 'center',
+      container: this.board.ui,
+    });
 
     // Demo raids for tunnel factions show a sited gallery out of the box.
     if (this.demoMode && this.canUseTunnel() && this.squads[1]!.tunnel === undefined) {
@@ -190,12 +195,30 @@ export class RaidScene extends Phaser.Scene {
       }
     }
 
-    this.buildPanel();
+    this.applyLayout();
+    onLayoutChange(this, () => this.applyLayout());
     this.redrawBase();
 
     const kb = this.input.keyboard;
     kb?.on('keydown-ESC', () => this.goHome());
     kb?.on('keydown-SPACE', () => this.launch());
+  }
+
+  private applyLayout(): void {
+    this.layout = layoutOf(this, this.drawerOpen);
+    this.board.applyLayout(this.layout, true);
+    this.panel.applyLayout(this.layout);
+    const { board, pad, rowH, font } = this.layout;
+    const w = Math.min(board.w - pad * 2, this.layout.px(320));
+    this.launchButton.setRect(board.x + (board.w - w) / 2, board.y + board.h - rowH - pad, w, rowH);
+    this.launchButton.setFont(font.body);
+    this.fogText.setPosition(board.x + board.w / 2, board.y + board.h / 2).setFontSize(font.body);
+    this.hintText.setPosition(board.x + board.w / 2, board.y + pad).setFontSize(font.tiny);
+    if (this.overlay) {
+      this.overlay.close();
+      this.overlay = null;
+      if (this.result) this.showResult(this.result);
+    }
   }
 
   private goHome(): void {
@@ -366,24 +389,12 @@ export class RaidScene extends Phaser.Scene {
   }
 
   private clearResult(): void {
-    for (const obj of this.resultTexts) obj.destroy();
-    this.resultTexts = [];
+    this.overlay?.close();
+    this.overlay = null;
     this.result = null;
   }
 
   private showResult(res: RaidResolution): void {
-    const cx = (GRID_PX_W + PANEL_W) / 2;
-    const overlay = this.add
-      .rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.62)
-      .setOrigin(0)
-      .setDepth(40);
-    const title = this.add
-      .text(cx, 240, res.cleared ? 'COMMAND POST DESTROYED' : 'RAID REPELLED', {
-        ...mono(30, res.cleared ? COLORS.olive : COLORS.alarm, { fontStyle: 'bold' }),
-      })
-      .setOrigin(0.5)
-      .setDepth(41);
-
     const lossLine = Object.entries(res.losses)
       .map(([kind, n]) => `${n}× ${this.trainMeta[kind]?.short ?? kind}`)
       .join('  ');
@@ -400,146 +411,202 @@ export class RaidScene extends Phaser.Scene {
           (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')
         : 'The post stands. Rebuild and go again.',
     ];
-    const body = this.add
-      .text(cx, 292, lines.join('\n'), {
-        ...mono(13, COLORS.ink, { lineSpacing: 7, align: 'center' }),
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(41);
 
-    const watch = makeButton(this, cx - 250, 420, 230, 34, 'WATCH REPLAY', () => {
-      if (!this.lastConfig) return;
-      this.scene.start('replay', {
-        config: this.lastConfig,
-        kind: 'raid',
-        title: this.base.name,
-        faction: this.town.faction,
-        backTo: 'raid',
-        backData: { town: this.town },
-      });
+    const ov = new Overlay(this, this.layout, {
+      title: res.cleared ? 'COMMAND POST DESTROYED' : 'RAID REPELLED',
+      subtitle: this.base.name,
+      scrim: 0.82,
+      container: this.board.ui,
     });
-    const back = makeButton(this, cx + 20, 420, 230, 34, 'RETURN TO BASE', () => this.goHome());
-    for (const b of [watch, back]) {
-      b.bg.setDepth(41);
-      b.label.setDepth(41);
-    }
-    this.resultTexts.push(overlay, title, body, watch.bg, watch.label, back.bg, back.label);
+    this.overlay = ov;
+    const { font } = this.layout;
+    ov.centered(
+      ov.flow(Math.round(font.body * 1.7 * lines.length)),
+      lines.join('\n'),
+      font.body,
+      res.cleared ? COLORS.olive : COLORS.ink,
+      { lineSpacing: Math.round(font.body * 0.5) },
+    );
+    ov.footer(
+      'WATCH REPLAY',
+      () => {
+        if (!this.lastConfig) return;
+        this.scene.start('replay', {
+          config: this.lastConfig,
+          kind: 'raid',
+          title: this.base.name,
+          faction: this.town.faction,
+          backTo: 'raid',
+          backData: { town: this.town },
+        });
+      },
+      0,
+      2,
+    );
+    ov.footer('RETURN TO BASE', () => this.goHome(), 1, 2);
   }
 
-  // ---- panel ---------------------------------------------------------------------------
+  // ---- panel rows ---------------------------------------------------------
 
-  private buildPanel(): void {
-    const x0 = GRID_PX_W;
-    const pad = 14;
-    const bw = PANEL_W - pad * 2;
-    this.add.rectangle(x0, 0, PANEL_W, GRID_PX_H, COLORS.bgPanel).setOrigin(0, 0);
-    this.add.rectangle(x0, 0, 2, GRID_PX_H, COLORS.gridLine).setOrigin(0, 0);
-
-    this.add.text(x0 + pad, 10, 'FRONT LINE', mono(17, COLORS.ink, { fontStyle: 'bold' }));
-    this.add.text(
-      x0 + pad,
-      32,
-      `COUNTER-RAID OPS — VS ${flavorFor(this.town.faction).enemy}`,
-      mono(10, COLORS.inkDim),
-    );
-    this.armyText = this.add.text(x0 + pad, 48, '', mono(11, COLORS.ink, { lineSpacing: 3 }));
-
-    let y = 92;
-    this.add.text(x0 + pad, y, 'TARGET', mono(10, COLORS.inkDim));
-    y += 14;
-    this.buttons['target'] = makeButton(this, x0 + pad, y, bw, 24, '', () => this.cycleTarget());
-    y += 27;
-    this.buttons['scout'] = makeButton(this, x0 + pad, y, bw, 24, '', () => this.scout());
-    y += 31;
-
-    this.add.text(x0 + pad, y, 'MUSTER', mono(10, COLORS.inkDim));
-    y += 14;
-    for (const meta of this.trainable) {
-      this.buttons[`train_${meta.kind}`] = makeButton(this, x0 + pad, y, bw, 22, '', () =>
-        this.train(meta.kind),
-      );
-      y += 25;
+  private rowsForTab(now: number): PanelRow[] {
+    const town = this.town;
+    switch (this.panel.tab) {
+      case 'target': {
+        const tier = town.frontline.tier;
+        const scouted = this.scouted();
+        const price = scoutPrice(town, tier);
+        return [
+          {
+            id: 'h',
+            label: `${flavorFor(town.faction).enemy} POSTS · TIER ${tier} · CLEARED ${town.frontline.wins}/3`,
+            heading: true,
+          },
+          {
+            id: 'target',
+            label: `TARGET ${this.variant + 1}/${TARGETS_PER_TIER}`,
+            sub: 'NEXT ▸',
+            onTap: () => this.cycleTarget(),
+          },
+          {
+            id: 'scout',
+            label: scouted ? 'SCOUTED — LAYOUT KNOWN' : 'SCOUT TARGET',
+            sub: scouted ? '' : `${price} INT`,
+            enabled: !scouted && town.intel >= price,
+            onTap: () => this.scout(),
+          },
+          { id: 'h2', label: 'VIEW', heading: true },
+          { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
+          { id: 'back', label: 'RETURN TO BASE', sub: '[ESC]', onTap: () => this.goHome() },
+        ];
+      }
+      case 'muster': {
+        const rows: PanelRow[] = [
+          {
+            id: 'h',
+            label: `MP ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)}`,
+            heading: true,
+          },
+        ];
+        for (const meta of this.trainable) {
+          const cost = meta.fuel > 0 ? `${meta.supplies}S+${meta.fuel}F` : `${meta.supplies}S`;
+          rows.push({
+            id: `train_${meta.kind}`,
+            label: `${meta.name.toUpperCase()} ×${town.army[meta.kind] ?? 0}`,
+            sub: `${cost} ${meta.seconds}s`,
+            enabled: this.facilityFor(meta.kind) !== null && !this.result,
+            onTap: () => this.train(meta.kind),
+          });
+        }
+        const queued: string[] = [];
+        for (const s of town.structures) {
+          if (s.trainQueue && s.trainQueue.length > 0) {
+            const secs =
+              s.trainEndsAt !== undefined ? Math.max(0, Math.ceil((s.trainEndsAt - now) / 1000)) : 0;
+            queued.push(
+              `${s.kind === 'barracks' ? 'BKS' : 'MTP'}: ${s.trainQueue
+                .map((k) => this.trainMeta[k]?.short ?? k)
+                .join(' ')} (${secs}s)`,
+            );
+          }
+        }
+        rows.push({ id: 'q', label: queued.join('  ') || 'Training lines idle.', heading: true });
+        return rows;
+      }
+      case 'squads': {
+        const squad = this.squads[this.selectedSquad]!;
+        const rows: PanelRow[] = [{ id: 'h', label: 'SQUADS — pick one, then add units', heading: true }];
+        this.squads.forEach((sq, i) => {
+          const count = Object.values(sq.units).reduce((a, b) => a + b, 0);
+          const composition = this.trainable
+            .filter((m) => (sq.units[m.kind] ?? 0) > 0)
+            .map((m) => `${sq.units[m.kind]}${m.short.charAt(0)}`)
+            .join(' ');
+          const entry = sq.tunnel !== undefined ? 'TUN' : sq.sector;
+          const delay = i * 6 + (sq.tunnel !== undefined ? TUNNEL_DIG_TICKS / 20 : 0);
+          rows.push({
+            id: `squad_${i}`,
+            label: `SQD${i + 1} ${entry} · ${DOCTRINE_LABEL[sq.doctrine]} · ${count ? composition : 'EMPTY'}`,
+            sub: `T+${delay}s`,
+            active: i === this.selectedSquad,
+            onTap: () => {
+              this.selectedSquad = i;
+              this.siting = false;
+            },
+          });
+        });
+        rows.push(
+          { id: 'h2', label: `SQUAD ${this.selectedSquad + 1} ORDERS`, heading: true },
+          {
+            id: 'sector',
+            label:
+              squad.tunnel !== undefined
+                ? `ENTRY: TUNNEL ${squad.tunnel % MAP_W},${Math.floor(squad.tunnel / MAP_W)}`
+                : this.siting
+                  ? 'ENTRY: TUNNEL — TAP THE MAP'
+                  : `ENTRY: ${squad.sector}`,
+            sub: 'NEXT ▸',
+            active: this.siting || squad.tunnel !== undefined,
+            onTap: () => this.cycleSector(),
+          },
+          {
+            id: 'doctrine',
+            label: `DOCTRINE: ${DOCTRINE_LABEL[squad.doctrine]}`,
+            sub: 'NEXT ▸',
+            onTap: () => this.cycleDoctrine(),
+          },
+          { id: 'h3', label: 'ADD UNITS', heading: true },
+        );
+        for (const meta of this.trainable) {
+          rows.push({
+            id: `add_${meta.kind}`,
+            label: `+ ${meta.name.toUpperCase()}`,
+            sub: `${this.available(meta.kind)} FREE`,
+            enabled: this.available(meta.kind) > 0 && !this.result,
+            onTap: () => this.addUnit(meta.kind),
+          });
+        }
+        rows.push({ id: 'clear', label: 'CLEAR SQUAD', onTap: () => this.clearSquad() });
+        return rows;
+      }
+      default: {
+        const powers = raidCatalogFor(town.faction).powers;
+        const rows: PanelRow[] = [{ id: 'h', label: 'FIRE PLAN — town ordnance', heading: true }];
+        for (const [kind, plan] of Object.entries(this.firePlans)) {
+          const def = powers[kind];
+          const stock = town.charges[kind] ?? 0;
+          const name = (def?.short ?? def?.name ?? kind).toUpperCase();
+          const when = FIRE_TIMES[plan.timeIndex];
+          rows.push(
+            {
+              id: `fireTime_${kind}`,
+              label: `${name} ×${stock}`,
+              sub: when === null ? 'HOLD' : `T+${when}s`,
+              enabled: stock > 0 && !this.result,
+              active: when !== null,
+              onTap: () => {
+                plan.timeIndex = (plan.timeIndex + 1) % FIRE_TIMES.length;
+              },
+            },
+            {
+              id: `fireTarget_${kind}`,
+              label: '   TARGET',
+              sub: plan.target === 'guns' ? 'GUNS' : 'COMMAND POST',
+              enabled: stock > 0 && when !== null && !this.result,
+              onTap: () => {
+                plan.target =
+                  FIRE_TARGETS[(FIRE_TARGETS.indexOf(plan.target) + 1) % FIRE_TARGETS.length]!;
+              },
+            },
+          );
+        }
+        rows.push({
+          id: 'hint',
+          label: 'Losses are permanent. Survivors come home.',
+          heading: true,
+        });
+        return rows;
+      }
     }
-    this.queueText = this.add.text(x0 + pad, y, '', mono(9, COLORS.inkDim));
-    y += 16;
-
-    this.add.text(x0 + pad, y, 'SQUADS — click one, then add units', mono(10, COLORS.inkDim));
-    y += 14;
-    for (let i = 0; i < 3; i++) {
-      const index = i;
-      this.buttons[`squad_${i}`] = makeButton(this, x0 + pad, y, bw, 22, '', () => {
-        this.selectedSquad = index;
-        this.siting = false;
-        this.refreshSquadButtons();
-      });
-      y += 25;
-    }
-    const half = (bw - 6) / 2;
-    this.buttons['sector'] = makeButton(this, x0 + pad, y, half, 22, 'SECTOR ▸', () => this.cycleSector());
-    this.buttons['doctrine'] = makeButton(this, x0 + pad + half + 6, y, half, 22, 'DOCTRINE ▸', () =>
-      this.cycleDoctrine(),
-    );
-    y += 25;
-    const roster = this.trainable;
-    const addW = (bw - (roster.length - 1) * 4) / roster.length;
-    roster.forEach((meta, i) => {
-      this.buttons[`add_${meta.kind}`] = makeButton(
-        this,
-        x0 + pad + i * (addW + 4),
-        y,
-        addW,
-        22,
-        `+${meta.short.charAt(0)}`,
-        () => this.addUnit(meta.kind),
-      );
-    });
-    y += 25;
-    this.buttons['clear'] = makeButton(this, x0 + pad, y, bw, 20, 'CLEAR SQUAD', () => this.clearSquad());
-    y += 28;
-
-    // Pre-planned fire support: the same charges the town stocks for defense.
-    this.add.text(x0 + pad, y, 'FIRE PLAN — town ordnance', mono(10, COLORS.inkDim));
-    y += 13;
-    for (const kind of Object.keys(this.firePlans)) {
-      const timeHalf = (bw - 6) * 0.58;
-      this.buttons[`fireTime_${kind}`] = makeButton(this, x0 + pad, y, timeHalf, 20, '', () => {
-        const plan = this.firePlans[kind]!;
-        plan.timeIndex = (plan.timeIndex + 1) % FIRE_TIMES.length;
-      });
-      this.buttons[`fireTarget_${kind}`] = makeButton(
-        this,
-        x0 + pad + timeHalf + 6,
-        y,
-        bw - timeHalf - 6,
-        20,
-        '',
-        () => {
-          const plan = this.firePlans[kind]!;
-          plan.target =
-            FIRE_TARGETS[(FIRE_TARGETS.indexOf(plan.target) + 1) % FIRE_TARGETS.length]!;
-        },
-      );
-      y += 23;
-    }
-    y += 5;
-
-    this.buttons['launch'] = makeButton(this, x0 + pad, y, bw, 28, '', () => this.launch());
-    y += 34;
-    this.buttons['back'] = makeButton(this, x0 + pad, y, bw, 22, 'RETURN TO BASE [ESC]', () =>
-      this.goHome(),
-    );
-
-    this.add.text(
-      x0 + pad,
-      GRID_PX_H - 32,
-      'Losses are permanent. Survivors come home.',
-      mono(9, COLORS.inkDim),
-    );
-    this.refreshSquadButtons();
-  }
-
-  private refreshSquadButtons(): void {
-    for (let i = 0; i < 3; i++) this.buttons[`squad_${i}`]?.setActive(i === this.selectedSquad);
   }
 
   override update(): void {
@@ -547,97 +614,32 @@ export class RaidScene extends Phaser.Scene {
     tick(this.town, now);
 
     const town = this.town;
-    const tier = town.frontline.tier;
-    this.headerText.setText(
-      `FRONT LINE — TIER ${tier} · TARGET: ${this.base.name} ${this.scouted() ? '' : '(UNSCOUTED)'}`,
-    );
-    this.armyText.setText(
-      [
-        `TIER ${tier} · POSTS CLEARED ${town.frontline.wins}/3`,
-        `MP ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)} · INT ${Math.floor(town.intel)}`,
-      ].join('\n'),
-    );
-
-    this.buttons['target']?.setLabel(`TARGET ${this.variant + 1}/${TARGETS_PER_TIER} ▸`);
-    const scouted = this.scouted();
-    const scoutIntel = scoutPrice(town, tier);
-    this.buttons['scout']?.setLabel(
-      scouted ? 'SCOUTED — LAYOUT KNOWN' : `SCOUT — ${scoutIntel} INTEL`,
-    );
-    this.buttons['scout']?.setEnabled(!scouted && town.intel >= scoutIntel);
-
-    for (const meta of this.trainable) {
-      const cost = meta.fuel > 0 ? `${meta.supplies}S+${meta.fuel}F` : `${meta.supplies}S`;
-      const button = this.buttons[`train_${meta.kind}`];
-      button?.setLabel(`${meta.short} ×${town.army[meta.kind] ?? 0} — TRAIN ${cost} ${meta.seconds}s`);
-      button?.setEnabled(this.facilityFor(meta.kind) !== null && !this.result);
-    }
-    const queued: string[] = [];
-    for (const s of town.structures) {
-      if (s.trainQueue && s.trainQueue.length > 0) {
-        const secs = s.trainEndsAt !== undefined ? Math.max(0, Math.ceil((s.trainEndsAt - now) / 1000)) : 0;
-        queued.push(`${s.kind === 'barracks' ? 'BKS' : 'MTP'}: ${s.trainQueue.map((k) => this.trainMeta[k]?.short ?? k).join(' ')} (${secs}s)`);
-      }
-    }
-    this.queueText.setText(queued.join('   ') || 'Training lines idle.');
-
-    this.squads.forEach((squad, i) => {
-      const count = Object.values(squad.units).reduce((a, b) => a + b, 0);
-      const composition = this.trainable
-        .filter((m) => (squad.units[m.kind] ?? 0) > 0)
-        .map((m) => `${squad.units[m.kind]}${m.short.charAt(0)}`)
-        .join(' ');
-      const entryLabel = squad.tunnel !== undefined ? 'TUN' : squad.sector;
-      const delay = i * 6 + (squad.tunnel !== undefined ? TUNNEL_DIG_TICKS / 20 : 0);
-      this.buttons[`squad_${i}`]?.setLabel(
-        `SQD${i + 1} ${entryLabel} · ${DOCTRINE_LABEL[squad.doctrine]} · ${count ? composition : 'EMPTY'} · T+${delay}s`,
-      );
-    });
     const squad = this.squads[this.selectedSquad]!;
-    this.buttons['sector']?.setLabel(
-      squad.tunnel !== undefined
-        ? `ENTRY: TUNNEL ${squad.tunnel % MAP_W},${Math.floor(squad.tunnel / MAP_W)} ▸`
-        : this.siting
-          ? 'ENTRY: TUNNEL — CLICK MAP ▸'
-          : `SECTOR: ${squad.sector} ▸`,
-    );
-    this.buttons['doctrine']?.setLabel(`DOCTRINE: ${DOCTRINE_LABEL[squad.doctrine]} ▸`);
-    for (const meta of this.trainable) {
-      this.buttons[`add_${meta.kind}`]?.setEnabled(this.available(meta.kind) > 0 && !this.result);
-    }
 
-    // Fire plan rows: timing + target + remaining stock.
-    const powers = raidCatalogFor(town.faction).powers;
-    for (const [kind, plan] of Object.entries(this.firePlans)) {
-      const def = powers[kind];
-      const stock = town.charges[kind] ?? 0;
-      const name = (def?.short ?? def?.name ?? kind).toUpperCase();
-      const when = FIRE_TIMES[plan.timeIndex];
-      this.buttons[`fireTime_${kind}`]?.setLabel(
-        `${name.slice(0, 8)} ${when === null ? 'HOLD' : `T+${when}s`} ×${stock}`,
-      );
-      this.buttons[`fireTime_${kind}`]?.setEnabled(stock > 0 && !this.result);
-      this.buttons[`fireTarget_${kind}`]?.setLabel(plan.target === 'guns' ? '→ GUNS' : '→ CC');
-      this.buttons[`fireTarget_${kind}`]?.setEnabled(
-        stock > 0 && when !== null && !this.result,
-      );
-    }
+    this.panel.setStatus(`FRONT LINE · TIER ${town.frontline.tier}`, [
+      `TARGET ${this.base.name}${this.scouted() ? '' : ' · UNSCOUTED'}`,
+      `MP ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)}`,
+      `FUEL ${Math.floor(town.fuel)} · INTEL ${Math.floor(town.intel)}`,
+    ]);
+    this.panel.setRows(this.rowsForTab(now));
 
+    // The floating primary: one tap launches, and it explains itself when it can't.
     const total = planUnitCount(this.squads);
     const activeSquads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
     const galleryFuel = tunnelFuelCost(activeSquads);
     if (town.frontline.pendingCounterattack) {
-      this.buttons['launch']?.setLabel('COUNTERATTACK INBOUND — GO DEFEND');
-      this.buttons['launch']?.setEnabled(false);
+      this.launchButton.setLabel('COUNTERATTACK — GO DEFEND');
+      this.launchButton.setEnabled(false);
     } else if (galleryFuel > 0 && town.fuel < galleryFuel) {
-      this.buttons['launch']?.setLabel(`GALLERIES NEED ${galleryFuel} FUEL — HAVE ${Math.floor(town.fuel)}`);
-      this.buttons['launch']?.setEnabled(false);
+      this.launchButton.setLabel(`GALLERIES NEED ${galleryFuel}F — HAVE ${Math.floor(town.fuel)}`);
+      this.launchButton.setEnabled(false);
     } else {
-      this.buttons['launch']?.setLabel(
-        `LAUNCH RAID — ${total} UNITS${galleryFuel > 0 ? ` · ${galleryFuel}F` : ''} [SPACE]`,
+      this.launchButton.setLabel(
+        `LAUNCH RAID · ${total} UNIT${total === 1 ? '' : 'S'}${galleryFuel > 0 ? ` · ${galleryFuel}F` : ''}`,
       );
-      this.buttons['launch']?.setEnabled(total > 0 && !this.result && !this.demoLock());
+      this.launchButton.setEnabled(total > 0 && !this.result && !this.demoLock());
     }
+    this.launchButton.setVisible(this.overlay === null);
 
     if (this.hintUntil <= now) this.hintText.setText('');
 

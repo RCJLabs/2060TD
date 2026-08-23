@@ -55,9 +55,12 @@ import {
   type TownState,
 } from '../../meta/town';
 import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standingOrders';
+import { BoardView } from '../BoardView';
 import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
-import { COLORS, css } from '../palette';
-import { makeButton, mono, type Button } from '../ui';
+import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { Overlay } from '../overlay';
+import { COLORS } from '../palette';
+import { mono, Panel, type PanelRow } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
@@ -75,9 +78,15 @@ for (const faction of FACTION_IDS) {
 }
 
 const CELL = 32;
-const GRID_PX_W = TOWN_GRID.width * CELL;
-const GRID_PX_H = TOWN_GRID.height * CELL;
-const PANEL_W = 256;
+
+/** Panel tabs: five categories instead of one twenty-row rail. */
+const TABS = [
+  { id: 'build', label: 'BUILD' },
+  { id: 'base', label: 'BASE' },
+  { id: 'ops', label: 'OPS' },
+  { id: 'war', label: 'WAR' },
+  { id: 'sys', label: 'SYS' },
+];
 
 type Tool =
   | { type: 'select' }
@@ -103,16 +112,18 @@ export class TownScene extends Phaser.Scene {
   private lastPaintedCell = -1;
 
   private dynLayer!: Phaser.GameObjects.Graphics;
-  private warText!: Phaser.GameObjects.Text;
-  private suppliesText!: Phaser.GameObjects.Text;
-  private fuelText!: Phaser.GameObjects.Text;
-  private intelText!: Phaser.GameObjects.Text;
-  private selectedText!: Phaser.GameObjects.Text;
+  private staticLayer!: Phaser.GameObjects.Graphics;
+  private ccLabel!: Phaser.GameObjects.Text;
   private bannerText!: Phaser.GameObjects.Text;
-  private buttons: Record<string, Button> = {};
+  private board!: BoardView;
+  private panel!: Panel;
+  private layout!: Layout;
+  private drawerOpen = true;
   /** Research project id seen last frame — completion flips it to a banner. */
   private lastActiveResearch: string | null = null;
-  private overlayOpen = false;
+  private overlay: Overlay | null = null;
+  /** How to rebuild the open overlay after the viewport changes. */
+  private overlayBuilder: (() => void) | null = null;
 
   constructor() {
     super('town');
@@ -198,28 +209,103 @@ export class TownScene extends Phaser.Scene {
   create(): void {
     this.tool = { type: 'select' };
     this.selectedId = null;
-    this.buttons = {};
     this.lastPaintedCell = -1;
+    this.overlay = null;
 
-    const staticLayer = this.add.graphics();
-    drawFieldBase(staticLayer, TOWN_GRID.width, TOWN_GRID.height, CELL, TOWN_GRID.spawnColumn);
+    // The board lives on its own camera: pinch to zoom, drag to pan.
+    this.board = new BoardView(this, {
+      cols: TOWN_GRID.width,
+      rows: TOWN_GRID.height,
+      cell: CELL,
+    });
+    this.staticLayer = this.add.graphics();
+    drawFieldBase(this.staticLayer, TOWN_GRID.width, TOWN_GRID.height, CELL, TOWN_GRID.spawnColumn);
     this.dynLayer = this.add.graphics();
+    this.board.world.add([this.staticLayer, this.dynLayer]);
 
     const cc = this.town.structures.find((s) => s.kind === 'cc')!;
     const ccCenter = this.cellCenterPx(cc.cell, 2);
-    this.add
+    this.ccLabel = this.add
       .text(ccCenter.x, ccCenter.y, 'CC', mono(13, COLORS.ink, { fontStyle: 'bold' }))
-      .setOrigin(0.5)
-      .setDepth(5);
-    this.add
-      .text(GRID_PX_W / 2, 6, flavorFor(this.town.faction).base, mono(11, COLORS.inkDim))
-      .setOrigin(0.5, 0)
-      .setDepth(5);
+      .setOrigin(0.5);
+    this.board.world.add(this.ccLabel);
 
-    this.buildPanel();
+    this.panel = new Panel(this, this.board.ui, TABS);
+    this.panel.onDrawerToggle = () => {
+      this.drawerOpen = !this.drawerOpen;
+      this.applyLayout();
+    };
+    this.bannerText = this.add.text(0, 0, '', mono(11, COLORS.signal));
+    this.board.ui.add(this.bannerText);
+
+    this.applyLayout();
+    this.focusBase();
+    onLayoutChange(this, () => this.applyLayout());
     this.bindInput();
 
-    if (!this.demoMode && this.town.campaign.difficulty === null) this.showIntro();
+    if (!this.demoMode && this.town.campaign.difficulty === null)
+      this.openOverlay(() => this.showIntro());
+  }
+
+  /** Frame the built-up part of the base rather than the whole empty grid. */
+  private focusBase(): void {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const note = (cell: number, span: number): void => {
+      const cx = cell % TOWN_GRID.width;
+      const cy = Math.floor(cell / TOWN_GRID.width);
+      minX = Math.min(minX, cx);
+      minY = Math.min(minY, cy);
+      maxX = Math.max(maxX, cx + span);
+      maxY = Math.max(maxY, cy + span);
+    };
+    for (const s of this.town.structures) note(s.cell, footprintOf(s.kind));
+    for (const w of this.town.walls) note(w.cell, 1);
+    if (!Number.isFinite(minX)) {
+      this.board.fit();
+      return;
+    }
+    this.board.focusOn(
+      minX * CELL,
+      minY * CELL,
+      (maxX - minX) * CELL,
+      (maxY - minY) * CELL,
+      this.layout.mode === 'portrait' ? 1 : 2,
+    );
+  }
+
+  /** Re-flow for the current viewport (orientation flip, resize, drawer). */
+  /**
+   * Open an overlay, remembering how to build it. A viewport change (rotation,
+   * the URL bar sliding away, a desktop resize) closes and replays this
+   * instead of losing the screen the player was reading.
+   */
+  private openOverlay(build: () => void): void {
+    this.overlay?.close();
+    this.overlay = null;
+    this.overlayBuilder = build;
+    build();
+  }
+
+  private applyLayout(): void {
+    this.layout = layoutOf(this, this.drawerOpen);
+    this.board.applyLayout(this.layout, true);
+    this.panel.applyLayout(this.layout);
+    const { board, pad, font } = this.layout;
+    this.bannerText
+      .setPosition(board.x + pad, board.y + board.h - pad - font.tiny * 2)
+      .setFontSize(font.tiny)
+      .setWordWrapWidth(board.w - pad * 2);
+    // An open overlay was laid out for the old viewport; rebuild it at the
+    // new one rather than dumping the player back to the board.
+    if (this.overlay && this.overlayBuilder) {
+      const rebuild = this.overlayBuilder;
+      this.overlay.close();
+      this.overlay = null;
+      rebuild();
+    }
   }
 
   /** The active faction's campaign, building meta, and unlock map. */
@@ -238,59 +324,55 @@ export class TownScene extends Phaser.Scene {
   // ---- input -------------------------------------------------------------------
 
   private bindInput(): void {
-    this.input.removeAllListeners();
     this.input.keyboard?.removeAllListeners();
 
+    // Taps place and select; wall tools paint across a drag (see paintMode).
+    this.board.onTap((col, row) => this.handleCell(row * TOWN_GRID.width + col, true));
+    this.board.onPaint((col, row) => this.handleCell(row * TOWN_GRID.width + col, false));
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.rightButtonDown()) {
-        this.setTool({ type: 'select' });
-        return;
-      }
-      this.handlePointer(pointer, true);
-    });
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.isDown) this.handlePointer(pointer, false);
+      if (pointer.rightButtonDown()) this.setTool({ type: 'select' });
     });
 
     const kb = this.input.keyboard;
     kb?.on('keydown-ESC', () => this.setTool({ type: 'select' }));
     kb?.on('keydown-SPACE', () => this.launchPrimary());
     kb?.on('keydown-F', () => this.openFrontline());
-    kb?.on('keydown-T', () => this.showResearch());
-    kb?.on('keydown-M', () => this.showMissions());
+    kb?.on('keydown-T', () => this.openOverlay(() => this.showResearch()));
+    kb?.on('keydown-M', () => this.openOverlay(() => this.showMissions()));
   }
 
-  private handlePointer(pointer: Phaser.Input.Pointer, isFirstPress: boolean): void {
-    if (pointer.x >= GRID_PX_W || pointer.y >= GRID_PX_H) return;
-    const cell = this.cellFromPointer(pointer);
+  private handleCell(cell: number, isTap: boolean): void {
+    if (this.overlay) return;
     const now = Date.now();
 
     switch (this.tool.type) {
       case 'select': {
-        if (!isFirstPress) return;
+        if (!isTap) return;
         const s = structureAt(this.town, cell);
         this.selectedId = s ? s.id : null;
+        // Inspecting jumps to the card that describes what you just tapped.
+        if (s) this.panel.setTab('base');
         return;
       }
       case 'build': {
-        if (!isFirstPress) return;
+        if (!isTap) return;
         if (place(this.town, this.tool.kind, cell, now)) this.saveSoon();
         return;
       }
       case 'wall': {
-        if (cell === this.lastPaintedCell && !isFirstPress) return;
+        if (cell === this.lastPaintedCell && !isTap) return;
         this.lastPaintedCell = cell;
         if (placeWall(this.town, cell)) this.saveSoon();
         return;
       }
       case 'erase': {
-        if (cell === this.lastPaintedCell && !isFirstPress) return;
+        if (cell === this.lastPaintedCell && !isTap) return;
         this.lastPaintedCell = cell;
         if (removeWall(this.town, cell)) this.saveSoon();
         return;
       }
       case 'move': {
-        if (!isFirstPress) return;
+        if (!isTap) return;
         if (move(this.town, this.tool.id, cell)) {
           this.setTool({ type: 'select' });
           this.saveSoon();
@@ -312,12 +394,9 @@ export class TownScene extends Phaser.Scene {
       tool = { type: 'select' };
     }
     this.tool = tool;
-    for (const kind of BUILDABLE_KINDS) {
-      this.buttons[kind]?.setActive(tool.type === 'build' && tool.kind === kind);
-    }
-    this.buttons['wall']?.setActive(tool.type === 'wall');
-    this.buttons['erase']?.setActive(tool.type === 'erase');
-    this.buttons['moveBtn']?.setActive(tool.type === 'move');
+    // Wall painting owns the drag; every other tool leaves it to the camera.
+    this.board.paintMode = tool.type === 'wall' || tool.type === 'erase';
+    this.lastPaintedCell = -1;
   }
 
   private nextMission(): MissionDef | null {
@@ -340,30 +419,51 @@ export class TownScene extends Phaser.Scene {
   }
 
   /** Mission select: the war so far — replay cleared sectors, fight the next. */
+  /** One overlay entry: a text block plus an optional action button.
+   * Stacks on phones, sits side-by-side when there is room. */
+  private overlayEntry(
+    ov: Overlay,
+    text: string,
+    color: number,
+    action?: { label: string; onTap: () => void; enabled?: boolean },
+  ): void {
+    const { rowH, gap, font, compact, px } = this.layout;
+    const lines = text.split('\n').length;
+    const textH = Math.round(font.body * 1.5 * lines);
+    if (compact || !action) {
+      const r = ov.flow(textH, action ? Math.round(gap / 2) : gap);
+      ov.text(r, text, font.body, color, { lineSpacing: Math.round(font.body * 0.3) });
+      if (action) {
+        const b = ov.button(ov.flow(rowH), action.label, action.onTap);
+        if (action.enabled === false) b.setEnabled(false);
+      }
+      return;
+    }
+    const btnW = px(150);
+    const h = Math.max(textH, rowH);
+    const r = ov.flow(h);
+    ov.text({ ...r, w: r.w - btnW - gap }, text, font.body, color, {
+      lineSpacing: Math.round(font.body * 0.3),
+    });
+    const b = ov.button({ x: r.x + r.w - btnW, y: r.y, w: btnW, h: rowH }, action.label, action.onTap);
+    if (action.enabled === false) b.setEnabled(false);
+  }
+
   private showMissions(): void {
-    if (this.overlayOpen || this.demoMode) return;
-    this.overlayOpen = true;
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const cx = (GRID_PX_W + PANEL_W) / 2;
-    const missions = this.missions();
-    const next = this.town.campaign.next;
-    objects.push(
-      this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.78).setOrigin(0).setDepth(60),
-      this.add
-        .text(cx, 66, 'OPERATIONS MAP', mono(24, COLORS.ink, { fontStyle: 'bold' }))
-        .setOrigin(0.5)
-        .setDepth(61),
-      this.add
-        .text(cx, 96, 'Replays of held sectors pay 35% of the original requisition.', mono(11, COLORS.inkDim))
-        .setOrigin(0.5)
-        .setDepth(61),
-    );
-    const close = () => {
-      this.overlayOpen = false;
-      objects.forEach((o) => o.destroy());
+    if (this.overlay || this.demoMode) return;
+    const ov = new Overlay(this, this.layout, {
+      title: 'OPERATIONS MAP',
+      subtitle: 'Replays of held sectors pay 35% of the original requisition.',
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
     };
-    missions.forEach((mission, i) => {
-      const y = 128 + i * 52;
+    const next = this.town.campaign.next;
+    this.missions().forEach((mission, i) => {
       const cleared = this.town.campaign.completed.includes(mission.id);
       const isNext = i === next;
       const starred = this.town.campaign.bonuses.includes(mission.id);
@@ -372,81 +472,61 @@ export class TownScene extends Phaser.Scene {
         : isNext
           ? 'NEXT OBJECTIVE'
           : 'NO CONTACT YET';
-      objects.push(
-        this.add
-          .text(
-            cx - 270,
-            y,
-            `M${mission.index + 1}  ${mission.codename}\n${status}`,
-            mono(13, cleared ? COLORS.olive : isNext ? COLORS.signal : COLORS.inkDim, {
-              lineSpacing: 4,
-            }),
-          )
-          .setDepth(61),
+      this.overlayEntry(
+        ov,
+        `M${mission.index + 1}  ${mission.codename}\n${status}`,
+        cleared ? COLORS.olive : isNext ? COLORS.signal : COLORS.inkDim,
+        cleared || isNext
+          ? {
+              label: cleared ? 'REPLAY' : 'FIGHT',
+              onTap: () => {
+                close();
+                this.launchMissionAt(mission);
+              },
+            }
+          : undefined,
       );
-      if (cleared || isNext) {
-        const button = makeButton(this, cx + 150, y + 2, 120, 30, cleared ? 'REPLAY' : 'FIGHT', () => {
-          close();
-          this.launchMissionAt(mission);
-        });
-        button.bg.setDepth(61);
-        button.label.setDepth(61);
-        objects.push(button.bg, button.label);
-      }
     });
-    const done = makeButton(this, cx - 60, 128 + missions.length * 52 + 12, 120, 30, 'CLOSE', close);
-    done.bg.setDepth(61);
-    done.label.setDepth(61);
-    objects.push(done.bg, done.label);
+    ov.footer('CLOSE', close);
   }
 
   /** The research board: three doctrines, one project at a time. */
   private showResearch(): void {
-    if (this.overlayOpen || this.demoMode) return;
-    this.overlayOpen = true;
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const cx = (GRID_PX_W + PANEL_W) / 2;
-    objects.push(
-      this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.78).setOrigin(0).setDepth(60),
-      this.add
-        .text(cx, 56, 'RESEARCH & DOCTRINE', mono(24, COLORS.ink, { fontStyle: 'bold' }))
-        .setOrigin(0.5)
-        .setDepth(61),
-      this.add
-        .text(
-          cx,
-          86,
-          hasRadar(this.town)
-            ? `INTEL ${Math.floor(this.town.intel)} · one project at a time`
-            : 'A SIGNALS STATION MUST STAND TO RUN THE PROGRAM',
-          mono(11, hasRadar(this.town) ? COLORS.inkDim : COLORS.alarm),
-        )
-        .setOrigin(0.5)
-        .setDepth(61),
-    );
-    const close = () => {
-      this.overlayOpen = false;
-      objects.forEach((o) => o.destroy());
+    if (this.overlay || this.demoMode) return;
+    const radar = hasRadar(this.town);
+    const ov = new Overlay(this, this.layout, {
+      title: 'RESEARCH & DOCTRINE',
+      subtitle: radar
+        ? `INTEL ${Math.floor(this.town.intel)} · one project at a time`
+        : 'A SIGNALS STATION MUST STAND TO RUN THE PROGRAM',
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
     };
     const branchHeaders: Record<string, string> = {
       fortify: 'FORTIFY — the wire holds',
       strike: 'STRIKE — the raids bite',
       logistics: 'LOGISTICS — the war runs',
     };
-    let y = 116;
     let lastBranch = '';
     for (const tech of TECHS) {
       if (tech.branch !== lastBranch) {
         lastBranch = tech.branch;
-        objects.push(
-          this.add.text(cx - 290, y, branchHeaders[tech.branch]!, mono(11, COLORS.intel, { fontStyle: 'bold' })).setDepth(61),
+        ov.text(
+          ov.flow(Math.round(this.layout.font.label * 1.4)),
+          branchHeaders[tech.branch]!,
+          this.layout.font.label,
+          COLORS.intel,
+          { fontStyle: 'bold' },
         );
-        y += 20;
       }
       const err = canResearch(this.town, tech.id);
       const done = this.town.research.completed.includes(tech.id);
       const active = this.town.research.active?.id === tech.id;
-      const label = `${tech.name} — ${tech.desc}`;
       const sub = done
         ? 'IN DOCTRINE'
         : active
@@ -454,31 +534,27 @@ export class TownScene extends Phaser.Scene {
           : err === 'prereq'
             ? 'REQUIRES THE PREVIOUS DOCTRINE'
             : `${tech.intel} INTEL · ${tech.seconds}s`;
-      objects.push(
-        this.add
-          .text(cx - 290, y, `${label}\n${sub}`, mono(12, done ? COLORS.olive : active ? COLORS.signal : COLORS.ink, { lineSpacing: 3 }))
-          .setDepth(61),
+      this.overlayEntry(
+        ov,
+        `${tech.name} — ${tech.desc}\n${sub}`,
+        done ? COLORS.olive : active ? COLORS.signal : COLORS.ink,
+        !done && !active
+          ? {
+              label: 'START',
+              enabled: err === null,
+              onTap: () => {
+                if (startResearch(this.town, tech.id, Date.now())) {
+                  saveTown(this.town);
+                  audio.sfx('radio');
+                  this.setBanner(`RESEARCH STARTED: ${tech.name.toUpperCase()}`, 8);
+                  close();
+                }
+              },
+            }
+          : undefined,
       );
-      if (!done && !active) {
-        const button = makeButton(this, cx + 190, y, 100, 28, 'START', () => {
-          if (startResearch(this.town, tech.id, Date.now())) {
-            saveTown(this.town);
-            audio.sfx('radio');
-            this.setBanner(`RESEARCH STARTED: ${tech.name.toUpperCase()}`, 8);
-            close();
-          }
-        });
-        button.setEnabled(err === null);
-        button.bg.setDepth(61);
-        button.label.setDepth(61);
-        objects.push(button.bg, button.label);
-      }
-      y += 44;
     }
-    const done = makeButton(this, cx - 60, Math.min(y + 8, GRID_PX_H - 44), 120, 30, 'CLOSE', close);
-    done.bg.setDepth(61);
-    done.label.setDepth(61);
-    objects.push(done.bg, done.label);
+    ov.footer('CLOSE', close);
   }
 
   private skirmishUnlocked(): boolean {
@@ -525,158 +601,117 @@ export class TownScene extends Phaser.Scene {
 
   /** Defense log overlay: offline probe history with replays. */
   private showDefenseLog(): void {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const cx = (GRID_PX_W + PANEL_W) / 2;
-    objects.push(
-      this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.72).setOrigin(0).setDepth(60),
-      this.add
-        .text(cx, 170, 'DEFENSE LOG', mono(24, COLORS.ink, { fontStyle: 'bold' }))
-        .setOrigin(0.5)
-        .setDepth(61),
-    );
-    const close = () => objects.forEach((o) => o.destroy());
+    if (this.overlay) return;
+    const ov = new Overlay(this, this.layout, {
+      title: 'DEFENSE LOG',
+      subtitle: 'Probes fought while you were away.',
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
     if (this.town.defenseLog.length === 0) {
-      objects.push(
-        this.add
-          .text(cx, 230, 'No probes on record. The wire has been quiet.', mono(13, COLORS.inkDim))
-          .setOrigin(0.5)
-          .setDepth(61),
+      ov.centered(
+        ov.flow(Math.round(this.layout.font.body * 2)),
+        'No probes on record. The wire has been quiet.',
+        this.layout.font.body,
+        COLORS.inkDim,
       );
     }
-    this.town.defenseLog.forEach((entry, i) => {
-      const y = 220 + i * 64;
+    for (const entry of this.town.defenseLog) {
       const when = new Date(entry.at).toISOString().slice(5, 16).replace('T', ' ');
-      objects.push(
-        this.add
-          .text(
-            cx - 250,
-            y,
-            `${when}Z · PROBE LV ${entry.level} — ${entry.held ? 'HELD' : 'BREACHED'}` +
-              `${!entry.held && entry.killer ? ` (CC LOST TO ${entry.killer.toUpperCase()})` : ''}` +
-              `\n−${entry.suppliesLost} SUP · −${entry.fuelLost} FUEL` +
-              `${entry.orders ? ` · ORDERS: ${entry.orders.toUpperCase()}` : ''}`,
-            mono(12, entry.held ? COLORS.olive : COLORS.alarm, { lineSpacing: 4 }),
-          )
-          .setDepth(61),
+      this.overlayEntry(
+        ov,
+        `${when}Z · PROBE LV ${entry.level} — ${entry.held ? 'HELD' : 'BREACHED'}` +
+          `${!entry.held && entry.killer ? ` (CC LOST TO ${entry.killer.toUpperCase()})` : ''}` +
+          `\n−${entry.suppliesLost} SUP · −${entry.fuelLost} FUEL` +
+          `${entry.orders ? ` · ORDERS: ${entry.orders.toUpperCase()}` : ''}`,
+        entry.held ? COLORS.olive : COLORS.alarm,
+        {
+          label: 'WATCH',
+          onTap: () => {
+            close();
+            this.scene.start('replay', {
+              config: entry.config,
+              kind: 'defense',
+              title: `PROBE LV ${entry.level}`,
+              faction: this.town.faction,
+              backTo: 'town',
+            });
+          },
+        },
       );
-      const watch = makeButton(this, cx + 130, y, 120, 26, 'WATCH', () => {
-        close();
-        this.scene.start('replay', {
-          config: entry.config,
-          kind: 'defense',
-          title: `PROBE LV ${entry.level}`,
-          faction: this.town.faction,
-          backTo: 'town',
-        });
-      });
-      watch.bg.setDepth(61);
-      watch.label.setDepth(61);
-      objects.push(watch.bg, watch.label);
-    });
-    const done = makeButton(this, cx - 60, 560, 120, 30, 'CLOSE', close);
-    done.bg.setDepth(61);
-    done.label.setDepth(61);
-    objects.push(done.bg, done.label);
+    }
+    ov.footer('CLOSE', close);
   }
 
   /** First run, screen 1: alternate-history framing and the faction choice. */
   private showIntro(): void {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const cx = (GRID_PX_W + PANEL_W) / 2;
-    objects.push(
-      this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.82).setOrigin(0).setDepth(60),
-      this.add
-        .text(cx, 150, 'LAST LINE', mono(40, COLORS.ink, { fontStyle: 'bold' }))
-        .setOrigin(0.5)
-        .setDepth(61),
-      this.add
-        .text(
-          cx,
-          210,
-          [
-            'An alternate history. 2027.',
-            '',
-            'A coordinated offensive — China, Russia, North Korea — strikes the',
-            'American mainland and UN forces worldwide. The fiction depicts',
-            'militaries and machines, not peoples.',
-            '',
-            'Five commands are hiring. Pick your war:',
-          ].join('\n'),
-          mono(14, COLORS.ink, { lineSpacing: 7, align: 'center' }),
-        )
-        .setOrigin(0.5, 0)
-        .setDepth(61),
-    );
-    const pick = (faction: FactionId) => {
-      for (const obj of objects) obj.destroy();
+    if (this.overlay) return;
+    const ov = new Overlay(this, this.layout, {
+      title: 'LAST LINE',
+      subtitle:
+        'An alternate history. 2027. A coordinated offensive — China, Russia, ' +
+        'North Korea — strikes the American mainland and UN forces worldwide. ' +
+        'The fiction depicts militaries and machines, not peoples.',
+      scrim: 0.94,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { rowH, gap, font } = this.layout;
+    ov.centered(ov.flow(Math.round(font.body * 1.6)), 'Five commands are hiring. Pick your war:', font.body);
+
+    const pick = (faction: FactionId): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
       // Intro only shows on a fresh save (difficulty === null), so a rebuild
       // here throws nothing away.
       if (faction !== this.town.faction) {
         this.town = newTown(Date.now(), faction);
         saveTown(this.town);
       }
-      this.showDifficulty();
+      this.openOverlay(() => this.showDifficulty());
     };
-    for (const [i, faction] of FACTION_IDS.entries()) {
+    for (const faction of FACTION_IDS) {
       const flavor = flavorFor(faction);
-      const button = makeButton(
-        this,
-        cx - 290,
-        385 + i * 70,
-        580,
-        40,
+      ov.button(
+        ov.flow(rowH, Math.round(gap / 2)),
         `${flavor.faction} — ${flavor.operation.split(' — ')[0]!.replace('OPERATION ', 'OP. ')}`,
         () => pick(faction),
       );
-      const blurb = this.add
-        .text(cx, 385 + i * 70 + 45, flavor.pitch, mono(11, COLORS.inkDim))
-        .setOrigin(0.5, 0)
-        .setDepth(61);
-      button.bg.setDepth(61);
-      button.label.setDepth(61);
-      objects.push(button.bg, button.label, blurb);
+      ov.centered(ov.flow(Math.round(font.tiny * 1.8)), flavor.pitch, font.tiny, COLORS.inkDim);
     }
   }
 
   /** First run, screen 2: the difficulty commitment. */
   private showDifficulty(): void {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-    const cx = (GRID_PX_W + PANEL_W) / 2;
+    if (this.overlay) return;
     const flavor = flavorFor(this.town.faction);
-    objects.push(
-      this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.82).setOrigin(0).setDepth(60),
-      this.add
-        .text(cx, 210, flavor.operation, mono(22, COLORS.ink, { fontStyle: 'bold' }))
-        .setOrigin(0.5)
-        .setDepth(61),
-      this.add
-        .text(
-          cx,
-          260,
-          [flavor.situation, '', 'CHOOSE YOUR COMMITMENT:'].join('\n'),
-          mono(14, COLORS.ink, { lineSpacing: 7, align: 'center' }),
-        )
-        .setOrigin(0.5, 0)
-        .setDepth(61),
-    );
-    const pick = (difficulty: 'standard' | 'hard') => {
+    const ov = new Overlay(this, this.layout, {
+      title: flavor.operation,
+      subtitle: flavor.situation.replace(/\n/g, ' '),
+      scrim: 0.94,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { rowH, font } = this.layout;
+    ov.centered(ov.flow(Math.round(font.body * 1.8)), 'CHOOSE YOUR COMMITMENT:', font.body);
+
+    const pick = (difficulty: 'standard' | 'hard'): void => {
       this.town.campaign.difficulty = difficulty;
       saveTown(this.town);
-      for (const obj of objects) obj.destroy();
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
       // Rebuild the scene so every faction-flavored label refreshes.
       this.scene.restart({});
     };
-    const std = makeButton(this, cx - 250, 460, 230, 40, 'STANDARD — hold the line', () =>
-      pick('standard'),
-    );
-    const hard = makeButton(this, cx + 20, 460, 230, 40, 'HARD — +30% hostiles', () =>
-      pick('hard'),
-    );
-    for (const b of [std, hard]) {
-      b.bg.setDepth(61);
-      b.label.setDepth(61);
-      objects.push(b.bg, b.label);
-    }
+    ov.button(ov.flow(rowH), 'STANDARD — hold the line', () => pick('standard'));
+    ov.button(ov.flow(rowH), 'HARD — +30% hostiles', () => pick('hard'));
   }
 
   // ---- frame update -----------------------------------------------------------------
@@ -696,10 +731,10 @@ export class TownScene extends Phaser.Scene {
     this.updateHud(now);
   }
 
-  private cellFromPointer(pointer: Phaser.Input.Pointer): number {
-    return (
-      Math.floor(pointer.y / CELL) * TOWN_GRID.width + Math.floor(pointer.x / CELL)
-    );
+  /** Grid cell under the pointer, undoing the board camera's pan and zoom. */
+  private cellFromPointer(pointer: Phaser.Input.Pointer): number | null {
+    const at = this.board.cellAt(pointer);
+    return at ? at.row * TOWN_GRID.width + at.col : null;
   }
 
   private cellCenterPx(cell: number, footprint: number): { x: number; y: number } {
@@ -756,9 +791,8 @@ export class TownScene extends Phaser.Scene {
   }
 
   private drawGhost(g: Phaser.GameObjects.Graphics): void {
-    const pointer = this.input.activePointer;
-    if (pointer.x >= GRID_PX_W || pointer.y >= GRID_PX_H) return;
-    const cell = this.cellFromPointer(pointer);
+    const cell = this.cellFromPointer(this.input.activePointer);
+    if (cell === null) return;
 
     let kind: string | null = null;
     let valid = false;
@@ -800,140 +834,333 @@ export class TownScene extends Phaser.Scene {
 
   // ---- panel -----------------------------------------------------------------------------
 
-  private buildPanel(): void {
-    const x0 = GRID_PX_W;
-    const pad = 14;
-    const bw = PANEL_W - pad * 2;
-    this.add.rectangle(x0, 0, PANEL_W, GRID_PX_H, COLORS.bgPanel).setOrigin(0, 0);
-    this.add.rectangle(x0, 0, 2, GRID_PX_H, COLORS.gridLine).setOrigin(0, 0);
+  // ---- panel rows ------------------------------------------------------------------
+  //
+  // The panel is data: each tab returns a fresh row list every frame and the
+  // Panel diffs it against a pooled set of buttons. One layout description
+  // serves the landscape rail and the portrait drawer alike.
 
-    this.add.text(x0 + pad, 8, 'LAST LINE', mono(17, COLORS.ink, { fontStyle: 'bold' }));
-    this.add.text(x0 + pad, 28, flavorFor(this.town.faction).faction, mono(10, COLORS.inkDim));
-    this.warText = this.add.text(x0 + pad, 42, '', mono(12, COLORS.signal, { fontStyle: 'bold' }));
-
-    this.suppliesText = this.add.text(x0 + pad, 62, '', mono(11));
-    this.fuelText = this.add.text(x0 + pad, 77, '', mono(11));
-    this.intelText = this.add.text(x0 + pad, 92, '', mono(11));
-
-    this.add.text(x0 + pad, 110, 'CONSTRUCTION', mono(10, COLORS.inkDim));
-    let y = 122;
-    for (const kind of BUILDABLE_KINDS) {
-      this.buttons[kind] = makeButton(this, x0 + pad, y, bw, 22, '', () =>
-        this.setTool({ type: 'build', kind }),
-      );
-      y += 25;
+  private rowsForTab(now: number): PanelRow[] {
+    switch (this.panel.tab) {
+      case 'build':
+        return this.buildRows();
+      case 'base':
+        return this.baseRows(now);
+      case 'ops':
+        return this.opsRows(now);
+      case 'war':
+        return this.warRows();
+      default:
+        return this.sysRows();
     }
-    const half = (bw - 6) / 2;
-    this.buttons['wall'] = makeButton(this, x0 + pad, y, half, 22, 'WALL 10S', () =>
-      this.setTool({ type: 'wall' }),
-    );
-    this.buttons['erase'] = makeButton(this, x0 + pad + half + 6, y, half, 22, 'ERASE WALL', () =>
-      this.setTool({ type: 'erase' }),
-    );
-    y += 28;
-
-    this.add.text(x0 + pad, y, 'SELECTED', mono(10, COLORS.inkDim));
-    this.selectedText = this.add.text(
-      x0 + pad,
-      y + 13,
-      '',
-      mono(10, COLORS.ink, { lineSpacing: 2 }),
-    );
-    y += 86;
-    this.buttons['upgradeBtn'] = makeButton(this, x0 + pad, y, half, 22, 'UPGRADE', () =>
-      this.onUpgrade(),
-    );
-    this.buttons['moveBtn'] = makeButton(this, x0 + pad + half + 6, y, half, 22, 'MOVE', () =>
-      this.onMove(),
-    );
-    y += 26;
-    this.buttons['sellBtn'] = makeButton(this, x0 + pad, y, half, 22, 'SELL 50%', () =>
-      this.onSell(),
-    );
-    this.buttons['repairBtn'] = makeButton(this, x0 + pad + half + 6, y, half, 22, 'REPAIR', () =>
-      this.onRepair(),
-    );
-    y += 30;
-
-    this.add.text(x0 + pad, y, 'ORDNANCE (FUEL)', mono(10, COLORS.inkDim));
-    y += 13;
-    this.buttons['buyA10'] = makeButton(this, x0 + pad, y, bw, 22, '', () => {
-      if (buyCharge(this.town, 'a10')) this.saveSoon();
-    });
-    y += 25;
-    this.buttons['buyArty'] = makeButton(this, x0 + pad, y, bw, 22, '', () => {
-      if (buyCharge(this.town, 'arty')) this.saveSoon();
-    });
-    y += 29;
-
-    this.buttons['research'] = makeButton(this, x0 + pad, y, half, 22, 'RESEARCH [T]', () =>
-      this.showResearch(),
-    );
-    this.buttons['missions'] = makeButton(this, x0 + pad + half + 6, y, half, 22, 'OPS MAP [M]', () =>
-      this.showMissions(),
-    );
-    y += 26;
-
-    this.buttons['mission'] = makeButton(this, x0 + pad, y, bw, 24, '', () => this.launchMission());
-    y += 28;
-    this.buttons['skirmish'] = makeButton(this, x0 + pad, y, half, 20, '', () =>
-      this.launchSkirmish(),
-    );
-    this.buttons['frontline'] = makeButton(this, x0 + pad + half + 6, y, half, 20, '', () =>
-      this.openFrontline(),
-    );
-    y += 24;
-
-    const seventh = (bw - 36) / 7;
-    const slotX = (i: number) => x0 + pad + i * (seventh + 6);
-    this.buttons['export'] = makeButton(this, slotX(0), y, seventh, 20, 'EXP', () =>
-      downloadSave(this.town),
-    );
-    this.buttons['import'] = makeButton(this, slotX(1), y, seventh, 20, 'IMP', () => {
-      void pickAndImportSave().then((imported) => {
-        if (imported) {
-          this.town = imported;
-          tick(this.town, Date.now());
-          saveTown(this.town);
-          this.selectedId = null;
-          this.setBanner('SAVE IMPORTED.', 6);
-        }
-      });
-    });
-    this.buttons['reset'] = makeButton(this, slotX(2), y, seventh, 20, 'RST', () => this.onReset());
-    this.buttons['log'] = makeButton(this, slotX(3), y, seventh, 20, 'LOG', () =>
-      this.showDefenseLog(),
-    );
-    this.buttons['orders'] = makeButton(this, slotX(4), y, seventh, 20, '', () =>
-      this.cycleOrders(),
-    );
-    this.buttons['sfx'] = makeButton(this, slotX(5), y, seventh, 20, '', () => this.toggleSfx());
-    this.buttons['cb'] = makeButton(this, slotX(6), y, seventh, 20, '', () => this.toggleColorblind());
-    y += 26;
-
-    this.bannerText = this.add.text(
-      x0 + pad,
-      y,
-      '',
-      mono(9, COLORS.signal, { lineSpacing: 3, wordWrap: { width: bw } }),
-    );
-    this.refreshSettingsButtons();
   }
 
-  private refreshSettingsButtons(): void {
-    const settings = loadSettings();
-    this.buttons['sfx']?.setLabel(settings.mute ? 'SFX✗' : 'SFX✓');
-    this.buttons['cb']?.setLabel(settings.colorblind ? 'CB✓' : 'CB');
-    const orders = this.town.standingOrders;
-    this.buttons['orders']?.setLabel(
-      orders === 'holdfast'
-        ? 'HLD'
-        : orders === 'counterbattery'
-          ? 'CBT'
-          : orders === 'tripwire'
-            ? 'TRP'
-            : 'ORD✗',
+  private buildRows(): PanelRow[] {
+    const town = this.town;
+    const g = gating(town);
+    const rows: PanelRow[] = [{ id: 'h1', label: 'CONSTRUCTION', heading: true }];
+
+    for (const kind of BUILDABLE_KINDS) {
+      const meta = this.meta(kind)!;
+      const cost = meta.levels[0]!;
+      const max = g.counts[kind] ?? 0;
+      const have = countOf(town, kind);
+      if (!isUnlocked(town, kind)) {
+        const at = this.unlockAt(kind);
+        rows.push({
+          id: kind,
+          label: meta.name.toUpperCase(),
+          sub: `LOCKED${at !== undefined ? ` M${at + 1}` : ''}`,
+          enabled: false,
+        });
+        continue;
+      }
+      const costText = cost.fuel > 0 ? `${cost.supplies}S+${cost.fuel}F` : `${cost.supplies}S`;
+      rows.push({
+        id: kind,
+        label: meta.name.toUpperCase(),
+        sub: `${costText} ${have}/${max}`,
+        enabled: max > 0 && have < max && town.supplies >= cost.supplies && town.fuel >= cost.fuel,
+        active: this.tool.type === 'build' && this.tool.kind === kind,
+        onTap: () => this.setTool({ type: 'build', kind }),
+      });
+    }
+
+    rows.push(
+      { id: 'h2', label: 'WALL LINE — drag to paint', heading: true },
+      {
+        id: 'wall',
+        label: 'BUILD WALL',
+        sub: `10S ${town.walls.length}/${g.walls}`,
+        enabled: town.walls.length < g.walls && town.supplies >= 10,
+        active: this.tool.type === 'wall',
+        onTap: () => this.setTool({ type: 'wall' }),
+      },
+      {
+        id: 'erase',
+        label: 'ERASE WALL',
+        active: this.tool.type === 'erase',
+        onTap: () => this.setTool({ type: 'erase' }),
+      },
     );
+    return rows;
+  }
+
+  private baseRows(now: number): PanelRow[] {
+    const town = this.town;
+    const s = this.selected();
+    if (!s) {
+      return [
+        { id: 'h', label: 'NOTHING SELECTED', heading: true },
+        { id: 'hint', label: 'Tap a structure on the map', heading: true },
+        { id: 'hint2', label: 'to inspect and upgrade it.', heading: true },
+        { id: 'hint3', label: 'Pinch to zoom · drag to pan', heading: true },
+        { id: 'fit', label: 'FIT VIEW', onTap: () => this.focusBase() },
+      ];
+    }
+
+    const meta = this.meta(s.kind);
+    const rows: PanelRow[] = [
+      { id: 'h', label: `${meta?.name.toUpperCase() ?? s.kind} — LV ${s.level}`, heading: true },
+    ];
+    const info = (text: string): void => {
+      rows.push({ id: `i${rows.length}`, label: text, heading: true });
+    };
+    if (s.wrecked) {
+      const cost = repairCost(town, s);
+      info('STATUS: WRECKED');
+      info(`REPAIR: ${cost.supplies}S+${cost.fuel}F`);
+    } else if (s.buildEndsAt !== undefined) {
+      const secs = Math.max(0, Math.ceil((s.buildEndsAt - now) / 1000));
+      info(s.upgradingTo ? `UPGRADING → LV ${s.upgradingTo}: ${secs}s` : `BUILDING: ${secs}s`);
+    } else {
+      info('STATUS: OPERATIONAL');
+    }
+    if (meta?.generatesSupplies) info(`OUTPUT: ${meta.generatesSupplies[s.level - 1]} SUP/min`);
+    if (meta?.generatesFuel) info(`OUTPUT: ${meta.generatesFuel[s.level - 1]} FUEL/min`);
+    if (meta?.generatesIntel) info(`OUTPUT: ${meta.generatesIntel[s.level - 1]} INTEL/min`);
+    if (meta?.storage) {
+      const t = meta.storage[s.level - 1]!;
+      info(`STORAGE: +${t.supplies}S +${t.fuel}F`);
+    }
+    if (meta?.intelCap) info(`INTEL CAP: +${meta.intelCap[s.level - 1]}`);
+    if (meta?.buildSpeed) info(`BUILD SPEED: −${Math.round(meta.buildSpeed[s.level - 1]! * 100)}%`);
+
+    const err = upgradeError(town, s);
+    let upgradeSub = '';
+    if (err === null) {
+      const cost = meta!.levels[s.level]!;
+      upgradeSub = `${cost.supplies}S+${cost.fuel}F ${cost.seconds}s`;
+    } else if (err === 'locked') {
+      const at = this.unlockAt(`cc${s.level + 1}`);
+      upgradeSub = at !== undefined ? `M${at + 1}` : 'PENDING';
+    } else if (err === 'max' && s.kind !== 'cc') {
+      upgradeSub = ccLevel(town) < 3 ? 'NEEDS CC' : 'MAX';
+    }
+    const repair = repairCost(town, s);
+    rows.push(
+      {
+        id: 'upgrade',
+        label: 'UPGRADE',
+        sub: upgradeSub,
+        enabled: err === null,
+        onTap: () => this.onUpgrade(),
+      },
+      {
+        id: 'move',
+        label: 'MOVE',
+        enabled: s.kind !== 'cc',
+        active: this.tool.type === 'move',
+        onTap: () => this.onMove(),
+      },
+      { id: 'sell', label: 'SELL 50%', enabled: s.kind !== 'cc', onTap: () => this.onSell() },
+      {
+        id: 'repair',
+        label: 'REPAIR WRECK',
+        sub: s.wrecked ? `${repair.supplies}S+${repair.fuel}F` : '',
+        enabled: s.wrecked && town.supplies >= repair.supplies && town.fuel >= repair.fuel,
+        onTap: () => this.onRepair(),
+      },
+    );
+    return rows;
+  }
+
+  private opsRows(now: number): PanelRow[] {
+    const town = this.town;
+    const mission = this.nextMission();
+    const active = town.research.active;
+    const researchLabel = active
+      ? `${(TECH_BY_ID[active.id]?.name ?? active.id).toUpperCase()}`
+      : hasRadar(town)
+        ? 'RESEARCH'
+        : 'RESEARCH — NO SIGNALS';
+    const researchSub = active
+      ? `${Math.max(0, Math.ceil((active.endsAt - now) / 1000))}s`
+      : '[T]';
+
+    return [
+      { id: 'h', label: 'OPERATIONS', heading: true },
+      {
+        id: 'mission',
+        label: mission ? `MISSION ${mission.index + 1}: ${mission.codename}` : 'CAMPAIGN COMPLETE',
+        sub: mission ? '[SPACE]' : '',
+        enabled: !!mission && !this.demoMode && town.campaign.difficulty !== null,
+        onTap: () => this.launchMission(),
+      },
+      {
+        id: 'opsmap',
+        label: 'OPERATIONS MAP',
+        sub: '[M]',
+        enabled: !this.demoMode && town.campaign.difficulty !== null,
+        onTap: () => this.openOverlay(() => this.showMissions()),
+      },
+      {
+        id: 'research',
+        label: researchLabel,
+        sub: researchSub,
+        enabled: !this.demoMode,
+        onTap: () => this.openOverlay(() => this.showResearch()),
+      },
+      { id: 'h2', label: 'TRAINING GROUND', heading: true },
+      {
+        id: 'skirmish',
+        label: this.skirmishUnlocked() ? `SKIRMISH LV ${town.assaultLevel}` : 'SKIRMISH',
+        sub: this.skirmishUnlocked() ? '' : 'M2',
+        enabled: this.skirmishUnlocked() && !this.demoMode,
+        onTap: () => this.launchSkirmish(),
+      },
+    ];
+  }
+
+  private warRows(): PanelRow[] {
+    const town = this.town;
+    const rows: PanelRow[] = [{ id: 'h', label: 'THE FRONT LINE', heading: true }];
+
+    if (!isUnlocked(town, 'frontline')) {
+      const at = this.unlockAt('frontline');
+      rows.push({
+        id: 'front',
+        label: 'FRONT LINE',
+        sub: at !== undefined ? `M${at + 1}` : 'LOCKED',
+        enabled: false,
+      });
+    } else if (town.frontline.pendingCounterattack) {
+      rows.push({
+        id: 'front',
+        label: '⚠ COUNTERATTACK — DEFEND',
+        sub: '[F]',
+        enabled: !this.demoMode,
+        onTap: () => this.openFrontline(),
+      });
+    } else {
+      rows.push({
+        id: 'front',
+        label: `FRONT LINE — TIER ${town.frontline.tier}`,
+        sub: '[F]',
+        enabled: !this.demoMode,
+        onTap: () => this.openFrontline(),
+      });
+    }
+
+    rows.push({ id: 'h2', label: 'ORDNANCE (FUEL)', heading: true });
+    const powers = defenseCatalogFor(town.faction).powers;
+    for (const power of ['a10', 'arty'] as const) {
+      const stock = town.charges[power] ?? 0;
+      const price = CHARGE_PRICES[power]!;
+      const def = powers[power]!;
+      const name = (def.short ?? def.name).toUpperCase();
+      if (!isUnlocked(town, power)) {
+        const at = this.unlockAt(power);
+        rows.push({
+          id: power,
+          label: name,
+          sub: `LOCKED${at !== undefined ? ` M${at + 1}` : ''}`,
+          enabled: false,
+        });
+        continue;
+      }
+      rows.push({
+        id: power,
+        label: `${name} ×${stock}/${CHARGE_CAP}`,
+        sub: `BUY ${price}F`,
+        enabled: stock < CHARGE_CAP && town.fuel >= price,
+        onTap: () => {
+          if (buyCharge(this.town, power)) this.saveSoon();
+        },
+      });
+    }
+
+    const orders = town.standingOrders;
+    rows.push(
+      { id: 'h3', label: 'WHILE YOU ARE AWAY', heading: true },
+      {
+        id: 'orders',
+        label: 'STANDING ORDERS',
+        sub: orders ? orders.toUpperCase().slice(0, 7) : 'NONE',
+        active: orders !== null,
+        onTap: () => this.cycleOrders(),
+      },
+      {
+        id: 'log',
+        label: 'DEFENSE LOG',
+        onTap: () => this.openOverlay(() => this.showDefenseLog()),
+      },
+    );
+    return rows;
+  }
+
+  private sysRows(): PanelRow[] {
+    const settings = loadSettings();
+    const armed = Date.now() <= this.resetArmedUntil;
+    return [
+      { id: 'h', label: 'VIEW', heading: true },
+      { id: 'fit', label: 'FIT VIEW TO BASE', onTap: () => this.focusBase() },
+      {
+        id: 'fs',
+        label: this.scale.isFullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN',
+        active: this.scale.isFullscreen,
+        onTap: () => {
+          if (this.scale.isFullscreen) this.scale.stopFullscreen();
+          else this.scale.startFullscreen();
+        },
+      },
+      { id: 'h2', label: 'SETTINGS', heading: true },
+      {
+        id: 'sfx',
+        label: settings.mute ? 'SOUND: OFF' : 'SOUND: ON',
+        active: !settings.mute,
+        onTap: () => this.toggleSfx(),
+      },
+      {
+        id: 'cb',
+        label: settings.colorblind ? 'COLORBLIND: ON' : 'COLORBLIND: OFF',
+        active: settings.colorblind,
+        onTap: () => this.toggleColorblind(),
+      },
+      { id: 'h3', label: 'SAVE', heading: true },
+      { id: 'export', label: 'EXPORT SAVE', onTap: () => downloadSave(this.town) },
+      {
+        id: 'import',
+        label: 'IMPORT SAVE',
+        onTap: () => {
+          void pickAndImportSave().then((imported) => {
+            if (imported) {
+              this.town = imported;
+              tick(this.town, Date.now());
+              saveTown(this.town);
+              this.selectedId = null;
+              this.setBanner('SAVE IMPORTED.', 6);
+            }
+          });
+        },
+      },
+      {
+        id: 'reset',
+        label: armed ? 'TAP AGAIN TO ABANDON' : 'ABANDON BASE',
+        active: armed,
+        onTap: () => this.onReset(),
+      },
+    ];
   }
 
   /** Standing orders for offline defenses (v0.8): none → the three presets. */
@@ -943,7 +1170,6 @@ export class TownScene extends Phaser.Scene {
     const next = cycle[(index + 1) % cycle.length]!;
     this.town.standingOrders = next;
     this.saveSoon();
-    this.refreshSettingsButtons();
     this.setBanner(
       next === null
         ? 'STANDING ORDERS RESCINDED — offline defenses fight with the permanent layer only.'
@@ -961,7 +1187,6 @@ export class TownScene extends Phaser.Scene {
     settings.mute = !settings.mute;
     saveSettings(settings);
     applySettings(settings);
-    this.refreshSettingsButtons();
   }
 
   private toggleColorblind(): void {
@@ -1004,7 +1229,7 @@ export class TownScene extends Phaser.Scene {
     const now = Date.now();
     if (now > this.resetArmedUntil) {
       this.resetArmedUntil = now + 3000;
-      this.buttons['reset']?.setLabel('?!');
+      this.setBanner('TAP ABANDON AGAIN TO CONFIRM.', 3);
       return;
     }
     clearSave();
@@ -1032,19 +1257,23 @@ export class TownScene extends Phaser.Scene {
     const cap = caps(town);
     const rate = ratesPerMinute(town);
     const mission = this.nextMission();
-    this.warText.setText(
-      mission
-        ? `NEXT: M${mission.index + 1} ${mission.codename} · ${town.victories}W ${town.defeats}L`
-        : `CAMPAIGN COMPLETE · SKIRMISH LV ${town.assaultLevel} · ${town.victories}W ${town.defeats}L`,
-    );
-    this.suppliesText.setText(
-      `SUPPLIES ${Math.floor(town.supplies)}/${cap.supplies}  (+${rate.supplies}/min)`,
-    );
-    this.fuelText.setText(`FUEL     ${Math.floor(town.fuel)}/${cap.fuel}  (+${rate.fuel}/min)`);
-    this.intelText.setText(
-      `INTEL    ${Math.floor(town.intel)}/${cap.intel}  (+${rate.intel}/min)`,
-    );
-    this.intelText.setColor(css(rate.intel > 0 ? COLORS.ink : COLORS.inkDim));
+    const headline = mission
+      ? `M${mission.index + 1} ${mission.codename} · ${town.victories}W ${town.defeats}L`
+      : `SKIRMISH LV ${town.assaultLevel} · ${town.victories}W ${town.defeats}L`;
+
+    // Portrait has one status line to spend; the rail can afford three.
+    const lines =
+      this.layout.mode === 'portrait'
+        ? [
+            `SUP ${Math.floor(town.supplies)}  FUEL ${Math.floor(town.fuel)}  INT ${Math.floor(town.intel)}`,
+          ]
+        : [
+            `SUPPLIES ${Math.floor(town.supplies)}/${cap.supplies} (+${rate.supplies}/min)`,
+            `FUEL     ${Math.floor(town.fuel)}/${cap.fuel} (+${rate.fuel}/min)`,
+            `INTEL    ${Math.floor(town.intel)}/${cap.intel} (+${rate.intel}/min)`,
+          ];
+    this.panel.setStatus(`${flavorFor(town.faction).faction} · ${headline}`, lines);
+    this.panel.setRows(this.rowsForTab(now));
 
     // Research completion lands as a banner the moment tick() finishes it.
     const activeId = town.research.active?.id ?? null;
@@ -1057,143 +1286,8 @@ export class TownScene extends Phaser.Scene {
     }
     this.lastActiveResearch = activeId;
 
-    const g = gating(town);
-    for (const kind of BUILDABLE_KINDS) {
-      const meta = this.meta(kind)!;
-      const cost = meta.levels[0]!;
-      const max = g.counts[kind] ?? 0;
-      const have = countOf(town, kind);
-      const costText = cost.fuel > 0 ? `${cost.supplies}S+${cost.fuel}F` : `${cost.supplies}S`;
-      const button = this.buttons[kind]!;
-      if (!isUnlocked(town, kind)) {
-        const at = this.unlockAt(kind);
-        button.setLabel(
-          `${meta.name.toUpperCase()} — LOCKED${at !== undefined ? ` (M${at + 1})` : ''}`,
-        );
-        button.setEnabled(false);
-        continue;
-      }
-      button.setLabel(`${meta.name.toUpperCase()} ${costText} — ${have}/${max}`);
-      button.setEnabled(
-        max > 0 && have < max && town.supplies >= cost.supplies && town.fuel >= cost.fuel,
-      );
-    }
-    this.buttons['wall']?.setLabel(`WALL 10S ${town.walls.length}/${g.walls}`);
-    this.buttons['wall']?.setEnabled(town.walls.length < g.walls && town.supplies >= 10);
-
-    // Selected structure card.
-    const s = this.selected();
-    if (s) {
-      const meta = this.meta(s.kind);
-      const lines: string[] = [`${meta?.name.toUpperCase() ?? s.kind} — LV ${s.level}`];
-      if (s.wrecked) {
-        const cost = repairCost(this.town, s);
-        lines.push('STATUS: WRECKED', `REPAIR: ${cost.supplies}S+${cost.fuel}F`);
-      } else if (s.buildEndsAt !== undefined) {
-        const secs = Math.max(0, Math.ceil((s.buildEndsAt - now) / 1000));
-        lines.push(s.upgradingTo ? `UPGRADING → LV ${s.upgradingTo}: ${secs}s` : `BUILDING: ${secs}s`);
-      } else {
-        lines.push('STATUS: OPERATIONAL');
-      }
-      if (meta?.generatesSupplies) lines.push(`OUTPUT: ${meta.generatesSupplies[s.level - 1]} SUP/min`);
-      if (meta?.generatesFuel) lines.push(`OUTPUT: ${meta.generatesFuel[s.level - 1]} FUEL/min`);
-      if (meta?.generatesIntel) lines.push(`OUTPUT: ${meta.generatesIntel[s.level - 1]} INTEL/min`);
-      if (meta?.storage) {
-        const t = meta.storage[s.level - 1]!;
-        lines.push(`STORAGE: +${t.supplies}S +${t.fuel}F`);
-      }
-      if (meta?.intelCap) lines.push(`INTEL CAP: +${meta.intelCap[s.level - 1]}`);
-      if (meta?.buildSpeed) lines.push(`BUILD SPEED: −${Math.round(meta.buildSpeed[s.level - 1]! * 100)}%`);
-      const err = upgradeError(town, s);
-      if (err === null) {
-        const cost = meta!.levels[s.level]!;
-        lines.push(`UPGRADE: ${cost.supplies}S+${cost.fuel}F, ${cost.seconds}s`);
-      } else if (err === 'locked') {
-        const at = this.unlockAt(`cc${s.level + 1}`);
-        lines.push(`UPGRADE: REQUISITION${at !== undefined ? ` AT M${at + 1}` : ' PENDING'}`);
-      } else if (err === 'max' && s.kind !== 'cc') {
-        lines.push(ccLevel(town) < 3 ? 'UPGRADE: NEEDS CC LEVEL UP' : 'MAX LEVEL');
-      }
-      this.selectedText.setText(lines.join('\n'));
-      this.buttons['upgradeBtn']?.setEnabled(err === null);
-      this.buttons['moveBtn']?.setEnabled(s.kind !== 'cc');
-      this.buttons['sellBtn']?.setEnabled(s.kind !== 'cc');
-      this.buttons['repairBtn']?.setEnabled(
-        s.wrecked && town.supplies >= repairCost(town, s).supplies && town.fuel >= repairCost(town, s).fuel,
-      );
-    } else {
-      this.selectedText.setText('Click a structure to inspect.\nThe CC gates counts and levels.');
-      for (const key of ['upgradeBtn', 'moveBtn', 'sellBtn', 'repairBtn']) {
-        this.buttons[key]?.setEnabled(false);
-      }
-    }
-
-    const powers = defenseCatalogFor(town.faction).powers;
-    for (const [key, power] of [
-      ['buyA10', 'a10'],
-      ['buyArty', 'arty'],
-    ] as const) {
-      const stock = town.charges[power] ?? 0;
-      const price = CHARGE_PRICES[power]!;
-      const def = powers[power]!;
-      const name = (def.short ?? def.name).toUpperCase();
-      if (!isUnlocked(town, power)) {
-        const at = this.unlockAt(power);
-        this.buttons[key]?.setLabel(`${name} — LOCKED${at !== undefined ? ` (M${at + 1})` : ''}`);
-        this.buttons[key]?.setEnabled(false);
-        continue;
-      }
-      this.buttons[key]?.setLabel(`${name} ×${stock}/${CHARGE_CAP} — BUY ${price}F`);
-      this.buttons[key]?.setEnabled(stock < CHARGE_CAP && town.fuel >= price);
-    }
-
-    if (mission) {
-      this.buttons['mission']?.setLabel(`MISSION ${mission.index + 1}: ${mission.codename} [SPACE]`);
-      this.buttons['mission']?.setEnabled(!this.demoMode && town.campaign.difficulty !== null);
-    } else {
-      this.buttons['mission']?.setLabel('CAMPAIGN COMPLETE');
-      this.buttons['mission']?.setEnabled(false);
-    }
-    if (this.skirmishUnlocked()) {
-      this.buttons['skirmish']?.setLabel(`SKIRMISH L${town.assaultLevel}`);
-      this.buttons['skirmish']?.setEnabled(!this.demoMode);
-    } else {
-      this.buttons['skirmish']?.setLabel('SKIRMISH (M2)');
-      this.buttons['skirmish']?.setEnabled(false);
-    }
-    if (!isUnlocked(town, 'frontline')) {
-      const at = this.unlockAt('frontline');
-      this.buttons['frontline']?.setLabel(`FRONT${at !== undefined ? ` (M${at + 1})` : ''}`);
-      this.buttons['frontline']?.setEnabled(false);
-    } else if (town.frontline.pendingCounterattack) {
-      this.buttons['frontline']?.setLabel('⚠ DEFEND [F]');
-      this.buttons['frontline']?.setEnabled(!this.demoMode);
-    } else {
-      this.buttons['frontline']?.setLabel(`FRONT T${town.frontline.tier} [F]`);
-      this.buttons['frontline']?.setEnabled(!this.demoMode);
-    }
-
-    // Research button: live status of the one running project.
-    const active = town.research.active;
-    if (active) {
-      const secs = Math.max(0, Math.ceil((active.endsAt - now) / 1000));
-      const name = TECH_BY_ID[active.id]?.name.toUpperCase() ?? active.id;
-      this.buttons['research']?.setLabel(`${name.slice(0, 9)}… ${secs}s`);
-    } else {
-      this.buttons['research']?.setLabel(hasRadar(town) ? 'RESEARCH [T]' : 'RESEARCH —');
-    }
-    this.buttons['research']?.setEnabled(!this.demoMode);
-    this.buttons['missions']?.setEnabled(!this.demoMode && town.campaign.difficulty !== null);
-
-    if (Date.now() > this.resetArmedUntil && this.buttons['reset']) {
-      this.buttons['reset'].setLabel('RST');
-    }
-    this.bannerText.setText(
-      this.bannerTtl > 0
-        ? this.banner
-        : 'LMB use tool · RMB/ESC select · T research · M ops map · F front line',
-    );
-    this.bannerText.setColor(css(this.bannerTtl > 0 ? COLORS.signal : COLORS.inkDim));
+    this.bannerText.setText(this.bannerTtl > 0 ? this.banner : '');
+    this.bannerText.setVisible(this.bannerTtl > 0);
   }
 }
 

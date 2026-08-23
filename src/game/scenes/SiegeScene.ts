@@ -8,7 +8,10 @@ import type { SimConfig, SimEvent } from '../../sim/types';
 import { audio } from '../audio';
 import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
-import { makeButton, mono, type Button } from '../ui';
+import { BoardView } from '../BoardView';
+import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { Overlay } from '../overlay';
+import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
 export type BattleTag =
   | { type: 'mission'; missionId: string }
@@ -27,9 +30,13 @@ export interface SiegeLaunchData {
 const CELL = 32;
 const GRID_W = 32;
 const GRID_H = 24;
-const GRID_PX_W = GRID_W * CELL; // 1024
-const GRID_PX_H = GRID_H * CELL; // 768
-const PANEL_W = 256;
+/** Panel tabs: build items, ordnance, and the running sitrep. */
+const SIEGE_TABS = [
+  { id: 'deploy', label: 'DEPLOY' },
+  { id: 'fire', label: 'FIRE' },
+  { id: 'intel', label: 'INTEL' },
+  { id: 'ctrl', label: 'CTRL' },
+];
 
 type Tool =
   | { type: 'wall'; kind: string }
@@ -61,14 +68,12 @@ export class SiegeScene extends Phaser.Scene {
   private paused = false;
   private pausedText!: Phaser.GameObjects.Text;
 
-  private phaseText!: Phaser.GameObjects.Text;
-  private suppliesText!: Phaser.GameObjects.Text;
-  private cpText!: Phaser.GameObjects.Text;
-  private cpBarFill!: Phaser.GameObjects.Rectangle;
-  private buildLabel!: Phaser.GameObjects.Text;
-  private powersLabel!: Phaser.GameObjects.Text;
-  private intelText!: Phaser.GameObjects.Text;
-  private sitrepText!: Phaser.GameObjects.Text;
+  private board!: BoardView;
+  private panel!: Panel;
+  private layout!: Layout;
+  private drawerOpen = true;
+  private primary!: Button;
+  private overlay: Overlay | null = null;
   private buttons: Record<string, Button> = {};
 
   constructor() {
@@ -132,18 +137,50 @@ export class SiegeScene extends Phaser.Scene {
       siege: standaloneSiege,
     };
     this.engine = new Engine(config, defenseCatalogFor(this.faction));
-    this.battle = new BattleRenderer(this, this.engine, CELL);
+    this.board = new BoardView(this, { cols: GRID_W, rows: GRID_H, cell: CELL });
+    this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world);
 
-    this.add
-      .text(GRID_PX_W / 2, 6, flavorFor(this.faction).operation, mono(11, COLORS.inkDim))
-      .setOrigin(0.5, 0)
-      .setDepth(5);
+    this.panel = new Panel(this, this.board.ui, SIEGE_TABS);
+    this.panel.onDrawerToggle = () => {
+      this.drawerOpen = !this.drawerOpen;
+      this.applyLayout();
+    };
+    // The one action that must always be under a thumb.
+    this.primary = makeButton(this, 0, 0, 10, 10, '', () => this.advancePhase(), {
+      align: 'center',
+      container: this.board.ui,
+    });
+    this.pausedText = this.add
+      .text(0, 0, 'HOLDING', {
+        ...mono(24, COLORS.ink, { fontStyle: 'bold', backgroundColor: css(COLORS.bgPanel) }),
+        padding: { x: 18, y: 10 },
+      })
+      .setOrigin(0.5)
+      .setVisible(false);
+    this.board.ui.add(this.pausedText);
 
-    this.buildPanel();
+    this.applyLayout();
+    onLayoutChange(this, () => this.applyLayout());
     this.bindInput();
-    this.refreshPanel();
 
     if (this.demoMode) this.applyDemoScript();
+  }
+
+  private applyLayout(): void {
+    this.layout = layoutOf(this, this.drawerOpen);
+    this.board.applyLayout(this.layout, true);
+    this.panel.applyLayout(this.layout);
+    const { board, pad, rowH, font } = this.layout;
+    const w = Math.min(board.w - pad * 2, this.layout.px(320));
+    this.primary.setRect(board.x + (board.w - w) / 2, board.y + board.h - rowH - pad, w, rowH);
+    this.primary.setFont(font.body);
+    this.pausedText.setPosition(board.x + board.w / 2, board.y + board.h / 2).setFontSize(font.title);
+    if (this.overlay) {
+      this.overlay.close();
+      this.overlay = null;
+      this.overlayShown = false;
+      this.showOverlay(this.engine.phase === 'victory');
+    }
   }
 
   // ---- demo (screenshots & smoke tests) ------------------------------------------
@@ -179,21 +216,16 @@ export class SiegeScene extends Phaser.Scene {
     e.command({ tick: e.tick + 3, type: 'placeStructure', cell: idx(21, 11), kind: 'depmg' });
     e.command({ tick: e.tick + 5, type: 'placeStructure', cell: idx(19, 12), kind: 'claymore' });
     e.command({ tick: e.tick + 10, type: 'castPower', kind: 'arty', target: { x: 19.5, y: 12.5 } });
-    this.refreshPanel();
+
   }
 
   // ---- input ----------------------------------------------------------------------
 
   private bindInput(): void {
+    this.board.onTap((col, row) => this.handleCell(col, row, true));
+    this.board.onPaint((col, row) => this.handleCell(col, row, false));
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.rightButtonDown()) {
-        this.setTool(null);
-        return;
-      }
-      this.handlePointer(pointer, true);
-    });
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.isDown) this.handlePointer(pointer, false);
+      if (pointer.rightButtonDown()) this.setTool(null);
     });
 
     const kb = this.input.keyboard;
@@ -249,7 +281,6 @@ export class SiegeScene extends Phaser.Scene {
     if (phase === 'victory' || phase === 'defeat') return;
     this.paused = !this.paused;
     this.pausedText.setVisible(this.paused);
-    this.buttons['pause']?.setActive(this.paused);
   }
 
   private setTool(tool: Tool | null): void {
@@ -264,35 +295,29 @@ export class SiegeScene extends Phaser.Scene {
       tool = null;
     }
     this.tool = tool;
-    for (const key of [...SETUP_TOOL_KEYS, ...COMBAT_TOOL_KEYS, 'erase', 'a10', 'arty']) {
-      const active =
-        tool !== null &&
-        ((tool.type === 'erase' && key === 'erase') ||
-          ((tool.type === 'wall' || tool.type === 'structure' || tool.type === 'power') &&
-            'kind' in tool &&
-            tool.kind === key));
-      this.buttons[key]?.setActive(active);
-    }
+    // Walls and the eraser paint across a drag; everything else leaves the
+    // drag to the camera so the board can still be panned mid-build.
+    this.board.paintMode = tool?.type === 'wall' || tool?.type === 'erase';
+    this.lastPaintedCell = -1;
   }
 
-  private handlePointer(pointer: Phaser.Input.Pointer, isFirstPress: boolean): void {
-    if (!this.tool || pointer.x >= GRID_PX_W || pointer.y >= GRID_PX_H) return;
-    const cellX = Math.floor(pointer.x / CELL);
-    const cellY = Math.floor(pointer.y / CELL);
+  private handleCell(cellX: number, cellY: number, isTap: boolean): void {
+    if (!this.tool || this.overlay) return;
     const cell = this.engine.grid.idx(cellX, cellY);
 
     if (this.tool.type === 'power') {
-      if (!isFirstPress) return;
+      if (!isTap) return;
       this.engine.command({
         type: 'castPower',
         kind: this.tool.kind,
-        target: { x: pointer.x / CELL, y: pointer.y / CELL },
+        // Aim at the cell centre: a fingertip is wider than a pixel.
+        target: { x: cellX + 0.5, y: cellY + 0.5 },
       });
       this.setTool(null);
       return;
     }
 
-    if (cell === this.lastPaintedCell && !isFirstPress) return;
+    if (cell === this.lastPaintedCell && !isTap) return;
     this.lastPaintedCell = cell;
 
     if (this.tool.type === 'wall') {
@@ -300,15 +325,14 @@ export class SiegeScene extends Phaser.Scene {
     } else if (this.tool.type === 'erase') {
       if (this.engine.grid.wallAt(cell)) this.engine.command({ type: 'removeWall', cell });
       else this.engine.command({ type: 'removeStructure', cell });
-    } else if (isFirstPress) {
-      // Structures place on click only — drag-placing towers is a misclick machine.
+    } else if (isTap) {
+      // Structures place on tap only — drag-placing towers is a misclick machine.
       this.engine.command({ type: 'placeStructure', cell, kind: this.tool.kind });
     }
   }
 
   private cycleSpeed(): void {
     this.speedMult = this.speedMult >= 8 ? 1 : this.speedMult * 2;
-    this.buttons['speed']?.setLabel(`×${this.speedMult} [S]`);
   }
 
   // ---- sim stepping ------------------------------------------------------------------
@@ -344,8 +368,10 @@ export class SiegeScene extends Phaser.Scene {
         case 'assaultStarted':
         case 'waveStarted':
         case 'prepStarted':
+          // Phase flips retarget the deploy tab (fortify ⇄ field deploy).
           this.setTool(null);
-          this.refreshPanel();
+          // setTab on the *current* tab collapses the drawer, so only move.
+          if (this.panel.tab !== 'deploy') this.panel.setTab('deploy');
           break;
         case 'victory':
           this.showOverlay(true);
@@ -362,7 +388,8 @@ export class SiegeScene extends Phaser.Scene {
   private currentGhost(): GhostPreview | undefined {
     if (!this.tool || this.tool.type === 'power') return undefined;
     const pointer = this.input.activePointer;
-    if (pointer.x >= GRID_PX_W || pointer.y >= GRID_PX_H) return undefined;
+    const at = this.board.cellAt(pointer);
+    if (!at) return undefined;
     const cell = this.engine.grid.idx(Math.floor(pointer.x / CELL), Math.floor(pointer.y / CELL));
 
     if (this.tool.type === 'erase') {
@@ -385,272 +412,202 @@ export class SiegeScene extends Phaser.Scene {
   private currentPowerPreview(): PowerPreview | undefined {
     if (this.tool?.type !== 'power') return undefined;
     const pointer = this.input.activePointer;
-    if (pointer.x >= GRID_PX_W || pointer.y >= GRID_PX_H) return undefined;
-    return { kind: this.tool.kind, at: { x: pointer.x / CELL, y: pointer.y / CELL } };
+    const at = this.board.cellAt(pointer);
+    if (!at) return undefined;
+    return { kind: this.tool.kind, at: { x: at.col + 0.5, y: at.row + 0.5 } };
   }
 
   // ---- panel -----------------------------------------------------------------------------
 
-  private buildPanel(): void {
-    const x0 = GRID_PX_W;
-    const pad = 14;
-    const bw = PANEL_W - pad * 2;
-    this.add.rectangle(x0, 0, PANEL_W, GRID_PX_H, COLORS.bgPanel).setOrigin(0, 0);
-    this.add.rectangle(x0, 0, 2, GRID_PX_H, COLORS.gridLine).setOrigin(0, 0);
+  // ---- panel rows -------------------------------------------------------------
 
-    this.add.text(x0 + pad, 12, 'LAST LINE', mono(17, COLORS.ink, { fontStyle: 'bold' }));
-    this.add.text(
-      x0 + pad,
-      34,
-      this.engine.config.siege?.name ?? 'SANDBOX',
-      mono(10, COLORS.inkDim),
-    );
-    this.phaseText = this.add.text(x0 + pad, 54, '', mono(13, COLORS.ink, { fontStyle: 'bold' }));
-
-    this.suppliesText = this.add.text(x0 + pad, 78, '', mono(12));
-    this.cpText = this.add.text(x0 + pad, 96, '', mono(12));
-    this.add
-      .rectangle(x0 + pad + 64, 97, bw - 64, 10, COLORS.bgField)
-      .setOrigin(0, 0)
-      .setStrokeStyle(1, COLORS.gridLine);
-    this.cpBarFill = this.add
-      .rectangle(x0 + pad + 65, 98, 0, 8, COLORS.intel)
-      .setOrigin(0, 0);
-
-    this.buildLabel = this.add.text(x0 + pad, 118, 'BUILD', mono(10, COLORS.inkDim));
-    const slot = (i: number) => 132 + i * 30;
-    const catalog = this.engine.catalog;
-
-    // Permanent layer (setup/prep).
-    this.buttons['wall'] = makeButton(this, x0 + pad, slot(0), bw, 26, '', () =>
-      this.setTool({ type: 'wall', kind: 'wall' }),
-    );
-    this.buttons['m2nest'] = makeButton(this, x0 + pad, slot(1), bw, 26, '', () =>
-      this.setTool({ type: 'structure', kind: 'm2nest' }),
-    );
-    this.buttons['autocannon'] = makeButton(this, x0 + pad, slot(2), bw, 26, '', () =>
-      this.setTool({ type: 'structure', kind: 'autocannon' }),
-    );
-    this.buttons['mortar'] = makeButton(this, x0 + pad, slot(3), bw, 26, '', () =>
-      this.setTool({ type: 'structure', kind: 'mortar' }),
-    );
-    this.buttons['erase'] = makeButton(this, x0 + pad, slot(4) + 4, bw, 26, 'ERASE / REFUND [E]', () =>
-      this.setTool({ type: 'erase' }),
-    );
-    this.buttons['repair'] = makeButton(this, x0 + pad, slot(5) + 8, bw, 26, '', () =>
-      this.engine.command({ type: 'repairAll' }),
-    );
-    this.buttons['start'] = makeButton(this, x0 + pad, slot(6) + 16, bw, 30, 'START ASSAULT [SPACE]', () =>
-      this.advancePhase(),
-    );
-    this.buttons['skip'] = makeButton(this, x0 + pad, slot(6) + 16, bw, 30, 'SKIP PREP [SPACE]', () =>
-      this.advancePhase(),
-    );
-
-    // Battle layer (combat).
-    this.buttons['depmg'] = makeButton(this, x0 + pad, slot(0), bw, 26, '', () =>
-      this.setTool({ type: 'structure', kind: 'depmg' }),
-    );
-    this.buttons['foxhole'] = makeButton(this, x0 + pad, slot(1), bw, 26, '', () =>
-      this.setTool({ type: 'structure', kind: 'foxhole' }),
-    );
-    this.buttons['claymore'] = makeButton(this, x0 + pad, slot(2), bw, 26, '', () =>
-      this.setTool({ type: 'structure', kind: 'claymore' }),
-    );
-    this.buttons['hesco'] = makeButton(this, x0 + pad, slot(3), bw, 26, '', () =>
-      this.setTool({ type: 'wall', kind: 'hesco' }),
-    );
-    this.powersLabel = this.add.text(x0 + pad, slot(4) + 6, 'COMMANDER POWERS', mono(10, COLORS.inkDim));
-    this.buttons['a10'] = makeButton(this, x0 + pad, slot(4) + 20, bw, 26, '', () =>
-      this.armPower('a10'),
-    );
-    this.buttons['arty'] = makeButton(this, x0 + pad, slot(5) + 24, bw, 26, '', () =>
-      this.armPower('arty'),
-    );
-
-    // Static labels for costs — names come from the faction's own catalog.
-    const w = catalog.walls;
-    const s = catalog.structures;
-    const p = catalog.powers;
-    const fit = (name: string, cost: number | undefined, unit: string, key: string): string => {
-      const full = `${name.toUpperCase()} — ${cost ?? 0} ${unit} [${key}]`;
-      return full.length <= 30 ? full : `${name.toUpperCase()} — ${cost ?? 0} [${key}]`;
+  private toolRow(kind: string, isWall: boolean, key: string): PanelRow {
+    const e = this.engine;
+    const def = isWall ? e.catalog.walls[kind]! : e.catalog.structures[kind]!;
+    const cpCost = def.cpCost;
+    const supplyCost = (def as { supplyCost?: number }).supplyCost;
+    const cost = cpCost !== undefined ? `${cpCost} CP` : `${supplyCost ?? 0} SUP`;
+    const affordable =
+      cpCost !== undefined ? e.cp >= e.cpPrice(cpCost) : e.supplies >= (supplyCost ?? 0);
+    const armed =
+      this.tool !== null && 'kind' in this.tool && this.tool.kind === kind && this.tool.type !== 'power';
+    return {
+      id: kind,
+      label: `${def.name.toUpperCase()} [${key}]`,
+      sub: cost,
+      enabled: affordable,
+      active: armed,
+      onTap: () => this.setTool(isWall ? { type: 'wall', kind } : { type: 'structure', kind }),
     };
-    this.buttons['wall']!.setLabel(fit(w['wall']!.name, w['wall']!.supplyCost, 'SUP', '1'));
-    this.buttons['m2nest']!.setLabel(fit(s['m2nest']!.name, s['m2nest']!.supplyCost, 'SUP', '2'));
-    this.buttons['autocannon']!.setLabel(
-      fit(s['autocannon']!.name, s['autocannon']!.supplyCost, 'SUP', '3'),
-    );
-    this.buttons['mortar']!.setLabel(fit(s['mortar']!.name, s['mortar']!.supplyCost, 'SUP', '4'));
-    this.buttons['depmg']!.setLabel(fit(s['depmg']!.name, s['depmg']!.cpCost, 'CP', '1'));
-    this.buttons['foxhole']!.setLabel(fit(s['foxhole']!.name, s['foxhole']!.cpCost, 'CP', '2'));
-    this.buttons['claymore']!.setLabel(fit(s['claymore']!.name, s['claymore']!.cpCost, 'CP', '3'));
-    this.buttons['hesco']!.setLabel(fit(w['hesco']!.name, w['hesco']!.cpCost, 'CP', '4'));
-    this.buttons['a10']!.setLabel(fit(p['a10']!.short ?? p['a10']!.name, p['a10']!.cpCost, 'CP', 'Q'));
-    this.buttons['arty']!.setLabel(
-      fit(p['arty']!.short ?? p['arty']!.name, p['arty']!.cpCost, 'CP', 'W'),
-    );
-
-    this.add.text(x0 + pad, 386, 'INTEL', mono(10, COLORS.inkDim));
-    this.intelText = this.add.text(x0 + pad, 402, '', mono(11, COLORS.ink, { lineSpacing: 4 }));
-
-    this.add.text(x0 + pad, 540, 'SITREP', mono(10, COLORS.inkDim));
-    this.sitrepText = this.add.text(x0 + pad, 556, '', mono(11, COLORS.ink, { lineSpacing: 4 }));
-
-    const third = (bw - 12) / 3;
-    this.buttons['paths'] = makeButton(this, x0 + pad, 676, third, 24, 'PATHS [P]', () => {
-      this.showPaths = !this.showPaths;
-    });
-    this.buttons['speed'] = makeButton(
-      this,
-      x0 + pad + third + 6,
-      676,
-      third,
-      24,
-      '×1 [S]',
-      () => this.cycleSpeed(),
-    );
-    this.buttons['pause'] = makeButton(
-      this,
-      x0 + pad + (third + 6) * 2,
-      676,
-      third,
-      24,
-      'HOLD [F]',
-      () => this.togglePause(),
-    );
-    this.pausedText = this.add
-      .text(GRID_PX_W / 2, GRID_PX_H / 2, 'HOLDING — PRESS F', {
-        ...mono(24, COLORS.ink, { fontStyle: 'bold', backgroundColor: css(COLORS.bgPanel) }),
-        padding: { x: 18, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setDepth(30)
-      .setVisible(false);
-
-    this.add.text(
-      x0 + pad,
-      712,
-      'LMB build · RMB/ESC cancel\nHostiles breach or bypass walls —\nwatch the orange path markers.',
-      mono(9, COLORS.inkDim, { lineSpacing: 3 }),
-    );
   }
 
-  /** Show/hide button groups when the phase changes. */
-  private refreshPanel(): void {
-    const phase = this.engine.phase;
-    const build = phase === 'setup' || phase === 'prep';
-    const combat = phase === 'combat';
-
-    for (const key of ['wall', 'm2nest', 'autocannon', 'mortar', 'erase', 'repair'] as const) {
-      this.buttons[key]?.setVisible(build);
+  private rowsForTab(): PanelRow[] {
+    const e = this.engine;
+    const build = e.phase === 'setup' || e.phase === 'prep';
+    switch (this.panel.tab) {
+      case 'deploy': {
+        const rows: PanelRow[] = [
+          { id: 'h', label: build ? 'FORTIFY (SUPPLIES)' : 'FIELD DEPLOY (CP)', heading: true },
+        ];
+        const keys = build ? SETUP_TOOL_KEYS : COMBAT_TOOL_KEYS;
+        keys.forEach((kind, i) => {
+          rows.push(this.toolRow(kind, kind === 'wall' || kind === 'hesco', String(i + 1)));
+        });
+        if (build) {
+          const cost = e.repairAllCost();
+          rows.push(
+            {
+              id: 'erase',
+              label: 'ERASE / REFUND [E]',
+              active: this.tool?.type === 'erase',
+              onTap: () => this.setTool({ type: 'erase' }),
+            },
+            {
+              id: 'repair',
+              label: 'REPAIR ALL',
+              sub: cost > 0 ? `${cost} SUP` : 'INTACT',
+              enabled: cost > 0 && e.supplies >= cost,
+              onTap: () => e.command({ type: 'repairAll' }),
+            },
+          );
+        }
+        return rows;
+      }
+      case 'fire': {
+        const rows: PanelRow[] = [{ id: 'h', label: 'COMMANDER POWERS', heading: true }];
+        for (const kind of ['a10', 'arty'] as const) {
+          const def = e.catalog.powers[kind]!;
+          const cd = e.powerCooldownSeconds(kind);
+          const charges = e.powerChargesLeft(kind);
+          const stock = charges !== null ? ` ×${charges}` : '';
+          rows.push({
+            id: kind,
+            label: `${(def.short ?? def.name).toUpperCase()} [${kind === 'a10' ? 'Q' : 'W'}]`,
+            sub: cd > 0 ? `${Math.ceil(cd)}s${stock}` : `${def.cpCost} CP${stock}`,
+            enabled: cd <= 0 && e.canCastPower(kind),
+            active: this.tool?.type === 'power' && this.tool.kind === kind,
+            onTap: () => this.armPower(kind),
+          });
+        }
+        rows.push({ id: 'hint', label: 'Arm a power, then tap the map.', heading: true });
+        return rows;
+      }
+      case 'intel': {
+        const rows: PanelRow[] = [];
+        const preview = e.nextWavePreview();
+        if (preview) {
+          const waveNumber = e.phase === 'setup' ? 1 : e.waveIndex + 2;
+          rows.push({ id: 'h', label: `INBOUND — WAVE ${waveNumber}/${e.waveCount}`, heading: true });
+          for (const { kind, count } of preview) {
+            rows.push({
+              id: `p${kind}`,
+              label: `  ${count}× ${e.catalog.attackers[kind]?.name.toUpperCase() ?? kind}`,
+              heading: true,
+            });
+          }
+        }
+        const integrity = Math.max(0, Math.round((e.cc.hp / e.cc.profile.maxHp) * 100));
+        rows.push(
+          { id: 'h2', label: 'SITREP', heading: true },
+          { id: 's1', label: `CC INTEGRITY ${integrity}%`, heading: true },
+          { id: 's2', label: `KILLS ${e.stats.kills} / ${e.stats.spawned} SPAWNED`, heading: true },
+          { id: 's3', label: `WALLS LOST ${e.stats.wallsLost}`, heading: true },
+          { id: 's4', label: `GUNS LOST ${e.stats.structuresLost}`, heading: true },
+          { id: 's5', label: `SUP SPENT ${e.stats.suppliesSpent}`, heading: true },
+          { id: 's6', label: `CP SPENT ${Math.round(e.stats.cpSpent)}`, heading: true },
+        );
+        if (e.phase === 'combat') {
+          rows.push({ id: 's7', label: `HOSTILES ON FIELD ${e.attackers.length}`, heading: true });
+        }
+        return rows;
+      }
+      default:
+        return [
+          { id: 'h', label: 'BATTLE CONTROL', heading: true },
+          {
+            id: 'speed',
+            label: `SPEED ×${this.speedMult}`,
+            sub: '[S]',
+            onTap: () => this.cycleSpeed(),
+          },
+          {
+            id: 'pause',
+            label: this.paused ? 'RESUME' : 'HOLD',
+            sub: '[F]',
+            active: this.paused,
+            onTap: () => this.togglePause(),
+          },
+          {
+            id: 'paths',
+            label: 'PATH MARKERS',
+            sub: '[P]',
+            active: this.showPaths,
+            onTap: () => {
+              this.showPaths = !this.showPaths;
+            },
+          },
+          { id: 'h2', label: 'VIEW', heading: true },
+          { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
+          ...(this.fromTown
+            ? []
+            : [
+                {
+                  id: 'restart',
+                  label: 'RESTART BATTLE',
+                  sub: '[R]',
+                  onTap: () => this.scene.restart({}),
+                } as PanelRow,
+              ]),
+        ];
     }
-    this.buttons['start']?.setVisible(phase === 'setup');
-    this.buttons['skip']?.setVisible(phase === 'prep');
-    for (const key of ['depmg', 'foxhole', 'claymore', 'hesco', 'a10', 'arty'] as const) {
-      this.buttons[key]?.setVisible(combat);
-    }
-    this.powersLabel.setVisible(combat);
-    this.buildLabel.setText(combat ? 'FIELD DEPLOY' : 'BUILD');
   }
 
   private updateHud(): void {
     const e = this.engine;
     const siege = e.config.siege ?? HOLD_THE_LINE;
 
+    let phase: string;
     switch (e.phase) {
       case 'setup':
-        this.phaseText.setText('PHASE: FORTIFY').setColor(css(COLORS.ink));
+        phase = 'FORTIFY';
         break;
       case 'combat':
-        this.phaseText
-          .setText(`WAVE ${e.waveIndex + 1}/${e.waveCount} — CONTACT`)
-          .setColor(css(COLORS.signal));
+        phase = `WAVE ${e.waveIndex + 1}/${e.waveCount} — CONTACT`;
         break;
       case 'prep':
-        this.phaseText
-          .setText(`PREP — NEXT WAVE IN ${Math.ceil(e.prepTicksLeft / 20)}s`)
-          .setColor(css(COLORS.intel));
+        phase = `PREP — WAVE IN ${Math.ceil(e.prepTicksLeft / 20)}s`;
         break;
       case 'victory':
-        this.phaseText.setText('SECTOR HELD').setColor(css(COLORS.olive));
+        phase = 'SECTOR HELD';
         break;
       case 'defeat':
-        this.phaseText.setText('CC DESTROYED').setColor(css(COLORS.alarm));
+        phase = 'CC DESTROYED';
         break;
       default:
-        this.phaseText.setText(e.phase.toUpperCase());
+        phase = e.phase.toUpperCase();
         break;
     }
 
-    this.suppliesText.setText(`SUPPLIES ${Math.floor(e.supplies)}`);
-    this.cpText.setText(`CP ${Math.floor(e.cp)}`);
-    const cpFrac = Math.min(1, e.cp / siege.cpCap);
-    this.cpBarFill.setSize(Math.max(0, (PANEL_W - 28 - 66) * cpFrac), 8);
-
-    // Button affordability + cooldowns.
-    const s = e.catalog.structures;
-    const w = e.catalog.walls;
-    this.buttons['wall']?.setEnabled(e.supplies >= (w['wall']!.supplyCost ?? 0));
-    this.buttons['m2nest']?.setEnabled(e.supplies >= (s['m2nest']!.supplyCost ?? 0));
-    this.buttons['autocannon']?.setEnabled(e.supplies >= (s['autocannon']!.supplyCost ?? 0));
-    this.buttons['mortar']?.setEnabled(e.supplies >= (s['mortar']!.supplyCost ?? 0));
-    this.buttons['depmg']?.setEnabled(e.cp >= (s['depmg']!.cpCost ?? 0));
-    this.buttons['foxhole']?.setEnabled(e.cp >= (s['foxhole']!.cpCost ?? 0));
-    this.buttons['claymore']?.setEnabled(e.cp >= (s['claymore']!.cpCost ?? 0));
-    this.buttons['hesco']?.setEnabled(e.cp >= (w['hesco']!.cpCost ?? 0));
-
-    for (const kind of ['a10', 'arty'] as const) {
-      const def = e.catalog.powers[kind]!;
-      const cd = e.powerCooldownSeconds(kind);
-      const button = this.buttons[kind];
-      if (!button) continue;
-      const charges = e.powerChargesLeft(kind);
-      const stock = charges !== null ? ` ×${charges}` : '';
-      const name = (def.short ?? def.name).toUpperCase();
-      if (cd > 0) {
-        button.setEnabled(false);
-        button.setLabel(`${name} — ${Math.ceil(cd)}s${stock}`);
-      } else {
-        button.setEnabled(e.canCastPower(kind));
-        button.setLabel(`${name} — ${def.cpCost} CP${stock} [${kind === 'a10' ? 'Q' : 'W'}]`);
-      }
-    }
-    const repairCost = e.repairAllCost();
-    this.buttons['repair']?.setLabel(
-      repairCost > 0 ? `REPAIR ALL — ${repairCost} SUP` : 'REPAIR ALL — INTACT',
+    const cpFrac = Math.round(Math.min(1, e.cp / siege.cpCap) * 100);
+    this.panel.setStatus(
+      `${siege.name}`,
+      this.layout.mode === 'portrait'
+        ? [`${phase} · SUP ${Math.floor(e.supplies)} · CP ${Math.floor(e.cp)}`]
+        : [phase, `SUPPLIES ${Math.floor(e.supplies)}`, `CP ${Math.floor(e.cp)} (${cpFrac}%)`],
     );
-    this.buttons['repair']?.setEnabled(repairCost > 0 && e.supplies >= repairCost);
+    this.panel.setRows(this.rowsForTab());
 
-    // Intel block.
-    const preview = e.nextWavePreview();
-    if (preview) {
-      const waveNumber = e.phase === 'setup' ? 1 : e.waveIndex + 2;
-      const lines = [`INBOUND — WAVE ${waveNumber}/${e.waveCount}:`];
-      for (const { kind, count } of preview) {
-        lines.push(` ${count}× ${e.catalog.attackers[kind]?.name.toUpperCase() ?? kind}`);
-      }
-      this.intelText.setText(lines.join('\n'));
-    } else if (e.phase === 'combat') {
-      this.intelText.setText(
-        [
-          `WAVE ${e.waveIndex + 1}/${e.waveCount}`,
-          `HOSTILES ON FIELD: ${e.attackers.length}`,
-          `CC INTEGRITY: ${Math.max(0, Math.round((e.cc.hp / e.cc.profile.maxHp) * 100))}%`,
-        ].join('\n'),
-      );
-    } else {
-      this.intelText.setText('');
-    }
-
-    this.sitrepText.setText(
-      [
-        `CC INTEGRITY ${Math.max(0, Math.round((e.cc.hp / e.cc.profile.maxHp) * 100))}%`,
-        `KILLS ${e.stats.kills}   SPAWNED ${e.stats.spawned}`,
-        `WALLS LOST ${e.stats.wallsLost}   GUNS LOST ${e.stats.structuresLost}`,
-        `SUP SPENT ${e.stats.suppliesSpent}   CP SPENT ${Math.round(e.stats.cpSpent)}`,
-      ].join('\n'),
-    );
+    // The primary action: whatever the phase is waiting on.
+    const label =
+      e.phase === 'setup'
+        ? 'START ASSAULT'
+        : e.phase === 'prep'
+          ? 'SKIP PREP'
+          : (e.phase === 'victory' || e.phase === 'defeat') && this.fromTown
+            ? 'RETURN TO BASE'
+            : '';
+    this.primary.setVisible(label !== '');
+    if (label) this.primary.setLabel(label);
   }
 
   private showOverlay(victory: boolean): void {
@@ -659,37 +616,22 @@ export class SiegeScene extends Phaser.Scene {
     this.paused = false;
     this.pausedText.setVisible(false);
     audio.sfx(victory ? 'victory' : 'defeat');
-    const cx = (GRID_PX_W + PANEL_W) / 2;
-    this.add.rectangle(0, 0, GRID_PX_W + PANEL_W, GRID_PX_H, 0x000000, 0.6).setOrigin(0).setDepth(40);
 
     const mission = this.mission;
-    const title = victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST';
-    this.add
-      .text(cx, 216, mission ? `M${mission.index + 1} — ${mission.codename}` : 'AFTER ACTION', mono(12, COLORS.inkDim))
-      .setOrigin(0.5)
-      .setDepth(41);
-    this.add
-      .text(cx, 252, title, mono(34, victory ? COLORS.olive : COLORS.alarm, { fontStyle: 'bold' }))
-      .setOrigin(0.5)
-      .setDepth(41);
-
     const s = this.engine.stats;
     const lines: string[] = [];
-
     if (mission) {
       lines.push(...(victory ? mission.debriefVictory : mission.debriefDefeat), '');
     } else {
       const flavor = flavorFor(this.faction);
       lines.push(victory ? flavor.heldLine : flavor.brokeLine, '');
     }
-
     lines.push(
       `Hostiles destroyed: ${s.kills} / ${s.spawned}`,
       `Walls lost: ${s.wallsLost}   Structures lost: ${s.structuresLost}`,
     );
     if (!victory && s.ccKillerKind) lines.push(`Command Center lost to: ${s.ccKillerKind}`);
     if (victory && s.salvage > 0) lines.push(`Unspent CP salvaged: +${s.salvage} SUP`);
-
     if (mission?.bonus) {
       const achieved = bonusMet(mission.bonus.id, outcomeFromEngine(this.engine));
       lines.push(
@@ -700,18 +642,31 @@ export class SiegeScene extends Phaser.Scene {
     if (mission && victory) {
       const reward = mission.reward;
       lines.push(
-        `REWARD: ${reward.supplies} SUP${reward.fuel > 0 ? ` + ${reward.fuel} FUEL` : ''}` +
-          ' (before bonus)',
+        `REWARD: ${reward.supplies} SUP${reward.fuel > 0 ? ` + ${reward.fuel} FUEL` : ''} (before bonus)`,
       );
       if (mission.unlockNote) lines.push(mission.unlockNote);
     }
 
-    lines.push('', this.fromTown ? 'PRESS SPACE TO RETURN TO BASE' : 'PRESS R TO RUN IT BACK');
-    this.add
-      .text(cx, 300, lines.join('\n'), {
-        ...mono(13, COLORS.ink, { lineSpacing: 6, align: 'center' }),
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(41);
+    const ov = new Overlay(this, this.layout, {
+      title: victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST',
+      subtitle: mission ? `M${mission.index + 1} — ${mission.codename}` : 'AFTER ACTION',
+      scrim: 0.8,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { font } = this.layout;
+    ov.centered(
+      ov.flow(Math.round(font.body * 1.6 * lines.length)),
+      lines.join('\n'),
+      font.body,
+      COLORS.ink,
+      { lineSpacing: Math.round(font.body * 0.4) },
+    );
+    ov.footer(this.fromTown ? 'RETURN TO BASE' : 'RUN IT BACK', () => {
+      ov.close();
+      this.overlay = null;
+      if (this.fromTown) this.returnToTown();
+      else this.scene.restart({});
+    });
   }
 }

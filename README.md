@@ -17,7 +17,43 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v0.8: standing orders
+## Current state — v0.9: mobile-first
+
+**The presentation layer was rebuilt around the phone.** Everything before
+this shipped as a fixed 1280×768 canvas scaled to fit, which on a phone meant
+10px text rendered at five CSS pixels. It now sizes itself to the real
+viewport, in either orientation, and PC is simply the wide case:
+
+- **A canvas that matches the device.** The drawing buffer is viewport ×
+  devicePixelRatio (capped at 2×) displayed at CSS size, so type is crisp on
+  retina screens instead of upscaled. Rotating the phone, the URL bar sliding
+  away, or a desktop resize re-flows the whole game in one frame.
+- **Two layouts, one game.** Portrait puts a status strip on top, the
+  battlefield in the middle, and a collapsible drawer of 44px rows above a
+  five-tab strip; landscape hands the board the full height and moves the
+  panel to a right rail. Tapping the open tab collapses the drawer and gives
+  the whole screen back to the battlefield.
+- **A real board camera.** Pinch to zoom, drag to pan, double-tap to reframe,
+  on-screen `+`/`−` keys for the discoverable version — and the town opens
+  framed on what you have actually built rather than on empty grid. Wall
+  tools switch the board to paint mode so a drag lays wire instead of panning.
+- **Type and targets sized for thumbs.** Layout tokens are declared in CSS
+  pixels and multiplied into device pixels once, so a 44px row is 44px of
+  glass on every phone. Long labels are clipped by monospace arithmetic
+  rather than overflowing into their own price tags.
+- **Verified on the devices, not just the desktop.** The E2E harness now taps
+  buttons *by label* through a live-button seam instead of by hard-coded
+  pixels, and runs the whole first-run flow across six viewports — 360×740 up
+  to 1440×900 — asserting no page errors and no object outside the two-camera
+  partition on any screen.
+
+Three bugs the rewrite surfaced and fixed: panel rows never fired at all (a
+button's `stopPropagation` aborts Phaser's scene-level pointer events, which
+the deferred tap dispatch depended on); overlays were drawn twice, once at
+board zoom, because they sat outside both camera layers; and an open overlay
+was destroyed rather than re-flowed when the viewport changed.
+
+## v0.8: standing orders
 
 **Your base now fights back while you're away.** Offline probe raids used to
 meet the permanent layer alone; now the garrison executes the defense
@@ -219,8 +255,16 @@ npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md)
 npm run build      # typecheck + production build
-npm run screenshot # headless screenshots into screenshots/
+npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
+node scripts/e2e-flow.mjs            # first-run flow, desktop
+VIEWPORT=phone-portrait FACTION=nk \
+  node scripts/e2e-flow.mjs          # …on a phone, as the KPA
 ```
+
+`scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
+rather than by pixel, so it runs unchanged on every viewport:
+`phone-portrait`, `phone-landscape`, `small-portrait`, `tablet-portrait`,
+`tablet-landscape`, `desktop`.
 
 ## Controls
 
@@ -245,9 +289,14 @@ map; `F` Front Line. SFX and colorblind-palette toggles live in the utility row.
 The sandbox (`?playground=1`): `1/2/3` wall/M2/erase, `W` militia, `B` sapper,
 `SPACE` mixed wave.
 
-**Mobile:** play in landscape — phones get a rotate prompt, and the `⛶` button
-goes fullscreen (locking landscape where the platform allows). Tap an armed
-tool's button again to cancel it — the touch stand-in for right-click/`ESC`.
+**Mobile (the primary target):** both orientations are first-class. Portrait
+gives you a status strip, the battlefield, and a drawer of touch-sized rows
+over a five-tab strip; landscape hands the board the full height and puts the
+panel in a right rail. Pinch to zoom, drag to pan, double-tap to reframe, or
+use the on-screen `+`/`−` keys; a wall tool turns a drag into painting.
+Tapping the open tab collapses the drawer for a full-screen board, and
+FULLSCREEN lives in the `SYS` tab. Tap an armed tool's row again to cancel it
+— the touch stand-in for right-click/`ESC`.
 
 ## Project layout
 
@@ -260,8 +309,9 @@ src/content/     Data, not code: damage table, both factions' defenses, armies,
                  campaigns, base kits, and the faction switch (factions.ts)
 src/meta/        The persistent layer: town state (timers, accrual, gating,
                  wrecks), the siege bridge, warfare/raids, versioned saves
-src/game/        Phaser 3 presentation: shared glyphs + BattleRenderer,
-                 Town/Siege/Briefing/Raid/Replay scenes, UI kit, palette
+src/game/        Phaser 3 presentation: responsive layout + board camera rig,
+                 shared glyphs + BattleRenderer, Town/Siege/Briefing/Raid/
+                 Replay scenes, touch UI kit, overlays, palette
 src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
                  assault ladder, doctrines, warfare, factions, determinism

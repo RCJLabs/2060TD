@@ -4,7 +4,9 @@ import { DT, Engine } from '../../sim/engine';
 import type { SimConfig } from '../../sim/types';
 import { BattleRenderer } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
-import { makeButton, mono, type Button } from '../ui';
+import { BoardView } from '../BoardView';
+import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { mono, Panel, type PanelRow } from '../ui';
 
 export interface ReplayData {
   config: SimConfig;
@@ -29,8 +31,10 @@ export class ReplayScene extends Phaser.Scene {
   private accumulator = 0;
   private speedMult = 2;
   private showPaths = true;
-  private speedButton!: Button;
-  private statusText!: Phaser.GameObjects.Text;
+  private board!: BoardView;
+  private panel!: Panel;
+  private layout!: Layout;
+  private drawerOpen = true;
   private endShown = false;
 
   constructor() {
@@ -50,36 +54,25 @@ export class ReplayScene extends Phaser.Scene {
       this.replay.kind === 'raid' ? raidCatalogFor(faction) : defenseCatalogFor(faction);
     this.engine = new Engine(this.replay.config, catalog);
     this.engine.enqueue({ tick: 0, type: 'startAssault' });
-    this.battle = new BattleRenderer(this, this.engine, 32, this.replay.kind === 'raid');
-
-    this.add
-      .text(512, 6, `REPLAY — ${this.replay.title}`, mono(11, COLORS.inkDim))
-      .setOrigin(0.5, 0)
-      .setDepth(5);
-
-    const x0 = 1024;
-    const pad = 14;
-    const bw = 256 - pad * 2;
-    this.add.rectangle(x0, 0, 256, 768, COLORS.bgPanel).setOrigin(0, 0);
-    this.add.rectangle(x0, 0, 2, 768, COLORS.gridLine).setOrigin(0, 0);
-    this.add.text(x0 + pad, 12, 'AFTER ACTION', mono(17, COLORS.ink, { fontStyle: 'bold' }));
-    this.add.text(
-      x0 + pad,
-      34,
-      this.replay.kind === 'raid' ? 'RAID FOOTAGE' : 'DEFENSE FOOTAGE',
-      mono(10, COLORS.inkDim),
-    );
-
-    this.statusText = this.add.text(x0 + pad, 60, '', mono(12, COLORS.ink, { lineSpacing: 5 }));
-
-    this.speedButton = makeButton(this, x0 + pad, 200, bw, 26, 'SPEED ×2 [S]', () =>
-      this.cycleSpeed(),
-    );
-    makeButton(this, x0 + pad, 232, bw, 26, 'PATHS [P]', () => {
-      this.showPaths = !this.showPaths;
+    this.board = new BoardView(this, {
+      cols: this.replay.config.width,
+      rows: this.replay.config.height,
+      cell: 32,
     });
-    makeButton(this, x0 + pad, 264, bw, 26, 'SKIP TO END [SPACE]', () => this.skipToEnd());
-    makeButton(this, x0 + pad, 706, bw, 30, 'BACK [ESC]', () => this.goBack());
+    this.battle = new BattleRenderer(
+      this,
+      this.engine,
+      32,
+      this.replay.kind === 'raid',
+      this.board.world,
+    );
+    this.panel = new Panel(this, this.board.ui, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
+    this.panel.onDrawerToggle = () => {
+      this.drawerOpen = !this.drawerOpen;
+      this.applyLayout();
+    };
+    this.applyLayout();
+    onLayoutChange(this, () => this.applyLayout());
 
     const kb = this.input.keyboard;
     kb?.on('keydown-S', () => this.cycleSpeed());
@@ -90,9 +83,33 @@ export class ReplayScene extends Phaser.Scene {
     kb?.on('keydown-ESC', () => this.goBack());
   }
 
+  private applyLayout(): void {
+    this.layout = layoutOf(this, this.drawerOpen);
+    this.board.applyLayout(this.layout, true);
+    this.panel.applyLayout(this.layout);
+  }
+
+  private rows(): PanelRow[] {
+    return [
+      { id: 'h', label: this.replay.kind === 'raid' ? 'RAID FOOTAGE' : 'DEFENSE FOOTAGE', heading: true },
+      { id: 'speed', label: `SPEED ×${this.speedMult}`, sub: '[S]', onTap: () => this.cycleSpeed() },
+      {
+        id: 'paths',
+        label: 'PATH MARKERS',
+        sub: '[P]',
+        active: this.showPaths,
+        onTap: () => {
+          this.showPaths = !this.showPaths;
+        },
+      },
+      { id: 'skip', label: 'SKIP TO END', sub: '[SPACE]', onTap: () => this.skipToEnd() },
+      { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
+      { id: 'back', label: 'BACK', sub: '[ESC]', onTap: () => this.goBack() },
+    ];
+  }
+
   private cycleSpeed(): void {
     this.speedMult = this.speedMult >= 8 ? 1 : this.speedMult * 2;
-    this.speedButton.setLabel(`SPEED ×${this.speedMult} [S]`);
   }
 
   private ended(): boolean {
@@ -132,32 +149,34 @@ export class ReplayScene extends Phaser.Scene {
           : 'PROBE REPELLED';
       const killer = this.engine.stats.ccKillerKind;
       const cause = attackersWon && killer ? `\nKILLING BLOW: ${killer.toUpperCase()}` : '';
-      this.add
-        .text(512, 384, text + cause, {
-          ...mono(28, attackersWon === raid ? COLORS.olive : COLORS.alarm, {
+      const { board, font } = this.layout;
+      const stamp = this.add
+        .text(board.x + board.w / 2, board.y + board.h / 2, text + cause, {
+          ...mono(font.title, attackersWon === raid ? COLORS.olive : COLORS.alarm, {
             fontStyle: 'bold',
             align: 'center',
           }),
           backgroundColor: css(COLORS.bgPanel),
           padding: { x: 16, y: 10 },
         })
-        .setOrigin(0.5)
-        .setDepth(30);
+        .setOrigin(0.5);
+      this.board.ui.add(stamp);
     }
 
     const alpha = Phaser.Math.Clamp(this.accumulator / DT, 0, 1);
     this.battle.draw(this.ended() ? 1 : alpha, deltaMs / 1000, { showPaths: this.showPaths });
 
     const e = this.engine;
-    this.statusText.setText(
-      [
-        `T+${Math.floor(e.tick / 20)}s`,
-        `UNITS ALIVE  ${e.attackers.length}`,
-        `KILLS        ${e.stats.kills}`,
-        `STRUCTURES   -${e.stats.structuresLost}`,
-        `WALLS        -${e.stats.wallsLost}`,
-        this.ended() ? 'FOOTAGE ENDS' : '',
-      ].join('\n'),
+    this.panel.setRows(this.rows());
+    this.panel.setStatus(
+      `REPLAY — ${this.replay.title}`,
+      this.layout.mode === 'portrait'
+        ? [`T+${Math.floor(e.tick / 20)}s · ALIVE ${e.attackers.length} · KILLS ${e.stats.kills}`]
+        : [
+            `T+${Math.floor(e.tick / 20)}s  ${this.ended() ? '· FOOTAGE ENDS' : ''}`,
+            `ALIVE ${e.attackers.length}   KILLS ${e.stats.kills}`,
+            `LOST  -${e.stats.structuresLost} guns  -${e.stats.wallsLost} walls`,
+          ],
     );
   }
 }

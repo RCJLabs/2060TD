@@ -244,6 +244,23 @@ replaying cleared missions.
       Harness: HOLDFAST rows for all five factions + a three-preset comparison on
       NK — lifts the NK MID floor L4 20%→100%, still collapses at L6; EARLY bases
       keep losing to armor no orders can answer.*
+- [x] Mobile-first presentation rewrite *(v0.9)*
+      — *the fixed 1280×768 `Scale.FIT` canvas is gone. `src/game/layout.ts` computes
+      every rect and type token from the live viewport (design values in CSS px,
+      multiplied into device px once); `main.ts` runs a DPR rig (buffer = viewport ×
+      min(dpr, 2), `zoom = 1/dpr`) so type is crisp instead of upscaled;
+      `BoardView` is a two-camera rig (world camera in the board rect + fixed HUD
+      camera, partitioned by container) with pinch-zoom, drag-pan, double-tap-to-fit,
+      on-screen +/− keys and a paint mode for wall tools; `ui.ts` is a touch kit
+      (44px rows, tabbed drawer in portrait / right rail in landscape, pooled
+      drag-scrolling rows); `overlay.ts` flows full-screen screens that survive a
+      rotation. Every scene migrated. Three latent bugs fell out: panel rows never
+      fired (a button's `stopPropagation` aborts Phaser's scene-level pointer
+      events), overlays rendered twice because they sat outside both camera layers,
+      and a viewport change destroyed an open overlay instead of re-flowing it. The
+      E2E harness now taps by label through a live-button seam and runs the whole
+      first-run flow across six viewports, asserting no strays outside the camera
+      partition.*
 - [ ] Share-code PvP-lite: export base as code, friends raid the snapshot
 - [ ] Leagues, rotating events on the Front Line
 

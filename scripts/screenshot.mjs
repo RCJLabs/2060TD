@@ -43,14 +43,26 @@ try {
   mkdirSync('screenshots', { recursive: true });
   const errors = [];
 
-  const shoot = async (query, waitMs, file) => {
-    const page = await browser.newPage({ viewport: { width: 1300, height: 800 } });
+  const PHONE = { width: 412, height: 915, deviceScaleFactor: 3, isMobile: true };
+
+  const shoot = async (query, waitMs, file, device) => {
+    const page = device
+      ? await browser.newPage({
+          viewport: { width: device.width, height: device.height },
+          deviceScaleFactor: device.deviceScaleFactor,
+          isMobile: true,
+          hasTouch: true,
+        })
+      : await browser.newPage({ viewport: { width: 1300, height: 800 } });
     page.on('pageerror', (err) => errors.push(`${query}: ${String(err)}`));
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(`${query}: ${msg.text()}`);
     });
     await page.goto(`http://localhost:${PORT}/?${query}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(waitMs);
+    // The two-camera rig: anything outside both layers renders twice.
+    const strays = await page.evaluate(() => window.lastline?.strays?.() ?? []);
+    if (strays.length) errors.push(`${query}: outside both camera layers: ${strays.join(', ')}`);
     await page.screenshot({ path: `screenshots/${file}` });
     await page.close();
   };
@@ -66,6 +78,11 @@ try {
   await shoot('demo=raid&faction=nk', 3000, 'raid-nk.png'); // KPA raid with a sited gallery
   await shoot('demo=1&faction=un', 9000, 'demo-un.png'); // Blue Line battle
   await shoot('demo=raid&faction=un', 3000, 'raid-un.png'); // UN raid with medics mustered
+
+  // Mobile-first: the same three screens as a phone actually renders them.
+  await shoot('demo=town', 3000, 'phone-town.png', PHONE);
+  await shoot('demo=1', 9000, 'phone-siege.png', PHONE);
+  await shoot('demo=raid', 3000, 'phone-raid.png', PHONE);
 
   await browser.close();
 
