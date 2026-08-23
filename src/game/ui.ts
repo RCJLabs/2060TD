@@ -91,6 +91,36 @@ export function liveTexts(scenes: Phaser.Scene[]): string[] {
   return found;
 }
 
+/**
+ * Every visible text with the rectangle it actually occupies, in device px.
+ *
+ * The seam exists because this project has now shipped the same bug twice:
+ * a block laid out from a GUESSED line count, drawn over by the block after
+ * it once the text wrapped. Labels alone cannot catch that — a harness has
+ * to be able to ask where things landed.
+ */
+export function liveTextRects(
+  scenes: Phaser.Scene[],
+): { text: string; x: number; y: number; w: number; h: number; depth: number }[] {
+  const found: { text: string; x: number; y: number; w: number; h: number; depth: number }[] = [];
+  const walk = (items: Phaser.GameObjects.GameObject[]): void => {
+    for (const item of items) {
+      if (item instanceof Phaser.GameObjects.Container) {
+        if (item.visible) walk(item.list);
+        continue;
+      }
+      if (item instanceof Phaser.GameObjects.Text && item.visible && item.text.length > 0) {
+        const b = item.getBounds();
+        // Depth comes along so a harness can scope to the modal layer: an
+        // overlay line and a panel row behind the scrim are not an overlap.
+        found.push({ text: item.text, x: b.x, y: b.y, w: b.width, h: b.height, depth: item.depth });
+      }
+    }
+  };
+  for (const scene of scenes) walk(scene.children.list);
+  return found;
+}
+
 export function liveButtons(): ButtonProbe[] {
   const out: ButtonProbe[] = [];
   for (const probe of liveProbes) {

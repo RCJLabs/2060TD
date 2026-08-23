@@ -119,7 +119,13 @@ try {
   const seen = new Set(opening);
   // Long enough for the opening steps plus the wave that banks the first
   // Command Points: the CP lesson is the one that must actually land.
-  for (let i = 0; i < 55 && !seen.has('gone when the siege ends'); i++) {
+  //
+  // The cap is generous because the siege runs in REAL time: under load — six
+  // of these harnesses and a test suite on one box — the browser's frame rate
+  // collapses and this window covers far less sim time than it looks like it
+  // does. That is exactly how it failed once. The loop exits the moment the
+  // last step lands, so a bigger cap costs nothing on a quiet machine.
+  for (let i = 0; i < 110 && !seen.has('gone when the siege ends'); i++) {
     for (const m of await saying()) seen.add(m);
     await wait(800);
   }

@@ -205,6 +205,43 @@ export class Overlay {
     return t;
   }
 
+  /**
+   * A bar chart inside the scrolling body: values already normalized to 0..1,
+   * oldest first. Drawn rather than spelled out in block characters, because a
+   * text sparkline is at the mercy of whichever monospace font the device
+   * actually has — and this one has to read the same on a phone.
+   *
+   * The newest bar is drawn brighter: on a chart of a number that decays, the
+   * question is always "where am I NOW against where I have been".
+   */
+  chart(
+    values: number[],
+    height: number,
+    opts: { color?: number; latest?: number; gapAfter?: number } = {},
+  ): Rect {
+    const rect = this.flow(height, opts.gapAfter);
+    const g = this.scene.add.graphics().setDepth(this.depth + 1);
+    this.body.add(g);
+    const base = rect.y + height;
+    g.lineStyle(1, COLORS.inkDim, 0.35);
+    g.lineBetween(rect.x, base + 0.5, rect.x + rect.w, base + 0.5);
+    if (values.length === 0) return rect;
+    // Bars are capped, not stretched to fill. A war two days old has two days
+    // of standing, and a chart that spreads them across the whole card would
+    // claim a month of history it does not have.
+    const slot = Math.min(rect.w / values.length, this.layout.px(12));
+    const bar = Math.max(1, Math.floor(slot) - 1);
+    values.forEach((value, i) => {
+      // Every sample gets at least a pixel: a day at zero standing is a day
+      // that happened, and a gap would read as no data.
+      const h = Math.max(1, Math.round(value * (height - 2)));
+      const last = i === values.length - 1;
+      g.fillStyle(last ? (opts.latest ?? COLORS.ink) : (opts.color ?? COLORS.olive), last ? 1 : 0.8);
+      g.fillRect(Math.round(rect.x + i * slot), base - h, bar, h);
+    });
+    return rect;
+  }
+
   /** Button inside the scrolling body. */
   button(
     rect: Rect,

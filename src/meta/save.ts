@@ -1,9 +1,9 @@
 import { campaignFor, type FactionId } from '../content/factions';
 import { LEAGUES, seasonAt } from '../content/leagues';
-import { PLACEMENT_CAP } from './ladder';
+import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
-import { newTown, unlockAll, type TownState } from './town';
+import { newTown, normalizeWarLog, unlockAll, type TownState } from './town';
 
 /**
  * Versioned save persistence: localStorage autosave plus export/import as a
@@ -168,6 +168,8 @@ function normalizeLadder(town: TownState): void {
   fl.season = Math.round(num(fl.season, seasonAt(at)));
   fl.settledAt = num(fl.settledAt, at);
   fl.activeAt = num(fl.activeAt, at);
+  fl.history = normalizeHistory(fl.history);
+  if (fl.history === undefined) delete fl.history;
   fl.placements = Array.isArray(fl.placements)
     ? fl.placements
         .filter((p) => p !== null && typeof p === 'object' && typeof p.season === 'number')
@@ -206,6 +208,10 @@ export function deserialize(json: string): TownState | null {
     town.duels = Array.isArray(town.duels)
       ? town.duels.filter((d: unknown): d is string => typeof d === 'string').slice(-50)
       : [];
+    // The war log arrived in v1.10. An older file cannot say when it began,
+    // so the clock starts at the load that upgraded it — an understatement,
+    // never an invention.
+    town.log = normalizeWarLog(town.log, town.lastSeen);
     // The roster arrived in v1.9; an older file fields three green squads.
     town.squads = normalizeSquads(town.squads);
     // The coach ledger arrived in v1.5; an older file has simply read nothing.

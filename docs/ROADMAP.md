@@ -384,9 +384,22 @@ there is deliberately no sixth faction here.
       SQD2 and inherit a stranger's experience. A VETERANCY matrix per faction
       keeps it honest: from GREEN to CADRE the share of the force that walks
       home rises for all five, while the clear rate barely moves.*
-- [ ] **Service record** — lifetime stats, per-faction records, season
-      placements, a standing sparkline. The league layer already generates
-      this data and it has nowhere to live.
+- [x] **Service record** *(v1.10)* — *the war's own file, on the WAR tab.
+      Almost none of it is new state: the ladder, the campaign, the town and
+      the squad roster have been accumulating this since v0.2 and it simply
+      had nowhere to be read, so meta/record.ts is a READER — pure, total, and
+      asserted in tests rather than squinted at. Four counters were genuinely
+      missing and had to be stored (when the war began, raids LAUNCHED as
+      opposed to won, and what the garrison did while nobody was watching,
+      which the four-entry defense log forgets). The standing line is a real
+      chart: a daily sample, with unplayed days filled by interpolation —
+      which is not a guess, because decay is linear and decay is the only
+      thing that moves standing while nobody is playing. It measures against
+      zero rather than the run minimum, so a war spent at 20 points does not
+      draw like a war spent at 2,000. Season rollovers are recorded as the
+      step they are rather than smeared across the days since. The record is
+      deliberately NOT gated on the Front Line: most of what it counts happens
+      before the ladder is offered.*
 - [ ] **Replay vault + replay codes** — keep the last ~10 battles and pack one
       into a shareable string. A replay is a config plus a seed, so it is
       smaller than a base.

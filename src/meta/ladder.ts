@@ -11,12 +11,13 @@ import {
   DAY_MS,
   DECAY_GRACE_MS,
   DECAY_PER_DAY,
+  LADDER_EPOCH,
   PROBE_BREACHED,
   PROBE_HELD,
   SEASON_CARRY,
   type League,
 } from '../content/leagues';
-import type { FrontlineState, SeasonRecord, TownState } from './town';
+import type { FrontlineState, SeasonRecord, StandingHistory, TownState } from './town';
 
 /**
  * The league layer (M7): standing, decay, and the season clock.
@@ -32,6 +33,87 @@ import type { FrontlineState, SeasonRecord, TownState } from './town';
 
 /** Closed seasons kept on the record. */
 export const PLACEMENT_CAP = 6;
+
+// ---- the standing line (v1.10) ---------------------------------------------------
+
+/** Days of standing kept for the record's line. A month of war. */
+export const HISTORY_DAYS = 30;
+
+/** Which day of the war an instant falls on. */
+export const dayOf = (now: number): number => Math.floor((now - LADDER_EPOCH) / DAY_MS);
+
+/**
+ * Record today's standing.
+ *
+ * Days the game was never opened are filled in by interpolating between the
+ * last sample and this one, which is not a guess: decay is linear, and decay
+ * is the only thing that moves standing while nobody is playing. Awards land
+ * on the day they happen, so they read as the step they are.
+ */
+export function noteStanding(fl: FrontlineState, now: number): void {
+  const day = dayOf(now);
+  const standing = Math.max(0, Math.round(fl.standing));
+  const h = fl.history;
+  if (!h || h.values.length === 0) {
+    fl.history = { from: day, values: [standing] };
+    return;
+  }
+  const last = h.from + h.values.length - 1;
+  if (day <= last) {
+    // Same day, or a clock that went backwards: today's number is the number.
+    if (day === last) h.values[h.values.length - 1] = standing;
+    return;
+  }
+  const previous = h.values[h.values.length - 1]!;
+  const gap = day - last;
+  for (let step = 1; step <= gap; step++) {
+    h.values.push(Math.round(previous + ((standing - previous) * step) / gap));
+  }
+  if (h.values.length > HISTORY_DAYS) {
+    h.from += h.values.length - HISTORY_DAYS;
+    h.values.splice(0, h.values.length - HISTORY_DAYS);
+  }
+}
+
+/**
+ * The standing line up to `now`, oldest first. Pure: today's live standing is
+ * appended rather than recorded, so drawing the record never writes to a save.
+ */
+export function standingSeries(
+  town: TownState,
+  now: number,
+): { day: number; value: number }[] {
+  const fl = town.frontline;
+  const h = fl.history;
+  const today = dayOf(now);
+  const series: { day: number; value: number }[] = [];
+  if (h && h.values.length > 0) {
+    h.values.forEach((value, i) => series.push({ day: h.from + i, value }));
+  }
+  const last = series[series.length - 1];
+  if (!last || last.day < today) {
+    series.push({ day: today, value: Math.max(0, Math.round(fl.standing)) });
+  } else if (last.day === today) {
+    last.value = Math.max(0, Math.round(fl.standing));
+  }
+  return series.slice(-HISTORY_DAYS);
+}
+
+/** Repair a history block off disk (hand-edited files, older saves). */
+export function normalizeHistory(raw: unknown): StandingHistory | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const h = raw as Partial<StandingHistory>;
+  if (typeof h.from !== 'number' || !Number.isFinite(h.from)) return undefined;
+  if (!Array.isArray(h.values)) return undefined;
+  const values = h.values
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+    .map((v) => Math.max(0, Math.round(v)))
+    .slice(-HISTORY_DAYS);
+  if (values.length === 0) return undefined;
+  // Trimming the tail moves the start day with it.
+  const dropped = Math.max(0, h.values.length - values.length);
+  return { from: Math.round(h.from) + dropped, values };
+}
 
 export const standingOf = (town: TownState): number => town.frontline.standing;
 
@@ -106,6 +188,9 @@ export function settleLadder(town: TownState, now: number): LadderSettlement {
   if (current > fl.season) {
     // The stored season still bleeds up to its own end before it is placed.
     settlement.decayed += chargeDecay(fl, seasonEnd(fl.season));
+    // Close the line on the season it belongs to, before the carry rewrites
+    // the number — otherwise the record slides through a reset that was a step.
+    noteStanding(fl, seasonEnd(fl.season));
     const league = leagueAt(fl.peak);
     const record: SeasonRecord = {
       season: fl.season,
@@ -126,9 +211,14 @@ export function settleLadder(town: TownState, now: number): LadderSettlement {
     fl.peak = carry;
     fl.season = current;
     fl.settledAt = seasonStart(current);
+    // And re-close it on the carried number. A rollover is a step, not a
+    // slide: without this the drop from the season's peak to a quarter of it
+    // gets smeared across however many days passed before the game reopened.
+    noteStanding(fl, seasonStart(current));
   }
 
   settlement.decayed += chargeDecay(fl, now);
+  noteStanding(fl, now);
   return settlement;
 }
 
@@ -149,6 +239,7 @@ export function awardStanding(
   fl.standing = Math.max(0, fl.standing + delta);
   if (fl.standing > fl.peak) fl.peak = fl.standing;
   if (active) fl.activeAt = now;
+  noteStanding(fl, now);
   return fl.standing;
 }
 

@@ -23,7 +23,15 @@ import {
   DECAY_PER_DAY,
   LEAGUE_BY_ID,
 } from '../../content/leagues';
-import { decayStartsAt, leagueOf, standingToNext } from '../../meta/ladder';
+import { dayOf, decayStartsAt, leagueOf, standingToNext } from '../../meta/ladder';
+import {
+  allWars,
+  lineBars,
+  lineTrend,
+  serviceRecord,
+  warDay,
+  type ServiceRecord,
+} from '../../meta/record';
 import { audio } from '../audio';
 import { loadSettings } from '../settings';
 import {
@@ -723,6 +731,111 @@ export class TownScene extends Phaser.Scene {
    * The board: standing, the band it buys, what it costs to keep, and the
    * condition the front is fighting under today.
    */
+  /** A section rule inside the record: a heading with air above it. */
+  private recordSection(ov: Overlay, title: string): void {
+    const { font, gap } = this.layout;
+    // The air is the rule. A record is a wall of numbers; without a gap the
+    // sections read as one paragraph and the headings stop doing any work.
+    ov.flow(Math.round(gap / 2), 0);
+    ov.paragraph(title, font.body, COLORS.olive, { gapAfter: Math.round(gap / 2) });
+  }
+
+  /**
+   * The service record (v1.10). Almost none of this is new — the ladder, the
+   * campaign, the town and the squad roster have been accumulating it since
+   * v0.2. It simply had nowhere to be read, which meant a long war left no
+   * trace of itself anywhere the commander could look.
+   */
+  private showRecord(): void {
+    if (this.overlay) return;
+    const now = Date.now();
+    const r: ServiceRecord = serviceRecord(this.town, now);
+    const ov = new Overlay(this, this.layout, {
+      title: 'SERVICE RECORD',
+      subtitle: `${r.army} · DAY ${r.day}`,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { font, gap, px } = this.layout;
+    const line = (text: string, color = COLORS.ink): void => {
+      ov.paragraph(text, font.body, color, { gapAfter: Math.round(gap / 2) });
+    };
+
+    // ---- the standing line ------------------------------------------------
+    const trend = lineTrend(r.line);
+    this.recordSection(ov, `THE BOARD — ${r.league.label}`);
+    ov.chart(lineBars(r.line), px(46), { gapAfter: Math.round(gap / 2) });
+    line(
+      `${r.line.length} day${r.line.length === 1 ? '' : 's'} of standing · ` +
+        `now ${r.standing} · peak ${r.peak} · ` +
+        (trend === 'up' ? 'CLIMBING' : trend === 'down' ? 'SLIPPING' : 'HOLDING'),
+      trend === 'down' ? COLORS.alarm : COLORS.inkDim,
+    );
+    line(
+      `Tier ${r.tier} on the Front Line · best band held: ${r.bestLeague.label}`,
+      COLORS.inkDim,
+    );
+
+    // ---- what it has taken -------------------------------------------------
+    this.recordSection(ov, 'THE OFFENSE');
+    line(
+      `Raids launched ${r.raids} · posts taken ${r.postsTaken}` +
+        (r.duelsWon > 0 ? ` · codes beaten ${r.duelsWon}` : ''),
+    );
+    line(`Men lost ${r.menLost}`, r.menLost > 0 ? COLORS.alarm : COLORS.inkDim);
+    for (const f of r.formations) {
+      line(
+        `${f.name.padEnd(9)} ${f.rank.short.padEnd(4)} ` +
+          `${f.record.raids}R · ${f.record.clears}C · ${f.record.lost} lost`,
+        COLORS.inkDim,
+      );
+    }
+
+    // ---- what it has cost --------------------------------------------------
+    this.recordSection(ov, 'THE DEFENSE');
+    line(`Battles won ${r.battlesWon} · lost ${r.battlesLost}`);
+    line(`Heaviest assault turned back: level ${r.assaultLevel}`, COLORS.inkDim);
+    line(
+      `While you were away: ${r.probesHeld} probe${r.probesHeld === 1 ? '' : 's'} held, ` +
+        `${r.probesBreached} through`,
+      r.probesBreached > 0 ? COLORS.alarm : COLORS.inkDim,
+    );
+
+    // ---- the long game -----------------------------------------------------
+    this.recordSection(ov, 'THE LONG GAME');
+    line(`Missions completed ${r.missions} · technologies ${r.research}`, COLORS.inkDim);
+    if (r.seasons.length > 0) {
+      for (const season of r.seasons) {
+        line(
+          `Season ${seasonNumber(season.season)} — ` +
+            `${LEAGUE_BY_ID[season.league]?.label ?? season.league} at ${season.peak}`,
+          COLORS.inkDim,
+        );
+      }
+    } else {
+      line('No season has closed on this war yet.', COLORS.inkDim);
+    }
+
+    // ---- the other wars ----------------------------------------------------
+    const others = allWars().filter((w) => w.slot !== activeSlot());
+    if (others.length > 0) {
+      this.recordSection(ov, 'OTHER WARS');
+      for (const war of others) {
+        line(
+          `${war.slot} · ${war.army} — tier ${war.tier}, ${war.league.label}, ` +
+            `${war.battlesWon} won`,
+          COLORS.inkDim,
+        );
+      }
+    }
+
+    ov.footer('CLOSE', () => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    });
+  }
+
   private showLeague(): void {
     if (this.overlay) return;
     const now = Date.now();
@@ -1323,6 +1436,17 @@ export class TownScene extends Phaser.Scene {
       );
     }
 
+    // The record is not gated on the Front Line. Most of what it counts —
+    // missions, research, sieges held, the heaviest assault turned back —
+    // happens before the ladder is even offered, and a commander three
+    // missions into a campaign has a war worth reading.
+    rows.push({
+      id: 'record',
+      label: 'SERVICE RECORD',
+      sub: `DAY ${warDay(town, Date.now())}`,
+      onTap: () => this.openOverlay(() => this.showRecord()),
+    });
+
     // Share-code duels (v1.2): no server, no ladder — a snapshot and a boast.
     rows.push({ id: 'h3', label: 'CHALLENGE', heading: true });
     rows.push({
@@ -1606,6 +1730,25 @@ function makeShowcaseTown(now: number): TownState {
   town.frontline.standing = 465;
   town.frontline.peak = 512;
   town.frontline.totalWins = 6;
+  // Three weeks of board behind it, so the service record has a line to draw
+  // rather than a single bar. Shaped like a real run: a climb, a bad week off
+  // the game, and a recovery that has not got back to the peak.
+  const RUN = [
+    120, 168, 205, 190, 244, 288, 331, 372, 410, 455, 492, 512, 482, 452,
+    422, 392, 362, 401, 438, 466, 452, 465,
+  ];
+  town.frontline.history = { from: dayOf(now) - (RUN.length - 1), values: RUN };
+  town.log = {
+    startedAt: now - RUN.length * 86_400_000,
+    raids: 14,
+    probesHeld: 9,
+    probesBreached: 2,
+  };
+  town.squads = [
+    { xp: 132, raids: 11, clears: 7, lost: 19 },
+    { xp: 46, raids: 8, clears: 4, lost: 24 },
+    { xp: 0, raids: 3, clears: 1, lost: 11 },
+  ];
   town.supplies = 740;
   town.fuel = 210;
   town.intel = 85;

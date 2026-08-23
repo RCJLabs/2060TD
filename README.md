@@ -17,6 +17,29 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.10: the war has a file
+
+**A long war left no trace of itself anywhere the commander could look.** It
+does now — `SERVICE RECORD`, on the WAR tab.
+
+- **Almost none of it is new.** The ladder, the campaign, the town and the
+  squad roster have been accumulating this since v0.2; it had nowhere to be
+  read. `meta/record.ts` is a *reader* — pure and total, so the whole record
+  is asserted in tests instead of squinted at in a screenshot.
+- **Four things were genuinely missing** and are now stored: when the war
+  began, raids *launched* (a raid is not one squad, and clears are not
+  attempts), and how many offline probes the garrison turned back or let
+  through — which the four-entry defense log forgets almost immediately.
+- **The standing line is a real chart**, sampled daily. Days nobody played are
+  filled by interpolation, which isn't a guess: decay is linear, and decay is
+  the only thing that moves standing while the game is closed. A season
+  rollover is recorded as the step it is, not smeared across the days since.
+- **It measures against zero, not the run minimum.** A chart that rescaled its
+  own floor would draw a war spent at 20 points exactly like a war spent at
+  2,000 — and standing is a distance above nothing.
+- **Not gated on the Front Line.** Missions, research, sieges held and the
+  heaviest assault turned back all happen before the ladder is offered.
+
 ## Current state — v1.9: the men who came back
 
 **The loss line in a raid report was a number.** Now it has names attached to
@@ -521,8 +544,8 @@ npm run dev        # the game (faction pick → town → missions/raids loop)
                    # add &faction=china|russia|nk|un to demos for the other wars
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, leagues, conditions,
-                   # archetypes, the coach, the score, veterancy, share codes,
-                   # determinism)
+                   # archetypes, the coach, the score, veterancy, the record,
+                   # share codes, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
                    # -- --shapes for the eight base archetypes, or
@@ -540,6 +563,7 @@ node scripts/e2e-league.mjs          # standing overlay + a full condition rotat
 node scripts/e2e-tutorial.mjs        # the coach: taught once, and never again
 node scripts/e2e-boot.mjs            # boot card under throttling + the single file
 node scripts/e2e-vet.mjs             # named formations, their files, and who came back
+node scripts/e2e-record.mjs          # the service record, and that it never draws over itself
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
@@ -592,14 +616,16 @@ src/content/     Data, not code: damage table, both factions' defenses, armies,
                  (factions.ts)
 src/meta/        The persistent layer: town state (timers, accrual, gating,
                  wrecks), the siege bridge, warfare/raids, the league ladder
-                 (standing, decay, seasons), share codes, versioned saves
+                 (standing, decay, seasons, the standing line), the service
+                 record, share codes, versioned saves
 src/game/        Phaser 3 presentation: responsive layout + board camera rig,
                  shared glyphs + BattleRenderer, Town/Siege/Briefing/Raid/
                  Replay scenes, touch UI kit, overlays, palette
 src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
                  assault ladder, doctrines, warfare, factions, leagues,
-                 field conditions, veterancy, share codes, determinism
+                 field conditions, veterancy, the service record, share
+                 codes, determinism
 scripts/         Playwright harnesses that drive the real build by button
                  label: first-run flow, menu, touch gestures, raids, share
                  codes, the league board and the condition rotation, the

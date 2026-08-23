@@ -30,7 +30,13 @@ import {
   probeAward,
   scoutingBlocked,
 } from './ladder';
-import { probeConfig, researchEffects, type DefenseLogEntry, type TownState } from './town';
+import {
+  probeConfig,
+  researchEffects,
+  warLog,
+  type DefenseLogEntry,
+  type TownState,
+} from './town';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -446,6 +452,7 @@ export function applyRaidResult(
   // Veterancy (v1.9): the formations that went out get their record updated
   // before anything else, because the record is written in the same men the
   // loss line just deducted. A duel counts as tier 1 — it is still a fight.
+  warLog(town).raids++;
   const roster = squadRoster(town);
   const foughtTier = Math.max(1, base.tier);
   for (const ret of resolution.squads) {
@@ -641,6 +648,11 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
     };
     town.defenseLog.unshift(entry);
     ran.push(entry);
+    // The defense log keeps four entries; the record keeps the count, because
+    // the war fought while nobody was watching is most of the war.
+    const log = warLog(town);
+    if (held) log.probesHeld++;
+    else log.probesBreached++;
     // A garrison holding the wire keeps you on the board; a breach is read as
     // exactly what it is. Neither counts as the commander playing, so this
     // buys no quiet time against the decay clock.

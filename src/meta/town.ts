@@ -99,6 +99,73 @@ export interface FrontlineState {
   activeAt: number;
   /** Finished seasons, newest first. */
   placements: SeasonRecord[];
+  /**
+   * Daily standing samples for the record's standing line (v1.10). `from` is
+   * the day index (since LADDER_EPOCH) of values[0]; every later value is one
+   * day on. Optional: a file written before the record has no line yet.
+   */
+  history?: StandingHistory;
+}
+
+/** A run of daily standing samples, oldest first. */
+export interface StandingHistory {
+  /** Day index (since LADDER_EPOCH) of values[0]. */
+  from: number;
+  values: number[];
+}
+
+/**
+ * The four numbers the service record needs that nothing else in the save
+ * already implies (v1.10). Everything else it shows is derived — posts taken
+ * is the ladder's own total, men lost is the sum of the formations' files,
+ * battles won and lost are already counted. These four are not:
+ *
+ * - when the war started, because nothing recorded day one
+ * - raids LAUNCHED, since a raid is not one squad and clears are not attempts
+ * - what the garrison did while nobody was watching, which the defense log
+ *   only remembers four entries of
+ */
+export interface WarLog {
+  /** Epoch ms this war began. */
+  startedAt: number;
+  /** Raids launched, all-time. */
+  raids: number;
+  /** Offline probes the permanent line turned back. */
+  probesHeld: number;
+  /** Offline probes that reached the command post. */
+  probesBreached: number;
+}
+
+export const newWarLog = (now: number): WarLog => ({
+  startedAt: now,
+  raids: 0,
+  probesHeld: 0,
+  probesBreached: 0,
+});
+
+/**
+ * Repair (or invent) the lifetime counters. `fallback` starts an older war's
+ * clock — an understatement, never an invention: a file written before v1.10
+ * genuinely does not know when it began, so it begins at the load that
+ * upgraded it.
+ */
+export function normalizeWarLog(raw: unknown, fallback: number): WarLog {
+  if (!raw || typeof raw !== 'object') return newWarLog(fallback);
+  const log = raw as Partial<WarLog>;
+  const num = (value: unknown, or: number): number =>
+    typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.round(value)) : or;
+  return {
+    startedAt: num(log.startedAt, fallback),
+    raids: num(log.raids, 0),
+    probesHeld: num(log.probesHeld, 0),
+    probesBreached: num(log.probesBreached, 0),
+  };
+}
+
+/** The town's lifetime counters, created on demand. */
+export function warLog(town: TownState): WarLog {
+  if (!town.log) town.log = newWarLog(town.lastSeen);
+  return town.log;
 }
 
 /** A closed season: where you finished, and what it paid. */
@@ -175,6 +242,8 @@ export interface TownState {
    * has no roster, and three green squads is the right answer for it.
    */
   squads?: SquadRecord[];
+  /** Lifetime counters the rest of the state cannot reconstruct (v1.10). */
+  log?: WarLog;
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -218,6 +287,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     duels: [],
     seen: [],
     squads: newSquadRecords(),
+    log: newWarLog(now),
     assaultLevel: 1,
     victories: 0,
     defeats: 0,

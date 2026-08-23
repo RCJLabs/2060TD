@@ -383,6 +383,33 @@ North Korea loses tunnel insertion entirely (a gallery needs a layout to dig to)
 Conditions apply to the Front Line only. Campaign missions are authored, skirmishes are
 practice, and code duels are somebody else's snapshot — none of them are the front.
 
+### 5.9 The service record *(v1.10)*
+
+One screen, on the WAR tab, that says what this war has taken and what it has cost: the
+board (tier, standing, peak, best band ever held, closed seasons), the offense (raids
+launched, posts taken, codes beaten, men lost, and the three formations that lost them),
+the defense (battles won and lost, the heaviest assault turned back, and the probes the
+garrison fought while nobody was watching), and the long game (missions, technologies).
+Other save slots get a line each — the record is per-war by nature, since a town is one
+commander's file.
+
+Almost all of it is **derived**, not stored: the ladder, the campaign, the town and the
+squad roster have been accumulating this since v0.2. Four counters were genuinely missing
+and are kept in a small war log — when the war began, raids *launched* (a raid is not one
+squad, and clears are not attempts), and probes held and breached, which the four-entry
+defense log forgets almost immediately.
+
+**The standing line** is a daily sample of standing over the last month. Days the game was
+never opened are filled by interpolation, which is not a guess: decay is linear, and decay
+is the only thing that moves standing while nobody is playing. Awards land on the day they
+happen and read as the steps they are, and a season rollover is recorded at the boundary
+rather than smeared across however long the game stayed closed. The chart's floor is zero
+rather than the run minimum, because standing is a distance above nothing — a chart that
+rescaled its own floor would draw a war spent at 20 points exactly like one spent at 2,000.
+
+The record is deliberately **not** gated on the Front Line: missions, research, sieges held
+and the heaviest assault turned back all happen before the ladder is ever offered.
+
 ---
 
 ## 6. Presentation
