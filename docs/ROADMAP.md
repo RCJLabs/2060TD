@@ -400,9 +400,21 @@ there is deliberately no sixth faction here.
       step they are rather than smeared across the days since. The record is
       deliberately NOT gated on the Front Line: most of what it counts happens
       before the ladder is offered.*
-- [ ] **Replay vault + replay codes** — keep the last ~10 battles and pack one
-      into a shareable string. A replay is a config plus a seed, so it is
-      smaller than a base.
+- [x] **Replay vault + replay codes** *(v1.11)* — *the last ten hands-off
+      battles, kept watchable, each one a string you can hand to somebody
+      else. The sim is deterministic, so a battle IS its config: there is no
+      frame log and nothing to desync, and a code is verifiable by re-running
+      it and comparing state hashes, which is exactly what the tests do.
+      Entries are stored AS codes rather than configs — six times smaller, and
+      it turns three problems into one: reading the vault off disk is the same
+      checksummed decode as reading a paste, copying a battle out is free, and
+      a corrupt entry is refused at load instead of crashing a replay three
+      taps later. Kind names ride in a dictionary rather than a fixed byte
+      table, because this game adds units every release across five factions
+      and a fixed table cannot be reordered without silently reinterpreting
+      every code already shared. Live sieges are deliberately excluded: what
+      the commander places during one is a command the config never held, so
+      a "replay" of it would be a battle nobody fought.*
 - [ ] **Daily contracts** — three rotating objectives a day, derived from the
       same LADDER_EPOCH as the condition rotation, so still no server.
 - [x] **Boot screen and code splitting** *(v1.7)* — *the page painted nothing

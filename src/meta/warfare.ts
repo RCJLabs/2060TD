@@ -37,6 +37,7 @@ import {
   type DefenseLogEntry,
   type TownState,
 } from './town';
+import { recordBattle } from './vault';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -495,6 +496,7 @@ export function applyRaidResult(
       at: now,
       cleared: resolution.cleared,
     };
+    fileRaid(town, base, resolution, config, now, 'duel');
     town.lastSeen = now;
     return;
   }
@@ -526,7 +528,31 @@ export function applyRaidResult(
     at: now,
     cleared: resolution.cleared,
   };
+  fileRaid(town, base, resolution, config, now, 'raid');
   town.lastSeen = now;
+}
+
+/** File a resolved raid in the vault with the line the config cannot know. */
+function fileRaid(
+  town: TownState,
+  base: GeneratedBase,
+  resolution: RaidResolution,
+  config: SimConfig,
+  now: number,
+  kind: 'raid' | 'duel',
+): void {
+  const lost = Object.values(resolution.losses).reduce((a, b) => a + b, 0);
+  recordBattle(town, {
+    kind,
+    faction: town.faction,
+    title: base.name,
+    won: resolution.cleared,
+    at: now,
+    detail:
+      `${Math.round(resolution.destructionPct * 100)}% destroyed · ` +
+      `${lost} lost · +${resolution.loot.supplies} SUP`,
+    config,
+  });
 }
 
 // ---- scouting -----------------------------------------------------------------------------
@@ -653,6 +679,19 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
     const log = warLog(town);
     if (held) log.probesHeld++;
     else log.probesBreached++;
+    // The defense log keeps four; the vault keeps ten, and keeps them as
+    // codes — so the probe that got through is still watchable next week.
+    recordBattle(town, {
+      kind: 'probe',
+      faction: town.faction,
+      title: `PROBE — LEVEL ${level}`,
+      won: held,
+      at: entry.at,
+      detail: held
+        ? `held · ${suppliesLost} SUP lost`
+        : `BREACHED · ${engine.stats.ccKillerKind ?? 'command post lost'}`,
+      config,
+    });
     // A garrison holding the wire keeps you on the board; a breach is read as
     // exactly what it is. Neither counts as the commander playing, so this
     // buys no quiet time against the decay clock.

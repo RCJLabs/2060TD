@@ -63,6 +63,19 @@ try {
     throw new Error(`no button matching "${needle}"`);
   };
   const has = async (needle) => (await labels()).some((l) => l.toUpperCase().includes(needle));
+  /**
+   * Wait for a row rather than assuming a fixed settle is enough. The town
+   * does real work on its first frames — offline probes, accrual, a banner —
+   * and on a loaded machine a 600ms pause after a tab tap is not always the
+   * tab being drawn. That is exactly how this harness flaked once.
+   */
+  const hasSoon = async (needle, tries = 16) => {
+    for (let i = 0; i < tries; i++) {
+      if (await has(needle)) return true;
+      await wait(250);
+    }
+    return false;
+  };
 
   mkdirSync('screenshots', { recursive: true });
   await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });
@@ -90,7 +103,11 @@ try {
 
   // Share: the code comes out of a read-only text box.
   await tap('WAR', 600);
-  check('the WAR tab offers a share code', await has('SHARE MY BASE'), (await labels()).slice(5, 12).join(', '));
+  check(
+    'the WAR tab offers a share code',
+    await hasSoon('SHARE MY BASE'),
+    (await labels()).slice(5, 12).join(', '),
+  );
   await tap('SHARE MY BASE', 900);
   const code = await page.evaluate(() => document.querySelector('textarea')?.value ?? '');
   check('a code is produced', code.length > 40 && /^[A-Za-z0-9\-_]+$/.test(code), `${code.length} chars`);

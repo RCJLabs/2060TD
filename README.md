@@ -17,6 +17,31 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.11: a battle is a string
+
+**The sim is deterministic, so a battle *is* its config.** No frame log, no
+recording, nothing to desync — which means the last ten battles can be kept
+and any one of them handed to somebody else as a line of text.
+
+- **The vault** keeps the last ten hands-off battles on the WAR tab: ladder
+  raids, code duels, and the offline probes fought while you were away. Each
+  one is still watchable, and each one is a code.
+- **Live sieges are deliberately absent.** What you place during a siege is a
+  *command*, and the config never held it — a "replay" of one would be a
+  battle nobody fought.
+- **Entries are stored as codes, not configs.** Six times smaller, and it
+  turns three problems into one: reading the vault off disk is the same
+  checksummed decode as reading a paste, copying a battle out is free because
+  the code is already what's stored, and a corrupt entry is refused at load
+  rather than crashing a replay three taps later.
+- **A code is verifiable.** Encode it, decode it, run both, compare state
+  hashes — the tests do exactly that, for a raid and for a probe with standing
+  orders in force.
+- **Kind names ride in a dictionary**, not a fixed byte table. Share codes use
+  a fixed table and carry a warning never to reorder it; this game adds units
+  every release across five factions, so a code that names its own kinds is
+  the format that survives that.
+
 ## Current state — v1.10: the war has a file
 
 **A long war left no trace of itself anywhere the commander could look.** It
@@ -545,7 +570,7 @@ npm run dev        # the game (faction pick → town → missions/raids loop)
 npm test           # sim + meta suites (pathfinding, combat, siege, town,
                    # doctrines, warfare, factions, leagues, conditions,
                    # archetypes, the coach, the score, veterancy, the record,
-                   # share codes, determinism)
+                   # share codes, replay codes, determinism)
 npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALANCE.md,
                    # -- --conditions for the field-condition rotation alone,
                    # -- --shapes for the eight base archetypes, or
@@ -564,6 +589,7 @@ node scripts/e2e-tutorial.mjs        # the coach: taught once, and never again
 node scripts/e2e-boot.mjs            # boot card under throttling + the single file
 node scripts/e2e-vet.mjs             # named formations, their files, and who came back
 node scripts/e2e-record.mjs          # the service record, and that it never draws over itself
+node scripts/e2e-vault.mjs           # a battle filed, copied out as a string, and played back in
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
@@ -617,7 +643,8 @@ src/content/     Data, not code: damage table, both factions' defenses, armies,
 src/meta/        The persistent layer: town state (timers, accrual, gating,
                  wrecks), the siege bridge, warfare/raids, the league ladder
                  (standing, decay, seasons, the standing line), the service
-                 record, share codes, versioned saves
+                 record, the replay vault, share and replay codes (over one
+                 shared codec), versioned saves
 src/game/        Phaser 3 presentation: responsive layout + board camera rig,
                  shared glyphs + BattleRenderer, Town/Siege/Briefing/Raid/
                  Replay scenes, touch UI kit, overlays, palette
@@ -625,7 +652,7 @@ src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
                  assault ladder, doctrines, warfare, factions, leagues,
                  field conditions, veterancy, the service record, share
-                 codes, determinism
+                 codes, replay codes and the vault, determinism
 scripts/         Playwright harnesses that drive the real build by button
                  label: first-run flow, menu, touch gestures, raids, share
                  codes, the league board and the condition rotation, the

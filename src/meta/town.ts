@@ -32,6 +32,7 @@ import { effectsOf, techPrereq, TECH_BY_ID, type ResearchEffects } from '../cont
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
 import { newSquadRecords, type SquadRecord } from '../content/veterancy';
+import type { VaultEntry } from './vault';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
@@ -244,6 +245,11 @@ export interface TownState {
   squads?: SquadRecord[];
   /** Lifetime counters the rest of the state cannot reconstruct (v1.10). */
   log?: WarLog;
+  /**
+   * The last ten hands-off battles, as replay codes (v1.11). Optional: a file
+   * written before the vault simply has none to show.
+   */
+  vault?: VaultEntry[];
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -288,6 +294,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     seen: [],
     squads: newSquadRecords(),
     log: newWarLog(now),
+    vault: [],
     assaultLevel: 1,
     victories: 0,
     defeats: 0,

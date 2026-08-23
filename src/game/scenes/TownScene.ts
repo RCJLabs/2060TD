@@ -13,6 +13,8 @@ import {
 import { TECHS, TECH_BY_ID } from '../../content/research';
 import { activeSlot, clearSave, loadSlot, saveTown } from '../../meta/save';
 import { runOfflineProbes } from '../../meta/warfare';
+import { fileCode, openEntry, vaultOf, VAULT_CAP } from '../../meta/vault';
+import { replayFingerprint, type ReplayKind } from '../../meta/replaycode';
 import { COACH_KEYS } from '../../content/tutorial';
 import { hasSeen, markSeen } from '../../meta/coach';
 import { conditionAfter, conditionAt, conditionEndsAt } from '../../content/conditions';
@@ -746,6 +748,143 @@ export class TownScene extends Phaser.Scene {
    * v0.2. It simply had nowhere to be read, which meant a long war left no
    * trace of itself anywhere the commander could look.
    */
+  /** How long ago, in the terse way the rest of the game says it. */
+  private static agoLabel(ms: number): string {
+    if (ms < 3_600_000) return `${Math.max(1, Math.round(ms / 60_000))}m ago`;
+    if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
+    return `${Math.round(ms / 86_400_000)}d ago`;
+  }
+
+  /**
+   * The vault (v1.11): the last ten hands-off battles, each one still
+   * watchable and each one a code you can hand to somebody else.
+   *
+   * Live sieges are deliberately absent. A raid, a duel and an offline probe
+   * resolve from their config, so re-running it IS the battle; a siege you
+   * fought yourself was made of commands the config never held, and a
+   * "replay" of one would be a battle nobody fought.
+   */
+  private showVault(): void {
+    if (this.overlay) return;
+    const now = Date.now();
+    const vault = vaultOf(this.town);
+    const ov = new Overlay(this, this.layout, {
+      title: 'REPLAY VAULT',
+      subtitle:
+        vault.length > 0
+          ? `${vault.length} of the last ${VAULT_CAP} battles`
+          : 'Nothing fought yet',
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const { font, gap, rowH } = this.layout;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+
+    if (vault.length === 0) {
+      ov.paragraph(
+        'Raids, code duels and the probes fought while you were away are ' +
+          'filed here as you fight them. A live siege is not: what you place ' +
+          'during one is a command, not part of the battle plan, so there is ' +
+          'nothing to re-run.',
+        font.body,
+        COLORS.inkDim,
+        { center: true },
+      );
+    }
+
+    const KIND_LABEL: Record<ReplayKind, string> = {
+      raid: 'RAID',
+      duel: 'DUEL',
+      probe: 'DEFENSE',
+    };
+    for (const entry of vault) {
+      const outcomeWord = entry.won ? (entry.kind === 'probe' ? 'HELD' : 'TAKEN') : 'LOST';
+      this.overlayEntry(
+        ov,
+        `${KIND_LABEL[entry.kind]} · ${entry.title}\n` +
+          `${outcomeWord} · ${entry.detail || '—'} · ${TownScene.agoLabel(Math.max(0, now - entry.at))}`,
+        entry.won ? COLORS.olive : COLORS.ink,
+        {
+          label: 'WATCH',
+          onTap: () => {
+            const replay = openEntry(entry);
+            if (!replay) return;
+            close();
+            this.scene.start('replay', {
+              config: replay.config,
+              // The viewer only knows two camera stories: your army going in,
+              // or something coming at your town.
+              kind: replay.kind === 'probe' ? 'defense' : 'raid',
+              title: replay.title,
+              faction: replay.faction,
+              backTo: 'town',
+              backData: { town: this.town },
+            });
+          },
+        },
+      );
+      // The code is what the entry IS, so handing it over costs nothing.
+      const b = ov.button(
+        { x: ov.card.x, y: ov.flow(rowH, gap).y, w: ov.card.w, h: rowH },
+        `COPY CODE · ${replayFingerprint(entry.code)}`,
+        () => {
+          showTextBox({
+            title: `${KIND_LABEL[entry.kind]} — ${entry.title}`,
+            note:
+              'The whole battle, as a string. Anyone who pastes it watches ' +
+              'exactly the fight you did — same seed, same walls, same ' +
+              'result. It changes nothing on their front line.',
+            value: entry.code,
+            readOnly: true,
+          });
+        },
+      );
+      b.setFont(font.body);
+    }
+
+    ov.footer(
+      'WATCH A CODE',
+      () => {
+        showTextBox({
+          title: 'WATCH A PASTED BATTLE',
+          note:
+            'Paste a replay code. It is filed in your vault and plays back ' +
+            'exactly as it was fought — nothing of yours is risked.',
+          confirm: 'WATCH IT',
+          onConfirm: (value) => {
+            const filed = fileCode(this.town, value, Date.now());
+            if (!filed.ok) {
+              setTextBoxStatus(
+                filed.error === 'duplicate'
+                  ? 'That battle is already in your vault.'
+                  : 'That does not read as a replay code.',
+              );
+              return;
+            }
+            closeTextBox();
+            saveTown(this.town);
+            close();
+            this.scene.start('replay', {
+              config: filed.replay.config,
+              kind: filed.replay.kind === 'probe' ? 'defense' : 'raid',
+              title: filed.replay.title,
+              faction: filed.replay.faction,
+              backTo: 'town',
+              backData: { town: this.town },
+            });
+          },
+        });
+      },
+      0,
+      2,
+    );
+    ov.footer('CLOSE', close, 1, 2);
+  }
+
   private showRecord(): void {
     if (this.overlay) return;
     const now = Date.now();
@@ -1445,6 +1584,13 @@ export class TownScene extends Phaser.Scene {
       label: 'SERVICE RECORD',
       sub: `DAY ${warDay(town, Date.now())}`,
       onTap: () => this.openOverlay(() => this.showRecord()),
+    });
+    const vault = vaultOf(town);
+    rows.push({
+      id: 'vault',
+      label: 'REPLAY VAULT',
+      sub: vault.length > 0 ? `${vault.length}/${VAULT_CAP}` : 'EMPTY',
+      onTap: () => this.openOverlay(() => this.showVault()),
     });
 
     // Share-code duels (v1.2): no server, no ladder — a snapshot and a boast.

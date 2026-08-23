@@ -410,6 +410,36 @@ rescaled its own floor would draw a war spent at 20 points exactly like one spen
 The record is deliberately **not** gated on the Front Line: missions, research, sieges held
 and the heaviest assault turned back all happen before the ladder is ever offered.
 
+### 5.10 The replay vault and replay codes *(v1.11)*
+
+The simulator is deterministic, so **a battle is its config**: re-running it reproduces the
+fight exactly, down to the state hash. There is no frame log and nothing that can desync,
+which is what makes both halves of this feature possible at all.
+
+The **vault** keeps the last ten hands-off battles — ladder raids, code duels, and the
+offline probes fought while you were away — on the WAR tab, each still watchable. A
+**replay code** is any one of them as a pasteable string: whoever pastes it watches exactly
+the battle that was fought, and risks nothing of their own doing so.
+
+Entries are stored *as codes* rather than as configs. That is six times smaller, but the
+real reason is that it collapses three problems into one: reading the vault off disk is the
+same checksummed decode as reading a paste, copying a battle out costs nothing because the
+code is already what is stored, and a corrupted entry is refused at load rather than
+crashing a replay three taps later.
+
+Kind names ride in a **dictionary** written into each code, not a fixed byte table. Share
+codes use a fixed table and carry a standing warning never to reorder it; this game adds
+units and buildings every release across five factions, so a format that names its own
+kinds is the one that survives that. It costs about ten bytes per distinct kind and a
+battle uses a dozen. Strings are UTF-8, unlike share codes — a share code names a base the
+player typed, but a replay code names generated content, and posts are quoted with curly
+quotes while probes are titled with an em dash.
+
+**Live sieges are excluded, deliberately.** What the commander places during a siege is a
+command, and the config never held it; a "replay" of one would be a battle nobody fought.
+Recording those would mean a command log and a second replay path, which is a different
+feature.
+
 ---
 
 ## 6. Presentation

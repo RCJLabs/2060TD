@@ -3,6 +3,7 @@ import { LEAGUES, seasonAt } from '../content/leagues';
 import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
+import { normalizeVault } from './vault';
 import { newTown, normalizeWarLog, unlockAll, type TownState } from './town';
 
 /**
@@ -212,6 +213,9 @@ export function deserialize(json: string): TownState | null {
     // so the clock starts at the load that upgraded it — an understatement,
     // never an invention.
     town.log = normalizeWarLog(town.log, town.lastSeen);
+    // The vault arrived in v1.11. Entries are decoded here, so anything that
+    // survives this is a battle the viewer can definitely open.
+    town.vault = normalizeVault(town.vault);
     // The roster arrived in v1.9; an older file fields three green squads.
     town.squads = normalizeSquads(town.squads);
     // The coach ledger arrived in v1.5; an older file has simply read nothing.

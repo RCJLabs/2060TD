@@ -3,6 +3,18 @@ import { BUILDABLE_KINDS } from '../content/buildings';
 import { FACTION_IDS, type FactionId } from '../content/factions';
 import type { CellIndex, LayoutStructure, LayoutWall } from '../sim/types';
 import type { TownState } from './town';
+import {
+  checksum,
+  fromBase64Url,
+  readVarint,
+  toBase64Url,
+  writeVarint,
+  type Cursor,
+  type CodeError,
+} from './codec';
+
+/** Share codes and replay codes fail the same handful of ways. */
+export type ShareError = CodeError;
 
 /**
  * Share codes (v1.2): a base as a string you can paste to a friend.
@@ -36,87 +48,6 @@ export interface SharedBase {
   ccLevel: number;
   walls: LayoutWall[];
   structures: LayoutStructure[];
-}
-
-export type ShareError =
-  | 'empty'
-  | 'characters'
-  | 'truncated'
-  | 'checksum'
-  | 'version'
-  | 'content';
-
-const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-const B64_INDEX = new Map([...B64].map((c, i) => [c, i]));
-
-/** URL- and chat-safe base64: no padding, no characters that get escaped. */
-function toBase64Url(bytes: number[]): string {
-  let out = '';
-  for (let i = 0; i < bytes.length; i += 3) {
-    const a = bytes[i]!;
-    const b = bytes[i + 1];
-    const c = bytes[i + 2];
-    out += B64[a >> 2]! + B64[((a & 3) << 4) | ((b ?? 0) >> 4)]!;
-    if (b === undefined) break;
-    out += B64[((b & 15) << 2) | ((c ?? 0) >> 6)]!;
-    if (c === undefined) break;
-    out += B64[c & 63]!;
-  }
-  return out;
-}
-
-function fromBase64Url(text: string): number[] | null {
-  const bytes: number[] = [];
-  let acc = 0;
-  let bits = 0;
-  for (const ch of text) {
-    const value = B64_INDEX.get(ch);
-    if (value === undefined) return null;
-    acc = (acc << 6) | value;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      bytes.push((acc >> bits) & 0xff);
-    }
-  }
-  return bytes;
-}
-
-/** LEB128: small numbers cost one byte, which is what wall deltas are. */
-function writeVarint(out: number[], value: number): void {
-  let v = value;
-  while (v >= 0x80) {
-    out.push((v & 0x7f) | 0x80);
-    v >>>= 7;
-  }
-  out.push(v);
-}
-
-interface Cursor {
-  bytes: number[];
-  at: number;
-}
-
-function readVarint(cur: Cursor): number | null {
-  let result = 0;
-  let shift = 0;
-  for (;;) {
-    if (cur.at >= cur.bytes.length || shift > 28) return null;
-    const byte = cur.bytes[cur.at++]!;
-    result |= (byte & 0x7f) << shift;
-    if ((byte & 0x80) === 0) return result >>> 0;
-    shift += 7;
-  }
-}
-
-/** FNV-1a over the payload; two bytes is plenty to catch a mangled paste. */
-function checksum(bytes: number[]): number {
-  let hash = 0x811c9dc5;
-  for (const byte of bytes) {
-    hash ^= byte;
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash & 0xffff;
 }
 
 const MAX_NAME = 24;
