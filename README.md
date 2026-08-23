@@ -17,6 +17,33 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.2: share codes
+
+**Your base, as a string you can paste to a friend.** No server, no
+accounts — the last piece of PvP-lite from the original plan, built the way
+decision #2 said it would be.
+
+- **A base is a code.** `SHARE MY BASE` in the `WAR` tab packs the wire, the
+  emplacements and the command post into a ~70–300 character string. A
+  realistic mid-game base with 49 walls and 6 emplacements comes out at 127
+  characters, because walls are grouped by kind and delta-packed: a straight
+  line, horizontal or vertical, costs about a byte a segment.
+- **`RAID A CODE` fights the snapshot.** The code *is* the intel, so there is
+  nothing to scout and no target to cycle. Your losses are permanent, exactly
+  as on the ladder — but the Front Line does not move, nothing counterattacks,
+  and a given code pays loot only the first time you beat it. It is a duel,
+  not a mine.
+- **Nothing here changes when they raid you.** They fight a copy of your
+  layout. That is the honest shape of a no-server game, and the share screen
+  says so.
+- **Codes are versioned and checksummed.** A truncated paste, a mangled
+  character, or a code from another version is refused with a reason a player
+  can act on, rather than loading half a base.
+- **A real text box.** Phaser draws text but cannot take any, and
+  `window.prompt` on a phone is a system dialog that mangles a 300-character
+  string. `src/game/textbox.ts` is a small DOM overlay styled to match the
+  game, with a copy button and a paste field that behaves on mobile.
+
 ## Current state — v1.1: a front door
 
 **The game now starts at a main menu instead of dropping you into a town.**
@@ -326,6 +353,7 @@ VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA
 node scripts/e2e-touch.mjs           # touch gestures: scroll, flick, tap-vs-drag
 node scripts/e2e-menu.mjs            # menu → settings → war → back to menu
+node scripts/e2e-share.mjs           # code out, code in, duel fought
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

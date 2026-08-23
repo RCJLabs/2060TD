@@ -50,6 +50,12 @@ import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
+/** A pasted base plus the fingerprint that stops it paying twice. */
+export interface Challenge {
+  base: GeneratedBase;
+  fingerprint: string;
+}
+
 const CELL = 32;
 /** Panel tabs for the raid planner. */
 const RAID_TABS = [
@@ -95,14 +101,17 @@ export class RaidScene extends Phaser.Scene {
   private drawerOpen = true;
   private launchButton!: Button;
   private overlay: Overlay | null = null;
+  /** A duel against a pasted snapshot instead of a rung on the ladder. */
+  private challenge: Challenge | null = null;
 
   constructor() {
     super('raid');
   }
 
-  init(data: { town?: TownState }): void {
+  init(data: { town?: TownState; challenge?: Challenge }): void {
     const params = new URLSearchParams(window.location.search);
     this.demoMode = params.get('demo') === 'raid';
+    this.challenge = data?.challenge ?? null;
     if (data?.town) this.town = data.town;
     else if (this.demoMode || !this.town) {
       const pick = params.get('faction');
@@ -129,7 +138,8 @@ export class RaidScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.base = targetFor(this.town, this.variant);
+    // A challenge fights the code that was pasted; the ladder picks its own.
+    this.base = this.challenge ? this.challenge.base : targetFor(this.town, this.variant);
 
     this.board = new BoardView(this, { cols: MAP_W, rows: MAP_H, cell: CELL });
     const staticLayer = this.add.graphics();
@@ -237,10 +247,13 @@ export class RaidScene extends Phaser.Scene {
   // ---- target handling ---------------------------------------------------------
 
   private scouted(): boolean {
+    // A shared code carries the whole layout, so there is nothing to scout.
+    if (this.challenge) return true;
     return isScouted(this.town, this.town.frontline.tier, this.variant);
   }
 
   private cycleTarget(): void {
+    if (this.challenge) return; // one code, one base
     this.variant = (this.variant + 1) % TARGETS_PER_TIER;
     this.base = targetFor(this.town, this.variant);
     // Galleries are surveyed per target: a new base voids every mouth.
@@ -380,8 +393,21 @@ export class RaidScene extends Phaser.Scene {
       autoPowers: this.autoPowerRules(),
       powerCharges: { ...this.town.charges },
     });
-    const resolution = resolveRaid(config, squads, this.base.tier, raidCatalogFor(this.town.faction));
-    applyRaidResult(this.town, this.base, resolution, config, Date.now());
+    const resolution = resolveRaid(
+      config,
+      squads,
+      // A duel pays like a tier-1 post; the ladder itself does not move.
+      this.challenge ? 1 : this.base.tier,
+      raidCatalogFor(this.town.faction),
+    );
+    applyRaidResult(
+      this.town,
+      this.base,
+      resolution,
+      config,
+      Date.now(),
+      this.challenge ? { fingerprint: this.challenge.fingerprint } : undefined,
+    );
     this.saveSoon();
     this.result = resolution;
     this.lastConfig = config;
@@ -455,6 +481,21 @@ export class RaidScene extends Phaser.Scene {
         const tier = town.frontline.tier;
         const scouted = this.scouted();
         const price = scoutPrice(town, tier);
+        if (this.challenge) {
+          const beaten = town.duels?.includes(this.challenge.fingerprint) === true;
+          return [
+            { id: 'h', label: `CHALLENGE · ${this.base.name}`, heading: true },
+            {
+              id: 'note',
+              label: beaten
+                ? 'ALREADY BEATEN — no further loot'
+                : 'A shared snapshot. Losses are real; the ladder does not move.',
+              heading: true,
+            },
+            { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
+            { id: 'back', label: 'RETURN TO BASE', sub: '[ESC]', onTap: () => this.goHome() },
+          ];
+        }
         return [
           {
             id: 'h',

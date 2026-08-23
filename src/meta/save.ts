@@ -100,6 +100,10 @@ export function deserialize(json: string): TownState | null {
     if (typeof town.intel !== 'number' || !Number.isFinite(town.intel)) town.intel = 0;
     if (!town.research) town.research = { completed: [], active: null };
     if (!isStandingOrdersId(town.standingOrders)) town.standingOrders = null;
+    // The duel ledger arrived in v1.2; older files simply have not fought one.
+    town.duels = Array.isArray(town.duels)
+      ? town.duels.filter((d: unknown): d is string => typeof d === 'string').slice(-50)
+      : [];
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;

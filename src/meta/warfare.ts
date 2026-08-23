@@ -307,6 +307,11 @@ export function applyRaidResult(
   resolution: RaidResolution,
   config: SimConfig,
   now: number,
+  /**
+   * Challenge raids (v1.2) name the code they fought. A given code pays out
+   * once: losses are real every time, but a friend's base is not a mine.
+   */
+  challenge?: { fingerprint: string },
 ): void {
   for (const [kind, lost] of Object.entries(resolution.losses)) {
     town.army[kind] = Math.max(0, (town.army[kind] ?? 0) - lost);
@@ -318,8 +323,32 @@ export function applyRaidResult(
   // Tunnel galleries are dug fresh per raid: fuel per mouth in the config.
   const mouths = config.reservedCells?.length ?? 0;
   if (mouths > 0) town.fuel = Math.max(0, town.fuel - mouths * TUNNEL_FUEL_COST);
-  town.supplies += resolution.loot.supplies;
-  town.fuel += resolution.loot.fuel;
+  const duels = (town.duels ??= []);
+  const alreadyBeaten =
+    challenge !== undefined && duels.includes(challenge.fingerprint);
+  if (!alreadyBeaten) {
+    town.supplies += resolution.loot.supplies;
+    town.fuel += resolution.loot.fuel;
+  }
+  if (challenge !== undefined && resolution.cleared && !alreadyBeaten) {
+    duels.push(challenge.fingerprint);
+    if (duels.length > 50) duels.splice(0, duels.length - 50);
+  }
+
+  // Challenge raids (v1.2) are duels against a shared snapshot, not rungs:
+  // losses and ordnance are real, the ladder does not move, and nothing
+  // counterattacks — there is no server and nobody's town was touched.
+  if (base.tier === 0) {
+    town.lastRaid = {
+      config,
+      baseName: base.name,
+      tier: 0,
+      at: now,
+      cleared: resolution.cleared,
+    };
+    town.lastSeen = now;
+    return;
+  }
 
   const frontline = town.frontline;
   if (resolution.cleared) {

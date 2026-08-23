@@ -292,7 +292,18 @@ replaying cleared missions.
       save export/import and the MAIN MENU link only in-game. Deliberately not offered
       inside a live siege. scripts/e2e-menu.mjs walks the loop and caught the first
       version stacking a new settings page over the old one on every toggle.*
-- [ ] Share-code PvP-lite: export base as code, friends raid the snapshot
+- [x] Share-code PvP-lite: export base as code, friends raid the snapshot *(v1.2)*
+      — *meta/sharecode.ts packs a layout into a pasteable string: format byte, faction,
+      command-post level, name, emplacements, then walls grouped by kind and
+      delta-packed, with a two-byte FNV checksum. A 49-wall base is 127 characters, so
+      it survives a chat window. Codes are versioned and validated on the way back in —
+      truncation, a flipped character, an unknown kind or trailing junk are all refused
+      with a reason. A decoded base becomes a tier-0 target: no scouting (the code is
+      the intel), no ladder movement, no counterattack, real permanent losses, and a
+      per-code ledger so a friend's base pays loot once. game/textbox.ts is a DOM text
+      overlay because Phaser cannot take text input and window.prompt mangles a long
+      string on a phone. scripts/e2e-share.mjs copies a code out of the game, pastes a
+      damaged one (refused), then the real one, and fights the duel.*
 - [ ] Leagues, rotating events on the Front Line
 
 ---

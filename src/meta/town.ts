@@ -139,6 +139,8 @@ export interface TownState {
   shieldUntil: number;
   /** The last raid fought, kept for the replay viewer. */
   lastRaid: RaidRecord | null;
+  /** Fingerprints of share codes already cleared: each pays loot once. */
+  duels?: string[];
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -167,6 +169,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     standingOrders: null,
     shieldUntil: 0,
     lastRaid: null,
+    duels: [],
     assaultLevel: 1,
     victories: 0,
     defeats: 0,

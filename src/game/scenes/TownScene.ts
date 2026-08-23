@@ -60,11 +60,30 @@ import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
+import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
+import {
+  baseFromShare,
+  cleanName,
+  codeFingerprint,
+  decodeBase,
+  encodeBase,
+  type ShareError,
+} from '../../meta/sharecode';
 import { COLORS } from '../palette';
 import { mono, Panel, type PanelRow } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
+/** What went wrong with a pasted code, in words a player can act on. */
+const SHARE_ERRORS: Record<ShareError, string> = {
+  empty: 'Nothing pasted yet.',
+  characters: 'That does not look like a code — check for missing characters.',
+  truncated: 'The code is cut short. Copy the whole thing.',
+  checksum: 'The code is damaged in transit. Ask for it again.',
+  version: 'That code came from a different version of the game.',
+  content: 'The code decoded to something that is not a base.',
+};
+
 const UNLOCK_MISSION: Record<FactionId, Record<string, number>> = {
   usa: {},
   china: {},
@@ -649,6 +668,46 @@ export class TownScene extends Phaser.Scene {
     ov.footer('CLOSE', close);
   }
 
+  /** Hand the player their own layout as a string they can paste anywhere. */
+  private shareBase(): void {
+    const flavor = flavorFor(this.town.faction);
+    const name = `${flavor.base.split(',')[0] ?? 'FORWARD POST'}`;
+    const code = encodeBase(this.town, cleanName(name));
+    showTextBox({
+      title: 'YOUR BASE, AS A CODE',
+      note:
+        'Send this to a friend and they can raid a snapshot of your layout. ' +
+        'It carries the wire, the emplacements and the command post — nothing ' +
+        'else. They fight a copy: nothing here changes, whatever they do to it.',
+      value: code,
+      readOnly: true,
+    });
+  }
+
+  /** Take a friend's code and go and see how good their maze really is. */
+  private raidCode(): void {
+    showTextBox({
+      title: 'RAID A SHARED BASE',
+      note:
+        'Paste a code. Your losses are real and permanent; a given code pays ' +
+        'loot once, and the Front Line does not move for a duel.',
+      confirm: 'SCOUT IT',
+      onConfirm: (value) => {
+        const result = decodeBase(value);
+        if (!result.ok) {
+          setTextBoxStatus(SHARE_ERRORS[result.error]);
+          return;
+        }
+        closeTextBox();
+        saveTown(this.town);
+        this.scene.start('raid', {
+          town: this.town,
+          challenge: { base: baseFromShare(result.base), fingerprint: codeFingerprint(value.trim()) },
+        });
+      },
+    });
+  }
+
   /** The shared settings screen, opened from the SYS tab. */
   private showSettings(): void {
     if (this.overlay || this.demoMode) return;
@@ -1100,6 +1159,23 @@ export class TownScene extends Phaser.Scene {
         onTap: () => this.openFrontline(),
       });
     }
+
+    // Share-code duels (v1.2): no server, no ladder — a snapshot and a boast.
+    rows.push({ id: 'h3', label: 'CHALLENGE', heading: true });
+    rows.push({
+      id: 'share',
+      label: 'SHARE MY BASE',
+      sub: 'CODE',
+      enabled: !this.demoMode,
+      onTap: () => this.shareBase(),
+    });
+    rows.push({
+      id: 'duel',
+      label: 'RAID A CODE',
+      sub: town.duels?.length ? `${town.duels.length} BEATEN` : 'PASTE',
+      enabled: !this.demoMode && isUnlocked(town, 'frontline'),
+      onTap: () => this.raidCode(),
+    });
 
     rows.push({ id: 'h2', label: 'ORDNANCE (FUEL)', heading: true });
     const powers = defenseCatalogFor(town.faction).powers;
