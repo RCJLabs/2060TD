@@ -777,7 +777,11 @@ export function scoutTarget(
 }
 
 export function targetFor(town: TownState, variant: number): GeneratedBase {
-  return generateBase(town.frontline.tier, variant, baseKitFor(town.faction));
+  // The faction decides the DEAL (v1.21): which of the eight shapes lands in
+  // which of the rung's three slots. Every other path that generates a ladder
+  // base has to pass it too, or it is looking at a different front line from
+  // the one the player is.
+  return generateBase(town.frontline.tier, variant, baseKitFor(town.faction), undefined, town.faction);
 }
 
 // ---- offline probe raids -----------------------------------------------------------------

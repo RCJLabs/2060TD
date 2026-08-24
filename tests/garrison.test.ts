@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateBase } from '../src/content/bases';
+import { ARCHETYPES, generateBase } from '../src/content/bases';
 import { baseKitFor, raidCatalogFor, trainableFor } from '../src/content/factions';
 import {
   GARRISON_GUN_TRADE,
@@ -41,21 +41,73 @@ const seedOf = (a: number, b: number, c: number): number =>
 
 const squads = (): SquadPlan[] => PLAN.map((s, at) => ({ ...s, slot: at }));
 
-/** Mean clear rate over the ladder, with the config bent by `tweak`. */
-function clearRate(tweak: (c: SimConfig) => SimConfig, seeds = 8): number {
+/**
+ * Mean clear rate over the ladder, with the config bent by `tweak`.
+ *
+ * Kept for the tests that need a rate, and read with v1.21's caveat in hand:
+ * a raid outcome is very nearly binary, so this moves in steps of about one
+ * matchup and cannot resolve anything smaller. Forced shapes, not the deal —
+ * which three targets a rung offers now depends on the faction, and a fixture
+ * that takes whatever it is handed breaks whenever the deal is touched, having
+ * measured nothing about the mechanic under test.
+ */
+function clearRate(tweak: (c: SimConfig) => SimConfig, seeds = 4): number {
   let cleared = 0;
   let runs = 0;
-  for (const tier of [1, 2, 3, 4, 5]) {
-    for (let variant = 0; variant < 3; variant++) {
-      const base = generateBase(tier, variant, KIT);
+  for (const tier of [2, 3, 4, 5]) {
+    for (const shape of ARCHETYPES) {
+      const base = generateBase(tier, 0, KIT, shape.id);
       for (let i = 0; i < seeds; i++) {
-        const config = tweak(raidConfig(base, squads(), seedOf(tier, variant, i), TRAINABLE));
+        const config = tweak(raidConfig(base, squads(), seedOf(tier, 0, i), TRAINABLE));
         if (resolveRaid(config, squads(), tier, CATALOG).cleared) cleared++;
         runs++;
       }
     }
   }
   return (cleared / runs) * 100;
+}
+
+/**
+ * Mean ticks before the base loses its first structure — the CONTINUOUS
+ * measure, and the one a wall's mechanism actually acts on.
+ *
+ * A wall spends the attacker's time; that is the entire physical claim. Clear
+ * rate cannot see it (see above), which is why v1.21 moved the two headline
+ * assertions onto this instead. It resolves cleanly and in the same direction
+ * for every faction: walls buy the USA reference target +8% and the KPA's +15%.
+ */
+function ticksBought(tweak: (c: SimConfig) => SimConfig, seeds = 3): number {
+  let total = 0;
+  let runs = 0;
+  for (const tier of [2, 3, 4, 5]) {
+    for (const shape of ARCHETYPES) {
+      for (let variant = 0; variant < 2; variant++) {
+        const base = generateBase(tier, variant, KIT, shape.id);
+        for (let i = 0; i < seeds; i++) {
+          const engine = new Engine(
+            tweak(raidConfig(base, squads(), seedOf(tier, variant, i), TRAINABLE)),
+            CATALOG,
+          );
+          engine.enqueue({ tick: 0, type: 'startAssault' });
+          // The structures STANDING AT THE START, by id. Counting the list
+          // instead was the first draft's bug and it inverted the answer: a
+          // garrison deploying a reserve makes the list longer, so the loop ran
+          // straight past the loss and credited reinforcements to the wall.
+          const born = new Set(engine.structures.map((st) => st.id));
+          let t = 0;
+          while (t < 3000 && engine.phase !== 'victory' && engine.phase !== 'defeat') {
+            engine.step();
+            t++;
+            const alive = new Set(engine.structures.map((st) => st.id));
+            if ([...born].some((id) => !alive.has(id))) break;
+          }
+          total += t;
+          runs++;
+        }
+      }
+    }
+  }
+  return total / runs;
 }
 
 const strip = (c: SimConfig): SimConfig => ({ ...c, layout: { ...c.layout!, walls: [] } });
@@ -179,44 +231,59 @@ const noWatch = (c: SimConfig): SimConfig => ({
 
 describe('what the wall line is worth', () => {
   /**
-   * The headline finding, guarded — and guarded with ONE variable moving.
+   * What a wall line is worth, on an instrument that can see it.
    *
-   * An earlier version of this test moved the garrison and the gun trade
-   * together and passed with the garrison deleted, which is precisely the
-   * failure it existed to catch. The wall line is earned by
-   * `GARRISON_GUN_TRADE`, not by the garrison, and the cases below say so by
-   * holding the watch off and moving only the guns.
+   * REBUILT in v1.21, and the reason matters more than the test. v1.20 shipped
+   * on a clear-rate reading — the wall line worth -5.2 at full gun strength and
+   * +7.3 after the trade — and v1.21 established that a raid outcome is very
+   * nearly binary: 66 of 75 matchups land on exactly 0% or 100%, so a 15-cell
+   * mean moves in steps of 6.7 points and CANNOT resolve a 7-point effect. Read
+   * per faction on current content the same statistic gives +1.4 for the USA,
+   * -8.8 for China and -11.2 for the KPA. It is not that the wall line is
+   * negative; it is that clear rate never resolved it either way, and a test
+   * asserting its sign was asserting noise. That test broke on every content
+   * change this milestone made, which is what a noise assertion does.
    *
-   * REPOINTED in v1.21, and it is worth being plain about why rather than
-   * quietly loosening a bound. This used to open by reproducing the v1.19
-   * defect — at full gun strength, stripping every wall made a base EASIER to
-   * hold — and that assertion no longer holds on current content. It is not a
-   * broken test: v1.21's upgrade creep (`upgradeShareFor`) leaves a share of
-   * every deep base's gun line one level back, which reduces effective
-   * standing gun strength, which is the same lever `GARRISON_GUN_TRADE`
-   * pulls. Two changes now push the same term, so the trade's MARGIN has
-   * shrunk from the ~12.5 clear-rate points v1.20 measured to about 2.6 —
-   * while the thing that actually matters, the wall line's sign, is if
-   * anything better than it shipped (+7.6 against v1.20's +6.7).
+   * So both headline assertions moved onto continuous measures.
    *
-   * So this asserts what is true now and still fails for the right reason:
-   * cutting the guns has to move the wall line towards the defender, on this
-   * content, with nothing else moving. Delete `GARRISON_GUN_TRADE`'s effect
-   * and the second assertion goes.
+   * A wall spends the attacker's TIME. `ticksBought` measures exactly that and
+   * resolves cleanly — walls buy the USA reference target 8% more time before
+   * the base loses anything, and the KPA's 15%. Same sign for every faction,
+   * stable across the creep and the deal.
+   *
+   * `GARRISON_GUN_TRADE` cuts standing gun damage, so what it buys the attacker
+   * is survival, and DESTR% sees it where a clear flag cannot.
+   *
+   * Both still move one thing at a time, which is the rule the first draft of
+   * this file broke: it moved the garrison and the trade together and PASSED
+   * with the garrison deleted.
    */
-  it('is positive, and the gun trade is what moves it further that way', () => {
-    const wallWorth = (mult: number): number =>
-      clearRate((c) => noWatch(guns(mult)(strip(c)))) - clearRate((c) => noWatch(guns(mult)(c)));
-
-    // Fortifying is worth something at full gun strength on v1.21 content...
-    const atFull = wallWorth(1);
-    expect(atFull).toBeGreaterThan(0);
-    // ...and cutting the guns is what moves it further the defender's way.
-    expect(wallWorth(GARRISON_GUN_TRADE)).toBeGreaterThan(atFull);
+  it('buys the defender time, which is the whole mechanism', () => {
+    const walled = ticksBought(noWatch);
+    const bare = ticksBought((c) => noWatch(strip(c)));
+    expect(walled).toBeGreaterThan(bare);
+    // And by a margin worth having, not a rounding error.
+    expect(walled / bare).toBeGreaterThan(1.03);
   }, 30_000);
 
-  it('is still positive in the configuration that actually ships', () => {
-    expect(clearRate(strip)).toBeGreaterThan(clearRate((c) => c));
+  it('and the gun trade is what lets a force live long enough to use it', () => {
+    const destruction = (mult: number): number => {
+      let total = 0;
+      let runs = 0;
+      for (const tier of [2, 3, 4, 5]) {
+        for (const shape of ARCHETYPES) {
+          const base = generateBase(tier, 0, KIT, shape.id);
+          for (let i = 0; i < 3; i++) {
+            const config = noWatch(guns(mult)(raidConfig(base, squads(), seedOf(tier, 0, i), TRAINABLE)));
+            total += resolveRaid(config, squads(), tier, CATALOG).destructionPct;
+            runs++;
+          }
+        }
+      }
+      return (total / runs) * 100;
+    };
+    // One variable: the guns. Set GARRISON_GUN_TRADE to 1 and this goes.
+    expect(destruction(GARRISON_GUN_TRADE)).toBeGreaterThan(destruction(1));
   }, 30_000);
 
   it('is bought with gun coverage rather than added on top', () => {

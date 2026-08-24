@@ -9,8 +9,10 @@ import {
   MAP_H,
   MAP_W,
   TARGETS_PER_TIER,
+  DEAL_ORDER,
   USA_BASE_KIT,
 } from '../src/content/bases';
+import { FACTION_IDS } from '../src/content/factions';
 
 const TIERS = [1, 2, 3, 4, 5, 6, 8, 12];
 
@@ -155,6 +157,81 @@ describe('every generated base', () => {
    * that more than doubles. Deleting `upgradeShareFor` fails the second bound
    * at T3->T4, which is the shape of the defect this exists to hold shut.
    */
+  /**
+   * The deal has to span difficulty, not just silhouette (v1.21) — and it has
+   * to do that for EACH faction, which is the half the first attempt missed.
+   *
+   * `bases.ts` always promised "a choice between identical problems is not a
+   * choice" and enforced only the silhouette half, so T5 dealt compound,
+   * bunker and strongpoints: the two hardest shapes in the game together, to
+   * everybody, forever. Banding by ONE difficulty ordering averaged across the
+   * five factions did not fix it either — the shapes do not order the same way
+   * for each of them, and a rung graded for the average grades for nobody.
+   */
+  it('deals every faction three targets that differ in difficulty', () => {
+    for (const faction of FACTION_IDS) {
+      const order = DEAL_ORDER[faction]!;
+      for (const tier of TIERS) {
+        const dealt = Array.from({ length: TARGETS_PER_TIER }, (_, v) =>
+          archetypeFor(tier, v, faction),
+        );
+        const label = `${faction} T${tier}: ${dealt.map((a) => a.id).join(', ')}`;
+        expect(new Set(dealt.map((a) => a.id)).size, `${label} — repeats a shape`).toBe(
+          TARGETS_PER_TIER,
+        );
+        // Slot 0 is the heavy fight and slot 2 the one you can take today,
+        // ranked by what the shapes cost THIS faction.
+        for (let i = 1; i < dealt.length; i++) {
+          expect(
+            order.indexOf(dealt[i]!.id),
+            `${label} — slot ${i} is not lighter for ${faction}`,
+          ).toBeGreaterThan(order.indexOf(dealt[i - 1]!.id));
+        }
+      }
+    }
+  });
+
+  it('orders the shapes differently for different factions', () => {
+    // If every ordering were the same this whole table would be a scalar, and
+    // the v1.21 attempt that used a scalar put the USA at 100% on every rung.
+    const distinct = new Set(FACTION_IDS.map((f) => DEAL_ORDER[f]!.join(',')));
+    expect(distinct.size).toBeGreaterThan(1);
+    // A KEEP is the hardest thing Russia meets and mid-table for the USA.
+    expect(DEAL_ORDER.russia!.indexOf('keep')).toBeLessThan(DEAL_ORDER.usa!.indexOf('keep'));
+  });
+
+  it('has a deal ordering for every faction, holding every shape once', () => {
+    // Keyed by plain string because `factions.ts` imports `bases.ts` and the
+    // reverse would be a cycle — so nothing but this test checks the keys.
+    expect(Object.keys(DEAL_ORDER).sort()).toEqual([...FACTION_IDS].sort());
+    const ids = ARCHETYPES.map((a) => a.id).sort();
+    for (const faction of FACTION_IDS) {
+      expect([...DEAL_ORDER[faction]!].sort(), `${faction}`).toEqual(ids);
+    }
+  });
+
+  it('reaches every shape somewhere across the five front lines', () => {
+    // Four of eight before the bands, with `depot` dealt on no rung at all —
+    // a whole archetype, its own wall plan and economy override, that nobody
+    // would ever have seen.
+    const seen = new Set<string>();
+    for (const faction of FACTION_IDS) {
+      for (const tier of [1, 2, 3, 4, 5]) {
+        for (let v = 0; v < TARGETS_PER_TIER; v++) seen.add(archetypeFor(tier, v, faction).id);
+      }
+    }
+    expect([...seen].sort()).toEqual(ARCHETYPES.map((a) => a.id).sort());
+  });
+
+  it('gives a caller with no faction a deal of its own, not a crash', () => {
+    for (const tier of TIERS) {
+      const dealt = Array.from({ length: TARGETS_PER_TIER }, (_, v) => archetypeFor(tier, v));
+      expect(new Set(dealt.map((a) => a.id)).size).toBe(TARGETS_PER_TIER);
+    }
+    // An unknown faction falls back rather than throwing.
+    expect(archetypeFor(3, 0, 'martians')).toBeDefined();
+  });
+
   it('climbs the ladder instead of cliffing up it', () => {
     for (const shape of ['compound', 'corridor', 'keep'] as const) {
       const rungs = [1, 2, 3, 4, 5, 6].map((tier) => {

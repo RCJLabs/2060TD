@@ -290,20 +290,94 @@ export const ARCHETYPE_BY_ID: Record<ArchetypeId, Archetype> = Object.fromEntrie
 ) as Record<ArchetypeId, Archetype>;
 
 /**
- * Which shape a target is. Deterministic in (tier, variant), so scouting,
- * raiding and replaying all agree — and the three variants offered at a tier
- * are three distinct shapes, because a choice between identical problems is
- * not a choice.
+ * How hard each shape is FOR EACH FACTION, hardest first (v1.21).
+ *
+ * Keyed by `FactionId` as a plain string, because `factions.ts` imports this
+ * module and the reverse would be a cycle. `tests/archetypes.test.ts` holds the
+ * keys to `FACTION_IDS` exactly, which is where a typo would otherwise hide.
+ *
+ * Measured, not guessed: `npm run balance -- --pressure` prints this literal
+ * ready to paste, which is the point — hand-copying measurements into content
+ * is how this project has put wrong numbers into comments before. Each shape is
+ * averaged over the rungs it can actually be DEALT on (`tier >= fromTier`);
+ * folding in the rest flatters shapes that unlock late, since a bunker forced
+ * onto T1 clears 100% and nobody is ever offered one there.
+ *
+ * The orderings genuinely differ, which is the whole reason this is a table
+ * and not a number on `Archetype`. A KEEP is the hardest thing Russia meets
+ * and the fourth-hardest for the USA. A CAMP is everyone's breather and the
+ * USA's third-hardest target. v1.21 first tried one ordering averaged across
+ * all five and it graded a rung for none of them: the USA went to 100% on
+ * every rung and the faction spread widened. See the ROADMAP.
+ *
+ *     USA     bunker 67 < star 80 < camp 91 < keep 97 < (four tied at 100)
+ *     CHINA   bunker  7 < strongpoints 22 < star 42 < depot 56 < keep 57 …
+ *     RUSSIA  keep   17 < strongpoints 22 < bunker 33 < star 33 < depot 56 …
+ *     NK      bunker  0 < keep 0 < strongpoints 13 < star 25 < depot 44 …
+ *     UN      bunker  7 < keep 30 < strongpoints 40 < star 52 < depot 58 …
  */
-export function archetypeFor(tier: number, variant: number): Archetype {
+export const DEAL_ORDER: Record<string, ArchetypeId[]> = {
+  usa: ['bunker', 'star', 'camp', 'keep', 'compound', 'corridor', 'depot', 'strongpoints'],
+  china: ['bunker', 'strongpoints', 'star', 'depot', 'keep', 'compound', 'camp', 'corridor'],
+  russia: ['keep', 'strongpoints', 'bunker', 'star', 'depot', 'corridor', 'compound', 'camp'],
+  nk: ['bunker', 'keep', 'strongpoints', 'star', 'depot', 'compound', 'corridor', 'camp'],
+  un: ['bunker', 'keep', 'strongpoints', 'star', 'depot', 'corridor', 'compound', 'camp'],
+};
+
+/**
+ * For a caller with no faction in hand — tools and tests that force a shape
+ * anyway. Mean RANK across the five rather than mean clear rate, so the USA's
+ * saturated rows (four shapes tied at 100%) cannot drown out the orderings of
+ * the factions that can actually tell the shapes apart.
+ */
+const DEAL_ORDER_NEUTRAL: ArchetypeId[] = [
+  'bunker', 'keep', 'star', 'strongpoints', 'depot', 'compound', 'corridor', 'camp',
+];
+
+/**
+ * Which shape a target is. Deterministic in (tier, variant, faction), so
+ * scouting, raiding and replaying all agree.
+ *
+ * A rung's three targets are drawn one per DIFFICULTY BAND, not three at
+ * random from the pool. This file always promised that "a choice between
+ * identical problems is not a choice" and then enforced only half of it: the
+ * old shuffle guaranteed three distinct SILHOUETTES and said nothing about
+ * three distinct difficulties, so three shapes that were all impossible passed
+ * the check as readily as a real choice. Measured with `--deal`, that is what
+ * it dealt — four of the eight shapes ever appeared, `compound` on all five
+ * rungs, `depot` on none, and T5 put the two hardest shapes in the game
+ * together for every faction at once.
+ *
+ * `DEAL_ORDER[faction]` ranks the pool, three contiguous bands cut it, and one
+ * target comes out of each: slot 0 is the heavy fight, slot 2 the one you can
+ * take today, slot 1 the reason to think about it. The per-tier stream still
+ * decides WHICH shape comes out of each band, so rungs differ from one another
+ * while a rung's own three stay fixed forever.
+ */
+export function archetypeFor(tier: number, variant: number, faction?: string): Archetype {
   const pool = ARCHETYPES.filter((a) => a.fromTier <= Math.max(1, tier));
+  const order = (faction ? DEAL_ORDER[faction] : undefined) ?? DEAL_ORDER_NEUTRAL;
+  // Hardest first. A shape missing from the ordering sorts last rather than
+  // throwing: a new archetype should show up as an easy target, not a crash.
+  const rank = (a: Archetype): number => {
+    const at = order.indexOf(a.id);
+    return at < 0 ? order.length : at;
+  };
+  const ranked = [...pool].sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+  const slots = Math.max(1, Math.min(TARGETS_PER_TIER, ranked.length));
+  const slot = ((variant % slots) + slots) % slots;
+  // One draw per band, in band order, so a slot consumes the stream the same
+  // way however it is asked for — `archetypeFor(t, 2)` must not depend on
+  // whether anybody asked for slot 0 first.
   const rng = createRng(((tier * 2654435761) ^ 0x5f3a) >>> 0);
-  const order = [...pool];
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [order[i], order[j]] = [order[j]!, order[i]!];
+  let picked = ranked[0]!;
+  for (let s = 0; s < slots; s++) {
+    const lo = Math.floor((s * ranked.length) / slots);
+    const hi = Math.floor(((s + 1) * ranked.length) / slots);
+    const choice = ranked[lo + Math.floor(rng() * (hi - lo))] ?? ranked[lo]!;
+    if (s === slot) picked = choice;
   }
-  return order[((variant % order.length) + order.length) % order.length]!;
+  return picked;
 }
 
 // ---- wall plans ------------------------------------------------------------------
@@ -545,10 +619,15 @@ export function generateBase(
   variant: number,
   kit: BaseKit = CHINA_BASE_KIT,
   force?: ArchetypeId,
+  faction?: string,
 ): GeneratedBase {
   const seed = (tier * 7919 + variant * 104729 + 12345) >>> 0;
   const rng = createRng(seed);
-  const arch = force ? ARCHETYPE_BY_ID[force] : archetypeFor(tier, variant);
+  // `faction` picks the DEAL, not the layout: two factions share a base kit
+  // (`baseKitFor`), so the ground is the same and only which of the eight
+  // shapes lands in which slot changes. Passing it is what makes a rung offer
+  // a KPA commander a graded choice rather than the USA's graded choice.
+  const arch = force ? ARCHETYPE_BY_ID[force] : archetypeFor(tier, variant, faction);
   const level = Math.min(3, structureLevelFor(tier) + arch.levelBonus);
   const occupancy = new Occupancy();
   const walls: LayoutWall[] = [];

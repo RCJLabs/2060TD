@@ -164,8 +164,13 @@ describe('conditions in the battle', () => {
     const meanDestruction = (id: ConditionId | null): number => {
       let total = 0;
       let runs = 0;
-      for (let variant = 0; variant < 3; variant++) {
-        const base = generateBase(4, variant);
+      // Forced shapes, not the deal (v1.21). DUG IN thickens WALLS and guns,
+      // so it can only be seen on a base that has some — and which shapes a
+      // rung deals now depends on the faction, which this test is not about.
+      // Taking whatever the deal offered is how this broke: the T4 draw came
+      // up light on wire and a +45% wall multiplier changed nothing at all.
+      for (const shape of ['compound', 'corridor', 'keep'] as const) {
+        const base = generateBase(4, 0, undefined, shape);
         for (let seed = 0; seed < 6; seed++) {
           const config = raidConfig(base, force, 4242 + seed * 7919, trainableFor('usa'), {
             ...(id ? { condition: CONDITION_BY_ID[id] } : {}),

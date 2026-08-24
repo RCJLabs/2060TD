@@ -527,7 +527,7 @@ function gateTable(faction: FactionId): string {
       let cleared = 0;
       let runs = 0;
       for (let variant = 0; variant < VARIANTS; variant++) {
-        const base = generateBase(tier, variant, baseKitFor(faction));
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
         // Deterministic, evenly spread through the ring: the same segments
         // every run, so the only thing that moves between rows is the count.
         if (gates > 0) {
@@ -593,7 +593,7 @@ function terrainTable(faction: FactionId): string {
       let runs = 0;
       for (let variant = 0; variant < VARIANTS; variant++) {
         if (pick && !pick(variant)) continue;
-        const base = generateBase(tier, variant, baseKitFor(faction));
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
         if (!ground) base.terrainSeed = 0; // the flat control
         for (let i = 0; i < SEEDS; i++) {
           const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
@@ -654,7 +654,7 @@ function garrisonTable(faction: FactionId): string {
       let cleared = 0;
       let runs = 0;
       for (let variant = 0; variant < VARIANTS; variant++) {
-        const base = generateBase(tier, variant, baseKitFor(faction));
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
         for (let i = 0; i < SEEDS; i++) {
           const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
           const built = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
@@ -739,7 +739,7 @@ function airTable(faction: FactionId): string {
       let cleared = 0;
       let runs = 0;
       for (let variant = 0; variant < VARIANTS; variant++) {
-        const base = generateBase(tier, variant, baseKitFor(faction));
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
         for (let i = 0; i < SEEDS; i++) {
           const squads = plans.map((squad, at) => ({ ...squad, slot: at }));
           const built = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
@@ -856,65 +856,153 @@ function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): numbe
   return runs > 0 ? (cleared / runs) * 100 : 0;
 }
 
-function dealTable(): string {
-  // One measurement pass feeds both blocks: shape x tier, averaged over all
-  // five factions so the number describes the SHAPE and not somebody's kit.
-  const byShape = new Map<ArchetypeId, number[]>();
-  for (const arch of ARCHETYPES) {
-    const perTier: number[] = [];
-    for (const tier of RAID_TIERS) {
-      const cells = FACTION_IDS.map((f) => shapeClear(f, tier, arch.id));
-      perTier.push(cells.reduce((a, b) => a + b, 0) / cells.length);
-    }
-    byShape.set(arch.id, perTier);
+/**
+ * The per-faction deal ordering, printed as the literal `bases.ts` holds.
+ *
+ * Exists because the numbers below have to live in content and hand-copying
+ * measurements into content is how this project has put wrong numbers in
+ * comments before. `npm run balance -- --pressure` prints the table; paste it.
+ *
+ * Each shape is averaged over the rungs where it can actually be DEALT
+ * (`tier >= fromTier`). Folding in the rest flatters the shapes that unlock
+ * late — a bunker forced onto T1 clears 100%, but nobody is ever offered one
+ * there, and including that rung moved it four places up the ranking.
+ */
+function pressureTable(): string {
+  const lines = [
+    'DEAL ORDER — hardest first, per faction, over the rungs each shape is dealt on',
+    '',
+  ];
+  const literal: string[] = [];
+  for (const faction of FACTION_IDS) {
+    const scored = ARCHETYPES.map((arch) => {
+      const rungs = RAID_TIERS.filter((t) => t >= arch.fromTier);
+      const mean =
+        rungs.length > 0
+          ? rungs.reduce((a, t) => a + shapeClear(faction, t, arch.id), 0) / rungs.length
+          : 100;
+      return { id: arch.id, mean };
+    }).sort((a, b) => a.mean - b.mean || a.id.localeCompare(b.id));
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} ${scored.map((s) => `${s.id} ${s.mean.toFixed(0)}`).join('  <  ')}`,
+    );
+    literal.push(`  ${faction}: [${scored.map((s) => `'${s.id}'`).join(', ')}],`);
   }
+  // The no-faction fallback: mean RANK across the five, not mean clear rate.
+  // A rate would let the USA's saturated rows (five shapes tied at 100%) drown
+  // out the orderings of the factions that can actually tell the shapes apart.
+  const ranks = new Map<string, number>();
+  for (const row of literal) {
+    const ids = [...row.matchAll(/'([a-z]+)'/g)].map((m) => m[1]!);
+    ids.forEach((id, at) => ranks.set(id, (ranks.get(id) ?? 0) + at));
+  }
+  const neutral = [...ranks.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
+  lines.push('');
+  lines.push(`NEUTRAL (mean rank) ${neutral.map(([id, r]) => `${id} ${(r / 5 + 1).toFixed(1)}`).join('  <  ')}`);
+  lines.push('');
+  lines.push('Paste into `bases.ts`:');
+  lines.push('');
+  lines.push('const DEAL_ORDER: Record<string, ArchetypeId[]> = {');
+  lines.push(...literal);
+  lines.push('};');
+  lines.push(`const DEAL_ORDER_NEUTRAL: ArchetypeId[] = [${neutral.map(([id]) => `'${id}'`).join(', ')}];`);
+  return lines.join('\n');
+}
 
+function dealTable(): string {
+  // Per (faction, shape, tier), measured once and read three ways below.
+  const cell = new Map<string, number>();
+  const key = (f: FactionId, id: ArchetypeId, t: number): string => `${f}|${id}|${t}`;
+  for (const faction of FACTION_IDS) {
+    for (const arch of ARCHETYPES) {
+      for (const tier of RAID_TIERS) {
+        cell.set(key(faction, arch.id, tier), shapeClear(faction, tier, arch.id));
+      }
+    }
+  }
+  const across = (id: ArchetypeId, tier: number): number =>
+    FACTION_IDS.reduce((a, f) => a + cell.get(key(f, id, tier))!, 0) / FACTION_IDS.length;
+
+  // ---- what a SHAPE costs, averaged over the five so it describes the shape --
   const lines = [
     'THE DEAL — the three targets a rung offers vs the eight it could offer',
-    `SHAPE        | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | DEALT ON`,
-    `-------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
+    `SHAPE        | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN`,
+    `-------------+${RAID_TIERS.map(() => '-------').join('+')}+-------`,
   ];
+  const shapeMean = new Map<ArchetypeId, number>();
+  for (const arch of ARCHETYPES) {
+    const ts = RAID_TIERS.map((t) => across(arch.id, t));
+    shapeMean.set(arch.id, ts.reduce((a, b) => a + b, 0) / ts.length);
+  }
+  for (const [id, mean] of [...shapeMean.entries()].sort((a, b) => a[1] - b[1])) {
+    lines.push(
+      `${id.padEnd(12)} | ${RAID_TIERS.map((t) => pad(across(id, t).toFixed(0), 5)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)}`,
+    );
+  }
 
-  // Which tiers each shape is actually dealt on, so "never offered" is visible.
-  const dealtOn = new Map<ArchetypeId, number[]>();
-  for (const tier of RAID_TIERS) {
-    for (let v = 0; v < TARGETS_PER_TIER; v++) {
-      const id = archetypeFor(tier, v).id;
-      (dealtOn.get(id) ?? dealtOn.set(id, []).get(id)!).push(tier);
+  // ---- and what each faction is actually DEALT, against its OWN pool --------
+  // Per faction, deliberately. v1.21 shipped a deal change whose all-faction
+  // average looked right at every rung while the USA sat at 100% on all five,
+  // and the row-per-faction below is the shape of table that would have caught
+  // it before `--parity` did.
+  lines.push('');
+  lines.push('WHAT EACH FACTION IS DEALT — its three targets vs its own pool at that rung');
+  lines.push(`FACTION | ${RAID_TIERS.map((t) => pad(`T${t}`, 11)).join(' | ')} |   MEAN GAP`);
+  lines.push(`--------+${RAID_TIERS.map(() => '-------------').join('+')}+-----------`);
+  for (const faction of FACTION_IDS) {
+    const cells: string[] = [];
+    let gapSum = 0;
+    for (const tier of RAID_TIERS) {
+      const dealt = Array.from(
+        { length: TARGETS_PER_TIER },
+        (_, v) => archetypeFor(tier, v, faction).id,
+      );
+      const pool = ARCHETYPES.filter((a) => a.fromTier <= tier).map((a) => a.id);
+      const at = (id: ArchetypeId): number => cell.get(key(faction, id, tier))!;
+      const d = dealt.reduce((a, id) => a + at(id), 0) / dealt.length;
+      const p = pool.reduce((a, id) => a + at(id), 0) / pool.length;
+      gapSum += d - p;
+      cells.push(pad(`${d.toFixed(0)}/${p.toFixed(0)} ${d - p >= 0 ? '+' : ''}${(d - p).toFixed(0)}`, 11));
+    }
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} | ${cells.join(' | ')} | ` +
+        `${pad((gapSum / RAID_TIERS.length >= 0 ? '+' : '') + (gapSum / RAID_TIERS.length).toFixed(1), 10)}`,
+    );
+  }
+  lines.push('');
+  lines.push('  dealt/pool and the gap. A deal that tracks its pool is offering that faction');
+  lines.push('  a fair read of the rung; a big negative gap is a rung of walls.');
+
+  // ---- coverage: a shape nobody is ever dealt is a shape nobody has seen ----
+  lines.push('');
+  lines.push('SHAPE COVERAGE — the rungs each faction is dealt each shape on');
+  lines.push(`SHAPE        | ${FACTION_IDS.map((f) => pad(f.toUpperCase(), 11)).join(' | ')}`);
+  lines.push(`-------------+${FACTION_IDS.map(() => '-------------').join('+')}`);
+  for (const arch of ARCHETYPES) {
+    const cols = FACTION_IDS.map((faction) => {
+      const on = RAID_TIERS.filter((tier) =>
+        Array.from({ length: TARGETS_PER_TIER }, (_, v) => archetypeFor(tier, v, faction).id).includes(
+          arch.id,
+        ),
+      );
+      return pad(on.length > 0 ? on.map((t) => `T${t}`).join(',') : '— never —', 11);
+    });
+    lines.push(`${arch.id.padEnd(12)} | ${cols.join(' | ')}`);
+  }
+  const everDealt = new Set<string>();
+  for (const faction of FACTION_IDS) {
+    for (const tier of RAID_TIERS) {
+      for (let v = 0; v < TARGETS_PER_TIER; v++) everDealt.add(archetypeFor(tier, v, faction).id);
     }
   }
-
-  const ranked = [...byShape.entries()]
-    .map(([id, ts]) => [id, ts.reduce((a, b) => a + b, 0) / ts.length] as const)
-    .sort((a, b) => a[1] - b[1]);
-  for (const [id, mean] of ranked) {
-    const ts = byShape.get(id)!;
-    const on = dealtOn.get(id) ?? [];
-    lines.push(
-      `${id.padEnd(12)} | ${ts.map((t) => pad(t.toFixed(0), 5)).join(' | ')} | ` +
-        `${pad(mean.toFixed(1), 5)} | ${on.length > 0 ? on.map((t) => `T${t}`).join(',') : '— never —'}`,
-    );
-  }
-
   lines.push('');
-  lines.push('WHAT THE RUNG OFFERS — dealt three vs the whole pool at that tier');
-  lines.push('TIER | DEALT SHAPES                         | DEALT | POOL |   GAP');
-  lines.push('-----+--------------------------------------+-------+------+------');
-  for (const tier of RAID_TIERS) {
-    const dealt = Array.from({ length: TARGETS_PER_TIER }, (_, v) => archetypeFor(tier, v).id);
-    const pool = ARCHETYPES.filter((a) => a.fromTier <= tier).map((a) => a.id);
-    const at = (id: ArchetypeId): number => byShape.get(id)![RAID_TIERS.indexOf(tier)]!;
-    const dealtMean = dealt.reduce((a, id) => a + at(id), 0) / dealt.length;
-    const poolMean = pool.reduce((a, id) => a + at(id), 0) / pool.length;
-    lines.push(
-      `T${tier}   | ${dealt.join(', ').padEnd(36)} | ${pad(dealtMean.toFixed(0), 5)} | ` +
-        `${pad(poolMean.toFixed(0), 4)} | ${pad((dealtMean - poolMean >= 0 ? '+' : '') + (dealtMean - poolMean).toFixed(0), 5)}`,
-    );
-  }
+  lines.push(`  ${everDealt.size} of ${ARCHETYPES.length} shapes reach a player somewhere.`);
 
+  // ---- the ladder itself ---------------------------------------------------
   const rungs = RAID_TIERS.map((tier) => {
     const pool = ARCHETYPES.filter((a) => a.fromTier <= tier).map((a) => a.id);
-    return pool.reduce((a, id) => a + byShape.get(id)![RAID_TIERS.indexOf(tier)]!, 0) / pool.length;
+    return pool.reduce((a, id) => a + across(id, tier), 0) / pool.length;
   });
   lines.push('');
   lines.push(
@@ -961,7 +1049,7 @@ function parityTable(): string {
       let cleared = 0;
       let runs = 0;
       for (let variant = 0; variant < VARIANTS; variant++) {
-        const base = generateBase(tier, variant, baseKitFor(faction));
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
         const squads = (
           tunneled ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction]
         ).map((squad, at) => ({ ...squad, slot: at }));
@@ -1023,7 +1111,7 @@ function delayTable(faction: FactionId): string {
       let home = 0;
       let sent = 0;
       for (let variant = 0; variant < VARIANTS; variant++) {
-        const base = generateBase(tier, variant, baseKitFor(faction));
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
         for (let i = 0; i < SEEDS; i++) {
           const squads = RAID_PLANS[faction].map((squad, at) => ({
             ...squad,
@@ -1081,7 +1169,7 @@ function veterancyTable(faction: FactionId): string {
       let home = 0;
       let sent = 0;
       for (let variant = 0; variant < VARIANTS; variant++) {
-        const base = generateBase(tier, variant, baseKitFor(faction));
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
         for (let i = 0; i < SEEDS; i++) {
           const squads = plan(rank.mult);
           const config = raidConfig(
@@ -1128,6 +1216,11 @@ function main(): void {
   if (process.argv.includes('--terrain')) {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(terrainTable(pick));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--pressure')) {
+    console.log(pressureTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
