@@ -95,6 +95,10 @@ export class BoardView {
   private lastX = 0;
   private lastY = 0;
   private pinchDist = 0;
+  private pinchMidX = 0;
+  private pinchMidY = 0;
+  /** Board-edge auto-pan while a paint drag is running (device px/frame). */
+  private edgePan = { x: 0, y: 0 };
   private lastTapAt = 0;
   private tapHandler: ((col: number, row: number) => void) | null = null;
   private dragHandler: ((col: number, row: number) => void) | null = null;
@@ -116,8 +120,17 @@ export class BoardView {
     this.uiCamera.ignore(this.world);
 
     this.bindInput();
+    // The edge auto-pan needs a heartbeat; the scene's own update is it.
+    const drive = (): void => {
+      if (this.edgePan.x === 0 && this.edgePan.y === 0) return;
+      this.centerX += this.edgePan.x / this.zoom;
+      this.centerY += this.edgePan.y / this.zoom;
+      this.apply();
+    };
+    scene.events.on(Phaser.Scenes.Events.UPDATE, drive);
     rigs.add(this);
     const forget = (): void => {
+      scene.events.off(Phaser.Scenes.Events.UPDATE, drive);
       rigs.delete(this);
     };
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, forget);
@@ -284,6 +297,23 @@ export class BoardView {
 
   /** When true a board drag paints instead of panning (wall tools). */
   paintMode = false;
+  /**
+   * When true a press tracks the finger and places on RELEASE (build tools).
+   *
+   * A fingertip is wider than a cell and sits on top of the one it is aiming
+   * at. Placing on touch-down means committing blind; tracking the drag lets
+   * the ghost move under the finger until it is over the right square, and the
+   * lift is the decision. Same gesture the wall tools use, with the commit
+   * moved to the end.
+   */
+  placeMode = false;
+  private placeHandler: ((col: number, row: number) => void) | null = null;
+  private lastPlaceCell: { col: number; row: number } | null = null;
+
+  /** Fires once, on release, with the cell the finger ended over. */
+  onPlace(handler: (col: number, row: number) => void): void {
+    this.placeHandler = handler;
+  }
 
   private bindInput(): void {
     const input = this.scene.input;
@@ -295,6 +325,8 @@ export class BoardView {
         this.pinching = true;
         this.dragging = false;
         this.pinchDist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+        this.pinchMidX = (p1.x + p2.x) / 2;
+        this.pinchMidY = (p1.y + p2.y) / 2;
         return;
       }
       this.dragging = true;
@@ -308,6 +340,7 @@ export class BoardView {
         const cell = this.cellAt(pointer);
         if (cell) this.dragHandler?.(cell.col, cell.row);
       }
+      if (this.placeMode) this.lastPlaceCell = this.cellAt(pointer);
     });
 
     input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
@@ -321,9 +354,9 @@ export class BoardView {
         // Pinch: scale by the change in finger separation, anchored so the
         // world point under the midpoint stays put.
         const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
         if (this.pinchDist > 0 && dist > 0) {
-          const midX = (p1.x + p2.x) / 2;
-          const midY = (p1.y + p2.y) / 2;
           const before = this.camera.getWorldPoint(midX, midY);
           this.setZoom(this.zoom * (dist / this.pinchDist));
           const after = this.camera.getWorldPoint(midX, midY);
@@ -331,6 +364,18 @@ export class BoardView {
           this.centerY += before.y - after.y;
           this.apply();
         }
+        // Two fingers moving TOGETHER pan, at any zoom and in any mode — which
+        // is the only way to reach the far side of the map while a build tool
+        // is armed, because one finger is painting. Without it a third of the
+        // grid was unbuildable on a phone: the camera froze the moment you
+        // picked up a wall.
+        if (this.pinchMidX !== 0 || this.pinchMidY !== 0) {
+          this.centerX -= (midX - this.pinchMidX) / this.zoom;
+          this.centerY -= (midY - this.pinchMidY) / this.zoom;
+          this.apply();
+        }
+        this.pinchMidX = midX;
+        this.pinchMidY = midY;
         this.pinchDist = dist;
         this.pinching = true;
         this.dragging = false;
@@ -342,11 +387,30 @@ export class BoardView {
       this.movedBy += Math.abs(dx) + Math.abs(dy);
       this.lastX = pointer.x;
       this.lastY = pointer.y;
-      if (this.paintMode) {
+      if (this.paintMode || this.placeMode) {
         const cell = this.cellAt(pointer);
-        if (cell) this.dragHandler?.(cell.col, cell.row);
+        if (cell && this.paintMode) this.dragHandler?.(cell.col, cell.row);
+        if (cell && this.placeMode) this.lastPlaceCell = cell;
+        // Dragging to the edge scrolls the board under the finger, so a wall
+        // line — or a building — can be carried off the screen it started on.
+        const margin = Math.min(this.rect.w, this.rect.h) * 0.12;
+        const speed = 12;
+        this.edgePan.x =
+          pointer.x < this.rect.x + margin
+            ? -speed
+            : pointer.x > this.rect.x + this.rect.w - margin
+              ? speed
+              : 0;
+        this.edgePan.y =
+          pointer.y < this.rect.y + margin
+            ? -speed
+            : pointer.y > this.rect.y + this.rect.h - margin
+              ? speed
+              : 0;
         return;
       }
+      this.edgePan.x = 0;
+      this.edgePan.y = 0;
       if (this.movedBy > this.slop) {
         this.centerX -= dx / this.zoom;
         this.centerY -= dy / this.zoom;
@@ -359,10 +423,37 @@ export class BoardView {
       if (!input.pointer1?.isDown && !input.pointer2?.isDown) {
         this.pinching = false;
         this.pinchDist = 0;
+        this.pinchMidX = 0;
+        this.pinchMidY = 0;
       }
+      this.edgePan.x = 0;
+      this.edgePan.y = 0;
       if (!this.dragging) return;
       this.dragging = false;
-      if (wasPinching || this.paintMode) return;
+      // A double tap reframes the whole grid, and that has to work with a tool
+      // in hand — losing your bearings is exactly when you reach for it.
+      if (wasPinching) return;
+      if (this.placeMode) {
+        const cell = this.cellAt(pointer) ?? this.lastPlaceCell;
+        this.lastPlaceCell = null;
+        if (cell) this.placeHandler?.(cell.col, cell.row);
+        return;
+      }
+      if (this.paintMode) {
+        const quickPaint = this.scene.time.now - this.downAt < TAP_MS;
+        const stillPaint =
+          Math.abs(pointer.x - this.downX) + Math.abs(pointer.y - this.downY) <= this.slop;
+        if (quickPaint && stillPaint) {
+          const now = this.scene.time.now;
+          if (now - this.lastTapAt < DOUBLE_TAP_MS) {
+            this.lastTapAt = 0;
+            this.fit();
+          } else {
+            this.lastTapAt = now;
+          }
+        }
+        return;
+      }
       const quick = this.scene.time.now - this.downAt < TAP_MS;
       const still =
         Math.abs(pointer.x - this.downX) + Math.abs(pointer.y - this.downY) <= this.slop;

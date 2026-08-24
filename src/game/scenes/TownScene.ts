@@ -158,6 +158,8 @@ export class TownScene extends Phaser.Scene {
   private bannerTtl = 0;
   private resetArmedUntil = 0;
   private lastPaintedCell = -1;
+  /** FIT VIEW is a toggle: the whole grid, or the built-up part of it. */
+  private wideView = false;
 
   private dynLayer!: Phaser.GameObjects.Graphics;
   private staticLayer!: Phaser.GameObjects.Graphics;
@@ -399,6 +401,9 @@ export class TownScene extends Phaser.Scene {
     // Taps place and select; wall tools paint across a drag (see paintMode).
     this.board.onTap((col, row) => this.handleCell(row * TOWN_GRID.width + col, true));
     this.board.onPaint((col, row) => this.handleCell(row * TOWN_GRID.width + col, false));
+    // A build placed on release: the same handler a tap runs, at the cell the
+    // finger finished over rather than the one it started on.
+    this.board.onPlace((col, row) => this.handleCell(row * TOWN_GRID.width + col, true));
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) this.setTool({ type: 'select' });
     });
@@ -467,8 +472,11 @@ export class TownScene extends Phaser.Scene {
       tool = { type: 'select' };
     }
     this.tool = tool;
-    // Wall painting owns the drag; every other tool leaves it to the camera.
+    // Wall painting owns the drag; a build tool tracks it and commits on the
+    // lift, so the ghost can be walked onto the right square before the finger
+    // leaves the glass. Everything else leaves the drag to the camera.
     this.board.paintMode = tool.type === 'wall' || tool.type === 'erase';
+    this.board.placeMode = tool.type === 'build' || tool.type === 'move';
     this.lastPaintedCell = -1;
   }
 
@@ -1558,7 +1566,18 @@ export class TownScene extends Phaser.Scene {
         { id: 'hint', label: 'Tap a structure on the map', heading: true },
         { id: 'hint2', label: 'to inspect and upgrade it.', heading: true },
         { id: 'hint3', label: 'Pinch to zoom · drag to pan', heading: true },
-        { id: 'fit', label: 'FIT VIEW', onTap: () => this.focusBase() },
+        {
+          id: 'fit',
+          // Toggles, because both framings are useful and only one of them was
+          // reachable: FIT VIEW framed the base, and the whole grid was only
+          // ever a double tap away — a gesture nobody finds.
+          label: this.wideView ? 'FIT VIEW — BASE' : 'FIT VIEW — WHOLE MAP',
+          onTap: () => {
+            this.wideView = !this.wideView;
+            if (this.wideView) this.board.fit();
+            else this.focusBase();
+          },
+        },
       ];
     }
 
@@ -1824,7 +1843,15 @@ export class TownScene extends Phaser.Scene {
     const armed = Date.now() <= this.resetArmedUntil;
     return [
       { id: 'h', label: 'VIEW', heading: true },
-      { id: 'fit', label: 'FIT VIEW TO BASE', onTap: () => this.focusBase() },
+      {
+        id: 'fit',
+        label: this.wideView ? 'FIT VIEW — BASE' : 'FIT VIEW — WHOLE MAP',
+        onTap: () => {
+          this.wideView = !this.wideView;
+          if (this.wideView) this.board.fit();
+          else this.focusBase();
+        },
+      },
       {
         id: 'fs',
         label: this.scale.isFullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN',

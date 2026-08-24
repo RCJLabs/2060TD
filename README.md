@@ -17,6 +17,30 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.18: building on a phone
+
+**Arming a tool froze the camera.** A wall or build tool spent the drag on
+placing, so there was no gesture left to move the map — and measured on a
+412×915 phone, the town opened with **only 400 of its 768 cells reachable**.
+The rest was buildable only by zooming out to where a cell is 13px wide.
+
+- **Two fingers pan, in every mode.** The pinch gesture already tracked its
+  midpoint; moving that midpoint now moves the map, at any zoom, with any tool
+  in hand. This is the one that unlocks the far side of the grid.
+- **A drag held at the edge scrolls the board under it**, so a wall line can run
+  off the screen it started on and a building can be carried across the map.
+- **A build lands where the finger LIFTED, not where it touched down.** A
+  fingertip is wider than a cell and covers the one it is aiming at, so
+  committing on touch-down is committing blind. The ghost now tracks the drag
+  and the lift is the decision — press, slide onto the square, release.
+- **Double-tap-to-reframe works with a tool in hand.** It was skipped in paint
+  mode, which is exactly when you have lost your bearings.
+- **FIT VIEW is a toggle** — the built-up base, or the whole map. The wide view
+  existed only as an undiscoverable double tap.
+- **`e2e-build` holds all of it**: two-finger pan and edge-scroll must move the
+  visible columns while a tool is armed, and a structure slid across the board
+  must be saved at the cell the finger finished on.
+
 ## Current state — v1.17.2: the briefing, and the tap that vanished
 
 Two bugs on the mission briefing, reported from a phone.
@@ -812,6 +836,7 @@ node scripts/e2e-orders.mjs          # the day's orders, filled by actually play
 node scripts/e2e-delay.mjs           # the launch-delay picker, and the plan following it
 node scripts/e2e-plan.mjs            # a plan written, fought, and found again on the way back
 node scripts/e2e-gates.mjs           # a gate built in the yard and worked in the fight
+node scripts/e2e-build.mjs           # moving the map with a tool in hand, and precise placement
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)
