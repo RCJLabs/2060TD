@@ -167,7 +167,66 @@ try {
   await shot('briefing');
 
   await wait(2600); // the transmission reveals a line every 350ms
-  await tap('COMMENCE', 2500);
+
+  /**
+   * The briefing is the page with the most prose in the game, and every block
+   * on it used to reserve a height from a LINE COUNT. On a phone each of those
+   * lines wraps, so OBJECTIVE landed on the last line of the transmission, the
+   * bonus landed on the objective, and AEGIS OUT landed on both. Blocks are
+   * measured now; this checks it by looking, on whatever screen is under test.
+   */
+  const overlaps = await page.evaluate(() => {
+    const api = window.lastline;
+    const r = api.textRects().map((t) => ({
+      t: t.text.slice(0, 20),
+      x: t.x / api.dpr,
+      y: t.y / api.dpr,
+      w: t.w / api.dpr,
+      h: t.h / api.dpr,
+    }));
+    const bad = [];
+    for (let i = 0; i < r.length; i++) {
+      for (let j = i + 1; j < r.length; j++) {
+        const a = r[i];
+        const b = r[j];
+        const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+        const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+        if (ox > 2 && oy > 2) bad.push(`${a.t} × ${b.t}`);
+      }
+    }
+    return bad;
+  });
+  if (overlaps.length) errors.push(`briefing text overlaps: ${overlaps.join(' ; ')}`);
+
+  /**
+   * COMMENCE with a thumb that rolls off the button, which is what a thumb
+   * does to a one-row button at the bottom edge of a phone. This used to be
+   * swallowed in silence — the press was remembered nowhere once the finger
+   * left the rect, so nothing launched and the button sat there painted green.
+   */
+  const commence = await findButton('COMMENCE');
+  if (!commence) errors.push('no COMMENCE button on the briefing');
+  else if (isMobile) {
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type, x, y) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: type === 'touchEnd' ? [] : [{ x, y, radiusX: 8, radiusY: 8, force: 1 }],
+      });
+    await touch('touchStart', commence.x, commence.y);
+    await wait(70);
+    await touch('touchMove', commence.x, commence.y - 30);
+    await wait(50);
+    await touch('touchEnd', commence.x, commence.y - 30);
+    await wait(2500);
+    const launched = await page.evaluate(() =>
+      window.lastline.buttons().some((b) => /START ASSAULT|DEPLOY/i.test(b.label)),
+    );
+    if (!launched) errors.push('a thumb that rolled off COMMENCE did not start the mission');
+  } else {
+    await tap('COMMENCE', 2500);
+  }
+  if (await findButton('COMMENCE')) await tap('COMMENCE', 2500);
   await shot('mission');
 
   await browser.close();

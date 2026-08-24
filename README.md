@@ -17,6 +17,36 @@ fight through.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Current state — v1.17.2: the briefing, and the tap that vanished
+
+Two bugs on the mission briefing, reported from a phone.
+
+- **A thumb that rolled off COMMENCE did nothing at all.** A button remembered
+  it was being pressed and that it was *painted* pressed in the same flag. On
+  touch, sliding off a button fires `pointerout`, which correctly un-highlights
+  it — and threw away the fact that the press had started there, so the release
+  had nothing left to act on. The press is now owned separately from the paint:
+  a footer button (one row tall, at the bottom edge of a phone, exactly where a
+  thumb pivots) accepts a release just past its own edge. Rows inside the
+  scrolling drawer deliberately do **not** get that grace, or a scroll ending
+  between two rows would count as a tap.
+- **And a release off the rect was never seen at all.** Phaser delivers a
+  game object's `pointerup` only while the pointer is over it, so the scene's
+  own pointer events are the only place that release exists. Nothing was
+  listening, which is why the button could be left painted green forever —
+  a green button that has swallowed your tap is what a frozen game looks like.
+- **The briefing text overlapped itself.** Every block reserved a height worked
+  out from a line *count* — 1.9 lines per transmission entry, 2.4 for the
+  objective. On a phone each of those wraps, so OBJECTIVE drew through the last
+  line of the transmission and the bonus drew through the objective. All blocks
+  are measured now. The transmission is the interesting one: it reveals a line
+  at a time, so it is laid out at the size it will *finish* at and then blanked
+  back — the space is reserved from the first frame and nothing below it moves
+  as the lines crackle in.
+- **`e2e-flow` now checks both**, on whatever viewport it runs: no two pieces of
+  text on the briefing may overlap, and on a phone COMMENCE is pressed with a
+  thumb that rolls 30px off the button and must still start the mission.
+
 ## Current state — v1.17.1: EXPORT SAVE actually exports
 
 **In the hosted artifact, EXPORT SAVE did nothing.** The claude.ai viewer grants a

@@ -254,6 +254,7 @@ export class Overlay {
       ...(opts.sub !== undefined ? { sub: opts.sub } : {}),
       font: this.layout.font.body,
       container: this.body,
+      edgeGrace: true,
     });
     b.bg.setDepth(this.depth + 1);
     b.label.setDepth(this.depth + 1);
@@ -313,6 +314,9 @@ export class Overlay {
     const b = makeButton(this.scene, x, y, each, rowH, label, onTap, {
       align: 'center',
       font: this.layout.font.body,
+      // A footer is the bottom-most thing on a phone. A thumb pressing it
+      // rolls; the press must survive that.
+      edgeGrace: true,
       ...(this.host ? { container: this.host } : {}),
     });
     b.bg.setDepth(this.depth + 1);

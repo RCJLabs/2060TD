@@ -89,21 +89,40 @@ export class BriefingScene extends Phaser.Scene {
     this.page = ov;
     const { font, rowH, gap } = this.layout;
 
-    ov.text(ov.flow(Math.round(font.tiny * 1.5), Math.round(gap / 2)), 'INCOMING TRANSMISSION', font.tiny, COLORS.signal);
-    const logRect = ov.flow(Math.round(font.body * 1.9 * mission.briefing.length));
-    this.logText = ov.text(logRect, '', font.body, COLORS.ink, {
+    /**
+     * Every block here is measured, never reserved.
+     *
+     * The old layout gave each one a height worked out from a line COUNT —
+     * 1.9 lines per briefing entry, 2.4 for the objective, 1.8 for the bonus.
+     * On a phone every one of those lines wraps to two or three, so each block
+     * overflowed its reservation and the next one drew straight through it:
+     * OBJECTIVE landed on top of the last line of the transmission, the bonus
+     * landed on the objective, and AEGIS OUT landed on both.
+     */
+    const heading = (text: string): void => {
+      ov.paragraph(text, font.tiny, COLORS.inkDim, { gapAfter: Math.round(gap / 2) });
+    };
+    ov.paragraph('INCOMING TRANSMISSION', font.tiny, COLORS.signal, {
+      gapAfter: Math.round(gap / 2),
+    });
+    /**
+     * The transmission reveals a line at a time, so its height GROWS while the
+     * page is up. Lay it out at the size it will finish at and then blank it
+     * back: the space below is reserved for the whole message from the first
+     * frame, and nothing under it moves as the lines crackle in.
+     */
+    this.logText = ov.paragraph(mission.briefing.join('\n'), font.body, COLORS.ink, {
       lineSpacing: Math.round(font.body * 0.6),
     });
     this.refreshLog();
 
-    ov.text(ov.flow(Math.round(font.tiny * 1.5), Math.round(gap / 2)), 'OBJECTIVE', font.tiny, COLORS.inkDim);
-    ov.text(ov.flow(Math.round(font.body * 2.4)), mission.objective, font.body, COLORS.intel);
+    heading('OBJECTIVE');
+    ov.paragraph(mission.objective, font.body, COLORS.intel);
     if (mission.bonus) {
-      ov.text(ov.flow(Math.round(font.tiny * 1.5), Math.round(gap / 2)), 'BONUS (+50% REWARD)', font.tiny, COLORS.inkDim);
-      ov.text(ov.flow(Math.round(font.body * 1.8)), mission.bonus.label, font.body, COLORS.olive);
+      heading('BONUS (+50% REWARD)');
+      ov.paragraph(mission.bonus.label, font.body, COLORS.olive);
     }
-    ov.text(
-      ov.flow(Math.round(font.tiny * 3.4)),
+    ov.paragraph(
       `REWARD: ${mission.reward.supplies} SUPPLIES` +
         (mission.reward.fuel > 0 ? ` + ${mission.reward.fuel} FUEL` : '') +
         (mission.unlockNote ? `\nON VICTORY — ${mission.unlockNote}` : ''),

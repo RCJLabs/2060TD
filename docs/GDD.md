@@ -340,6 +340,18 @@ that label's height, and a phrase that can outgrow its box must be given a wrap
 width rather than trusted to clip — a centred label in a box narrower than
 itself runs off both edges.
 
+A block whose height CHANGES while the screen is up (the briefing's transmission
+reveals a line at a time) is laid out at the size it will finish at and then
+shown partially, so the space below it is reserved from the first frame and
+nothing moves as it fills.
+
+Touch adds one more rule (v1.17.2). A button owns the press that started on it
+until that press ends, however far the finger wanders in between — sliding off
+un-highlights the button but does not cancel it, and a release just past the
+edge still counts on a button with nothing behind it to scroll. A thumb on a
+one-row button at the bottom of a phone rolls; a press discarded for that is a
+press the player is certain they made.
+
 ### 5.6 Raid planning & doctrines
 
 Each deployed squad gets: an entry point (revealed map-edge sectors), a launch delay (0–60s),

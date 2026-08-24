@@ -56,6 +56,15 @@ export interface ButtonOptions {
   container?: Phaser.GameObjects.Container;
   /** Suppress the click sound (tab strips click a lot). */
   quiet?: boolean;
+  /**
+   * Accept a press that ends just off the button's edge (v1.17.2).
+   *
+   * Only for buttons with nothing behind them to scroll — overlay rows and
+   * footers. A row inside the drawer must NOT take this, or a scroll drag that
+   * happens to end in the gap between two rows would count as a tap on the row
+   * it started from.
+   */
+  edgeGrace?: boolean;
 }
 
 /** A button as the headless harness sees it: label + rect in device px. */
@@ -194,7 +203,17 @@ export function makeButton(
 
   let active = false;
   let enabled = true;
+  /** Painted as held down. Cleared as soon as the finger leaves the rect. */
   let pressed = false;
+  /**
+   * This button owns the pointer press that is currently down — which is NOT
+   * the same as being painted pressed, and conflating the two is what ate the
+   * tap. On touch, sliding off a button fires `pointerout`, which correctly
+   * un-highlights it; the old code also threw away the fact that the press
+   * had started here, so the release had nothing left to act on and the tap
+   * vanished. Every button keeps the highlight and the ownership separate now.
+   */
+  let holding = false;
   const alive = () => bg.active && label.active;
   const refresh = () => {
     // Pointer events can trail in after a click handler destroyed the button.
@@ -210,6 +229,9 @@ export function makeButton(
     if (enabled && alive() && !pressed) bg.setFillStyle(active ? COLORS.olive : COLORS.gridLine);
   });
   bg.on('pointerout', () => {
+    // Un-highlight, but stay the owner of the press: a thumb that rolls off
+    // the edge of the button it is holding has not changed its mind.
+    if (!pressed) return;
     pressed = false;
     refresh();
   });
@@ -218,20 +240,68 @@ export function makeButton(
     audio.unlock(); // first gesture wakes the audio context
     music.resume(); // …and the score, which asked before it was allowed
     if (!enabled) return;
+    holding = true;
     pressed = true; // visible press state matters more without a hover cursor
     refresh();
   });
-  bg.on('pointerup', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
-    ev?.stopPropagation();
-    if (!enabled || !pressed) return;
-    pressed = false;
-    refresh();
+  const release = (p: Phaser.Input.Pointer, outside: boolean): void => {
+    if (!enabled || !holding) return;
+    holding = false;
+    if (pressed) {
+      pressed = false;
+      refresh();
+    }
     // A press that travelled was a scroll or a pan across this button, not a
     // tap on it — every list in the game is drag-scrollable.
-    if (p.getDistance() > DRAG_SLOP) return;
+    if (p.getDistance() > DRAG_SLOP) {
+      // …unless the finger simply rolled off the edge of the thing it is
+      // holding down, on a button that has nothing behind it to scroll. A
+      // footer sits one row tall at the bottom of a phone, which is exactly
+      // where a thumb pivots: the press starts on the button, ends a few
+      // millimetres past it, and used to be discarded in silence. Grace scales
+      // with the button, so it means the same physical slack at any density.
+      if (!outside || !opts.edgeGrace) return;
+      const grace = bg.height;
+      const box = bg.getBounds();
+      const near =
+        p.x >= box.x - grace &&
+        p.x <= box.x + box.width + grace &&
+        p.y >= box.y - grace &&
+        p.y <= box.y + box.height + grace;
+      if (!near || p.getDistance() > grace * 1.5) return;
+    }
     if (!opts.quiet) audio.sfx('click');
     onClick();
+  };
+  bg.on('pointerup', (p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+    ev?.stopPropagation();
+    release(p, false);
   });
+  /**
+   * A touch released OFF the button's own rectangle never reaches the object
+   * at all — Phaser delivers per-object `pointerup` only while the pointer is
+   * over the object, and `pointerout` does not fire for touch, which has no
+   * hover. So the scene's own pointerup is the only place that release can be
+   * seen, and until v1.17.2 nothing saw it: the button stayed painted in its
+   * pressed state for good, having swallowed a tap that never happened. A
+   * green button that does nothing is what a frozen game looks like.
+   *
+   * `pressed` is already false when the object's own handler ran, so this
+   * cannot double-fire.
+   */
+  const sceneRelease = (p: Phaser.Input.Pointer): void => {
+    if (holding && alive()) release(p, true);
+  };
+  const sceneCancel = (): void => {
+    holding = false;
+    if (!pressed) return;
+    pressed = false;
+    if (alive()) refresh();
+  };
+  scene.input.on('pointerup', sceneRelease);
+  // Released outside the canvas entirely, or taken over by the browser.
+  scene.input.on('pointerupoutside', sceneCancel);
+  scene.input.on('gameout', sceneCancel);
 
   refresh();
   const probe = () => {
@@ -319,6 +389,9 @@ export function makeButton(
     },
     destroy() {
       liveProbes.delete(probe);
+      scene.input.off('pointerup', sceneRelease);
+      scene.input.off('pointerupoutside', sceneCancel);
+      scene.input.off('gameout', sceneCancel);
       bg.destroy();
       label.destroy();
       sub?.destroy();
