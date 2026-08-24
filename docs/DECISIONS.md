@@ -140,3 +140,21 @@ here with the change and its date.
   buy +4.9% to +13.2%, same sign everywhere) and destruction share. The general
   rule this leaves behind: before believing an effect, check that the instrument
   can resolve something that small.
+- 2026-08-24 — **A faction pick was also a difficulty pick.** The game has two
+  Front Line kits — the PLA post that the USA and the UN raid, the US firebase
+  that China, Russia and the KPA raid — and nothing had ever compared them.
+  Every reference force against both, with forced shapes so the target deal
+  could not move the answer, found the PLA kit 34 clear-rate points softer for
+  all five. Two of the three gun slots carried it: weighted by effective damage
+  against the armour the reference plans field, times covered ground, the US
+  area-denial gun was worth 2.80x its opposite number and the anti-armor gun
+  2.00x, while the basic slot was already even at 0.91x. The GDD had been
+  contradicting itself in the same place — §4.2 gives China "rapid-fire
+  anti-swarm emplacements" and the QLZ fired slower than the US autocannon.
+  Levelled on rate and reach, never on damage, because a heavier shell would
+  have made China's guns precision weapons and precision is the other kit's
+  identity. Parity of worth, not of design. The lesson is narrower than the
+  usual one and worth keeping: a whole layer of this game had no instrument
+  pointed at it for eleven releases, and the reason it went unnoticed is that
+  every table in the harness measured factions against their OWN front and
+  never across.

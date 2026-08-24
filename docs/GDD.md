@@ -157,6 +157,24 @@ correct — they are fighting different enemies — and nothing in the codecs de
 share codes and replay codes both carry a layout cell by cell rather than a `(tier, variant)` to
 re-generate from.
 
+### The two fronts *(v1.21)*
+
+The game has exactly two Front Line kits — the PLA post that the USA and the UN raid, and the US
+firebase that China, Russia and the KPA raid — and until v1.21 nothing had ever compared them.
+Running every reference force against both found the PLA kit **34 clear-rate points softer for all
+five**, which meant a faction pick was quietly also a difficulty pick. Two of the three gun slots
+carried it; the basic slot was already even.
+
+They are levelled now, and levelled on **worth** rather than on design. The two kits are still
+meant to answer different questions and the numbers say so: the PLA post fires faster, splashes,
+and works close in — GDD §4.2's "rapid-fire anti-swarm emplacements", which the QLZ finally is —
+while the US firebase reaches further and hits single targets harder, which is §4.1's "precision
+single-target emplacements". The fix was rate and reach, never damage, because a heavier shell
+would have turned China's guns into the other kit's identity.
+
+`npm run balance -- --kits` is the measurement of record; `tests/kits.test.ts` is the structural
+guard that fails first.
+
 ### The ladder *(v1.21)*
 
 Tier scales three things, and until v1.21 it scaled them in one lump. `structureLevelFor` steps

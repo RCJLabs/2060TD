@@ -814,12 +814,55 @@ v1.20 with a note saying the balance pass would decide. It has.
       else sits at 39-53%. **The spread is one faction, not five.** That is a
       far better problem to have than the one the number used to describe.*
 
-- [ ] **The USA is the outlier — 98.6 against a cluster at 58-66.** Nothing in
-      the deal can fix it: the USA reference force beats five of the eight
-      shapes outright, so bands 1 and 2 are trivial whatever is drawn into
-      them, and the pool has no harder shape to offer. It is the roster, the
-      reference plan, or the China base kit it is measured against. Measure
-      which before touching any of them.
+- [x] **The USA is the outlier — and the first half of why was never measured**
+      *(v1.21, `--kits`)* — *it decomposes into two terms, and the first one had
+      no instrument at all until now.*
+
+      ***The two fronts were not the same fight.** There are exactly two base
+      kits: the PLA post the USA and the UN raid, and the US firebase China,
+      Russia and the KPA raid. Every force against BOTH, forced shapes so the
+      deal could not move it, structures swapped rather than attackers:*
+
+          force    vs PLA post   vs US firebase   gap
+          USA          92.2           62.1      +30.1
+          CHINA        93.0           52.7      +40.2
+          RUSSIA       81.6           50.4      +31.3
+          NK           48.4           18.8      +29.7
+          UN           57.4           19.1      +38.3
+
+      *34 points softer for all five. Whoever picked a faction on that side of
+      the map was playing on easy and had not chosen to — and no amount of deal
+      or ladder work could have reached it.*
+
+      *It sat in two of three gun slots; the basic slot was already even at
+      0.91x. Weighted by effective damage against the armour the reference
+      plans field, times covered ground: area denial 2.80x, anti-armor 2.00x.
+      The generator fills every second slot with area denial and every third
+      with anti-armor, so three of five guns on a deep base were worth half.
+      Also the GDD contradicting itself — §4.2 gives China "rapid-fire
+      anti-swarm emplacements" and the QLZ fired slower than the US
+      autocannon.*
+
+      *Fixed in RATE and REACH rather than damage, because a heavier shell
+      would have made them precision weapons, which is the other kit's
+      identity. Swept against the table rather than derived:*
+
+          worst kit gap   40.2  ->  10.9      (mean +34 -> -1.7)
+          parity spread   40.6  ->  26.4      narrowest it has been
+          USA             98.6  ->  79.6      and it has a ladder again
+          China, Russia, NK unchanged — the other kit was not touched
+
+- [ ] **The UN is the floor now, at 53.2 — the second term.** With the kits
+      level, what is left is the offence side, and it is legible: against the
+      same fortifications the five forces rank USA 92, China 93, Russia 82,
+      UN 57, NK 48. Same manpower (27-28 MP) and near-identical HP/MP (56-64),
+      so it is not bulk. It is demolition — wallDPS runs NK 304, USA 253,
+      Russia 234, China 193, **UN 134**, and hqDPS the same shape with the UN
+      last again at 106. In a game whose entire pathfinding cost model is
+      TIME, and where breaching costs `obstacleHp / wallDps`, the UN spends
+      far longer chewing wire under fire than anybody else. Measure whether
+      that is the term before touching the roster — the sustainment identity
+      (medics, `UN_NO_MEDICS` in the harness) is the other candidate.
 
 - [x] **What the wall line is actually worth, and what v1.20 could not have
       known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line
