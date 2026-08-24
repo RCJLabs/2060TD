@@ -11,6 +11,7 @@ import type { SimConfig, SimEvent } from '../../sim/types';
 import { audio } from '../audio';
 import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
+import { TERRAIN_VERSION } from '../../sim/terrain';
 import { BoardView } from '../BoardView';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
@@ -151,6 +152,10 @@ export class SiegeScene extends Phaser.Scene {
       ccOrigin: 11 * GRID_W + 27,
       spawnColumn: 0,
       siege: standaloneSiege,
+      // The sandbox is fought on ground like everything else. Pinned in demo
+      // mode so a screenshot run is comparable to the last one.
+      terrainSeed: this.demoMode ? 4242 : Date.now() >>> 0,
+      terrainVersion: TERRAIN_VERSION,
     };
     this.engine = new Engine(config, defenseCatalogFor(this.faction));
     this.board = new BoardView(this, { cols: GRID_W, rows: GRID_H, cell: CELL });

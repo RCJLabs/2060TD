@@ -70,8 +70,10 @@ import {
 } from '../../meta/warfare';
 import { researchEffects } from '../../meta/town';
 import type { AutoPowerRule } from '../../sim/types';
-import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
+import { drawStructureGlyph, drawWallGlyph } from '../glyphs';
 import { COLORS } from '../palette';
+import { makeSheet } from '../ground';
+import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
 import { BoardView } from '../BoardView';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
@@ -174,11 +176,21 @@ export class RaidScene extends Phaser.Scene {
     this.base = this.challenge ? this.challenge.base : targetFor(this.town, this.variant);
 
     this.board = new BoardView(this, { cols: MAP_W, rows: MAP_H, cell: CELL });
-    const staticLayer = this.add.graphics();
-    drawFieldBase(staticLayer, MAP_W, MAP_H, CELL, -1); // no home entry strip
     this.baseLayer = this.add.graphics();
     this.dynLayer = this.add.graphics();
-    this.board.world.add([staticLayer, this.baseLayer, this.dynLayer]);
+    const sheet = makeSheet(this, {
+      width: MAP_W,
+      height: MAP_H,
+      cell: CELL,
+      terrain: generateTerrain(
+        this.base.terrainSeed,
+        this.base.terrainSeed > 0 ? TERRAIN_VERSION : TERRAIN_NONE,
+        MAP_W,
+        MAP_H,
+      ),
+      spawnColumn: -1, // no home entry strip: this is somebody else's ground
+    });
+    this.board.world.add([sheet, this.baseLayer, this.dynLayer]);
 
     this.fogText = this.add
       .text(0, 0, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {

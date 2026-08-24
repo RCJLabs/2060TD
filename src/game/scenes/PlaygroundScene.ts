@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { TERRAIN_VERSION } from '../../sim/terrain';
 import { music } from '../music';
 import { M1_CATALOG } from '../../content/catalog';
 import { DT, Engine } from '../../sim/engine';
@@ -52,6 +53,8 @@ export class PlaygroundScene extends Phaser.Scene {
         seed: Date.now() >>> 0,
         ccOrigin: 11 * GRID_W + 29,
         spawnColumn: 0,
+      terrainSeed: 4242,
+      terrainVersion: TERRAIN_VERSION,
       },
       M1_CATALOG,
     );

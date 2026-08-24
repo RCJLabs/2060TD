@@ -18,61 +18,6 @@ export interface StructureGlyphOptions {
   aimAngle?: number;
 }
 
-/** Terrain base: field, grid lines, worn ground, and the attacker entry strip. */
-export function drawFieldBase(
-  g: Phaser.GameObjects.Graphics,
-  width: number,
-  height: number,
-  cell: number,
-  spawnColumn: number,
-): void {
-  const pxW = width * cell;
-  const pxH = height * cell;
-  g.fillStyle(COLORS.bgField, 1);
-  g.fillRect(0, 0, pxW, pxH);
-
-  // Deterministic ground texture: a cheap hash scatters scrub and mud
-  // patches so the field reads as terrain, not graph paper.
-  for (let cy = 0; cy < height; cy++) {
-    for (let cx = 0; cx < width; cx++) {
-      const h = (cx * 73856093) ^ (cy * 19349663);
-      const roll = (h >>> 4) % 100;
-      const px = cx * cell;
-      const py = cy * cell;
-      if (roll < 7) {
-        // scrub tuft
-        g.lineStyle(1, COLORS.olive, 0.16);
-        const ox = px + 6 + ((h >>> 8) % (cell - 12));
-        const oy = py + 6 + ((h >>> 12) % (cell - 12));
-        g.lineBetween(ox - 3, oy + 3, ox, oy - 3);
-        g.lineBetween(ox, oy - 3, ox + 3, oy + 3);
-      } else if (roll < 11) {
-        // mud patch
-        g.fillStyle(COLORS.sandDark, 0.05);
-        g.fillCircle(px + cell / 2, py + cell / 2, cell * 0.42);
-      } else if (roll < 13) {
-        // rubble specks
-        g.fillStyle(COLORS.steel, 0.1);
-        g.fillRect(px + ((h >>> 6) % (cell - 6)) + 2, py + ((h >>> 10) % (cell - 6)) + 2, 3, 2);
-      }
-    }
-  }
-
-  g.lineStyle(1, COLORS.gridLine, 1);
-  for (let x = 0; x <= width; x++) g.lineBetween(x * cell, 0, x * cell, pxH);
-  for (let y = 0; y <= height; y++) g.lineBetween(0, y * cell, pxW, y * cell);
-
-  if (spawnColumn >= 0) {
-    const spawnX = spawnColumn * cell;
-    g.fillStyle(COLORS.crimson, 0.07);
-    g.fillRect(spawnX, 0, cell, pxH);
-    g.fillStyle(COLORS.crimson, 0.4);
-    for (let y = 1; y < height; y += 3) {
-      const cy = y * cell + cell / 2;
-      g.fillTriangle(spawnX + 8, cy - 6, spawnX + 8, cy + 6, spawnX + 20, cy);
-    }
-  }
-}
 
 export function drawWallGlyph(
   g: Phaser.GameObjects.Graphics,

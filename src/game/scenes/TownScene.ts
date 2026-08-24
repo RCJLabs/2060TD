@@ -75,6 +75,7 @@ import {
   upgrade,
   upgradeError,
   wallAt,
+  townTerrain,
   TOWN_GRID,
   type PlacedStructure,
   type SiegeOutcome,
@@ -82,7 +83,7 @@ import {
 } from '../../meta/town';
 import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standingOrders';
 import { BoardView } from '../BoardView';
-import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from '../glyphs';
+import { drawStructureGlyph, drawWallGlyph } from '../glyphs';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
@@ -96,6 +97,7 @@ import {
   type ShareError,
 } from '../../meta/sharecode';
 import { COLORS } from '../palette';
+import { makeSheet } from '../ground';
 import { mono, Panel, type PanelRow } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
@@ -291,9 +293,15 @@ export class TownScene extends Phaser.Scene {
       cell: CELL,
     });
     this.staticLayer = this.add.graphics();
-    drawFieldBase(this.staticLayer, TOWN_GRID.width, TOWN_GRID.height, CELL, TOWN_GRID.spawnColumn);
     this.dynLayer = this.add.graphics();
-    this.board.world.add([this.staticLayer, this.dynLayer]);
+    const sheet = makeSheet(this, {
+      width: TOWN_GRID.width,
+      height: TOWN_GRID.height,
+      cell: CELL,
+      terrain: townTerrain(this.town),
+      spawnColumn: TOWN_GRID.spawnColumn,
+    });
+    this.board.world.add([sheet, this.staticLayer, this.dynLayer]);
 
     const cc = this.town.structures.find((s) => s.kind === 'cc')!;
     const ccCenter = this.cellCenterPx(cc.cell, 2);
@@ -2021,6 +2029,9 @@ function untilLabel(ms: number): string {
 
 function makeShowcaseTown(now: number): TownState {
   const town = unlockAll(newTown(now));
+  // Pinned so a screenshot run is comparable to the last one; a real war
+  // takes its ground from when it started.
+  town.terrainSeed = 4242;
   town.campaign.difficulty = 'standard';
   town.campaign.next = 5;
   town.campaign.completed = ['m1', 'm2', 'm3', 'm4', 'm5'];

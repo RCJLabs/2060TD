@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import type { Attacker, Engine } from '../sim/engine';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
 import { audio } from './audio';
-import { drawFieldBase, drawStructureGlyph, drawWallGlyph } from './glyphs';
+import { drawStructureGlyph, drawWallGlyph } from './glyphs';
+import { makeSheet } from './ground';
 import { COLORS } from './palette';
 import { mono } from './ui';
 
@@ -49,6 +50,9 @@ export class BattleRenderer {
   private readonly cell: number;
   private readonly container: Phaser.GameObjects.Container | undefined;
   private readonly hostileStructures: boolean;
+  /** The baked topographic sheet. The world container owns it, so scene
+   *  shutdown frees the texture with everything else. */
+  private sheet: Phaser.GameObjects.RenderTexture | null = null;
   private readonly staticLayer: Phaser.GameObjects.Graphics;
   private readonly dynLayer: Phaser.GameObjects.Graphics;
   private effects: Effect[] = [];
@@ -82,7 +86,16 @@ export class BattleRenderer {
     const grid = this.engine.grid;
     const c = this.cell;
     const g = this.staticLayer;
-    drawFieldBase(g, grid.width, grid.height, c, this.engine.config.spawnColumn);
+    // The sheet is a baked texture, not commands: it goes in behind the
+    // static graphics rather than into them.
+    this.sheet = makeSheet(this.scene, {
+      width: grid.width,
+      height: grid.height,
+      cell: c,
+      terrain: this.engine.terrain,
+      spawnColumn: this.engine.config.spawnColumn,
+    });
+    this.container?.addAt(this.sheet, 0);
 
     // Tunnel mouths (reserved cells): the enemy owns this ground.
     for (const cell of this.engine.config.reservedCells ?? []) {
