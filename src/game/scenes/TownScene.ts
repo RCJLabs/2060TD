@@ -1561,6 +1561,16 @@ export class TownScene extends Phaser.Scene {
       this.cancelBtn = makeButton(this, 0, 0, w, h, 'CANCEL', () => {
         this.pendingCell = null;
       }, { align: 'center', container: this.board.ui, quiet: true });
+      // Release the refs when the scene tears down, the way BoardView, the
+      // layout and Overlay all do. Nulling them in `create` is only half of
+      // it: between `scene.start(...)` and the next `create`, a trailing
+      // frame can still reach `updateConfirmBar` and lay out a button whose
+      // container went down with the old BoardView.
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.confirmBtn = null;
+        this.cancelBtn = null;
+        this.pendingCell = null;
+      });
     }
     this.confirmBtn.setRect(Math.round(midX - w - gap / 2), y, w, h);
     this.cancelBtn?.setRect(Math.round(midX + gap / 2), y, w, h);
