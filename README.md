@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.20, in the browser. No install, no account, works on a phone.
+v1.21, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -18,6 +18,53 @@ v1.20, in the browser. No install, no account, works on a phone.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.21: what the numbers were actually measuring
+
+Two things you can feel, and then a release spent finding out that several of
+the numbers this game is tuned on were not measuring what they claimed.
+
+- **Placement is aim-then-confirm.** Choosing a cell and building on it used to
+  be the same tap, which is hard to aim on a phone and unforgiving when you
+  miss. Tap to aim, check the ghost, then press CONFIRM. The zoom buttons are
+  gone with it — pinch, or the scroll wheel.
+- **The garrison's air defence waits for aircraft.** A rule can now ask what it
+  is shooting at, so an AA order no longer burns one of a handful of actions on
+  a mount with nothing to shoot.
+
+**A clear rate is a count, not a probability.** A raid with no fire plan draws
+from the engine's stream exactly once per unit — a ±3-8% speed roll at spawn —
+and nothing else in it is random. 45% of the 75 (faction, tier, variant)
+matchups return a **byte-identical** outcome across all 20 seeds; one held the
+same result for 200; 66 of the 75 land on exactly 0% or exactly 100%. The seed
+does reach the sim, it simply washes out. So the variant is the real sample and
+it is a sample of three, and `docs/BALANCE.md` now opens by saying so.
+
+- **The ladder was one cliff.** Every gun on a base used to step to the next
+  level on the same rung, which made T3→T4 a 39-point drop and left T4→T5 with
+  nothing to add — T4 measured *harder* than T5, so grinding past the wall got
+  you to an easier rung. The upgrade creeps through the gun line now, best
+  positions first: 100 → 95 → 74 → 48 → 46, no rung going backwards.
+- **The front line deals three targets, and it never saw the faction.** Four of
+  the eight shapes ever appeared, the dispersed depot appeared on none, and T5
+  handed everybody the two hardest shapes in the game together. A rung's pool
+  is now ranked by what each shape costs *that* faction and cut into three
+  bands: a heavy fight, a middling one, and one you can take today. All eight
+  shapes reach a player.
+- **The two fronts were not the same fight.** This is the release's one real
+  content defect, and nothing had ever pointed an instrument at it: the PLA
+  post that the USA and the UN raid measured **34 clear-rate points softer**
+  than the US firebase everyone else raids, for all five forces. Picking a
+  faction was quietly also picking a difficulty. Levelled on rate and reach —
+  never damage, because a heavier shell would have made China's guns into the
+  other kit's identity.
+- **And the reference plans are worth up to 15 points.** They were written by
+  hand one at a time and are not equally good; applying one recipe to all five
+  barely moves the spread and completely *reorders* it. Every cross-faction
+  number now carries that error bar, and `--plans` reports it.
+
+Four new harness tables — `--deal`, `--pressure`, `--kits`, `--plans` — exist
+because each of the findings above was invisible to the ones that came before.
 
 ## Current state — v1.20: what a wall line is finally worth
 

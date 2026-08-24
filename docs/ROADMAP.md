@@ -622,12 +622,28 @@ around it, and the cause turned out to be worse than the symptom.
 
 ---
 
-## M11 — v1.21 "Even Odds": faction parity, and an answer to air *(planned)*
+## M11 — v1.21 "Even Odds": faction parity, and an answer to air *(shipped)*
 
-M10 fixed how a raid is *decided*. This one is about who is doing the raiding,
-because the same reference force on the same ladder does not remotely produce
-the same war depending on which flag it flies. Measured after v1.20, at roughly
-equal manpower (27–28 MP) against each faction's own opposite number:
+**What this milestone set out to do, and what it turned out to be.** It opened
+on the table below and a plan to close a 57-point faction spread. Almost none
+of that number survived contact. The spread was 34.6 once every faction was
+measured at its own signature line rather than everyone walking up to the wire;
+the "T3-T5 collapse" underneath it was three separate artifacts of how it was
+being measured; and the one real content defect the milestone found — two
+Front Line kits differing by 34 clear-rate points — was not in the table at all
+and had never had an instrument pointed at it in eleven releases.
+
+So this shipped as a release about the instruments. Four new harness tables
+(`--deal`, `--pressure`, `--kits`, `--plans`), each of which exists because a
+finding was invisible to the ones that came before it; two content fixes that
+those tables justified (the ladder creep and the kit levelling); one deal
+rewritten to see the faction; and two corrections to claims earlier releases
+had made on evidence that could not carry them. The items below are in the
+order they were found, and several of them are records of being wrong.
+
+*The table this milestone opened on, kept because the entries under it are
+arguments with it:* measured after v1.20, at roughly equal manpower (27–28 MP)
+against each faction's own opposite number:
 
     faction   ground raid   MP lost   air raid   MP lost
     USA              86.8      66.4       86.8      50.0
@@ -639,7 +655,9 @@ equal manpower (27–28 MP) against each faction's own opposite number:
 Two findings, and neither is a tuning nit.
 
 **A 57-point spread is not asymmetry, it is a difficulty setting nobody was
-told about.** §4 of the GDD says the factions are five full kits differing in
+told about.** *(Wrong twice over, and both corrections are below: the KPA's
+29.4 was measuring a reference plan with no tunnels on it, and the ordering of
+this table is worth up to 15 points of plan quality rather than faction.)* §4 of the GDD says the factions are five full kits differing in
 style, with elite-vs-swarm as the clearest balance axis — not that picking the
 KPA signs you up for a third of the USA's clear rate and 90% casualties. This
 is the ladder being broken, not the swarm being flavourful.
