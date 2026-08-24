@@ -775,14 +775,59 @@ v1.20 with a note saying the balance pass would decide. It has.
       exactly the v1.19 defect v1.20 was built to fix. Measured, reverted,
       recorded: **whatever fills the T4→T5 rung, it cannot be another gun.***
 
-- [ ] **Fix the deal, then the rung.** Two content changes, separable and both
-      measurable with `--deal`. The deal: pick a rung's three targets to span
-      the measured difficulty band rather than to be three arbitrary distinct
-      silhouettes, so every rung offers a fight you can take and one you have
-      to prepare for — and so the depot gets dealt. The rung: spread the
-      T3→T4 step across T3, T4 and T5 so the ladder climbs instead of
-      cliffing. Re-measure parity afterwards: the 34.6-point spread is partly
-      the deal and it is not yet known how much survives fixing it.
+- [x] **Re-measure parity after the creep** *(v1.21)* — *the rung fix on its
+      own, with the deal untouched, narrows the spread and lifts the two
+      factions that needed it:*
+
+          faction   before   after
+          USA         86.8    86.8
+          China       74.6    74.2
+          UN          64.6    71.8
+          NK          52.2    58.8
+          Russia      52.2    54.2
+          SPREAD      34.6    32.6
+
+      *Modest, and it moves the bottom rather than the top, which is the shape
+      a parity fix should have.*
+
+- [ ] **A faction-blind deal cannot grade a rung — try again with the faction
+      in hand.** *Attempted in v1.21, measured, and reverted rather than
+      shipped; what it established is worth more than the code was.*
+
+      *The change: give each archetype a `pressure` (1-8, ordered to the
+      measured `--deal` ranking, averaged over the rungs where the shape can
+      actually be dealt), rank a rung's pool by it, cut it into three bands and
+      draw one target from each. On the numbers it was reporting it looked
+      right — the dealt mean tracked the pool at every rung (+0, +1, +4, +3, +1
+      against the old +0, -2, +8, +1, **-14**), seven of eight shapes entered
+      the rotation instead of four, and the depot finally got dealt.*
+
+      *Then parity said no. **USA went to 100.0 at every rung and the spread
+      widened from 32.6 to 42.0** — the opposite of the milestone's whole
+      point. The cause is structural rather than a bad constant: `pressure` is
+      one number averaged across five factions, and the shapes do not order
+      the same way for each of them. `compound` at T5 measures 100 for the USA
+      and 7 for China. So a "middle band" shape is a real fight for one
+      faction and a walkover for another, and no single ordering can hand all
+      five a graded choice.*
+
+      *Which leaves the fix specified: **the deal has to see the faction.**
+      `archetypeFor(tier, variant)` would take one, `targetFor` already holds a
+      town that knows it, and nothing in the codecs breaks — share codes and
+      replay codes both carry the layout cell by cell rather than
+      `(tier, variant)`, and scouting keys are per-town. The cost is a
+      per-faction pressure table: 40 measured numbers living in content, which
+      is exactly the fragile thing the single scalar was chosen to avoid.
+      Worth doing anyway — a front line that offers a KPA player and a USA
+      player the same three targets is not really offering either of them a
+      choice.*
+
+      *Two things to carry into that attempt. `--deal` reports the mean over
+      all five factions, so it CANNOT see this failure — read `--parity`
+      before believing a deal change. And `tests/garrison.test.ts` builds its
+      fixture from whatever the deal offers, so a deal change breaks a
+      mechanic test that has not moved; when the deal is next touched, that
+      fixture should force its archetypes instead.*
 
 - [ ] **Russia, which v1.20 moved.** It came out ~10 points easier because it
       was the hardest faction and the gun trade helps a struggling force more
