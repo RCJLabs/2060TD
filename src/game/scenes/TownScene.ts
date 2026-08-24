@@ -83,7 +83,7 @@ import {
 } from '../../meta/town';
 import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standingOrders';
 import { BoardView } from '../BoardView';
-import { drawStructureGlyph, drawWallGlyph } from '../glyphs';
+import { drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
@@ -97,6 +97,7 @@ import {
   type ShareError,
 } from '../../meta/sharecode';
 import { COLORS } from '../palette';
+import { footprintOfKind } from '../../content/catalog';
 import { makeSheet } from '../ground';
 import { mono, Panel, type PanelRow } from '../ui';
 import type { BattleTag } from './SiegeScene';
@@ -341,7 +342,7 @@ export class TownScene extends Phaser.Scene {
       maxX = Math.max(maxX, cx + span);
       maxY = Math.max(maxY, cy + span);
     };
-    for (const s of this.town.structures) note(s.cell, footprintOf(s.kind));
+    for (const s of this.town.structures) note(s.cell, footprintOfKind(s.kind));
     for (const w of this.town.walls) note(w.cell, 1);
     if (!Number.isFinite(minX)) {
       this.board.fit();
@@ -1391,14 +1392,19 @@ export class TownScene extends Phaser.Scene {
     const g = this.dynLayer;
     g.clear();
 
-    for (const wall of this.town.walls) {
-      const x = (wall.cell % TOWN_GRID.width) * CELL;
-      const y = Math.floor(wall.cell / TOWN_GRID.width) * CELL;
-      drawWallGlyph(g, x, y, CELL, wall.kind, 1);
+    const wireCells = new Set(this.town.walls.map((w) => w.cell));
+    // Knockouts first, then segments: see WallPass.
+    for (const pass of ['halo', 'ink'] as const) {
+      for (const wall of this.town.walls) {
+        const x = (wall.cell % TOWN_GRID.width) * CELL;
+        const y = Math.floor(wall.cell / TOWN_GRID.width) * CELL;
+        const joins = wallJoins(wireCells, wall.cell, TOWN_GRID.width);
+        drawWallGlyph(g, x, y, CELL, wall.kind, 1, false, joins, pass);
+      }
     }
 
     for (const s of this.town.structures) {
-      const footprint = footprintOf(s.kind);
+      const footprint = footprintOfKind(s.kind);
       const center = this.cellCenterPx(s.cell, footprint);
       const building = s.buildEndsAt !== undefined;
       drawStructureGlyph(g, s.kind, center.x, center.y, CELL, {
@@ -1413,9 +1419,9 @@ export class TownScene extends Phaser.Scene {
         const remaining = Math.max(0, (s.buildEndsAt ?? now) - now);
         const frac = total > 0 ? 1 - remaining / total : 1;
         const w = footprint === 2 ? CELL * 2 - 10 : CELL - 8;
-        g.fillStyle(0x000000, 0.6);
-        g.fillRect(center.x - w / 2, center.y + (footprint === 2 ? CELL : CELL / 2) + 2, w, 4);
-        g.fillStyle(COLORS.intel, 1);
+        g.fillStyle(COLORS.paperWarm, 0.95);
+        g.fillRect(center.x - w / 2 - 1, center.y + (footprint === 2 ? CELL : CELL / 2) + 1, w + 2, 6);
+        g.fillStyle(COLORS.marg, 1);
         g.fillRect(
           center.x - w / 2,
           center.y + (footprint === 2 ? CELL : CELL / 2) + 2,
@@ -1425,7 +1431,7 @@ export class TownScene extends Phaser.Scene {
       }
       if (s.id === this.selectedId) {
         const half = footprint === 2 ? CELL : CELL / 2;
-        g.lineStyle(2, COLORS.intel, 0.9);
+        g.lineStyle(2, COLORS.alarm, 0.9);
         g.strokeRect(center.x - half - 2, center.y - half - 2, half * 2 + 4, half * 2 + 4);
       }
     }
@@ -1466,7 +1472,7 @@ export class TownScene extends Phaser.Scene {
     }
 
     const footprint =
-      kind && kind !== 'erase' && kind !== 'wall' && kind !== 'gate' ? footprintOf(kind) : 1;
+      kind && kind !== 'erase' && kind !== 'wall' && kind !== 'gate' ? footprintOfKind(kind) : 1;
     const color = valid ? COLORS.olive : COLORS.alarm;
     const x = (cell % TOWN_GRID.width) * CELL;
     const y = Math.floor(cell / TOWN_GRID.width) * CELL;
@@ -2005,17 +2011,6 @@ export class TownScene extends Phaser.Scene {
   }
 }
 
-const BIG_KINDS = new Set([
-  'cc',
-  'supplyDepot',
-  'fuelDepot',
-  'storageBunker',
-  'engBay',
-  'radar',
-  'barracks',
-  'motorpool',
-]);
-const footprintOf = (kind: string): number => (BIG_KINDS.has(kind) ? 2 : 1);
 
 /** A prebuilt base for ?demo=town screenshots. Never touches the real save. */
 /** "3H", "2D 4H", "18M" — a countdown a panel row can hold. */

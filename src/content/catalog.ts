@@ -31,3 +31,19 @@ export const RAID_CATALOG: Catalog = {
   powers: USA_POWERS,
   damage: DAMAGE_MULT,
 };
+
+/**
+ * How many cells on a side a structure occupies — the ONE place that answers
+ * it for the renderer.
+ *
+ * Presentation used to carry three separate tables of "big kinds", and all
+ * three had drifted: `airfield` is footprint 2 in the sim and was missing from
+ * every one of them, so it drew at a quarter of the ground it actually
+ * reserved. The footprint is a property of the structure, so it is read off
+ * the structure.
+ */
+const ALL_STRUCTURES = { ...M1_CATALOG.structures, ...RAID_CATALOG.structures };
+
+export function footprintOfKind(kind: string): 1 | 2 {
+  return ALL_STRUCTURES[kind]?.footprint === 2 ? 2 : 1;
+}

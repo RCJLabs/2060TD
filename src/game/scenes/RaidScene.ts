@@ -70,7 +70,8 @@ import {
 } from '../../meta/warfare';
 import { researchEffects } from '../../meta/town';
 import type { AutoPowerRule } from '../../sim/types';
-import { drawStructureGlyph, drawWallGlyph } from '../glyphs';
+import { drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
+import { footprintOfKind } from '../../content/catalog';
 import { COLORS } from '../palette';
 import { makeSheet } from '../ground';
 import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
@@ -223,7 +224,7 @@ export class RaidScene extends Phaser.Scene {
       const cells = sectorCells(id);
       const mid = cells[Math.floor(cells.length / 2)]!;
       const label = this.add
-        .text((mid.col + 0.5) * CELL, (mid.row + 0.5) * CELL, id, mono(13, COLORS.intel, { fontStyle: 'bold' }))
+        .text((mid.col + 0.5) * CELL, (mid.row + 0.5) * CELL, id, mono(13, COLORS.marg, { fontStyle: 'bold' }))
         .setOrigin(0.5);
       this.sectorLabels.push(label);
       this.board.world.add(label);
@@ -387,11 +388,25 @@ export class RaidScene extends Phaser.Scene {
     this.fogText.setVisible(!revealed);
     if (!revealed) return;
 
-    for (const wall of this.base.walls) {
-      drawWallGlyph(g, (wall.cell % MAP_W) * CELL, Math.floor(wall.cell / MAP_W) * CELL, CELL, wall.kind, 1);
+    const wireCells = new Set(this.base.walls.map((w) => w.cell));
+    // Knockouts first, then segments: see WallPass.
+    for (const pass of ['halo', 'ink'] as const) {
+      for (const wall of this.base.walls) {
+        drawWallGlyph(
+          g,
+          (wall.cell % MAP_W) * CELL,
+          Math.floor(wall.cell / MAP_W) * CELL,
+          CELL,
+          wall.kind,
+          1,
+          false,
+          wallJoins(wireCells, wall.cell, MAP_W),
+          pass,
+        );
+      }
     }
     const draw = (kind: string, cell: number, level: number) => {
-      const big = ['cc', 'supplyCache', 'fuelDump', 'supplyDepot', 'fuelDepot'].includes(kind);
+      const big = footprintOfKind(kind) === 2;
       const half = big ? 1 : 0.5;
       drawStructureGlyph(
         g,

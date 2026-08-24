@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Attacker, Engine } from '../sim/engine';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
 import { audio } from './audio';
-import { drawStructureGlyph, drawWallGlyph } from './glyphs';
+import { drawStructureGlyph, drawWallGlyph, wallJoins } from './glyphs';
 import { makeSheet } from './ground';
 import { COLORS } from './palette';
 import { mono } from './ui';
@@ -220,16 +220,22 @@ export class BattleRenderer {
   private drawWalls(g: Phaser.GameObjects.Graphics): void {
     const grid = this.engine.grid;
     const c = this.cell;
-    for (const [cell, wall] of grid.walls) {
-      drawWallGlyph(
-        g,
-        grid.xOf(cell) * c,
-        grid.yOf(cell) * c,
-        c,
-        wall.kind,
-        wall.hp / wall.maxHp,
-        wall.open === true,
-      );
+    const wire = new Set(grid.walls.keys());
+    // Knockouts first, then segments: see WallPass.
+    for (const pass of ['halo', 'ink'] as const) {
+      for (const [cell, wall] of grid.walls) {
+        drawWallGlyph(
+          g,
+          grid.xOf(cell) * c,
+          grid.yOf(cell) * c,
+          c,
+          wall.kind,
+          wall.hp / wall.maxHp,
+          wall.open === true,
+          wallJoins(wire, cell, grid.width),
+          pass,
+        );
+      }
     }
   }
 
@@ -656,10 +662,12 @@ export class BattleRenderer {
     isFriendly: boolean,
   ): void {
     const frac = Math.max(0, Math.min(1, fraction));
-    g.fillStyle(0x000000, 0.6);
-    g.fillRect(centerX - width / 2, y, width, 3);
+    // A gauge drawn on the sheet: paper backing, ink fill, and alarm only when
+    // it matters. Blue was legible on a dark board and is a shout on paper.
+    g.fillStyle(COLORS.paperWarm, 0.95);
+    g.fillRect(centerX - width / 2 - 1, y - 1, width + 2, 5);
     g.fillStyle(
-      frac > 0.4 ? (isFriendly ? COLORS.intel : COLORS.olive) : COLORS.signal,
+      frac > 0.4 ? (isFriendly ? COLORS.oliveDark : COLORS.crimsonDark) : COLORS.alarm,
       1,
     );
     g.fillRect(centerX - width / 2, y, width * frac, 3);
