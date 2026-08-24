@@ -898,6 +898,12 @@ node scripts/e2e-gates.mjs           # a gate built in the yard and worked in th
 node scripts/e2e-build.mjs           # moving the map with a tool in hand, and precise placement
 node scripts/e2e-terrain.mjs         # the sheet on the board, and a river that refuses a wall
 node scripts/e2e-garrison.mjs        # the watch counting down while a raid walks in
+
+# Harnesses wait for STATE, never for a stopwatch (v1.21). A tap followed by a
+# fixed sleep followed by a read reports the harness's own timing rather than
+# the game's behaviour: alone the sleep is long enough, run after a neighbour
+# on a loaded box it is not, and the read returns the value from before the
+# tap. If you add a step here, wait for the thing it was supposed to produce.
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

@@ -1554,6 +1554,10 @@ export class TownScene extends Phaser.Scene {
         align: 'center',
         container: this.board.ui,
       });
+      // The affirmative reads as affirmative. `active` is the kit's own olive
+      // highlight — the same one the armed build row wears — rather than a
+      // hand-tinted background, which `refresh()` would paint over anyway.
+      this.confirmBtn.setActive(true);
       this.cancelBtn = makeButton(this, 0, 0, w, h, 'CANCEL', () => {
         this.pendingCell = null;
       }, { align: 'center', container: this.board.ui, quiet: true });

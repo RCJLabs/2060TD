@@ -334,8 +334,49 @@ try {
   check('the battle sheet is on the board layer too', inBattle.length === 0, inBattle.join(', '));
   await page.keyboard.press('Space');
   for (let i = 0; i < 3; i++) await page.keyboard.press('S'); // speed ×8
-  await wait(4000);
-  check('nobody is stranded on the far bank', await copyHas('WAVE'), 'the wave clock is running');
+
+  /**
+   * Wait for a CONDITION rather than for a stopwatch.
+   *
+   * This check used to sleep four seconds and then ask whether the word WAVE
+   * was on screen. That is not the claim in its own name, and it failed on a
+   * loaded machine for reasons that had nothing to do with terrain — the
+   * briefing and the commence step ahead of it are also fixed sleeps, so a
+   * slow box simply had not reached the battle yet.
+   */
+  const until = async (fn, deadlineMs) => {
+    const stop = Date.now() + deadlineMs;
+    for (;;) {
+      if (await fn()) return true;
+      if (Date.now() > stop) return false;
+      await wait(120);
+    }
+  };
+  const phaseLine = async () =>
+    (await texts()).find((t) => /WAVE \d+\/\d+|PREP —|SECTOR HELD|CC DESTROYED/.test(t)) ?? '';
+
+  check(
+    'the assault reaches its first wave',
+    await until(async () => /WAVE \d+\/\d+|SECTOR HELD|CC DESTROYED/.test(await phaseLine()), 20000),
+    await phaseLine(),
+  );
+  // The real claim. A force that cannot cross the water never finishes wave
+  // one, so the battle sits on WAVE 1 — CONTACT until the harness gives up.
+  // Anything past it (prep for the next wave, a later wave, or an outcome)
+  // means they got there and died, which is the whole point.
+  // 120s, sized from measurement rather than taste: the same battle on the
+  // same box was watched resolving in 20s on one run and 50s on the next,
+  // because the speed-up does not always take. A deadline near the fast case
+  // is a coin flip, and this one only ever waits the full two minutes when
+  // something is actually wrong.
+  check(
+    'nobody is stranded on the far bank — the first wave resolves',
+    await until(
+      async () => /PREP —|WAVE [2-9]\/|SECTOR HELD|CC DESTROYED/.test(await phaseLine()),
+      120000,
+    ),
+    await phaseLine(),
+  );
   await page.screenshot({ path: `screenshots/e2e-terrain-siege${isMobile ? '-phone' : ''}.png` });
 
   await browser.close();

@@ -180,6 +180,34 @@ try {
   // the first tap instead of obeying it. The default plan must be sayable in the
   // picker's own vocabulary.
   const delayRow = async () => (await labels()).find((l) => l.startsWith('DELAY:')) ?? '';
+
+  /**
+   * Tap the picker and wait for the CAPTION to move, not for a stopwatch.
+   *
+   * The old form clicked and slept a fixed 320ms. Alone that was enough for
+   * the row to re-render; run straight after another harness, on a loaded
+   * machine, it was not — so the read came back with the value from BEFORE
+   * the tap and the walk recorded `0 → 6 → 6 → 20`, a duplicate that looked
+   * exactly like the picker skipping a stop. The harness was reporting its own
+   * timing, not the game's behaviour.
+   *
+   * Waiting on the state the check needs is both faster in the common case
+   * and immune to how busy the box is.
+   */
+  const stepPicker = async (deadlineMs = 4000) => {
+    const before = await delayRow();
+    if (!(await reveal('DELAY:'))) throw new Error('no DELAY: row');
+    await tap('DELAY:', 0);
+    const until = Date.now() + deadlineMs;
+    for (;;) {
+      const now = await delayRow();
+      if (now !== before && now !== '') return now;
+      if (Date.now() > until) {
+        throw new Error(`picker never moved off "${before}" in ${deadlineMs}ms`);
+      }
+      await wait(40);
+    }
+  };
   const secondsOn = (row) => {
     const hit = /T\+(\d+)S/.exec(row.toUpperCase());
     return hit ? Number(hit[1]) : null;
@@ -204,10 +232,7 @@ try {
 
   // ---- the picker walks its stops and wraps -------------------------------------
   const walked = [secondsOn(opening)];
-  for (let i = 0; i < 7; i++) {
-    await tapRow('DELAY:', 320);
-    walked.push(secondsOn(await delayRow()));
-  }
+  for (let i = 0; i < 7; i++) walked.push(secondsOn(await stepPicker()));
   check(
     'the picker steps through seven stops and comes back round',
     new Set(walked).size === 7 && walked[7] === walked[0],
@@ -216,8 +241,7 @@ try {
 
   // ---- the row the player reads follows the row the player taps -----------------
   // Two different rows, one fact. If only the picker moved, the plan did not.
-  await tapRow('DELAY:', 400); // off 0, onto the first real stop
-  const ordered = secondsOn(await delayRow());
+  const ordered = secondsOn(await stepPicker()); // off 0, onto the first real stop
   const after = await subs();
   check(
     'the squad row picks up what the picker was told',

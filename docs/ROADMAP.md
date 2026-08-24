@@ -696,26 +696,36 @@ v1.20 with a note saying the balance pass would decide. It has.
       the problem. Fix the ground spread and re-read this table; do not tune
       air against it first. This reorders the milestone.
 
-- [ ] **A harness that can fail — and one that fails when it should not.**
-      `e2e-raid.mjs` clicks fixed pixel coordinates and asserts only "no page
-      errors", so it has been launching raids with ZERO units assigned and
-      passing. Found while writing `e2e-garrison.mjs`, which taps by label and
-      checks what it mustered before it presses go.
+- [x] **A suite that can fail, and does not fail for the wrong reason**
+      *(v1.21)* — *four harnesses fixed, and the class of bug behind all of
+      them was the same: a tap followed by a fixed sleep followed by a read.
+      Alone the sleep was long enough; run straight after a neighbour on a
+      loaded box it was not, so the read came back with the value from BEFORE
+      the tap and the harness reported its own timing as the game's behaviour.*
 
-      Worse, THREE harnesses are flaky — `e2e-delay`, `e2e-orders` and
-      `e2e-terrain` — and all three were verified against a clean tree, so
-      none of it is v1.21's doing. `e2e-delay` and `e2e-orders` fail only in
-      batch and pass alone: run straight after a neighbour, delay drops one
-      tap and reads `0 → 6 → 6 → 20` instead of `0 → 6 → 12 → 20`.
-      `e2e-terrain`'s last check ("nobody is stranded on the far bank") is
-      intermittent even alone — it passed in the v1.20 ship run and fails now
-      with "the wave clock is running", which is a timing assumption rather
-      than a fact about the sim.
+      *`e2e-raid` was the worst of them and failed the other way — it clicked
+      fixed pixel COORDINATES and asserted only "no page errors", so it had
+      been launching raids with zero units assigned and printing OK. Rewritten
+      to tap by label and to assert each step: nothing committed at the start,
+      units actually committed, LAUNCH live rather than merely present, a
+      report that accounts for the force, and footage that runs. Verified by
+      breaking the muster on purpose — six of eight checks fail where the old
+      harness printed OK.*
 
-      Taken together the suite cannot currently tell a regression from a bad
-      night, which is the one thing a suite is for. Settles that depend on
-      wall-clock time should be replaced by waiting on the state the check
-      actually needs.
+      *`e2e-delay` now waits for the picker's CAPTION to move instead of
+      sleeping 320ms, which is both faster and immune to load. `e2e-orders`
+      waits for the raid REPORT instead of sleeping 2500ms. `e2e-terrain`'s
+      last check was the interesting one: it slept four seconds and asked
+      whether the word WAVE was on screen, which is not the claim in its own
+      name. It now waits for the first wave to RESOLVE — a force that cannot
+      cross the water never finishes wave one, so progress past it is the
+      actual test — on a 120s deadline sized from measurement, after the same
+      battle on the same box was watched taking 20s on one run and 50s on the
+      next.*
+
+      *The rule going forward: never sleep and then read. Wait for the state
+      the check needs, on a deadline generous enough that only a real fault
+      reaches it.*
 
 **The bar, same as the last three milestones:** parity means the SPREAD closes
 without the mean moving much, and it has to be a trade — a faction that reads

@@ -318,6 +318,9 @@ try {
 
   // Aiming must NOT have built anything. This is the whole feature: if the
   // slide alone places a depot, the confirm step is decorative.
+  // The aimed state is worth a picture: it is the only moment the confirm bar
+  // is on screen, and on a phone it sits between the board and the drawer.
+  await page.screenshot({ path: `screenshots/e2e-build-aimed${isMobile ? '-phone' : ''}.png` });
   const aimed = await structures();
   check(
     'aiming alone builds nothing',

@@ -136,6 +136,15 @@ try {
   const rowLike = async (needle) =>
     (await labels()).find((l) => l.toUpperCase().includes(needle.toUpperCase())) ?? '';
   const copy = async () => (await texts()).flatMap((t) => t.split('\n')).map((l) => l.trim());
+  /** Poll until a condition holds, or give up. Never a bare sleep. */
+  const until = async (fn, deadlineMs) => {
+    const stop = Date.now() + deadlineMs;
+    for (;;) {
+      if (await fn()) return true;
+      if (Date.now() > stop) return false;
+      await wait(120);
+    }
+  };
   const copyHas = async (needle) =>
     (await copy()).some((t) => t.toUpperCase().includes(needle.toUpperCase()));
   const copyLike = async (needle) =>
@@ -221,10 +230,20 @@ try {
     for (let i = 0; i < 5; i++) await tap('+ RANGER', 250);
     await tap('+ M1 ABRAMS', 400);
     await page.keyboard.press('Space');
-    await wait(2500);
+    // Wait for the REPORT, not for a stopwatch. This used to sleep 2500ms and
+    // then ask whether the post had fallen; on a loaded box the raid had not
+    // finished resolving, so `took` came back false, the order was never
+    // credited, and every check after it failed for a reason that had nothing
+    // to do with day orders.
+    await until(
+      async () => await copyHas('COMMAND POST DESTROYED') || await copyHas('RAID REPELLED'),
+      30000,
+    );
     const took = await copyHas('COMMAND POST DESTROYED');
     await page.keyboard.press('Escape');
-    await wait(2200);
+    // And wait to actually be back on the planner before the caller reads it.
+    await until(async () => !(await copyHas('COMMAND POST DESTROYED')), 15000);
+    await wait(400);
     return took;
   };
 
