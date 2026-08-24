@@ -137,6 +137,32 @@ decision the archetypes exist to create. The **layout** still costs Intel.
 The generator is deterministic in `(tier, variant)`, so scouting, raiding and replaying always
 agree about the world.
 
+**The deal is not yet what this section claims** *(measured v1.21, `npm run balance -- --deal`)*.
+Three targets a rung, drawn from one hardcoded shuffle that never sees the faction, means four of
+these eight shapes ever appear: COMPOUND is dealt on all five rungs, CORRIDOR on four, and
+DISPERSED DEPOT on none at all. The rule above is enforced for **silhouette** and not for
+**difficulty**, so T5 deals BUNKER and STRONGPOINTS together — the two hardest shapes in the
+game, to every faction at once — and a choice between three impossible problems passes the check
+as readily as a real one. Banding the deal by measured difficulty was tried and reverted: a
+faction-blind ordering cannot grade a rung, because the shapes do not order the same way for each
+faction (COMPOUND at T5 measures 100% for the USA and 7% for China). The fix is a deal that sees
+the faction; see the ROADMAP.
+
+### The ladder *(v1.21)*
+
+Tier scales three things, and until v1.21 it scaled them in one lump. `structureLevelFor` steps
+every third rung, and every gun on a base used to step with it at once, which put the whole
+ladder's difficulty into a single rung:
+
+    pool mean, all eight shapes, all five factions
+    before   T1 100  ->  T2 95  ->  T3 74  ->  T4 35  ->  T5 36
+    after    T1 100  ->  T2 95  ->  T3 74  ->  T4 48  ->  T5 46
+
+T4 came out **harder than T5**, so grinding past the wall got you to an easier rung. The upgrade
+now creeps through the gun line instead — a third of it at the ceiling on a band's first rung,
+two thirds on the second, all of it on the third, best positions first, so a raider can read off
+the board which guns are the built-up ones. Same ceiling, three rungs instead of one.
+
 ---
 
 ## 4. Factions

@@ -86,3 +86,30 @@ here with the change and its date.
   than balance — the first read moved both at once and credited the wrong one,
   and a test written against that read passed with the garrison deleted. Move
   one thing. See GDD §5.2c and the 2×2 in `docs/BALANCE.md`.
+- 2026-08-24 — **A clear rate is a count, not a probability.** The balance harness
+  runs 20 seeds × 3 base variants per raid cell and every table in
+  `docs/BALANCE.md` was being read as if that were 60 samples. It is not. A raid
+  with no fire plan draws from the engine's stream exactly once per unit — a
+  ±3-8% speed roll at spawn — and nothing else in it is random. 45% of the 75
+  (faction, tier, variant) matchups return a byte-identical outcome across all 20
+  seeds; one held the same result for 200; 66 of the 75 land on exactly 0% or
+  exactly 100%. The seed does reach the sim — different seeds give different state
+  hashes at every checkpoint, on a board with units on it — it simply washes out.
+  So the variant is the real sample and it is a sample of three: a tier reads in
+  thirds, a five-tier mean moves in steps of 6.7 points, and half of a "34.6-point
+  faction spread" is five matchups flipping. Nothing about determinism changes;
+  what changes is what the number means. `--deal` and the caveat at the top of
+  `docs/BALANCE.md` now say so.
+- 2026-08-24 — **Read the metric a change exists to serve, not the metric it
+  reports.** The front line deals three targets a rung from one hardcoded shuffle
+  that never sees the faction, so four of the eight archetypes ever appear, the
+  depot appears on none, and T5 deals the two hardest shapes together to everybody.
+  Banding the deal by measured difficulty fixed every one of those: the dealt mean
+  tracked the pool at all five rungs, seven of eight shapes entered the rotation,
+  the depot got dealt. It was still wrong. `--parity` — the table the work exists
+  to improve — showed the USA at 100% on every rung and the faction spread widening
+  from 32.6 to 42.0, because a single difficulty ordering averaged across five
+  factions grades a rung for none of them (compound at T5 measures 100% for the USA
+  and 7% for China). Reverted, with the successor specified: the deal has to see
+  the faction. The general lesson is the one the garrison taught in a different
+  costume — a change that improves its own table has not been measured yet.
