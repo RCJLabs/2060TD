@@ -875,7 +875,10 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --delay [faction] for the launch-delay patterns, or
                    # -- --gates [faction] for what a gated ring costs, or
                    # -- --terrain [faction] for flat ground against real, or
-                   # -- --garrison [faction] for what a wall line is worth)
+                   # -- --garrison [faction] for what a wall line is worth, or
+                   # -- --parity for every faction at its own signature line, or
+                   # -- --air [faction] for air against ground, or
+                   # -- --deal for what the front line offers vs what it could)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)

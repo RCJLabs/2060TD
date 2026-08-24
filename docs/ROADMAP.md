@@ -688,14 +688,68 @@ v1.20 with a note saying the balance pass would decide. It has.
       faction-identity one. Whatever closes it has to act on the deep ladder
       without touching the shallow end.*
 
-- [ ] **Close the 34.6-point spread at T3-T5.** USA holds 67-100 across the
-      deep rungs while Russia and the KPA fall to 0. Candidates, in the order
-      they should be measured: the tier scaling on generated bases (does the
-      ladder outrun four kits of five?), the anti-armor requisition curve (the
-      EARLY L2→L3 cliff below is the same shape), and per-faction reference
-      plans that may simply be worse than a real player's. Measure which term
-      does it before tuning any of them — the garrison taught that lesson at
-      some cost.
+- [x] **Measure which term causes the T3-T5 collapse** *(v1.21, `--deal`)* —
+      *none of the three candidates I had listed. Three things, and the
+      instrument was one of them:*
+
+      1. ***The seed decides almost nothing.** A raid with no fire plan draws
+         from the engine's stream exactly once per unit — a ±3-8% speed roll
+         at spawn. Measured: 45% of the 75 (faction, tier, variant) matchups
+         return a byte-identical outcome across 20 different seeds, and one
+         cell held the same result for 200. The seed does reach the sim
+         (different hashes at every checkpoint, 11 units on the field), so
+         this is wash-out and not a plumbing fault. Twenty seeds is nineteen
+         copies.*
+      2. ***So clear% is not a probability.** 66 of 75 matchups land on
+         exactly 0% or exactly 100% — 88% fully decided. The number is a
+         count of winnable matchups wearing a percent sign, moving in steps
+         of 6.7 points on a 15-cell mean. Half the "34.6-point spread" is
+         five matchups flipping.*
+      3. ***And therefore the DEAL is the whole game.** `archetypeFor` picks
+         a rung's three targets from one hardcoded shuffle that never sees
+         the faction, and `TARGETS_PER_TIER` is 3, so every player of every
+         faction meets the same three shapes at a rung forever. What that
+         shuffle actually deals:*
+
+             T1   camp, compound, corridor          dealt 100  pool 100   +0
+             T2   compound, star, corridor          dealt  93  pool  95   -2
+             T3   compound, camp, corridor          dealt  82  pool  74   +8
+             T4   compound, corridor, keep          dealt  36  pool  35   +1
+             T5   compound, bunker, strongpoints    dealt  22  pool  36  -14
+
+      *Four of the eight shapes ever appear. `compound` is dealt on all five
+      rungs, `corridor` on four. **`depot` is never dealt at any tier** — a
+      whole archetype, with its own wall plan and its own economy override,
+      that no player will ever see. And T5 deals the two hardest shapes in
+      the game together, to everyone, which is why China reads 0% there
+      against a pool mean of 8% and read 100% one rung earlier against a pool
+      mean of 33%. Neither number is about the China kit.*
+
+      *`bases.ts` already states the principle this breaks — "a choice between
+      identical problems is not a choice" — and then enforces only half of it.
+      The deal guarantees three distinct SILHOUETTES and says nothing about
+      three distinct DIFFICULTIES, so three shapes that are all impossible
+      pass the check.*
+
+- [x] **The ladder is one cliff, not a curve** *(v1.21, `--deal`)* — *the same
+      pass, measuring every shape at every rung rather than the dealt three:*
+
+          T1 100  ->  T2 95  ->  T3 74  ->  T4 35  ->  T5 36
+                  -5        -21        -39        +1
+
+      *T3→T4 adds a structure level AND a tower; T4→T5 adds nothing but the
+      bunker archetype entering the pool. So **T4 comes out harder than T5**,
+      and a player who grinds past the wall at T4 finds the next rung
+      easier. The whole ladder's difficulty is one step.*
+
+- [ ] **Fix the deal, then the rung.** Two content changes, separable and both
+      measurable with `--deal`. The deal: pick a rung's three targets to span
+      the measured difficulty band rather than to be three arbitrary distinct
+      silhouettes, so every rung offers a fight you can take and one you have
+      to prepare for — and so the depot gets dealt. The rung: spread the
+      T3→T4 step across T3, T4 and T5 so the ladder climbs instead of
+      cliffing. Re-measure parity afterwards: the 34.6-point spread is partly
+      the deal and it is not yet known how much survives fixing it.
 
 - [ ] **Russia, which v1.20 moved.** It came out ~10 points easier because it
       was the hardest faction and the gun trade helps a struggling force more

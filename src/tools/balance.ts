@@ -16,6 +16,8 @@ import { GARRISON_GUN_TRADE } from '../content/garrison';
 import {
   generateBase,
   ARCHETYPES,
+  TARGETS_PER_TIER,
+  archetypeFor,
   MAP_W,
   type ArchetypeId,
   type GeneratedBase,
@@ -779,6 +781,154 @@ function airTable(faction: FactionId): string {
 }
 
 /**
+ * The deal (v1.21): what the front line OFFERS against what the generator can
+ * BUILD. This table exists because a session spent chasing a "T3-T5 collapse"
+ * turned out to be chasing this, and nothing already in the harness could
+ * have shown it.
+ *
+ * Three facts have to sit together before the numbers below read correctly.
+ *
+ * ONE — the seed decides almost nothing. A raid with no fire plan draws from
+ * the engine's stream exactly once per unit: a +/-3..8% speed roll at spawn
+ * (`engine.ts:554`). Barrage scatter (`:944`) needs a barrage and these runs
+ * have none. Measured: 45% of the 75 (faction, tier, variant) matchups return
+ * a BYTE-IDENTICAL outcome across 20 different seeds, and one cell held the
+ * same result for 200. The seed does reach the sim — different seeds give
+ * different state hashes at every checkpoint, on a board with 11 units on it —
+ * so this is wash-out, not a plumbing fault. Twenty seeds is nineteen copies.
+ *
+ * TWO — 88% of matchups are FULLY decided: 66 of 75 land on exactly 0% or
+ * exactly 100%. So `clearPct` is not a probability. It is a count of winnable
+ * matchups wearing a percent sign, and on a 15-cell mean it moves in steps of
+ * 6.7 points. Half the "34.6-point spread" between the best and worst faction
+ * is five matchups flipping.
+ *
+ * THREE — and therefore the three shapes a tier deals matter more than
+ * anything else about it. `archetypeFor` deals them from ONE hardcoded
+ * shuffle that does not take the faction, and `TARGETS_PER_TIER` is 3, so
+ * every player of every faction meets the same three shapes at a rung,
+ * forever, and never sees a fourth.
+ *
+ * The deal is not representative and the skew is systematic. Ranking each
+ * dealt shape inside a pool of twelve variants, worst first:
+ *
+ *     CHINA T4  dealt rank 9, 9, 9 of 12  ->  100% clear, pool mean 33%
+ *     CHINA T5  dealt rank 1, 1, 1 of 12  ->    0% clear, pool mean  8%
+ *     NK    T4  dealt rank 1, 1, 1 of 12  ->    0% clear, pool mean 25%
+ *     RUSSIA T4 dealt rank 12, 1, 1 of 12 ->   33% clear, pool mean 10%
+ *
+ * A China player walks from a rung where every target is trivial onto one
+ * where every target is impossible, and neither rung says anything about the
+ * China kit. `bases.ts` already states the principle this breaks — "a choice
+ * between identical problems is not a choice" — and then enforces only half
+ * of it: the deal guarantees three distinct SILHOUETTES and says nothing
+ * about three distinct DIFFICULTIES, so three shapes that are all impossible
+ * pass the check.
+ *
+ * The RUNG block underneath measures the ladder itself, every shape at every
+ * tier, and finds the other half of the problem: the difficulty step is one
+ * cliff rather than a curve. T3->T4 adds a structure level AND a tower;
+ * T4->T5 adds nothing but the bunker archetype entering the pool. T4 comes
+ * out HARDER than T5.
+ *
+ * Seeds are deliberately few here. Spending twenty of them on a roll that
+ * decides nothing, to sample a variant axis that decides everything, is the
+ * mistake this table was written to stop making.
+ */
+const DEAL_SEEDS = 5;
+
+/** Clear% for one (faction, tier, shape), averaged over the three variants. */
+function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): number {
+  const tunneled = faction === 'nk';
+  let cleared = 0;
+  let runs = 0;
+  for (let variant = 0; variant < VARIANTS; variant++) {
+    const base = generateBase(tier, variant, baseKitFor(faction), shape);
+    const squads = (tunneled ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction]).map(
+      (squad, at) => ({ ...squad, slot: at }),
+    );
+    for (let i = 0; i < DEAL_SEEDS; i++) {
+      const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+      if (resolveRaid(config, squads, tier, raidCatalogFor(faction)).cleared) cleared++;
+      runs++;
+    }
+  }
+  return runs > 0 ? (cleared / runs) * 100 : 0;
+}
+
+function dealTable(): string {
+  // One measurement pass feeds both blocks: shape x tier, averaged over all
+  // five factions so the number describes the SHAPE and not somebody's kit.
+  const byShape = new Map<ArchetypeId, number[]>();
+  for (const arch of ARCHETYPES) {
+    const perTier: number[] = [];
+    for (const tier of RAID_TIERS) {
+      const cells = FACTION_IDS.map((f) => shapeClear(f, tier, arch.id));
+      perTier.push(cells.reduce((a, b) => a + b, 0) / cells.length);
+    }
+    byShape.set(arch.id, perTier);
+  }
+
+  const lines = [
+    'THE DEAL — the three targets a rung offers vs the eight it could offer',
+    `SHAPE        | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | DEALT ON`,
+    `-------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
+  ];
+
+  // Which tiers each shape is actually dealt on, so "never offered" is visible.
+  const dealtOn = new Map<ArchetypeId, number[]>();
+  for (const tier of RAID_TIERS) {
+    for (let v = 0; v < TARGETS_PER_TIER; v++) {
+      const id = archetypeFor(tier, v).id;
+      (dealtOn.get(id) ?? dealtOn.set(id, []).get(id)!).push(tier);
+    }
+  }
+
+  const ranked = [...byShape.entries()]
+    .map(([id, ts]) => [id, ts.reduce((a, b) => a + b, 0) / ts.length] as const)
+    .sort((a, b) => a[1] - b[1]);
+  for (const [id, mean] of ranked) {
+    const ts = byShape.get(id)!;
+    const on = dealtOn.get(id) ?? [];
+    lines.push(
+      `${id.padEnd(12)} | ${ts.map((t) => pad(t.toFixed(0), 5)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${on.length > 0 ? on.map((t) => `T${t}`).join(',') : '— never —'}`,
+    );
+  }
+
+  lines.push('');
+  lines.push('WHAT THE RUNG OFFERS — dealt three vs the whole pool at that tier');
+  lines.push('TIER | DEALT SHAPES                         | DEALT | POOL |   GAP');
+  lines.push('-----+--------------------------------------+-------+------+------');
+  for (const tier of RAID_TIERS) {
+    const dealt = Array.from({ length: TARGETS_PER_TIER }, (_, v) => archetypeFor(tier, v).id);
+    const pool = ARCHETYPES.filter((a) => a.fromTier <= tier).map((a) => a.id);
+    const at = (id: ArchetypeId): number => byShape.get(id)![RAID_TIERS.indexOf(tier)]!;
+    const dealtMean = dealt.reduce((a, id) => a + at(id), 0) / dealt.length;
+    const poolMean = pool.reduce((a, id) => a + at(id), 0) / pool.length;
+    lines.push(
+      `T${tier}   | ${dealt.join(', ').padEnd(36)} | ${pad(dealtMean.toFixed(0), 5)} | ` +
+        `${pad(poolMean.toFixed(0), 4)} | ${pad((dealtMean - poolMean >= 0 ? '+' : '') + (dealtMean - poolMean).toFixed(0), 5)}`,
+    );
+  }
+
+  const rungs = RAID_TIERS.map((tier) => {
+    const pool = ARCHETYPES.filter((a) => a.fromTier <= tier).map((a) => a.id);
+    return pool.reduce((a, id) => a + byShape.get(id)![RAID_TIERS.indexOf(tier)]!, 0) / pool.length;
+  });
+  lines.push('');
+  lines.push(
+    `THE LADDER, pool mean per rung: ${rungs.map((r, i) => `T${RAID_TIERS[i]} ${r.toFixed(0)}`).join('  ->  ')}`,
+  );
+  const steps = rungs.slice(1).map((r, i) => r - rungs[i]!);
+  lines.push(
+    `STEP SIZE: ${steps.map((s, i) => `T${RAID_TIERS[i]}->T${RAID_TIERS[i + 1]} ${s >= 0 ? '+' : ''}${s.toFixed(0)}`).join('  ')}` +
+      ' — a ladder should not have a flat rung or a rung that goes back up.',
+  );
+  return lines.join('\n');
+}
+
+/**
  * Faction parity (v1.21): every faction measured at its OWN best line.
  *
  * The trap this table exists to avoid: the plain RAID rows are not
@@ -981,6 +1131,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--deal')) {
+    console.log(dealTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--parity')) {
     console.log(parityTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -1077,6 +1232,11 @@ function main(): void {
   // factions, and reading them as if they were is what made the KPA look
   // twice as broken as it is.
   sections.push(parityTable());
+  // And before any faction row is read as a verdict on a KIT: this is what the
+  // front line actually deals. Four of the eight shapes, compound five times,
+  // the depot never, and the two hardest shapes in the game landing together
+  // on T5 for every faction at once.
+  sections.push(dealTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));
