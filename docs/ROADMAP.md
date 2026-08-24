@@ -926,15 +926,65 @@ v1.20 with a note saying the balance pass would decide. It has.
       as the faction and the gap as the error bar that belongs on every
       cross-faction number.*
 
-- [ ] **The UN is still the floor at its own best plan: 55.0 against 62-77.**
-      Refuted so far: demolition (saturated), bulk (at parity), gun damage
-      (above the mean), the medics (net positive — removing them costs 3.5),
-      and per-unit value (a Leopard is 93 HP/MP against an Abrams' 88). What
-      is left to look at: the UN reaches the command post in only 54% of raids
-      against the USA's 68%, and takes 1591 ticks to the USA's 1176 on the same
-      bases — it is not that its units are weak, it is that its raids take a
-      third longer and more of them stall before the objective. Find what the
-      clock is being spent on before touching a stat.
+- [x] **Where the UN's clock goes** *(v1.21, `--structure`)* — *split at the
+      moment the command post first takes damage, and the approach turns out
+      not to be the problem at all:*
+
+          force   arrived%   approach   alive on arrival   fight at post   total
+          USA         68.2        619                3.2             716    1176
+          UN          54.2        777                3.7            1245    1596
+
+      *The UN arrives 26% later with MORE of its force intact and then takes
+      **74% longer to finish the objective**. No raid on either side ever hits
+      the 6000-tick cap, so this is uniformly slower fighting rather than a few
+      stragglers.*
+
+- [x] **What kills a command post, and the flag nobody chose** *(v1.21)* —
+      *two channels, neither of them obvious. Ranged fire goes through
+      `DAMAGE_MULT`, which discounts hard against a structure: smallArms 0.15,
+      flak 0.1, kinetic 0.5, shaped 0.8, explosive 1.0. Melee (`hqDps`) ignores
+      the table entirely but only fires when a unit is ADJACENT
+      (`engine.ts:1324`), which in practice only the heavy manages — it lands
+      60-84% of the killing blows.*
+
+      *That makes the heavy's damage type one of the largest single numbers in
+      the game, and it reads as flavour text. Swapping only that flag:*
+
+          faction   fires       shipping   all explosive   all kinetic   swing
+          USA       explosive       51.6            51.6          41.1   +10.4
+          CHINA     explosive       52.6            52.6          35.9   +16.7
+          RUSSIA    kinetic         50.5            62.5          50.5   +12.0
+          NK        kinetic         55.7            59.4          55.7    +3.6
+          UN        kinetic         29.7            37.0          29.7    +7.3
+
+      *Three factions pay an undocumented tax of up to 16.7 points on a field
+      that looks like tank trivia. **It is not the UN's answer** — the UN is
+      last under every uniform setting — it is a fairness defect of its own.*
+
+      *And one that looked obvious and was wrong: the USA Ranger does 22 hqDps
+      where every other faction's basic infantry does 8-16, as much melee as
+      the UN's TANK. Giving the Peacekeeper the Ranger's figure is worth -0.4,
+      because the infantry mostly never reach the post to spend it. The control
+      — the same +10 handed to a medic, which closes on nothing — moved 0.0.*
+
+- [ ] **Decide the heavy's damage type deliberately.** Three factions are
+      halved against the one structure every raid has to kill, and nobody
+      picked that. Normalising to explosive gives Russia +12.0, the KPA +3.6
+      and the UN +7.3 and would need a re-tune of the ladder underneath it;
+      normalising to kinetic costs the USA 10.4 and China 16.7. A third option
+      is to keep the split and *price* it — the flag is a real faction
+      identity, it is simply an unpriced one. Whichever way, `--plans` says the
+      faction ordering is not yet a reliable target, so settle the plans first.
+
+- [ ] **The UN's floor is still unexplained.** Eliminated across #128 and #129:
+      demolition (both stats saturate), bulk (HP at parity), gun damage (above
+      the mean), the medics (net positive), per-unit value (a Leopard is 93
+      HP/MP against an Abrams' 88), infantry melee (-0.4), and the heavy's
+      damage type (worth +7.3, still leaves it last). It is 74% slower at the
+      objective than the USA with more units alive when it gets there, and no
+      single stat accounts for it. The next candidate is composition rather
+      than stats: the UN fields three unarmed body types where the USA fields
+      two, and a medic that heals rather than shoots.
 
 - [x] **What the wall line is actually worth, and what v1.20 could not have
       known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line

@@ -13,6 +13,7 @@
 import { writeFileSync } from 'node:fs';
 import { buildAssault } from '../content/assaults';
 import { GARRISON_GUN_TRADE } from '../content/garrison';
+import { DAMAGE_MULT } from '../content/damage';
 import {
   generateBase,
   ARCHETYPES,
@@ -53,6 +54,7 @@ import type {
   SimConfig,
   StandingOrders,
   Catalog,
+  DamageType,
 } from '../sim/types';
 
 const SEEDS = 20;
@@ -860,6 +862,108 @@ function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): numbe
 }
 
 /**
+ * What actually kills a command post, and what that costs each faction (v1.21).
+ *
+ * Chasing the UN's floor split its clock at the moment the post first takes
+ * damage. The approach is not the problem — the UN arrives 26% later but with
+ * MORE of its force intact (3.7 units against the USA's 3.2). The fight AT the
+ * objective is 74% longer: 1245 ticks against 716.
+ *
+ * So: what kills a post? Two channels, and they are not the obvious ones.
+ * Ranged fire goes through `DAMAGE_MULT`, which discounts everything hard
+ * against a structure — smallArms 0.15, flak 0.1, kinetic 0.5, shaped 0.8,
+ * explosive 1.0. Melee (`hqDps`) bypasses the table entirely, but only fires
+ * when an attacker is ADJACENT (`engine.ts:1324`), which in practice only the
+ * heavy manages: it lands 60-84% of killing blows.
+ *
+ * Which makes the heavy's damage type one of the largest single numbers in the
+ * game, and it was chosen for flavour. USA and China fire explosive at x1.0;
+ * Russia, the KPA and the UN fire kinetic at x0.5. Swapping only that flag:
+ *
+ *     faction   fires       shipping   all explosive   all kinetic   swing
+ *     USA       explosive       51.6            51.6          41.1   +10.4
+ *     CHINA     explosive       52.6            52.6          35.9   +16.7
+ *     RUSSIA    kinetic         50.5            62.5          50.5   +12.0
+ *     NK        kinetic         55.7            59.4          55.7    +3.6
+ *     UN        kinetic         29.7            37.0          29.7    +7.3
+ *
+ * Read that as an argument about fairness, not about the UN. Normalising the
+ * flag does NOT close the UN's floor — it is last under every uniform setting —
+ * and it would hand Russia twelve points. What it says is that three factions
+ * are paying a large, undocumented tax on a field that reads as flavour text.
+ *
+ * Also settled here, because it looked obvious and was wrong: the USA Ranger
+ * does 22 hqDps where every other faction's basic infantry does 8-16, as much
+ * melee as the UN's TANK. Giving the Peacekeeper the Ranger's figure is worth
+ * -0.4. Infantry melee is not the term; only the unit that reaches the post
+ * spends it, and the infantry mostly do not get there.
+ */
+function structureTable(): string {
+  const swapHeavy = (cat: Catalog, to: string): Catalog => ({
+    ...cat,
+    attackers: Object.fromEntries(
+      Object.entries(cat.attackers).map(([kind, p]) => [
+        kind,
+        p.armor === 'heavy' && p.weapon
+          ? { ...p, weapon: { ...p.weapon, damageType: to as DamageType } }
+          : p,
+      ]),
+    ),
+  });
+  const run = (faction: FactionId, cat: Catalog): number => {
+    let cleared = 0;
+    let runs = 0;
+    for (const tier of [2, 3, 4, 5]) {
+      for (const arch of ARCHETYPES) {
+        for (let v = 0; v < 2; v++) {
+          const base = generateBase(tier, v, baseKitFor(faction), arch.id);
+          const squads = (
+            faction === 'nk' ? tunnelPlanFor('nk', base, tier) : RAID_PLANS[faction]
+          ).map((s, at) => ({ ...s, slot: at }));
+          for (let i = 0; i < 3; i++) {
+            const config = raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction));
+            if (resolveRaid(config, squads, tier, cat).cleared) cleared++;
+            runs++;
+          }
+        }
+      }
+    }
+    return runs > 0 ? (cleared / runs) * 100 : 0;
+  };
+
+  const lines = [
+    'WHAT KILLS A COMMAND POST — the heavy\'s damage type, which was picked for flavour',
+    'FACTION | HEAVY FIRES | vs STRUCT | SHIPPING | ALL EXPLOSIVE | ALL KINETIC | SWING',
+    '--------+-------------+-----------+----------+---------------+-------------+------',
+  ];
+  let widest = 0;
+  for (const faction of FACTION_IDS) {
+    const cat = raidCatalogFor(faction);
+    const heavy = Object.values(cat.attackers).find((p) => p.armor === 'heavy');
+    const type = heavy?.weapon?.damageType ?? '—';
+    const mult = (DAMAGE_MULT as Record<string, Record<string, number>>)[type]?.structure ?? 1;
+    const now = run(faction, cat);
+    const exp = run(faction, swapHeavy(cat, 'explosive'));
+    const kin = run(faction, swapHeavy(cat, 'kinetic'));
+    widest = Math.max(widest, exp - kin);
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} | ${pad(type, 11)} | ${pad(`x${mult}`, 9)} | ${pad(now.toFixed(1), 8)} | ` +
+        `${pad(exp.toFixed(1), 13)} | ${pad(kin.toFixed(1), 11)} | ${pad(`+${(exp - kin).toFixed(1)}`, 5)}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    `ONE FLAG ON ONE UNIT IS WORTH UP TO ${widest.toFixed(1)} POINTS. Ranged fire is discounted ` +
+      'against structures (smallArms 0.15, kinetic 0.5, explosive 1.0); melee ignores the table but',
+  );
+  lines.push(
+    '  only fires when adjacent, which in practice only the heavy manages — it lands 60-84% of the ' +
+      'killing blows. Normalising the flag does NOT lift the UN off the floor.',
+  );
+  return lines.join('\n');
+}
+
+/**
  * A SECOND plan per faction, built to one recipe rather than by hand (v1.21).
  *
  * The five reference plans above were written one at a time, and they are not
@@ -1408,6 +1512,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--structure')) {
+    console.log(structureTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--plans')) {
     console.log(planTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -1533,6 +1642,8 @@ function main(): void {
   sections.push(kitTable());
   // And the error bar that belongs on every faction row above.
   sections.push(planTable());
+  // …and the single largest number in the game that nobody chose deliberately.
+  sections.push(structureTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));

@@ -158,3 +158,19 @@ here with the change and its date.
   pointed at it for eleven releases, and the reason it went unnoticed is that
   every table in the harness measured factions against their OWN front and
   never across.
+- 2026-08-24 — **A command post is killed by melee, and the heavy's damage type
+  is one of the largest numbers in the game.** Ranged fire goes through
+  `DAMAGE_MULT` and is discounted hard against a structure — smallArms 0.15,
+  flak 0.1, kinetic 0.5, explosive 1.0. Melee (`hqDps`) ignores the table
+  entirely but only fires when a unit is adjacent, which in practice only the
+  heavy manages: it lands 60-84% of the killing blows. So the flag naming what
+  a tank shoots decides how fast that faction can end a raid, and it was picked
+  for flavour — USA and China fire explosive at full value, Russia, the KPA and
+  the UN fire kinetic at half. Swapping only that flag is worth +3.6 to +16.7
+  clear-rate points. Nothing is being changed on the strength of this yet,
+  because `--plans` says the faction ordering is not a reliable target until
+  the reference plans are settled; what is recorded is that three factions pay
+  a large undocumented tax on a field that reads as tank trivia. The general
+  rule, and the third instance of it this milestone: a number that looks like
+  flavour can be load-bearing, and the way to find out is to swap it and
+  measure rather than to reason about what it obviously does.
