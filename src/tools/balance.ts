@@ -778,6 +778,77 @@ function airTable(faction: FactionId): string {
   return lines.join('\n');
 }
 
+/**
+ * Faction parity (v1.21): every faction measured at its OWN best line.
+ *
+ * The trap this table exists to avoid: the plain RAID rows are not
+ * like-for-like. They walk each faction's reference force up to the wire the
+ * same way, which flatters the factions whose plan IS to walk up to the wire
+ * and buries the ones whose whole design is to do something else. NK reads
+ * 29.4 walking in and 52.2 through a tunnel — a 22.8-point swing — and its
+ * own GDD entry says "the maze doesn't matter if you're under it". Reading
+ * the 29.4 as NK's strength is reading a mistake, not a faction.
+ *
+ * So each row here uses the signature the faction is built around: a tunnel
+ * for the KPA, and the plain approach for everyone whose plan that is. The
+ * spread between these rows is the number parity work has to close.
+ */
+function parityTable(): string {
+  const lines = [
+    'PARITY — every faction at its own best line, same manpower, same ladder',
+    `FACTION     | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST% | LINE`,
+    `------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+----------+------`,
+  ];
+
+  const results: { faction: FactionId; mean: number }[] = [];
+  for (const faction of FACTION_IDS) {
+    // The KPA's signature is the tunnel; everyone else's plan is the approach.
+    const tunneled = faction === 'nk';
+    const clears: number[] = [];
+    let sent = 0;
+    let home = 0;
+    for (const tier of RAID_TIERS) {
+      let cleared = 0;
+      let runs = 0;
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        const base = generateBase(tier, variant, baseKitFor(faction));
+        const squads = (
+          tunneled ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction]
+        ).map((squad, at) => ({ ...squad, slot: at }));
+        for (let i = 0; i < SEEDS; i++) {
+          const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+          const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
+          for (const ret of res.squads) {
+            home += ret.returned;
+            sent += ret.deployed;
+          }
+          if (res.cleared) cleared++;
+          runs++;
+        }
+      }
+      clears.push(runs > 0 ? Math.round((cleared / runs) * 100) : 0);
+    }
+    const mean = clears.reduce((a, b) => a + b, 0) / clears.length;
+    results.push({ faction, mean });
+    lines.push(
+      `${pad(flavorFor(faction).faction.slice(0, 11), 11)} | ${clears.map((c) => pad(c, 5)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(sent > 0 ? Math.round((1 - home / sent) * 100) : 0, 8)} | ` +
+        `${tunneled ? 'TUNNEL' : 'GROUND'}`,
+    );
+  }
+
+  const best = Math.max(...results.map((r) => r.mean));
+  const worst = Math.min(...results.map((r) => r.mean));
+  lines.push('');
+  lines.push(
+    `SPREAD — ${(best - worst).toFixed(1)} points between ` +
+      `${results.find((r) => r.mean === best)!.faction.toUpperCase()} and ` +
+      `${results.find((r) => r.mean === worst)!.faction.toUpperCase()}. ` +
+      'Five kits differing in STYLE (GDD §4) should not differ this much in ODDS.',
+  );
+  return lines.join('\n');
+}
+
 function delayTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const PATTERNS: { name: string; delays: number[] }[] = [
@@ -910,6 +981,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--parity')) {
+    console.log(parityTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--air')) {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(airTable(pick));
@@ -997,6 +1073,10 @@ function main(): void {
   sections.push(conditionTable('usa'));
   // The ground has to be a trade, and the reading is the SPREAD, not the mean.
   sections.push(terrainTable('usa'));
+  // Like-for-like first: the plain RAID rows below are NOT comparable across
+  // factions, and reading them as if they were is what made the KPA look
+  // twice as broken as it is.
+  sections.push(parityTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));

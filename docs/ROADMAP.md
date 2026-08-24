@@ -664,11 +664,38 @@ v1.20 with a note saying the balance pass would decide. It has.
       expects you. If AA closes the clear-rate gap and leaves the casualty gap,
       that is the right shape and the work is done.
 
-- [ ] **Close the faction spread, hardest first.** NK at 29.4 with 90.6%
-      losses is the priority and is also unmeasurable where it matters: T3, T4
-      and T5 all sit at 0%, and a multiplier is invisible at the floor — the
-      same artifact the first veterancy table hit. The reference plan has to
-      come off the floor before any of its numbers mean anything.
+- [x] **Measure like-for-like first, because the plain rows are not**
+      *(v1.21)* — *the RAID tables walk every faction's reference force up to
+      the wire the same way, which flatters the factions whose plan IS that and
+      buries the ones built to do something else. The KPA reads 29.4 walking
+      in and 52.2 through a tunnel, a 22.8-point swing, and its own GDD entry
+      says "the maze doesn't matter if you're under it" — so 29.4 was
+      measuring a mistake rather than a faction. `--parity` runs each faction
+      at its own signature line. The spread is 34.6 points, not the 57 the
+      mismatched rows suggested:*
+
+          faction   mean   lost%   line
+          USA       86.8      81   ground
+          China     74.6      88   ground
+          UN        64.6      79   ground
+          Russia    52.2      90   ground
+          NK        52.2      85   tunnel
+
+      *Two things fall out. The KPA is NOT uniquely broken — it ties Russia,
+      which is the faction v1.20's gun trade moved UP by ten points and which
+      was worse before that. And every faction clears 100% at T1 and T2: the
+      entire spread lives at T3-T5, so this is a SCALING problem rather than a
+      faction-identity one. Whatever closes it has to act on the deep ladder
+      without touching the shallow end.*
+
+- [ ] **Close the 34.6-point spread at T3-T5.** USA holds 67-100 across the
+      deep rungs while Russia and the KPA fall to 0. Candidates, in the order
+      they should be measured: the tier scaling on generated bases (does the
+      ladder outrun four kits of five?), the anti-armor requisition curve (the
+      EARLY L2→L3 cliff below is the same shape), and per-faction reference
+      plans that may simply be worse than a real player's. Measure which term
+      does it before tuning any of them — the garrison taught that lesson at
+      some cost.
 
 - [ ] **Russia, which v1.20 moved.** It came out ~10 points easier because it
       was the hardest faction and the gun trade helps a struggling force more
