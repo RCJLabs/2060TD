@@ -137,16 +137,25 @@ decision the archetypes exist to create. The **layout** still costs Intel.
 The generator is deterministic in `(tier, variant)`, so scouting, raiding and replaying always
 agree about the world.
 
-**The deal is not yet what this section claims** *(measured v1.21, `npm run balance -- --deal`)*.
-Three targets a rung, drawn from one hardcoded shuffle that never sees the faction, means four of
-these eight shapes ever appear: COMPOUND is dealt on all five rungs, CORRIDOR on four, and
-DISPERSED DEPOT on none at all. The rule above is enforced for **silhouette** and not for
-**difficulty**, so T5 deals BUNKER and STRONGPOINTS together — the two hardest shapes in the
-game, to every faction at once — and a choice between three impossible problems passes the check
-as readily as a real one. Banding the deal by measured difficulty was tried and reverted: a
-faction-blind ordering cannot grade a rung, because the shapes do not order the same way for each
-faction (COMPOUND at T5 measures 100% for the USA and 7% for China). The fix is a deal that sees
-the faction; see the ROADMAP.
+**The deal spans difficulty, per faction** *(v1.21)*. Until v1.21 the rule above was enforced for
+**silhouette** and not for difficulty: three targets came off one hardcoded shuffle that never saw
+the faction, so four of these eight shapes ever appeared, DISPERSED DEPOT appeared on no rung at
+all, and T5 dealt BUNKER and STRONGPOINTS together — the two hardest shapes in the game, to
+everyone at once. A choice between three impossible problems passed the check as readily as a real
+one.
+
+A rung's pool is now ranked by what each shape costs **that faction**, cut into three bands, and
+one target drawn from each: slot 0 is the heavy fight, slot 2 the one you can take today, slot 1
+the reason to think about it. The ordering has to be per faction because the shapes genuinely do
+not order the same way — a KEEP is the hardest thing Russia meets and mid-table for the USA, and a
+CAMP is everyone's breather and the USA's third-hardest target. A single ordering averaged across
+the five was tried first and graded a rung for nobody. All eight shapes now reach a player, and
+each faction's three targets sit within a few points of its own pool mean.
+
+Two players of different factions therefore see different front lines at the same rung. That is
+correct — they are fighting different enemies — and nothing in the codecs depends on it, since
+share codes and replay codes both carry a layout cell by cell rather than a `(tier, variant)` to
+re-generate from.
 
 ### The ladder *(v1.21)*
 

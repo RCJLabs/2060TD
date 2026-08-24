@@ -790,9 +790,62 @@ v1.20 with a note saying the balance pass would decide. It has.
       *Modest, and it moves the bottom rather than the top, which is the shape
       a parity fix should have.*
 
-- [ ] **A faction-blind deal cannot grade a rung — try again with the faction
-      in hand.** *Attempted in v1.21, measured, and reverted rather than
-      shipped; what it established is worth more than the code was.*
+- [x] **A faction-blind deal cannot grade a rung — done again with the faction
+      in hand** *(v1.21, `--pressure`)* — *the ordering is per faction now,
+      printed by the harness as a paste-ready literal so the numbers reach
+      content without being hand-copied. Each faction's three targets sit
+      close to its own pool mean (USA -0.7, Russia +2.9, NK +1.4, UN -1.7,
+      China -6.9), and all eight shapes reach a player somewhere.*
+
+      ***And parity got worse, on purpose.** 32.6 out to 40.6 — but read the
+      rows, not the spread:*
+
+          before (blind deal)        after (per faction)
+          USA     86.8               USA     98.6
+          China   74.2               Russia  65.6
+          UN      71.8               UN      63.8
+          NK      58.8               China   63.6
+          Russia  54.2               NK      58.0
+
+      *A smear across 32.6 points became one outlier and a cluster inside 7.6.
+      The old deal was accidentally handing the USA hard shapes and the KPA
+      easy ones, and that was masking the real state of things: measured
+      against its own pool the USA reference force clears ~92% while everyone
+      else sits at 39-53%. **The spread is one faction, not five.** That is a
+      far better problem to have than the one the number used to describe.*
+
+- [ ] **The USA is the outlier — 98.6 against a cluster at 58-66.** Nothing in
+      the deal can fix it: the USA reference force beats five of the eight
+      shapes outright, so bands 1 and 2 are trivial whatever is drawn into
+      them, and the pool has no harder shape to offer. It is the roster, the
+      reference plan, or the China base kit it is measured against. Measure
+      which before touching any of them.
+
+- [x] **What the wall line is actually worth, and what v1.20 could not have
+      known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line
+      worth -5.2 at full gun strength and +7.3 after `GARRISON_GUN_TRADE`. The
+      seed finding above says that instrument cannot resolve a 7-point effect —
+      a 15-cell near-binary mean moves in steps of 6.7 — and read per faction on
+      current content it gives +1.4 for the USA, -8.8 for China and -11.2 for
+      the KPA. The wall line was never resolved either way. The test asserting
+      its sign was asserting noise, which is exactly why it broke on every
+      content change this milestone made.*
+
+      *Both headline assertions moved onto continuous measures, where the
+      mechanism is visible and stable. A wall spends the attacker's TIME:
+      ticks-to-first-loss says walls buy between +4.9% and +13.2%, same sign
+      for every faction, garrison on or off. The gun trade buys the attacker
+      survival, and DESTR% sees that where a clear flag cannot. Each still
+      moves one thing and each fails when that thing is removed.*
+
+      *A footnote with teeth: the first draft of the tick measure watched
+      `structures.length`, which RISES when the garrison deploys a reserve, so
+      it ran straight past the loss and credited reinforcements to the wall.
+      It reported +8% where the truth was +0%. Tracking the structures standing
+      at the start fixes it.*
+
+- [ ] **Reverted first attempt, kept for the record.** *What a faction-blind
+      band established before it was thrown away.*
 
       *The change: give each archetype a `pressure` (1-8, ordered to the
       measured `--deal` ranking, averaged over the rungs where the shape can

@@ -113,3 +113,30 @@ here with the change and its date.
   and 7% for China). Reverted, with the successor specified: the deal has to see
   the faction. The general lesson is the one the garrison taught in a different
   costume — a change that improves its own table has not been measured yet.
+- 2026-08-24 — **The front line sees the faction.** A rung's three targets used
+  to come off one hardcoded shuffle that never saw who was raiding, so four of
+  the eight archetypes ever appeared, the dispersed depot appeared on no rung at
+  all, and T5 dealt the two hardest shapes in the game together to everybody.
+  Banding by difficulty fixed the silhouette problem and not the real one: the
+  shapes do not order the same way for each faction — a keep is the hardest
+  thing Russia meets and mid-table for the USA — so one averaged ordering grades
+  a rung for nobody, and the first attempt put the USA at 100% on every rung.
+  The ordering is per faction now, measured by `npm run balance -- --pressure`
+  and printed as a paste-ready literal rather than hand-copied. Two players of
+  different factions see different front lines at the same rung, which is
+  correct: they are fighting different enemies. Nothing in the codecs depends on
+  it — share codes and replay codes carry a layout cell by cell, not a
+  `(tier, variant)` to re-generate from.
+- 2026-08-24 — **v1.20's wall line was never resolved, and the correction is the
+  point.** That release shipped on a clear-rate reading — the wall line worth
+  -5.2 at full gun strength and +7.3 after `GARRISON_GUN_TRADE`. The seed
+  finding above says a 15-cell near-binary mean moves in steps of 6.7 points and
+  therefore cannot resolve a 7-point effect; read per faction on current content
+  the same statistic gives +1.4 for the USA, -8.8 for China and -11.2 for the
+  KPA. The claim was not wrong so much as unsupported at the resolution it was
+  made. Nothing about the design changes — a wall still spends the attacker's
+  time and the gun trade still buys the attacker survival — but both are now
+  asserted on continuous measures that can see them: ticks-to-first-loss (walls
+  buy +4.9% to +13.2%, same sign everywhere) and destruction share. The general
+  rule this leaves behind: before believing an effect, check that the instrument
+  can resolve something that small.
