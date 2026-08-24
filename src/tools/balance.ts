@@ -707,6 +707,77 @@ function garrisonTable(faction: FactionId): string {
   return lines.join('\n');
 }
 
+/**
+ * Air against ground (v1.21), and whether the garrison can answer it.
+ *
+ * Measured after v1.20, air was the dominant doctrine almost everywhere: it
+ * cleared as often or better than a ground push for four factions of five and
+ * cost far fewer men in all five. The garrison could not answer it at all —
+ * `manpads` sat in the reserve with no doctrine calling for it, because a
+ * standing-order rule had no way to ask what it would be shooting at.
+ *
+ * The row to read is the EDGE: air's clear rate minus ground's. It should not
+ * be a large positive number, and it should not swing to a large negative one
+ * either — air is meant to buy speed and survival (fewer men lost) rather
+ * than better odds against a post that expects it.
+ */
+function airTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  const lines = [
+    `AIR — the ${flavor.faction} reference force vs ${flavor.enemy} posts, with and without AA`,
+    `FORCE       | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST%`,
+    `------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
+  ];
+
+  const row = (label: string, plans: SquadPlan[], aa: boolean): number => {
+    const clears: number[] = [];
+    let sent = 0;
+    let home = 0;
+    for (const tier of RAID_TIERS) {
+      let cleared = 0;
+      let runs = 0;
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        const base = generateBase(tier, variant, baseKitFor(faction));
+        for (let i = 0; i < SEEDS; i++) {
+          const squads = plans.map((squad, at) => ({ ...squad, slot: at }));
+          const built = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+          // The control strips the AA order back out, which is what every
+          // garrison looked like in v1.20.
+          const g = built.garrison!;
+          const config: SimConfig = aa
+            ? built
+            : { ...built, garrison: { ...g, rules: g.rules.filter((r) => r.hostiles !== 'air') } };
+          const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
+          for (const ret of res.squads) {
+            home += ret.returned;
+            sent += ret.deployed;
+          }
+          if (res.cleared) cleared++;
+          runs++;
+        }
+      }
+      clears.push(runs > 0 ? Math.round((cleared / runs) * 100) : 0);
+    }
+    const mean = clears.reduce((a, b) => a + b, 0) / clears.length;
+    lines.push(
+      `${pad(label, 11)} | ${clears.map((c) => pad(c, 5)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(sent > 0 ? Math.round((1 - home / sent) * 100) : 0, 8)}`,
+    );
+    return mean;
+  };
+
+  const ground = row('GROUND', RAID_PLANS[faction], true);
+  const airBare = row('AIR no AA', AIR_RAID_PLANS[faction], false);
+  const airAA = row('AIR +AA', AIR_RAID_PLANS[faction], true);
+  lines.push('');
+  lines.push(
+    `AIR'S EDGE OVER GROUND — without AA ${(airBare - ground >= 0 ? '+' : '')}` +
+      `${(airBare - ground).toFixed(1)}  |  with AA ${(airAA - ground >= 0 ? '+' : '')}` +
+      `${(airAA - ground).toFixed(1)}  (clear-rate points)`,
+  );
+  return lines.join('\n');
+}
+
 function delayTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const PATTERNS: { name: string; delays: number[] }[] = [
@@ -839,6 +910,12 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--air')) {
+    const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
+    console.log(airTable(pick));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--garrison')) {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(garrisonTable(pick));
@@ -923,6 +1000,9 @@ function main(): void {
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));
+  // Air against ground, per faction: the EDGE is the reading, and it is a
+  // shadow of the ground-game spread rather than a fault of its own.
+  for (const faction of FACTION_IDS) sections.push(airTable(faction));
   // Veterancy pays in survivors, not in wins, so it is measured per faction:
   // the survival column is the whole claim and the swarms have to show it too.
   for (const faction of FACTION_IDS) sections.push(veterancyTable(faction));

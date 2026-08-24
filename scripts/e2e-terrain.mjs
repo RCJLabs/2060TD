@@ -226,7 +226,7 @@ try {
     await wait(settleMs);
     return true;
   };
-  const CHROME = 7; // the two zoom keys and the five tabs
+  const CHROME = 5; // the five tabs (the zoom keys went in v1.21)
   const openTab = async (name) => {
     await tap(name, 700);
     if ((await labels()).length <= CHROME) await tap(name, 700);

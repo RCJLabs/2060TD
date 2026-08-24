@@ -99,7 +99,7 @@ import {
 import { COLORS } from '../palette';
 import { footprintOfKind } from '../../content/catalog';
 import { makeSheet } from '../ground';
-import { mono, Panel, type PanelRow } from '../ui';
+import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
@@ -152,6 +152,21 @@ type Tool =
 export class TownScene extends Phaser.Scene {
   private town!: TownState;
   private tool: Tool = { type: 'select' };
+  /**
+   * Where a build or a move is AIMED but not yet committed (v1.21).
+   *
+   * Tapping used to build. A fingertip is wider than a cell and covers the one
+   * it is aiming at, so a tap that commits is a tap you cannot correct — and
+   * on a phone the difference between the cell you wanted and its neighbour is
+   * a few pixels. Aiming and committing are now two separate acts: the tap
+   * parks a ghost, tapping again moves it, and only CONFIRM spends anything.
+   *
+   * Wall painting deliberately keeps its drag-to-paint behaviour: a confirm
+   * step per cell would make a twelve-cell wire twelve decisions.
+   */
+  private pendingCell: number | null = null;
+  private confirmBtn: Button | null = null;
+  private cancelBtn: Button | null = null;
   private selectedId: number | null = null;
   private demoMode = false;
   /** Which war slot `this.town` came from; -1 until one is loaded. */
@@ -285,6 +300,13 @@ export class TownScene extends Phaser.Scene {
     this.selectedId = null;
     this.lastPaintedCell = -1;
     this.overlay = null;
+    // Phaser reuses the Scene INSTANCE across scene.start, so these fields
+    // outlive the objects they point at: `create` builds a fresh BoardView
+    // with a fresh `ui` container and the old buttons go down with the old
+    // one. Holding the stale refs means laying out a destroyed rectangle.
+    this.pendingCell = null;
+    this.confirmBtn = null;
+    this.cancelBtn = null;
 
     // The board lives on its own camera: pinch to zoom, drag to pan.
     this.board = new BoardView(this, {
@@ -369,6 +391,7 @@ export class TownScene extends Phaser.Scene {
     this.layout = layoutOf(this, this.drawerOpen);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
+    this.layoutConfirmBar();
     const { board, pad, font } = this.layout;
     this.bannerText
       .setPosition(board.x + pad, board.y + board.h - pad - font.tiny * 2)
@@ -422,7 +445,6 @@ export class TownScene extends Phaser.Scene {
 
   private handleCell(cell: number, isTap: boolean): void {
     if (this.overlay) return;
-    const now = Date.now();
 
     switch (this.tool.type) {
       case 'select': {
@@ -435,7 +457,7 @@ export class TownScene extends Phaser.Scene {
       }
       case 'build': {
         if (!isTap) return;
-        if (place(this.town, this.tool.kind, cell, now)) this.saveSoon();
+        this.pendingCell = cell; // aim; CONFIRM spends
         return;
       }
       case 'wall': {
@@ -455,10 +477,7 @@ export class TownScene extends Phaser.Scene {
       }
       case 'move': {
         if (!isTap) return;
-        if (move(this.town, this.tool.id, cell)) {
-          this.setTool({ type: 'select' });
-          this.saveSoon();
-        }
+        this.pendingCell = cell; // aim; CONFIRM commits the move
         return;
       }
     }
@@ -476,6 +495,7 @@ export class TownScene extends Phaser.Scene {
       tool = { type: 'select' };
     }
     this.tool = tool;
+    this.pendingCell = null;
     // Wall painting owns the drag; a build tool tracks it and commits on the
     // lift, so the ghost can be walked onto the right square before the finger
     // leaves the glass. Everything else leaves the drag to the camera.
@@ -1432,10 +1452,13 @@ export class TownScene extends Phaser.Scene {
     }
 
     this.drawGhost(g);
+    this.updateConfirmBar();
   }
 
   private drawGhost(g: Phaser.GameObjects.Graphics): void {
-    const cell = this.cellFromPointer(this.input.activePointer);
+    // Once something is aimed the ghost STAYS on the aimed cell — that is the
+    // whole point of the two-step. Before then it tracks the pointer.
+    const cell = this.pendingCell ?? this.cellFromPointer(this.input.activePointer);
     if (cell === null) return;
 
     let kind: string | null = null;
@@ -1475,6 +1498,78 @@ export class TownScene extends Phaser.Scene {
     g.fillRect(x + 1, y + 1, CELL * footprint - 2, CELL * footprint - 2);
     g.lineStyle(1, color, 0.8);
     g.strokeRect(x + 1, y + 1, CELL * footprint - 2, CELL * footprint - 2);
+  }
+
+  // ---- aim, then commit ------------------------------------------------------------------
+
+  /** Is the parked ghost somewhere this thing could actually go? */
+  private pendingLegal(): boolean {
+    const cell = this.pendingCell;
+    if (cell === null) return false;
+    if (this.tool.type === 'build') return canPlace(this.town, this.tool.kind, cell) === null;
+    if (this.tool.type === 'move') {
+      const s = this.town.structures.find((x) => x.id === (this.tool as { id: number }).id);
+      if (!s) return false;
+      return footprintCells(s.kind, cell).every(
+        (c) =>
+          c >= 0 &&
+          c < TOWN_GRID.width * TOWN_GRID.height &&
+          c % TOWN_GRID.width !== TOWN_GRID.spawnColumn &&
+          !wallAt(this.town, c) &&
+          (structureAt(this.town, c)?.id ?? s.id) === s.id,
+      );
+    }
+    return false;
+  }
+
+  /** Spend it. The only path in the scene that builds or moves anything. */
+  private commitPending(): void {
+    const cell = this.pendingCell;
+    if (cell === null) return;
+    if (this.tool.type === 'build') {
+      if (place(this.town, this.tool.kind, cell, Date.now())) this.saveSoon();
+    } else if (this.tool.type === 'move') {
+      if (move(this.town, this.tool.id, cell)) {
+        this.setTool({ type: 'select' });
+        this.saveSoon();
+      }
+    }
+    this.pendingCell = null;
+  }
+
+  /**
+   * The confirm pair, parked at the bottom of the board where a thumb is.
+   *
+   * They live in `board.ui` rather than on the scene root: anything on the
+   * root is drawn twice, once per camera, and two harnesses fail on it.
+   */
+  private layoutConfirmBar(): void {
+    const { board, pad, gap, font, compact } = this.layout;
+    const h = Math.round(this.layout.px(compact ? 46 : 38));
+    const w = Math.round(Math.min(board.w / 2 - gap, this.layout.px(compact ? 150 : 170)));
+    const y = board.y + board.h - pad - h;
+    const midX = board.x + board.w / 2;
+    if (!this.confirmBtn) {
+      this.confirmBtn = makeButton(this, 0, 0, w, h, 'CONFIRM', () => this.commitPending(), {
+        align: 'center',
+        container: this.board.ui,
+      });
+      this.cancelBtn = makeButton(this, 0, 0, w, h, 'CANCEL', () => {
+        this.pendingCell = null;
+      }, { align: 'center', container: this.board.ui, quiet: true });
+    }
+    this.confirmBtn.setRect(Math.round(midX - w - gap / 2), y, w, h);
+    this.cancelBtn?.setRect(Math.round(midX + gap / 2), y, w, h);
+    this.confirmBtn.setFont(font.body);
+    this.cancelBtn?.setFont(font.body);
+  }
+
+  /** Shown only while something is aimed and not yet spent. */
+  private updateConfirmBar(): void {
+    const showing = this.pendingCell !== null && !this.overlay;
+    this.confirmBtn?.setVisible(showing);
+    this.cancelBtn?.setVisible(showing);
+    if (showing) this.confirmBtn?.setEnabled(this.pendingLegal());
   }
 
   // ---- panel -----------------------------------------------------------------------------

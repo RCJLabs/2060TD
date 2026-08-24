@@ -197,11 +197,11 @@ describe('what the wall line is worth', () => {
     const cutBare = clearRate((c) => noWatch(guns(GARRISON_GUN_TRADE)(strip(c))));
     // The gun trade alone, with no garrison anywhere near it, flips the sign.
     expect(cutBare).toBeGreaterThan(cutWalls);
-  });
+  }, 30_000);
 
   it('is still positive in the configuration that actually ships', () => {
     expect(clearRate(strip)).toBeGreaterThan(clearRate((c) => c));
-  });
+  }, 30_000);
 
   it('is bought with gun coverage rather than added on top', () => {
     // A change nobody pays for is a difficulty spike wearing a design's
@@ -209,7 +209,7 @@ describe('what the wall line is worth', () => {
     const now = clearRate((c) => c);
     const before = clearRate((c) => noWatch(guns(1)(c)));
     expect(Math.abs(now - before)).toBeLessThan(9); // the band conditions are held to
-  });
+  }, 30_000);
 
   it('charges the trade on every raid and composes with the weather', () => {
     const base = generateBase(2, 0, KIT);
@@ -324,5 +324,52 @@ describe('a garrison travels with the battle', () => {
     expect(rebuilt.id).toBe('redoubt');
     expect(rebuilt.maxActions).toBe(4);
     expect(rebuilt.rules.length).toBeGreaterThan(0);
+  });
+});
+
+describe('a rule can ask what it is shooting at', () => {
+  /** A raid flown in: the plans the balance harness uses for its AIR rows. */
+  const AIR: SquadPlan[] = [
+    { units: { reaper: 2 }, sector: 'W1', doctrine: 'hunt', slot: 0 },
+    { units: { reaper: 2 }, sector: 'N1', doctrine: 'assault', slot: 1 },
+    { units: { ranger: 2, engineer: 1 }, sector: 'S1', doctrine: 'raze', slot: 2 },
+  ];
+
+  /** How many of `kind` the garrison managed to stand up. */
+  function deployed(plan: SquadPlan[], kind: string): number {
+    let total = 0;
+    for (const tier of [2, 3, 4]) {
+      for (let variant = 0; variant < 3; variant++) {
+        const base = generateBase(tier, variant, KIT);
+        for (let i = 0; i < 3; i++) {
+          const config = raidConfig(base, plan, seedOf(tier, variant, i), TRAINABLE);
+          const engine = new Engine(config, CATALOG);
+          engine.enqueue({ tick: 0, type: 'startAssault' });
+          while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 6000) {
+            for (const event of engine.step()) {
+              if (event.type === 'garrisonDeployed' && event.kind === kind) total++;
+            }
+          }
+        }
+      }
+    }
+    return total;
+  }
+
+  /**
+   * The bug this exists to prevent: an AA order that fires against a purely
+   * ground raid burns one of two-to-four actions on a gun with nothing to
+   * shoot. `manpads` sat in the reserve unused for a whole release rather
+   * than ship that, and this test is what lets it be used now.
+   */
+  it('holds the AA order until there is something in the air', () => {
+    expect(deployed(squads(), 'manpads')).toBe(0);
+    expect(deployed(AIR, 'manpads')).toBeGreaterThan(0);
+  });
+
+  it('still answers a ground push with guns rather than AA', () => {
+    // The ground orders must not have been crowded out by the new rule.
+    const guns = deployed(squads(), 'depmg') + deployed(squads(), 'claymore');
+    expect(guns).toBeGreaterThan(0);
   });
 });

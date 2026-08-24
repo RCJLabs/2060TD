@@ -681,12 +681,41 @@ v1.20 with a note saying the balance pass would decide. It has.
       been carried in `docs/BALANCE.md` for eleven releases and they are the
       same problem this milestone is about.
 
-- [ ] **A harness that can fail.** `e2e-raid.mjs` clicks fixed pixel
-      coordinates and asserts only "no page errors", so it has been launching
-      raids with ZERO units assigned and passing. Found while writing
-      `e2e-garrison.mjs`, which taps by label and checks what it mustered
-      before it presses go. Every harness that drives a flow should assert the
-      flow happened, not merely that nothing threw.
+- [x] **A rule can ask what it is shooting at** *(v1.21)* — *`hostiles: 'air'
+      | 'ground' | 'any'` on a standing-order rule, so the garrison holds its
+      AA order until there is something to point it at. `manpads` is finally
+      called for. It works and it is the right shape, but the balance pass
+      says it is infrastructure rather than the fix: one MANPADS moves air's
+      edge over ground by 1.4 to 7.0 points, against edges as large as +23.4.*
+
+- [ ] **Air is a SHADOW of the ground spread, so parity comes first.** The two
+      factions with a big air edge are exactly the two with the weakest ground
+      game — NK +23.4 on a 29.4 ground clear, UN +19.2 on 64.6 — while USA and
+      China now sit NEGATIVE (-7.0, -12.2) because their ground game is
+      strong. Tuning AA harder would punish the two factions that do not have
+      the problem. Fix the ground spread and re-read this table; do not tune
+      air against it first. This reorders the milestone.
+
+- [ ] **A harness that can fail — and one that fails when it should not.**
+      `e2e-raid.mjs` clicks fixed pixel coordinates and asserts only "no page
+      errors", so it has been launching raids with ZERO units assigned and
+      passing. Found while writing `e2e-garrison.mjs`, which taps by label and
+      checks what it mustered before it presses go.
+
+      Worse, THREE harnesses are flaky — `e2e-delay`, `e2e-orders` and
+      `e2e-terrain` — and all three were verified against a clean tree, so
+      none of it is v1.21's doing. `e2e-delay` and `e2e-orders` fail only in
+      batch and pass alone: run straight after a neighbour, delay drops one
+      tap and reads `0 → 6 → 6 → 20` instead of `0 → 6 → 12 → 20`.
+      `e2e-terrain`'s last check ("nobody is stranded on the far bank") is
+      intermittent even alone — it passed in the v1.20 ship run and fails now
+      with "the wave clock is running", which is a timing assumption rather
+      than a fact about the sim.
+
+      Taken together the suite cannot currently tell a regression from a bad
+      night, which is the one thing a suite is for. Settles that depend on
+      wall-clock time should be replaced by waiting on the state the check
+      actually needs.
 
 **The bar, same as the last three milestones:** parity means the SPREAD closes
 without the mean moving much, and it has to be a trade — a faction that reads

@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import type { Layout, Rect } from './layout';
 import { modalOpen } from './modal';
-import { makeButton, type Button } from './ui';
 
 /**
  * The battlefield viewport (v0.9): a world camera confined to the layout's
@@ -125,8 +124,6 @@ export class BoardView {
   private tapHandler: ((col: number, row: number) => void) | null = null;
   private dragHandler: ((col: number, row: number) => void) | null = null;
   private slop = TAP_SLOP;
-  private zoomIn: Button | null = null;
-  private zoomOut: Button | null = null;
 
   constructor(scene: Phaser.Scene, opts: BoardOptions) {
     this.scene = scene;
@@ -168,37 +165,15 @@ export class BoardView {
   }
 
   /**
-   * Zoom about the middle of the board — what the on-screen buttons do.
-   * Pinch handles anchored zoom; this is the discoverable version.
+   * Zoom is a GESTURE, not a widget (v1.21).
+   *
+   * There used to be a +/- pair parked mid-right. They cost two permanent
+   * holes in the board — the two places on the map you could not tap because
+   * a button was sitting on them — to duplicate something every pointer
+   * already does: pinch on touch, wheel on a mouse, both anchored on the
+   * point under the fingers rather than on the middle of the screen, which is
+   * what you actually want when you are aiming at a corner of the base.
    */
-  zoomBy(factor: number): void {
-    this.setZoom(this.zoom * factor);
-  }
-
-  /** The two zoom keys, parked mid-right where a thumb finds them. */
-  private layoutZoomKeys(layout: Layout): void {
-    const size = Math.round(layout.px(layout.compact ? 44 : 34));
-    const gap = Math.round(layout.gap);
-    const x = this.rect.x + this.rect.w - layout.pad - size;
-    const midY = this.rect.y + this.rect.h / 2;
-    if (!this.zoomIn) {
-      const make = (label: string, factor: number): Button => {
-        const b = makeButton(this.scene, 0, 0, size, size, label, () => this.zoomBy(factor), {
-          align: 'center',
-          container: this.ui,
-          quiet: true,
-        });
-        b.bg.setAlpha(0.75);
-        return b;
-      };
-      this.zoomIn = make('+', 1.3);
-      this.zoomOut = make('\u2212', 1 / 1.3);
-    }
-    this.zoomIn.setRect(x, Math.round(midY - size - gap / 2), size, size);
-    this.zoomOut?.setRect(x, Math.round(midY + gap / 2), size, size);
-    this.zoomIn.setFont(layout.font.title);
-    this.zoomOut?.setFont(layout.font.title);
-  }
 
   /** Point the board camera at the layout's board rect and refit. */
   applyLayout(layout: Layout, keepView = false): void {
@@ -207,7 +182,6 @@ export class BoardView {
     this.camera.setViewport(this.rect.x, this.rect.y, Math.max(1, this.rect.w), Math.max(1, this.rect.h));
     this.uiCamera.setViewport(0, 0, layout.width, layout.height);
     this.uiCamera.setSize(layout.width, layout.height);
-    this.layoutZoomKeys(layout);
     const previous = this.fitZoom;
     this.fitZoom = Math.min(this.rect.w / this.worldWidth, this.rect.h / this.worldHeight);
     if (!keepView || this.zoom <= 0) {

@@ -872,7 +872,13 @@ export class Engine {
       if (this.tick < (this.orderNextTick[i] ?? 0)) continue;
       if (this.cp < rule.cpAtLeast) continue;
       let hostiles = 0;
-      for (const a of this.attackers) if (a.hp > 0) hostiles++;
+      for (const a of this.attackers) {
+        if (a.hp <= 0) continue;
+        // A rule can ask what it would be shooting at (v1.21).
+        if (rule.hostiles === 'air' && a.profile.air !== true) continue;
+        if (rule.hostiles === 'ground' && a.profile.air === true) continue;
+        hostiles++;
+      }
       if (hostiles < (rule.minHostiles ?? 1)) continue;
 
       let acted = false;

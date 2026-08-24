@@ -59,11 +59,12 @@ import type { StandingOrders } from '../sim/types';
  * role ids, so each faction fields them out of its own defense catalog at its
  * own prices, exactly as standing orders do for a defending player.
  *
- * `manpads` is stocked but no doctrine below calls for it. A rule cannot yet
- * ask "is anything in the air?", so an AA order placed against a ground raid
- * burns one of a handful of actions for nothing. Air raids are measured in
- * the balance pass; if they need an answer, the answer is a new predicate,
- * not a wasted order.
+ * `manpads` sat here unused for a release, because a rule had no way to ask
+ * "is anything in the air?" and an AA order against a ground raid burns one
+ * of a handful of actions on a gun with no targets. v1.21 added the predicate
+ * (`hostiles: 'air'`) and the balance pass said it was needed: air was
+ * clearing as often or better than ground for four factions of five and
+ * costing far fewer men in all five, with the garrison unable to answer it.
  */
 export const GARRISON_RESERVE_KINDS = ['manpads', 'depmg', 'foxhole', 'claymore'] as const;
 
@@ -99,17 +100,20 @@ export const GARRISON_IDS: GarrisonId[] = ['screen', 'standto', 'redoubt'];
 const DOCTRINES: Record<GarrisonId, StandingOrders['rules']> = {
   /** Barely held. One mine on the mass, and a gun if it lasts long enough. */
   screen: [
+    { cpAtLeast: 20, action: 'deploy', kind: 'manpads', target: 'densest', minHostiles: 1, hostiles: 'air', cooldownTicks: 180 },
     { cpAtLeast: 16, action: 'deploy', kind: 'claymore', target: 'densest', minHostiles: 2, cooldownTicks: 180 },
     { cpAtLeast: 42, action: 'deploy', kind: 'depmg', target: 'densest', minHostiles: 2, cooldownTicks: 180 },
   ],
   /** The standard watch: mine them, then gun them, then dig in on them. */
   standto: [
+    { cpAtLeast: 20, action: 'deploy', kind: 'manpads', target: 'densest', minHostiles: 1, hostiles: 'air', cooldownTicks: 180 },
     { cpAtLeast: 16, action: 'deploy', kind: 'claymore', target: 'densest', minHostiles: 2, cooldownTicks: 180 },
     { cpAtLeast: 42, action: 'deploy', kind: 'depmg', target: 'densest', minHostiles: 2, cooldownTicks: 180 },
     { cpAtLeast: 68, action: 'deploy', kind: 'foxhole', target: 'densest', minHostiles: 3, cooldownTicks: 180 },
   ],
   /** Held in depth: the same answer, with one more pair of hands to give it. */
   redoubt: [
+    { cpAtLeast: 20, action: 'deploy', kind: 'manpads', target: 'densest', minHostiles: 1, hostiles: 'air', cooldownTicks: 180 },
     { cpAtLeast: 16, action: 'deploy', kind: 'claymore', target: 'densest', minHostiles: 2, cooldownTicks: 180 },
     { cpAtLeast: 42, action: 'deploy', kind: 'depmg', target: 'densest', minHostiles: 2, cooldownTicks: 180 },
     { cpAtLeast: 68, action: 'deploy', kind: 'foxhole', target: 'densest', minHostiles: 3, cooldownTicks: 180 },

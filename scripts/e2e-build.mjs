@@ -182,7 +182,7 @@ try {
    * gesture that hands the screen back to the map. The town opens on BUILD, so
    * tapping BUILD "to be sure" closes the thing this harness came for.
    */
-  const CHROME = 7; // the two zoom keys and the five tabs
+  const CHROME = 5; // the five tabs (the zoom keys went in v1.21)
   const openTab = async (name) => {
     await tap(name, 700);
     if ((await labels()).length <= CHROME) await tap(name, 700);
@@ -289,7 +289,12 @@ try {
     );
   }
 
-  // ---- a build lands where the finger LIFTED, not where it landed -----------
+  // ---- a build is AIMED where the finger lifted, then CONFIRMED ------------
+  //
+  // Two steps since v1.21. The slide still decides the cell — a fingertip is
+  // wider than a cell and covers the one it is aiming at, so committing on
+  // touch-down commits blind — but the lift now only parks a ghost. Nothing
+  // is spent until CONFIRM, which is what makes a misaimed tap correctable.
   const before = await structures();
   const from = await cellAt(Math.max(2, (await columns())[0] + 3), 6);
   const to = await cellAt(Math.max(2, (await columns())[0] + 3) + 3, 9);
@@ -308,12 +313,27 @@ try {
       await page.mouse.move(to.x, to.y, { steps: 8 });
       await page.mouse.up();
     }
+    await wait(600);
+  }
+
+  // Aiming must NOT have built anything. This is the whole feature: if the
+  // slide alone places a depot, the confirm step is decorative.
+  const aimed = await structures();
+  check(
+    'aiming alone builds nothing',
+    aimed.length === before.length,
+    `${before.length} → ${aimed.length}`,
+  );
+  const confirm = await find('CONFIRM');
+  check('a CONFIRM appears once something is aimed', confirm !== null, '');
+  if (confirm) {
+    await page.mouse.click(confirm.x, confirm.y);
     await wait(900);
   }
   const after = await structures();
   const added = after.filter((s) => !before.some((b) => b.cell === s.cell && b.kind === s.kind));
   check(
-    'a build slid across the board gets placed',
+    'and CONFIRM is what actually builds it',
     added.length === 1 && added[0].kind === 'supplyDepot',
     JSON.stringify(added),
   );

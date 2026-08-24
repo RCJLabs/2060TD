@@ -258,7 +258,7 @@ try {
    * BUILD, so a harness that taps BUILD to "make sure" closes the thing it
    * came for, and every row it then looks for is missing rather than hidden.
    */
-  const CHROME = 7; // the two zoom keys and the five tabs
+  const CHROME = 5; // the five tabs (the zoom keys went in v1.21)
   const openTab = async (name) => {
     await tap(name, 700);
     if ((await labels()).length <= CHROME) await tap(name, 700);

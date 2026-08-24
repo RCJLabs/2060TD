@@ -297,6 +297,17 @@ export interface StandingOrderRule {
   target: StandingOrderTarget;
   /** Act only with at least this many hostiles on the field (default 1). */
   minHostiles?: number;
+  /**
+   * WHICH hostiles `minHostiles` counts (v1.21). Omit to count everything,
+   * which is what every rule did before this existed.
+   *
+   * This is what lets a garrison hold an AA order until there is something to
+   * point it at. Without it an anti-air rule fires against a purely ground
+   * raid and burns one of a handful of actions on a gun with no targets —
+   * which is why the reserve stocked `manpads` for a release with no doctrine
+   * calling for it.
+   */
+  hostiles?: 'any' | 'air' | 'ground';
   /** Ticks between successful firings of this rule. */
   cooldownTicks: number;
 }
