@@ -277,6 +277,18 @@ FORCE   | vs PLA post | vs US firebase |   GAP | normally raids
 
 WORST GAP 10.9 points. Two fronts differing in STYLE should not differ this much in DIFFICULTY — whoever raids the softer one is playing on easy and did not choose to.
 
+THE PLAN, NOT THE FACTION — the same roster asked twice
+FACTION | REF MP | REFERENCE | RECIPE MP | RECIPE |  BEST | PLAN IS WORTH
+--------+--------+-----------+-----------+--------+-------+--------------
+    USA |     27 |      61.3 |        26 |   61.7 |  61.7 |          +0.4
+  CHINA |     28 |      62.1 |        25 |   77.1 |  77.1 |         +15.0
+ RUSSIA |     27 |      60.4 |        27 |   72.1 |  72.1 |         +11.7
+     NK |     27 |      64.6 |        26 |   64.6 |  64.6 |          +0.0
+     UN |     27 |      43.8 |        24 |   55.0 |  55.0 |         +11.3
+
+PLAN IS WORTH UP TO 15.0 POINTS — comparable to every effect this harness measures. Read BEST as the faction and the last column as the error bar; a single plan's row is not a reading of a kit.
+BEST-PLAN SPREAD 22.1 points. `--kits` is unaffected: it holds the force fixed and swaps only the fortifications.
+
 GARRISON — the UNITED STATES reference force vs PLA posts
 CONFIG      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
