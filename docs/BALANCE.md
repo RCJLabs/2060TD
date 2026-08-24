@@ -22,28 +22,28 @@ RAID — UNITED STATES strike force (27 MP) vs PLA Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
    1 |    100 |     78 |       43
-   2 |    100 |     70 |       52
-   3 |    100 |     77 |       56
-   4 |    100 |     63 |       75
-   5 |     83 |     60 |       75
+   2 |    100 |     69 |       56
+   3 |    100 |     69 |       69
+   4 |     33 |     40 |       90
+   5 |      0 |     25 |      100
 
 RAID — UNITED STATES strike force (27 MP) vs PLA Front Line — STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
    1 |    100 |     82 |       37
-   2 |    100 |     79 |       39
-   3 |    100 |     77 |       43
-   4 |    100 |     67 |       57
-   5 |     93 |     64 |       71
+   2 |    100 |     75 |       49
+   3 |    100 |     69 |       68
+   4 |     33 |     44 |       90
+   5 |     22 |     42 |       98
 
 RAID — UNITED STATES strike force (27 MP) vs PLA Front Line — AIR RAID (rotors + a ground tail)
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
    1 |    100 |     68 |       26
-   2 |    100 |     59 |       41
-   3 |    100 |     72 |       42
-   4 |    100 |     58 |       43
-   5 |     35 |     35 |       73
+   2 |    100 |     58 |       41
+   3 |    100 |     64 |       52
+   4 |    100 |     51 |       47
+   5 |     35 |     32 |       73
 
 RAID — PLA EXPEDITIONARY FORCE strike force (28 MP) vs US ARMY Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
@@ -148,103 +148,103 @@ RAID — UN COALITION strike force (27 MP) vs PLA Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
    1 |    100 |     78 |       55
-   2 |    100 |     77 |       62
-   3 |     72 |     64 |       83
-   4 |     13 |     32 |       99
-   5 |      7 |     36 |       96
+   2 |    100 |     74 |       63
+   3 |     72 |     55 |       84
+   4 |      0 |     20 |      100
+   5 |      0 |     21 |      100
 
 RAID — UN COALITION strike force (27 MP) vs PLA Front Line — CONTROL: medics replaced by riflemen
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
    1 |    100 |     73 |       58
-   2 |    100 |     77 |       62
-   3 |     72 |     64 |       83
-   4 |     13 |     32 |       99
-   5 |     17 |     42 |       92
+   2 |    100 |     74 |       62
+   3 |     72 |     58 |       84
+   4 |      0 |     20 |      100
+   5 |      0 |     19 |      100
 
 RAID — UN COALITION strike force (27 MP) vs PLA Front Line — STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
    1 |    100 |     79 |       54
-   2 |    100 |     78 |       59
-   3 |    100 |     69 |       70
-   4 |     47 |     54 |       84
-   5 |     63 |     52 |       79
+   2 |    100 |     77 |       62
+   3 |     72 |     61 |       84
+   4 |      0 |     29 |      100
+   5 |     23 |     33 |       97
 
 RAID — UN COALITION strike force (27 MP) vs PLA Front Line — AIR RAID (rotors + a ground tail)
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
    1 |    100 |     71 |       16
    2 |    100 |     58 |       42
-   3 |    100 |     72 |       46
-   4 |    100 |     56 |       42
-   5 |     33 |     34 |       73
+   3 |    100 |     65 |       52
+   4 |    100 |     50 |       46
+   5 |     33 |     31 |       73
 
 ARCHETYPES — UNITED STATES strike force (27 MP), clear% by tier
 SHAPE        | FROM |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | DESTR% | MP LOST%
 -------------+------+------+------+------+------+------+-------+--------+---------
-COMPOUND     |    1 |  100 |  100 |  100 |  100 |  100 | 100.0 |     65 |       59
-OPEN CAMP    |    1 |  100 |  100 |   67 |   95 |  100 |  92.4 |     75 |       57
-CORRIDOR     |    1 |  100 |  100 |   98 |  100 |  100 |  99.6 |     68 |       65
-STAR FORT    |    2 |  100 |  100 |  100 |   67 |   50 |  83.4 |     59 |       67
-  └ prepared |      |  100 |  100 |  100 |   67 |   60 |  85.4 |     64 |       58
-DISPERSED DEPOT |    3 |  100 |  100 |  100 |  100 |  100 | 100.0 |     52 |       60
-  └ prepared |      |  100 |  100 |  100 |  100 |  100 | 100.0 |     61 |       54
-STRONGPOINTS |    3 |  100 |  100 |  100 |   90 |  100 |  98.0 |     63 |       63
-KEEP         |    4 |  100 |  100 |  100 |   95 |  100 |  99.0 |     61 |       62
-BUNKER COMPLEX |    5 |  100 |  100 |   67 |   63 |   67 |  79.4 |     67 |       70
-  └ prepared |      |  100 |  100 |   67 |   97 |   67 |  86.2 |     76 |       62
+COMPOUND     |    1 |  100 |  100 |   67 |   67 |   63 |  79.4 |     58 |       70
+OPEN CAMP    |    1 |  100 |  100 |   67 |   33 |   67 |  73.4 |     67 |       71
+CORRIDOR     |    1 |  100 |  100 |    2 |   33 |    0 |  47.0 |     47 |       83
+STAR FORT    |    2 |  100 |  100 |   67 |    0 |    0 |  53.4 |     43 |       77
+  └ prepared |      |  100 |  100 |   73 |    0 |    7 |  56.0 |     47 |       72
+DISPERSED DEPOT |    3 |  100 |  100 |  100 |  100 |   33 |  86.6 |     44 |       69
+  └ prepared |      |  100 |  100 |  100 |  100 |   33 |  86.6 |     51 |       67
+STRONGPOINTS |    3 |  100 |  100 |  100 |   10 |    0 |  62.0 |     52 |       78
+KEEP         |    4 |  100 |  100 |  100 |    0 |   20 |  64.0 |     45 |       77
+BUNKER COMPLEX |    5 |  100 |  100 |    0 |    0 |   33 |  46.6 |     50 |       79
+  └ prepared |      |  100 |  100 |    2 |    0 |   55 |  51.4 |     57 |       78
 
 FIELD CONDITIONS — UNITED STATES strike force (27 MP), clear% by tier
 CONDITION    |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | vs CLEAR
 -------------+------+------+------+------+------+-------+---------
-CLEAR LINE   |  100 |  100 |  100 |  100 |   83 |  96.6 |     +0.0
-HARD RAIN    |  100 |  100 |  100 |  100 |   90 |  98.0 |     +1.4
-DUG IN       |  100 |  100 |  100 |  100 |   83 |  96.6 |     +0.0
-FUEL CRISIS  |  100 |  100 |  100 |   93 |   83 |  95.2 |     -1.4
-BLACKOUT     |  100 |  100 |  100 |  100 |   83 |  96.6 |     +0.0
-ATTRITION    |  100 |  100 |  100 |   97 |   83 |  96.0 |     -0.6
+CLEAR LINE   |  100 |  100 |  100 |   33 |    0 |  66.6 |     +0.0
+HARD RAIN    |  100 |  100 |  100 |   33 |   33 |  73.2 |     +6.6
+DUG IN       |  100 |  100 |  100 |   33 |    0 |  66.6 |     +0.0
+FUEL CRISIS  |  100 |  100 |  100 |   33 |    0 |  66.6 |     +0.0
+BLACKOUT     |  100 |  100 |  100 |   33 |    0 |  66.6 |     +0.0
+ATTRITION    |  100 |  100 |  100 |   33 |    0 |  66.6 |     +0.0
 
 TERRAIN — the UNITED STATES reference force vs PLA posts, flat ground vs real
 GROUND      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-       FLAT |   100 |   100 |    98 |    98 |   100 |  99.2 |       69
-     GROUND |   100 |   100 |    98 |    95 |   100 |  98.6 |       76
-    SHEET 1 |   100 |   100 |   100 |    85 |   100 |  97.0 |       72
-    SHEET 2 |   100 |   100 |    95 |   100 |   100 |  99.0 |       72
-    SHEET 3 |   100 |   100 |   100 |   100 |   100 | 100.0 |       82
+       FLAT |   100 |   100 |    62 |    65 |    33 |  72.0 |       82
+     GROUND |   100 |   100 |    68 |    97 |    33 |  79.6 |       85
+    SHEET 1 |   100 |   100 |   100 |    90 |     0 |  78.0 |       79
+    SHEET 2 |   100 |   100 |     5 |   100 |   100 |  81.0 |       88
+    SHEET 3 |   100 |   100 |   100 |   100 |     0 |  80.0 |       87
 
 PARITY — every faction at its own best line, same manpower, same ladder
 FACTION     |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST% | LINE
 ------------+-------+-------+-------+-------+-------+-------+----------+------
-UNITED STAT |   100 |   100 |    98 |    95 |   100 |  98.6 |       76 | GROUND
+UNITED STAT |   100 |   100 |    68 |    97 |    33 |  79.6 |       85 | GROUND
 PLA EXPEDIT |   100 |   100 |    73 |     0 |    45 |  63.6 |       87 | GROUND
 RUSSIAN GRO |   100 |    95 |    67 |    33 |    33 |  65.6 |       79 | GROUND
 KOREAN PEOP |   100 |    98 |    70 |     0 |    22 |  58.0 |       81 | TUNNEL
-UN COALITIO |   100 |   100 |    72 |     7 |    40 |  63.8 |       90 | GROUND
+UN COALITIO |   100 |   100 |    33 |     0 |    33 |  53.2 |       92 | GROUND
 
-SPREAD — 40.6 points between USA and NK. Five kits differing in STYLE (GDD §4) should not differ this much in ODDS.
+SPREAD — 26.4 points between USA and UN. Five kits differing in STYLE (GDD §4) should not differ this much in ODDS.
 
 THE DEAL — the three targets a rung offers vs the eight it could offer
 SHAPE        |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN
 -------------+-------+-------+-------+-------+-------+-------
-bunker       |   100 |    67 |    33 |    27 |    23 |  49.9
-star         |    99 |   100 |    55 |    13 |    17 |  56.8
-strongpoints |   100 |    85 |    68 |    27 |    24 |  60.8
-keep         |   100 |    79 |    73 |    27 |    53 |  66.4
-depot        |   100 |    68 |    73 |    67 |    48 |  71.2
-compound     |   100 |    87 |    92 |    57 |    56 |  78.4
-corridor     |   100 |    93 |    68 |    75 |    65 |  80.3
-camp         |   100 |   100 |    85 |    68 |    79 |  86.4
+bunker       |   100 |    53 |     7 |    13 |    15 |  37.6
+star         |    99 |    93 |    33 |     0 |     0 |  45.1
+strongpoints |   100 |    85 |    68 |     4 |     0 |  51.5
+keep         |   100 |    72 |    68 |     7 |    35 |  56.3
+depot        |   100 |    57 |    60 |    64 |    27 |  61.6
+corridor     |   100 |    87 |    32 |    55 |    45 |  63.7
+compound     |   100 |    87 |    79 |    47 |    41 |  70.7
+camp         |   100 |   100 |    80 |    47 |    64 |  78.1
 
 WHAT EACH FACTION IS DEALT — its three targets vs its own pool at that rung
 FACTION |          T1 |          T2 |          T3 |          T4 |          T5 |   MEAN GAP
 --------+-------------+-------------+-------------+-------------+-------------+-----------
-    USA |  100/100 +0 |  100/100 +0 |    89/94 -6 |    96/92 +3 |    89/90 -1 |       -0.7
+    USA |  100/100 +0 |  100/100 +0 |   58/68 -10 |    42/35 +7 |   44/28 +17 |       +2.8
   CHINA |  100/100 +0 |  100/100 +0 |    73/66 +8 |   22/48 -25 |   16/33 -17 |       -6.9
  RUSSIA |  100/100 +0 |   100/92 +8 |   56/66 -10 |   49/39 +10 |    42/36 +6 |       +2.9
      NK |  100/100 +0 |    89/83 +6 |    56/57 -1 |    33/30 +4 |    29/30 -1 |       +1.4
-     UN |  100/100 +0 |  100/100 +0 |    82/86 -3 |    33/30 +4 |    31/40 -9 |       -1.7
+     UN |  100/100 +0 |    78/83 -6 |   20/38 -18 |      7/8 -1 |    11/16 -5 |       -5.8
 
   dealt/pool and the gap. A deal that tracks its pool is offering that faction
   a fair read of the rung; a big negative gap is a rung of walls.
@@ -263,31 +263,42 @@ bunker       |          T5 |          T5 |          T5 |          T5 |          
 
   8 of 8 shapes reach a player somewhere.
 
-THE LADDER, pool mean per rung: T1 100  ->  T2 95  ->  T3 74  ->  T4 48  ->  T5 46
-STEP SIZE: T1->T2 -5  T2->T3 -21  T3->T4 -26  T4->T5 -2 — a ladder should not have a flat rung or a rung that goes back up.
+THE LADDER, pool mean per rung: T1 100  ->  T2 92  ->  T3 59  ->  T4 32  ->  T5 28
+STEP SIZE: T1->T2 -8  T2->T3 -33  T3->T4 -27  T4->T5 -3 — a ladder should not have a flat rung or a rung that goes back up.
+
+THE TWO KITS — every force against both sets of fortifications
+FORCE   | vs PLA post | vs US firebase |   GAP | normally raids
+--------+-------------+----------------+-------+---------------
+    USA |        51.6 |           62.5 | -10.9 | CHINA
+  CHINA |        55.2 |           52.6 |  +2.6 | USA
+ RUSSIA |        44.3 |           50.5 |  -6.3 | USA
+     NK |        15.1 |           18.8 |  -3.6 | USA
+     UN |        29.7 |           19.8 |  +9.9 | CHINA
+
+WORST GAP 10.9 points. Two fronts differing in STYLE should not differ this much in DIFFICULTY — whoever raids the softer one is playing on easy and did not choose to.
 
 GARRISON — the UNITED STATES reference force vs PLA posts
 CONFIG      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-    v1.19 W |   100 |   100 |   100 |    97 |   100 |  99.4 |       72
-    v1.19 — |   100 |   100 |   100 |   100 |   100 | 100.0 |       74
- GUNS 0.8 W |   100 |   100 |   100 |    97 |   100 |  99.4 |       65
- GUNS 0.8 — |   100 |   100 |   100 |   100 |   100 | 100.0 |       66
-    WATCH W |   100 |   100 |   100 |    93 |   100 |  98.6 |       78
-    WATCH — |   100 |   100 |   100 |   100 |   100 | 100.0 |       79
-  SHIPPED W |   100 |   100 |    98 |    95 |   100 |  98.6 |       76
-  SHIPPED — |   100 |   100 |   100 |   100 |   100 | 100.0 |       75
+    v1.19 W |   100 |   100 |    73 |    97 |    33 |  80.6 |       84
+    v1.19 — |   100 |   100 |   100 |   100 |    33 |  86.6 |       84
+ GUNS 0.8 W |   100 |   100 |    68 |    97 |    45 |  82.0 |       80
+ GUNS 0.8 — |   100 |   100 |   100 |   100 |    42 |  88.4 |       78
+    WATCH W |   100 |   100 |    72 |    72 |    33 |  75.4 |       88
+    WATCH — |   100 |   100 |    98 |   100 |    33 |  86.2 |       87
+  SHIPPED W |   100 |   100 |    68 |    97 |    33 |  79.6 |       85
+  SHIPPED — |   100 |   100 |   100 |   100 |    42 |  88.4 |       84
 
-WALL LINE IS WORTH — v1.19 +0.6  |  GUNS 0.8 +0.6  |  WATCH +1.4  |  SHIPPED +1.4  (clear-rate points to the defender)
+WALL LINE IS WORTH — v1.19 +6.0  |  GUNS 0.8 +6.4  |  WATCH +10.8  |  SHIPPED +8.8  (clear-rate points to the defender)
 
 AIR — the UNITED STATES reference force vs PLA posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |   100 |    98 |    95 |   100 |  98.6 |       76
-  AIR no AA |   100 |   100 |    33 |    43 |   100 |  75.2 |       62
-    AIR +AA |   100 |    67 |    33 |    33 |    68 |  60.2 |       67
+     GROUND |   100 |   100 |    68 |    97 |    33 |  79.6 |       85
+  AIR no AA |   100 |   100 |    33 |    43 |   100 |  75.2 |       63
+    AIR +AA |   100 |    67 |    33 |    33 |    68 |  60.2 |       69
 
-AIR'S EDGE OVER GROUND — without AA -23.4  |  with AA -38.4  (clear-rate points)
+AIR'S EDGE OVER GROUND — without AA -4.4  |  with AA -19.4  (clear-rate points)
 
 AIR — the PLA EXPEDITIONARY FORCE reference force vs US ARMY posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
@@ -319,19 +330,19 @@ AIR'S EDGE OVER GROUND — without AA +20.0  |  with AA +18.0  (clear-rate point
 AIR — the UN COALITION reference force vs PLA posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |   100 |    72 |     7 |    40 |  63.8 |       90
-  AIR no AA |   100 |    67 |    67 |    67 |   100 |  80.2 |       55
-    AIR +AA |   100 |    67 |    67 |    67 |    67 |  73.6 |       59
+     GROUND |   100 |   100 |    33 |     0 |    33 |  53.2 |       92
+  AIR no AA |   100 |    67 |    67 |    67 |   100 |  80.2 |       57
+    AIR +AA |   100 |    67 |    67 |    67 |    67 |  73.6 |       61
 
-AIR'S EDGE OVER GROUND — without AA +16.4  |  with AA +9.8  (clear-rate points)
+AIR'S EDGE OVER GROUND — without AA +27.0  |  with AA +20.4  (clear-rate points)
 
 VETERANCY — UNITED STATES strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   27 |   24 |   31 |   18 |   22 |  24.4 |     99
-LINE    | 1.04 |   39 |   22 |   32 |   20 |   27 |  28.0 |    100
-VETERAN | 1.09 |   39 |   24 |   31 |   25 |   28 |  29.4 |    100
-CADRE   | 1.15 |   42 |   29 |   39 |   27 |   30 |  33.4 |    100
+GREEN   | 1.00 |   27 |   15 |   18 |   13 |    4 |  15.4 |     80
+LINE    | 1.04 |   39 |   15 |   19 |   14 |    5 |  18.4 |     79
+VETERAN | 1.09 |   39 |   15 |   20 |   14 |    4 |  18.4 |     79
+CADRE   | 1.15 |   42 |   17 |   20 |   21 |   18 |  23.6 |     84
 
 VETERANCY — PLA EXPEDITIONARY FORCE strike force (28 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
@@ -360,10 +371,10 @@ CADRE   | 1.15 |   66 |   43 |    8 |    0 |    2 |  23.8 |     52
 VETERANCY — UN COALITION strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   20 |   14 |    9 |    1 |    6 |  10.0 |     64
-LINE    | 1.04 |   23 |   15 |   12 |    1 |    9 |  12.0 |     68
-VETERAN | 1.09 |   23 |   18 |   14 |    7 |   17 |  15.8 |     79
-CADRE   | 1.15 |   28 |   20 |   19 |   22 |   17 |  21.2 |     91
+GREEN   | 1.00 |   20 |   14 |    3 |    0 |    3 |   8.0 |     53
+LINE    | 1.04 |   23 |   14 |    3 |    0 |    3 |   8.6 |     53
+VETERAN | 1.09 |   23 |   14 |    3 |    0 |    6 |   9.2 |     58
+CADRE   | 1.15 |   28 |   14 |    3 |    0 |    7 |  10.4 |     59
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
