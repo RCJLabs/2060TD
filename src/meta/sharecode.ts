@@ -249,7 +249,10 @@ export function baseFromShare(shared: SharedBase): GeneratedBase {
     walls: shared.walls,
     structures: shared.structures,
     // A friend's base is whatever they built; it is not one of the ladder's
-    // shapes, and nothing reads the archetype for a duel.
+    // shapes. Since v1.20 the archetype does carry weight — it picks the
+    // garrison's posture — so 'compound' at tier 0 is a deliberate default:
+    // the standard watch, three orders, derived identically by both players
+    // from the code itself so a duel is the same battle on both screens.
     archetype: 'compound',
     terrainSeed: shared.terrainSeed,
   };

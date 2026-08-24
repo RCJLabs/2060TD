@@ -12,6 +12,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { buildAssault } from '../content/assaults';
+import { GARRISON_GUN_TRADE } from '../content/garrison';
 import {
   generateBase,
   ARCHETYPES,
@@ -621,6 +622,93 @@ function terrainTable(faction: FactionId): string {
   return lines.join('\n');
 }
 
+/**
+ * The garrison (v1.20): is the wall line worth building?
+ *
+ * The question this table exists to answer is not "how hard is a raid" but
+ * "does fortifying do anything", and the honest way to ask it is to take the
+ * walls away and see whether the base gets easier. Before the garrison it got
+ * HARDER without them — the maze's only real effect was to steer raiders
+ * around the guns, because a wall spends the attacker's time and nothing in a
+ * raid charged for time. The pair of rows to read is WALLS against STRIPPED:
+ * the gap is what the fortification is worth, and its SIGN is the finding.
+ */
+function garrisonTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  const lines = [
+    `GARRISON — the ${flavor.faction} reference force vs ${flavor.enemy} posts, watch on vs off`,
+    `BASE        | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST%`,
+    `------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
+  ];
+
+  const row = (label: string, watch: boolean, walls: boolean): number => {
+    const clears: number[] = [];
+    let sent = 0;
+    let home = 0;
+    for (const tier of RAID_TIERS) {
+      let cleared = 0;
+      let runs = 0;
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        const base = generateBase(tier, variant, baseKitFor(faction));
+        for (let i = 0; i < SEEDS; i++) {
+          const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
+          const built = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+          // The two controls: an unmanned base (what every raid was before
+          // v1.20) and a base with its wall line taken away.
+          // The OFF control has to be v1.19 exactly: no garrison, no CP, and
+          // the standing gun coverage the post had BEFORE it started paying
+          // for a reserve — otherwise the control carries half the change it
+          // is supposed to be a control for.
+          const config: SimConfig = {
+            ...built,
+            ...(watch
+              ? {}
+              : {
+                  garrison: undefined,
+                  siege: { ...built.siege!, cpPerSecond: 0, cpCap: 1 },
+                  mods: {
+                    ...built.mods,
+                    defender: {
+                      ...built.mods?.defender,
+                      weaponDamage: (built.mods?.defender?.weaponDamage ?? 1) / GARRISON_GUN_TRADE,
+                    },
+                  },
+                }),
+            ...(walls ? {} : { layout: { ...built.layout!, walls: [] } }),
+          };
+          const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
+          for (const ret of res.squads) {
+            home += ret.returned;
+            sent += ret.deployed;
+          }
+          if (res.cleared) cleared++;
+          runs++;
+        }
+      }
+      clears.push(runs > 0 ? Math.round((cleared / runs) * 100) : 0);
+    }
+    const mean = clears.reduce((a, b) => a + b, 0) / clears.length;
+    lines.push(
+      `${pad(label, 11)} | ${clears.map((c) => pad(c, 5)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(sent > 0 ? Math.round((1 - home / sent) * 100) : 0, 8)}`,
+    );
+    return mean;
+  };
+
+  const offWalls = row('OFF  WALLS', false, true);
+  const offBare = row('OFF  BARE', false, false);
+  const onWalls = row('ON   WALLS', true, true);
+  const onBare = row('ON   BARE', true, false);
+  // A positive number means the wall line defends the base. A negative one
+  // means it is doing the attacker a favour, which is what it did until now.
+  lines.push('');
+  lines.push(
+    `WALL LINE IS WORTH — watch off: ${(offBare - offWalls).toFixed(1)} | ` +
+      `watch on: ${(onBare - onWalls).toFixed(1)} (clear-rate points to the defender)`,
+  );
+  return lines.join('\n');
+}
+
 function delayTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const PATTERNS: { name: string; delays: number[] }[] = [
@@ -750,6 +838,12 @@ function main(): void {
   if (process.argv.includes('--terrain')) {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(terrainTable(pick));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--garrison')) {
+    const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
+    console.log(garrisonTable(pick));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

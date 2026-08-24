@@ -1,4 +1,5 @@
 import { FACTION_IDS, type FactionId } from '../content/factions';
+import { garrisonById, isGarrisonId } from '../content/garrison';
 import { standingOrdersFor, isStandingOrdersId } from '../content/standingOrders';
 import { TERRAIN_VERSION } from '../sim/terrain';
 import type {
@@ -268,9 +269,23 @@ export function encodeReplay(replay: Replay): string {
   // every commander's shelf. So the block goes on the end and the reader
   // treats its absence as "no terrain", which is exactly what those battles
   // had.
-  if ((c.terrainVersion ?? 0) > 0) {
-    writeVarint(body, c.terrainVersion!);
+  //
+  // The garrison (v1.20) goes on after it, which forces the terrain block to
+  // be written whenever a garrison is — otherwise a flat battle with a watch
+  // on it would write garrison bytes where the reader looks for terrain, and
+  // read them as a version and a seed. Writing an explicit version 0 costs
+  // two bytes and keeps the two optional blocks in a fixed order.
+  const garrisonId = c.garrison?.id ?? '';
+  if ((c.terrainVersion ?? 0) > 0 || garrisonId !== '') {
+    writeVarint(body, c.terrainVersion ?? 0);
     writeVarint(body, (c.terrainSeed ?? 0) >>> 0);
+  }
+
+  // The watch (v1.20). Posture and action ceiling only — the rules come from
+  // the reader's own doctrine table, exactly as standing orders do above.
+  if (garrisonId !== '') {
+    putString(body, garrisonId);
+    writeVarint(body, c.garrison?.maxActions ?? 0);
   }
 
   // Header, dictionary, then the body — the reader needs the names first.
@@ -561,6 +576,17 @@ export function decodeReplay(raw: string): ReplayDecode {
       config.terrainVersion = version;
       config.terrainSeed = terrainSeed;
     }
+  }
+
+  // The watch, if this code was written after v1.20. Older codes end before
+  // it and re-fight the unmanned base they recorded, which is the battle that
+  // actually happened.
+  if (cur.at < body.length) {
+    const id = getString(cur);
+    const maxActions = readVarint(cur);
+    if (id === null || maxActions === null) return bad('truncated');
+    if (!isGarrisonId(id)) return bad('content');
+    config.garrison = garrisonById(id, maxActions);
   }
 
   return {

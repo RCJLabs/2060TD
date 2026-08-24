@@ -10,6 +10,7 @@ import {
   type SquadRecord,
 } from '../content/veterancy';
 import { baseKitFor, defenseCatalogFor } from '../content/factions';
+import { GARRISON_GUN_TRADE, garrisonEconomy, garrisonFor } from '../content/garrison';
 import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
 import { TERRAIN_NONE, TERRAIN_VERSION } from '../sim/terrain';
@@ -18,7 +19,6 @@ import type {
   AutoPowerRule,
   Catalog,
   CellIndex,
-  DefenderMods,
   Doctrine,
   SimConfig,
   WaveDef,
@@ -389,9 +389,6 @@ function combineAttackerMods(
 const identityAttacker = (mods: AttackerMods): boolean =>
   (mods.hp ?? 1) === 1 && (mods.damage ?? 1) === 1;
 
-const identityDefender = (mods: DefenderMods): boolean =>
-  (mods.weaponDamage ?? 1) === 1 && (mods.wallHp ?? 1) === 1 && (mods.cpCost ?? 1) === 1;
-
 export function raidConfig(
   base: GeneratedBase,
   squads: SquadPlan[],
@@ -402,7 +399,9 @@ export function raidConfig(
   const attacker = combineAttackerMods(support.mods, support.condition?.attacker);
   const defender = support.condition?.defender;
   const hasAttacker = !identityAttacker(attacker);
-  const hasDefender = defender !== undefined && !identityDefender(defender);
+  // No `hasDefender` guard any more: since v1.20 the defender block is always
+  // present, because every raided post pays the garrison's price on its guns
+  // whether or not the day's rotation is doing anything to them as well.
   // One reserved cell per tunneled squad, in squad order: the renderer draws
   // the mouths, replays re-dig them, and applyRaidResult bills them.
   const mouths = squads.filter((s) => s.tunnel !== undefined).map((s) => s.tunnel!);
@@ -418,13 +417,20 @@ export function raidConfig(
     terrainSeed: base.terrainSeed,
     terrainVersion: base.terrainSeed > 0 ? TERRAIN_VERSION : TERRAIN_NONE,
     playerSide: 'attacker',
+    // The watch on the wire (v1.20). Derived from the base's own shape and
+    // rung, both of which a share code and a replay already carry, so a
+    // scouted post, the raid on it and the replay of that raid all face the
+    // same garrison without a byte of new format.
+    garrison: garrisonFor(base.archetype, base.tier),
     siege: {
       name: `RAID — ${base.name}`,
       startingSupplies: 0,
       suppliesPerWave: 0,
-      startingCp: 0,
-      cpCap: 1,
-      cpPerSecond: 0,
+      // Command Points are the defender's, and until v1.20 a raid gave them
+      // none — which is why route length and wall HP bought nothing. The base
+      // now starts asleep and wakes at a fixed rate: getting there fast means
+      // getting there before the reserve exists.
+      ...garrisonEconomy(base.tier),
       prepSeconds: 1,
       repairCostPerHp: 1,
       waves: [raidWave(squads, trainable)],
@@ -435,14 +441,21 @@ export function raidConfig(
     },
     powerCharges: { ...(support.powerCharges ?? {}) },
     ...(mouths.length > 0 ? { reservedCells: mouths } : {}),
-    ...(hasAttacker || hasDefender
-      ? {
-          mods: {
-            ...(hasAttacker ? { attacker } : {}),
-            ...(hasDefender ? { defender: { ...defender } } : {}),
-          },
-        }
-      : {}),
+    // Defender mods are now unconditional: every raided post pays the
+    // garrison's price (v1.20) out of its standing gun coverage, and that
+    // trade composes with — never replaces — whatever the day's conditions
+    // are already doing to the same guns.
+    mods: {
+      ...(hasAttacker ? { attacker } : {}),
+      // All three fields explicitly, identity included: the replay codec
+      // writes the trio and reads it back as a trio, so a partial object here
+      // would round-trip into a fuller one and stop matching itself.
+      defender: {
+        weaponDamage: (defender?.weaponDamage ?? 1) * GARRISON_GUN_TRADE,
+        wallHp: defender?.wallHp ?? 1,
+        cpCost: defender?.cpCost ?? 1,
+      },
+    },
     ...(support.autoPowers && support.autoPowers.length > 0
       ? { autoPowers: support.autoPowers.map((r) => ({ ...r })) }
       : {}),

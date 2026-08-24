@@ -818,14 +818,23 @@ export class Engine {
   }
 
   /**
-   * Standing orders: evaluated every combat tick in rule order, defender
-   * side only. Each rule holds a CP reserve, a hostile threshold, and its
-   * own cooldown; deploys and casts go through the same commands a player
-   * would issue, so prices, limits, and buildability all apply.
+   * Standing orders: evaluated every combat tick in rule order for whichever
+   * side the AI is holding. Each rule holds a CP reserve, a hostile threshold,
+   * and its own cooldown; deploys and casts go through the same commands a
+   * player would issue, so prices, limits, and buildability all apply.
+   *
+   * The garrison is DEPLOY-ONLY, and that is a correctness rule rather than a
+   * taste one: `resolvePowers` reads `attackerSide` to decide whether an
+   * impact lands on units or on structures, so a fire mission called during a
+   * raid would shell the garrison's own base. Fire support stays the
+   * attacker's instrument; the garrison answers by standing guns up.
    */
   private applyStandingOrders(events: SimEvent[]): void {
-    const orders = this.config.standingOrders;
-    if (!orders || this.phase !== 'combat' || this.attackerSide) return;
+    // Whichever side the AI is holding: the player's doctrine when they
+    // defend, the garrison's when they raid. Never both in one battle.
+    const garrison = this.attackerSide;
+    const orders = garrison ? this.config.garrison : this.config.standingOrders;
+    if (!orders || this.phase !== 'combat') return;
     // The duty officer works a 1-second command cycle, not the sim tick,
     // and the playbook has only so many pages per battle.
     if (this.tick % TICKS_PER_SECOND !== 0) return;
@@ -839,7 +848,9 @@ export class Engine {
       if (hostiles < (rule.minHostiles ?? 1)) continue;
 
       let acted = false;
-      if (rule.action === 'power') {
+      if (rule.action === 'power' && garrison) {
+        continue; // see the deploy-only note above — this would shell its own base
+      } else if (rule.action === 'power') {
         const target =
           rule.target === 'ccApproach'
             ? { ...this.cc.center }

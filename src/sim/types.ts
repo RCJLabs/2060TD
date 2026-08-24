@@ -356,6 +356,12 @@ export interface SimConfig {
    * replays of offline defenses re-issue the same orders identically.
    */
   standingOrders?: StandingOrders;
+  /**
+   * The AI garrison's policy, evaluated when the PLAYER is the attacker.
+   * `standingOrders` is the player's own doctrine and fires only when the
+   * player defends; these two never run in the same battle.
+   */
+  garrison?: StandingOrders;
   /** Omit for sandbox mode: free placement, manual spawns, no waves. */
   siege?: SiegeDef;
   /** The persistent town, placed free of charge before the battle starts. */

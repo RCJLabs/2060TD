@@ -11,6 +11,7 @@ import {
 } from '../src/content/conditions';
 import { DAY_MS, LADDER_EPOCH } from '../src/content/leagues';
 import { trainableFor } from '../src/content/factions';
+import { GARRISON_GUN_TRADE } from '../src/content/garrison';
 import { scoutingBlocked } from '../src/meta/ladder';
 import { newTown, unlockAll, type TownState } from '../src/meta/town';
 import {
@@ -123,7 +124,13 @@ describe('conditions in the battle', () => {
 
     const hard = raidConfig(base, plan, 7, trainableFor('usa'), { condition: dugIn });
     expect(hard.mods?.defender?.wallHp).toBe(dugIn.defender?.wallHp);
-    expect(hard.mods?.defender?.weaponDamage).toBe(dugIn.defender?.weaponDamage);
+    // The day's weather multiplies onto the garrison's standing trade (v1.20)
+    // rather than replacing it: a post that is DUG IN still paid a fifth of
+    // its gun coverage for the reserve it is about to spend.
+    expect(hard.mods?.defender?.weaponDamage).toBeCloseTo(
+      (dugIn.defender?.weaponDamage ?? 1) * GARRISON_GUN_TRADE,
+      6,
+    );
     expect(hard.mods?.attacker).toBeUndefined(); // DUG IN does nothing to your units
   });
 
@@ -134,7 +141,15 @@ describe('conditions in the battle', () => {
       condition: CONDITION_BY_ID.clearline,
     });
     expect(clear).toEqual(bare);
-    expect(bare.mods).toBeUndefined();
+    // Not `undefined` any more: since v1.20 every raided post carries the
+    // garrison's price on its guns, whatever the rotation is doing. A CLEAR
+    // LINE day is still the identity — it just is not the identity of NOTHING.
+    expect(bare.mods?.attacker).toBeUndefined();
+    expect(bare.mods?.defender).toEqual({
+      weaponDamage: GARRISON_GUN_TRADE,
+      wallHp: 1,
+      cpCost: 1,
+    });
   });
 
   it('changes the battle, not just the paperwork', () => {

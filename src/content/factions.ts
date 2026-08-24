@@ -15,6 +15,7 @@ import {
 } from './chinaFaction';
 import { DAMAGE_MULT } from './damage';
 import { EASTERN_TIDE } from './easternTide';
+import { GARRISON_RESERVE_KINDS } from './garrison';
 import { IRON_CORRIDOR } from './ironCorridor';
 import { NK_ATTACKERS } from './nk';
 import {
@@ -133,13 +134,42 @@ const DEFENSE_CATALOGS: Record<FactionId, Catalog> = {
   un: UN_DEFENSE_CATALOG,
 };
 
-const RAID_CATALOGS: Record<FactionId, Catalog> = {
+const BARE_RAID_CATALOGS: Record<FactionId, Catalog> = {
   usa: RAID_CATALOG,
   china: CHINA_RAID_CATALOG,
   russia: RUSSIA_RAID_CATALOG,
   nk: NK_RAID_CATALOG,
   un: UN_RAID_CATALOG,
 };
+
+/** Who holds the base this faction raids. Same split as `baseKitFor`. */
+export function defendingFactionFor(faction: FactionId): FactionId {
+  return faction === 'usa' || faction === 'un' ? 'china' : 'usa';
+}
+
+/**
+ * The raid catalogs, plus the defender's reserve (v1.20).
+ *
+ * A raid catalog holds what the target is MADE of — towers, caches, the CC —
+ * and nothing a base could stand up once the shooting starts, because until
+ * v1.20 no base ever did. The garrison deploys through the same commands a
+ * defending player would issue, so the kinds it calls for have to be in the
+ * catalog the raid is running on, priced by the faction that holds the
+ * ground rather than the one attacking it.
+ */
+const RAID_CATALOGS: Record<FactionId, Catalog> = Object.fromEntries(
+  FACTION_IDS.map((faction) => {
+    const bare = BARE_RAID_CATALOGS[faction];
+    const held = DEFENSE_CATALOGS[defendingFactionFor(faction)].structures;
+    const reserve = Object.fromEntries(
+      GARRISON_RESERVE_KINDS.filter((kind) => held[kind] !== undefined).map((kind) => [
+        kind,
+        held[kind]!,
+      ]),
+    );
+    return [faction, { ...bare, structures: { ...bare.structures, ...reserve } }];
+  }),
+) as Record<FactionId, Catalog>;
 
 export function defenseCatalogFor(faction: FactionId): Catalog {
   return DEFENSE_CATALOGS[faction];
