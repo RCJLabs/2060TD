@@ -817,7 +817,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --vet [faction] for the veterancy ranks,
                    # -- --delay [faction] for the launch-delay patterns, or
                    # -- --gates [faction] for what a gated ring costs, or
-                   # -- --terrain [faction] for flat ground against real)
+                   # -- --terrain [faction] for flat ground against real, or
+                   # -- --garrison [faction] for what a wall line is worth)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
@@ -839,6 +840,7 @@ node scripts/e2e-plan.mjs            # a plan written, fought, and found again o
 node scripts/e2e-gates.mjs           # a gate built in the yard and worked in the fight
 node scripts/e2e-build.mjs           # moving the map with a tool in hand, and precise placement
 node scripts/e2e-terrain.mjs         # the sheet on the board, and a river that refuses a wall
+node scripts/e2e-garrison.mjs        # the watch counting down while a raid walks in
 ```
 
 `scripts/e2e-flow.mjs` taps buttons by label (through `window.lastline`)

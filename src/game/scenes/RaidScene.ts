@@ -663,6 +663,12 @@ export class RaidScene extends Phaser.Scene {
       lossLine ? `Losses: ${lossLine}` : 'Losses: none',
       ...(this.squadReport ?? []),
       ...(ordnanceLine ? [`Ordnance expended: ${ordnanceLine}`] : []),
+      // What being slow bought them (v1.20). Only worth a line when it
+      // actually happened — a raid fast enough to beat the reserve should
+      // read as clean, not as a zero.
+      ...(res.reserves > 0
+        ? [`Garrison stood up: ${res.reserves} reserve${res.reserves === 1 ? '' : 's'}`]
+        : []),
       res.cleared
         ? `Front Line: ${this.town.frontline.wins}/3 to next tier` +
           (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')

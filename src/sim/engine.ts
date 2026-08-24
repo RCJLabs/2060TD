@@ -227,6 +227,34 @@ export class Engine {
     return this.ordersUsed;
   }
 
+  /**
+   * What the watch has done and what it is saving for (v1.20), or null when
+   * nobody is holding this base by policy.
+   *
+   * The HUD's one honest read on why being slow is expensive: `cp` climbing
+   * towards `nextAt` is the reserve the post has not stood up YET, and the
+   * whole point of arriving early is arriving before that number is reached.
+   */
+  garrisonReadiness(): {
+    committed: number;
+    ceiling: number;
+    cp: number;
+    nextAt: number | null;
+  } | null {
+    const orders = this.attackerSide ? this.config.garrison : this.config.standingOrders;
+    if (!orders) return null;
+    const ceiling = orders.maxActions ?? orders.rules.length;
+    // The cheapest order still on the table — what the pool is filling towards.
+    let nextAt: number | null = null;
+    if (this.ordersUsed < ceiling) {
+      for (const rule of orders.rules) {
+        if (this.cp >= rule.cpAtLeast) continue;
+        if (nextAt === null || rule.cpAtLeast < nextAt) nextAt = rule.cpAtLeast;
+      }
+    }
+    return { committed: this.ordersUsed, ceiling, cp: this.cp, nextAt };
+  }
+
   constructor(config: SimConfig, catalog: Catalog) {
     this.config = config;
     this.catalog = catalog;
@@ -865,6 +893,17 @@ export class Engine {
             { tick: this.tick, type: 'placeStructure', cell, kind: rule.kind },
             events,
           );
+          // Announced only for the garrison: a defending player watched
+          // themselves issue the order and does not need telling.
+          if (acted && garrison) {
+            events.push({
+              type: 'garrisonDeployed',
+              kind: rule.kind,
+              at: this.grid.centerOf(cell),
+              committed: this.ordersUsed + 1,
+              ceiling: orders.maxActions ?? orders.rules.length,
+            });
+          }
         }
       }
       if (acted) {

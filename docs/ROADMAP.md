@@ -572,6 +572,56 @@ density that resulted read as clutter rather than detail.
 
 ---
 
+## M10 — v1.20 "The Garrison": what a wall line is finally worth
+
+Three releases running, the harness reported the same finding: **a raid is decided by gun
+coverage, not by route length or wall HP.** Field conditions found it, gates found it,
+terrain found it again. This milestone went looking for the cause instead of working
+around it, and the cause turned out to be worse than the symptom.
+
+- [x] **The diagnosis** *(v1.20)* — *a raid charged nothing for time. `raidConfig` set
+      `cpPerSecond: 0` and `cpCap: 1`, so the defending base's economy never ran, and the
+      standing-orders evaluator bailed on the attacker side, so nothing it might have
+      bought could ever have been spent. A Front Line post was a diorama. Since route
+      length and wall HP can only ever spend the attacker's TIME, and time was free, the
+      whole fortification layer was priced at zero. Measured, it was worse than zero:
+      stripping EVERY wall out of a generated base made it EASIER to hold — 86.7 clear
+      with the wall line against 81.5 without, over 900 raids a row. The maze's one real
+      effect was steering raiders AROUND the guns.*
+
+- [x] **The gun trade** *(v1.20)* — *standing gun damage on a raided post is ×0.8, and
+      that alone takes the wall line from −5.2 to +8.6 with the clear rate unmoved. Weaker
+      guns let attackers live longer in the open, so a wall that holds a force in a
+      corridor under fire finally outweighs a maze that routes them past the shooting. A
+      post can have guns everywhere all the time, or fewer guns and a wall line that means
+      something; this moves a fifth of the first into the second.*
+
+- [x] **The garrison** *(v1.20)* — *the base wakes up: asleep at the line, banking CP at
+      the 1.2/s every siege already runs on, spending it standing guns up on the densest
+      knot of attackers it can see. `ccApproach` and `breach` both measured
+      indistinguishable from no garrison at all — a last stand at the objective is too
+      late, and by then the corridor has been walked for free. Deploy-only, and that is
+      correctness rather than taste: the engine reads `playerSide` to decide whether an
+      impact lands on units or structures, so a garrison fire mission would shell its own
+      base.*
+
+- [x] **Two fixes, separated** *(v1.20)* — *the first read of this credited the garrison
+      with the wall line, because it moved the garrison and the gun trade together. An
+      isolating 2×2 shows the trade did that alone and the watch is slightly negative on
+      that axis. What the watch earns is the CLOCK: over 1200 raids a cell, a 60-second
+      launch stagger costs 5.1 points unwatched and 8.3 watched. The test file moves one
+      thing at a time for the same reason, and the earlier draft is the argument for it —
+      it passed with the garrison deleted.*
+
+- [x] **No format bumps again** *(v1.20)* — *the garrison rides the same append trick
+      terrain used, and only its posture id and action ceiling travel: rules come from the
+      reader's own table, so a code can never carry a doctrine that has drifted. One
+      ordering hazard handled — the terrain block is written whenever a garrison is, or a
+      flat battle with a watch on it would write garrison bytes where the reader looks for
+      terrain and read them as a version and a seed.*
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.

@@ -321,6 +321,47 @@ symmetric in code and deeply asymmetric in play, because a defender's guns sit i
 emplacements and an attacker mostly closes to contact. Same lesson as field conditions and
 as gates: **a raid is decided by gun coverage.** See `docs/BALANCE.md`.
 
+### 5.2c The garrison *(v1.20)*
+
+Until v1.20 a Front Line post was a diorama. Its Command Point economy was switched off
+(`cpPerSecond: 0`, `cpCap: 1`) and the standing-orders evaluator was gated to the player's
+own side, so an AI base could not react to anything: no reserve, no reinforcement, no
+deadline. That is the structural reason the harness kept reporting the same finding —
+**route length and wall HP can only ever spend the attacker's TIME, and nothing charged
+for time.**
+
+Measured, the fortification was not merely inert. Taking every wall out of a generated base
+made it *easier to hold*: 86.7 clear with the wall line against 81.5 without it. The maze's
+one real effect was steering raiders **around** the guns.
+
+Two changes, for two different faults. They are separable and were separated, because a
+first read that moved both at once credited the wrong one.
+
+**The gun trade** is what earns the wall line. Standing gun damage on a raided post is
+×0.8, and that alone — with no garrison anywhere near it — takes the wall line from −5.2 to
++8.6 without moving the clear rate at all. Weaker guns let attackers live longer in the
+open, so a wall that holds a force in a corridor under fire finally matters more than a
+maze that routes them around the shooting.
+
+**The garrison** is what earns the clock. The base starts asleep, banks CP at 1.2/s — the
+rate every siege already runs on — and spends it standing guns up on the densest knot of
+attackers it can see. A concentrated push arrives before the reserve exists; a dawdling one
+walks into guns that were not there when it set off. Over 1200 raids a cell, a 60-second
+launch stagger costs 5.1 points unwatched and 8.3 watched.
+
+| | What it is | What it buys |
+|---|---|---|
+| **Reserve** | `claymore`, `depmg`, `foxhole` — role ids, so each faction fields its own at its own prices | Something the base can actually stand up mid-battle |
+| **Posture** | `screen` / `standto` / `redoubt`, picked by archetype; 2–4 orders per battle | A camp is barely manned; a keep is somebody's whole plan |
+| **Target** | Always the densest cluster | `ccApproach` and `breach` measured indistinguishable from no garrison at all — a last stand at the objective is too late, and by then the corridor has been walked for free |
+
+The garrison **never calls fire missions**, and that is a correctness rule rather than a
+taste one: the engine reads `playerSide` to decide whether an impact lands on units or on
+structures, so a garrison barrage would shell its own base.
+
+A raid HUD shows the watch counting down — orders committed, and how many seconds of
+dawdling buys the next one — because a cost the player cannot see teaches nobody anything.
+
 ### 5.3 The maze rule (core mechanic)
 
 Attackers use **weighted pathfinding**: a wall tile's traversal cost = time to walk plus

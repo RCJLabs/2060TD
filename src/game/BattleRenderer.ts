@@ -176,6 +176,20 @@ export class BattleRenderer {
           });
           audio.sfx('explosion');
           break;
+        // A reserve standing up (v1.20). A slow ring rather than a blast: the
+        // player needs to notice that the base just answered, and to be able
+        // to tell that answer apart from something going off.
+        case 'garrisonDeployed':
+          this.effects.push({
+            kind: 'aoe',
+            x: event.at.x,
+            y: event.at.y,
+            radius: 1.6,
+            age: 0,
+            life: 0.8,
+          });
+          audio.sfx('radio');
+          break;
         case 'strafePulse':
           this.effects.push({
             kind: 'strafe',

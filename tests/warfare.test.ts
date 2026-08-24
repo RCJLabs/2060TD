@@ -348,6 +348,7 @@ describe('raid planning and resolution', () => {
         loot: { supplies: 300, fuel: 40 },
         destructionPct: 0.5,
         powersUsed: {},
+        reserves: 0,
         squads: [{ slot: 0, deployed: 7, returned: 4 }],
       },
       config,
@@ -371,7 +372,7 @@ describe('raid planning and resolution', () => {
     const config = raidConfig(base, plan, 1);
     const win = {
       cleared: true, ticks: 1, deployed: {}, survivors: {}, losses: {},
-      destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1, powersUsed: {}, squads: [],
+      destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1, powersUsed: {}, reserves: 0, squads: [],
     };
     applyRaidResult(town, base, win, config, T0);
     applyRaidResult(town, base, win, config, T0);

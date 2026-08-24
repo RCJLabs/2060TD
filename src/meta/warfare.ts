@@ -487,6 +487,8 @@ export interface RaidResolution {
   destructionPct: number;
   /** Ordnance charges actually expended by the fire plan. */
   powersUsed: Record<string, number>;
+  /** Reserves the base's garrison stood up while you were getting there (v1.20). */
+  reserves: number;
 }
 
 /** Loot multipliers a raid is fought under (league band × field condition). */
@@ -588,6 +590,7 @@ export function resolveRaid(
     loot,
     destructionPct: initialTotal > 0 ? destroyedTotal / initialTotal : 0,
     powersUsed,
+    reserves: engine.ordersExecuted,
   };
 }
 

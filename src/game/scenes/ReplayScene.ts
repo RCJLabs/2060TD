@@ -170,15 +170,44 @@ export class ReplayScene extends Phaser.Scene {
 
     const e = this.engine;
     this.panel.setRows(this.rows());
+    const watch = this.watchLine();
     this.panel.setStatus(
       `REPLAY — ${this.replay.title}`,
       this.layout.mode === 'portrait'
-        ? [`T+${Math.floor(e.tick / 20)}s · ALIVE ${e.attackers.length} · KILLS ${e.stats.kills}`]
+        ? [
+            `T+${Math.floor(e.tick / 20)}s · ALIVE ${e.attackers.length} · KILLS ${e.stats.kills}`,
+            ...(watch ? [watch.short] : []),
+          ]
         : [
             `T+${Math.floor(e.tick / 20)}s  ${this.ended() ? '· FOOTAGE ENDS' : ''}`,
             `ALIVE ${e.attackers.length}   KILLS ${e.stats.kills}`,
             `LOST  -${e.stats.structuresLost} guns  -${e.stats.wallsLost} walls`,
+            ...(watch ? [watch.long] : []),
           ],
     );
+  }
+
+  /**
+   * The watch, counting down (v1.20).
+   *
+   * A raid is decided by how much of the base is shooting at you, and since
+   * v1.20 part of that is bought with the time you spend getting there. That
+   * only teaches anybody anything if it is on screen while it happens, so the
+   * line says how many reserves are already committed and how many seconds of
+   * dawdling buys the next one.
+   */
+  private watchLine(): { short: string; long: string } | null {
+    const state = this.engine.garrisonReadiness();
+    if (!state) return null;
+    const raid = this.replay.kind === 'raid';
+    const name = raid ? 'GARRISON' : 'ORDERS';
+    const tally = `${state.committed}/${state.ceiling}`;
+    const cps = this.replay.config.siege?.cpPerSecond ?? 0;
+    let tail: string;
+    if (state.committed >= state.ceiling) tail = 'RESERVE SPENT';
+    else if (state.nextAt !== null && cps > 0) {
+      tail = `NEXT IN ${Math.max(0, Math.ceil((state.nextAt - state.cp) / cps))}s`;
+    } else tail = 'STANDING TO';
+    return { short: `${raid ? 'GAR' : 'ORD'} ${tally} · ${tail}`, long: `${name}  ${tally}   ${tail}` };
   }
 }

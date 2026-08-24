@@ -412,6 +412,8 @@ export type SimEvent =
   | { type: 'wallDestroyed'; cell: CellIndex }
   | { type: 'gateToggled'; cell: CellIndex; open: boolean }
   | { type: 'structureDestroyed'; id: number; kind: string; at: Vec2 }
+  /** A garrison order landed a reserve on the board (v1.20). */
+  | { type: 'garrisonDeployed'; kind: string; at: Vec2; committed: number; ceiling: number }
   | { type: 'powerCast'; kind: string; at: Vec2 }
   | { type: 'assaultStarted' }
   | { type: 'waveStarted'; index: number }

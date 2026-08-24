@@ -75,3 +75,14 @@ here with the change and its date.
   silhouettes instead of coloured rectangles. Isometric remains as unavailable
   as it always was, and nothing in the sim assumes a camera. See GDD §6.1 and
   the "Map Table" mockup.
+- 2026-08-24 — **A raid now charges for time.** Three releases of measurement said
+  a raid is decided by gun coverage, not by route length or wall HP. The cause
+  was structural: an AI base had no economy and no way to spend one, so time —
+  the only thing a wall or a detour can cost an attacker — was free. Walls were
+  measurably worse than no walls. Two changes, deliberately separable: standing
+  gun damage on a raided post is ×0.8, which is what earns the wall line; and
+  the base now banks Command Points and stands guns up while you walk, which is
+  what earns the clock. The lesson filed alongside them is about method rather
+  than balance — the first read moved both at once and credited the wrong one,
+  and a test written against that read passed with the garrison deleted. Move
+  one thing. See GDD §5.2c and the 2×2 in `docs/BALANCE.md`.

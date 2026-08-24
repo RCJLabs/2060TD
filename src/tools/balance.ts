@@ -623,25 +623,28 @@ function terrainTable(faction: FactionId): string {
 }
 
 /**
- * The garrison (v1.20): is the wall line worth building?
+ * v1.20: is the wall line worth building, and WHICH change earned it?
  *
- * The question this table exists to answer is not "how hard is a raid" but
- * "does fortifying do anything", and the honest way to ask it is to take the
- * walls away and see whether the base gets easier. Before the garrison it got
- * HARDER without them — the maze's only real effect was to steer raiders
- * around the guns, because a wall spends the attacker's time and nothing in a
- * raid charged for time. The pair of rows to read is WALLS against STRIPPED:
- * the gap is what the fortification is worth, and its SIGN is the finding.
+ * The question is not "how hard is a raid" but "does fortifying do anything",
+ * and the honest way to ask it is to take the walls away and see whether the
+ * base gets easier. Before v1.20 it got HARDER without them.
+ *
+ * The table is a 2x2 because an earlier read of it was wrong. Moving the
+ * garrison and the gun trade together looked like the garrison had flipped
+ * the wall line; holding one still at a time shows the trade did it alone,
+ * and the watch is very slightly negative on this axis. What the watch earns
+ * is the CLOCK, which this table cannot see — for that, stagger the launch
+ * and read `--delay`, or the tempo table in tests/garrison.test.ts.
  */
 function garrisonTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const lines = [
-    `GARRISON — the ${flavor.faction} reference force vs ${flavor.enemy} posts, watch on vs off`,
-    `BASE        | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST%`,
+    `GARRISON — the ${flavor.faction} reference force vs ${flavor.enemy} posts`,
+    `CONFIG      | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST%`,
     `------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
   ];
 
-  const row = (label: string, watch: boolean, walls: boolean): number => {
+  const row = (label: string, watch: boolean, guns: number, walls: boolean): number => {
     const clears: number[] = [];
     let sent = 0;
     let home = 0;
@@ -653,27 +656,17 @@ function garrisonTable(faction: FactionId): string {
         for (let i = 0; i < SEEDS; i++) {
           const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
           const built = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
-          // The two controls: an unmanned base (what every raid was before
-          // v1.20) and a base with its wall line taken away.
-          // The OFF control has to be v1.19 exactly: no garrison, no CP, and
-          // the standing gun coverage the post had BEFORE it started paying
-          // for a reserve — otherwise the control carries half the change it
-          // is supposed to be a control for.
+          // One thing at a time: the watch and the guns move independently, so
+          // the table can say which of them is doing the work.
           const config: SimConfig = {
             ...built,
             ...(watch
               ? {}
-              : {
-                  garrison: undefined,
-                  siege: { ...built.siege!, cpPerSecond: 0, cpCap: 1 },
-                  mods: {
-                    ...built.mods,
-                    defender: {
-                      ...built.mods?.defender,
-                      weaponDamage: (built.mods?.defender?.weaponDamage ?? 1) / GARRISON_GUN_TRADE,
-                    },
-                  },
-                }),
+              : { garrison: undefined, siege: { ...built.siege!, cpPerSecond: 0, cpCap: 1 } }),
+            mods: {
+              ...built.mods,
+              defender: { ...built.mods?.defender, weaponDamage: guns },
+            },
             ...(walls ? {} : { layout: { ...built.layout!, walls: [] } }),
           };
           const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
@@ -695,17 +688,22 @@ function garrisonTable(faction: FactionId): string {
     return mean;
   };
 
-  const offWalls = row('OFF  WALLS', false, true);
-  const offBare = row('OFF  BARE', false, false);
-  const onWalls = row('ON   WALLS', true, true);
-  const onBare = row('ON   BARE', true, false);
-  // A positive number means the wall line defends the base. A negative one
-  // means it is doing the attacker a favour, which is what it did until now.
+  const cases: [string, boolean, number][] = [
+    ['v1.19', false, 1],
+    ['GUNS 0.8', false, GARRISON_GUN_TRADE],
+    ['WATCH', true, 1],
+    ['SHIPPED', true, GARRISON_GUN_TRADE],
+  ];
+  const worth: string[] = [];
+  for (const [label, watch, guns] of cases) {
+    const walls = row(`${label} W`, watch, guns, true);
+    const bare = row(`${label} —`, watch, guns, false);
+    worth.push(`${label} ${(bare - walls >= 0 ? '+' : '')}${(bare - walls).toFixed(1)}`);
+  }
   lines.push('');
-  lines.push(
-    `WALL LINE IS WORTH — watch off: ${(offBare - offWalls).toFixed(1)} | ` +
-      `watch on: ${(onBare - onWalls).toFixed(1)} (clear-rate points to the defender)`,
-  );
+  // Positive = the wall line defends the base. Negative = it is doing the
+  // attacker a favour, which is what it did until v1.20.
+  lines.push(`WALL LINE IS WORTH — ${worth.join('  |  ')}  (clear-rate points to the defender)`);
   return lines.join('\n');
 }
 
@@ -922,6 +920,9 @@ function main(): void {
   sections.push(conditionTable('usa'));
   // The ground has to be a trade, and the reading is the SPREAD, not the mean.
   sections.push(terrainTable('usa'));
+  // Fortifying has to be worth something, and the 2x2 says which change made
+  // it so — a single-column read of this table is what got it wrong once.
+  sections.push(garrisonTable('usa'));
   // Veterancy pays in survivors, not in wins, so it is measured per faction:
   // the survival column is the whole claim and the swarms have to show it too.
   for (const faction of FACTION_IDS) sections.push(veterancyTable(faction));
@@ -977,7 +978,7 @@ function main(): void {
 
   if (process.argv.includes('--md')) {
     const md = [
-      '# Balance snapshot (v1.19)',
+      '# Balance snapshot (v1.20)',
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -1085,14 +1086,38 @@ function main(): void {
       '  put it at 93.0 against 93.4 — meaning water, cover and movement cost together',
       '  accounted for almost NONE of the drop and elevation accounted for all of it. The',
       '  mockup had proposed +40% reach on the top band; it ships at +15%.',
-      '- **That is the third time this project has learned the same thing**: a raid is decided',
+      '- **That was the third time this project learned the same thing**: a raid is decided',
       '  by GUN COVERAGE, not by route length or wall HP. Field conditions found it (defender',
       '  weaponDamage is by far the strongest lever, wall HP barely moves a fixed force), gates',
       '  found it (48 doors in a ring moved the clear rate by one point, because attackers',
-      '  route rather than breach), and terrain found it again. Reach is read from the firer’s',
-      '  cell for BOTH sides, which is symmetric in code and deeply asymmetric in play: a',
-      '  defender’s guns sit in fixed emplacements and keep whatever ground they were built',
-      '  on, while an attacker mostly closes to contact and never collects the bonus.',
+      '  route rather than breach), and terrain found it again. v1.20 went after the cause',
+      '  rather than working around it a fourth time — see the GARRISON table above.',
+      '- **The cause was that a raid charged nothing for TIME (v1.20).** `raidConfig` set',
+      '  cpPerSecond 0 and cpCap 1, so a defending post had no economy, and the standing-orders',
+      '  evaluator bailed on the attacker side, so nothing it might have bought could be spent.',
+      '  A Front Line base was a diorama. Route length and wall HP can only ever spend the',
+      '  attacker’s time, and time was free — so the whole fortification layer was priced at',
+      '  zero. It was in fact priced BELOW zero: stripping every wall out of a generated base',
+      '  made it EASIER to hold, 86.7 against 81.5, because the maze’s one real effect was',
+      '  steering raiders AROUND the guns.',
+      '- **Two faults, two fixes, and they had to be separated to be seen.** The GARRISON',
+      '  table is a 2x2 for a reason: a first read moved the watch and the gun trade together',
+      '  and credited the watch with the wall line. Held still one at a time, GUNS 0.8 alone',
+      '  takes the wall line from -5.0 to +8.6 with the clear rate unmoved, and the watch is',
+      '  slightly negative on that axis (+6.6 shipped). Weaker guns let attackers live longer',
+      '  in the open, so a wall that holds a force in a corridor under fire finally outweighs',
+      '  a maze that routes them past the shooting.',
+      '- **What the watch earns is the CLOCK, which this table cannot see.** Measured by',
+      '  staggering the same three squads instead of launching them together, over 1200 raids',
+      '  a cell: a 60-second stagger costs 5.1 points unwatched and 8.3 watched. A concentrated',
+      '  push arrives before the reserve exists; a dawdling one walks into guns that were not',
+      '  there when it set off. Targeting is the whole of it — ccApproach and breach both',
+      '  measured indistinguishable from having no garrison at all, because a last stand at',
+      '  the objective comes after the corridor has already been walked for free.',
+      '- **The method lesson is the one worth keeping.** A test written against the first,',
+      '  wrong read PASSED with the garrison deleted, because it moved two things and asserted',
+      '  on the sum. tests/garrison.test.ts now moves one thing per test, and each claim was',
+      '  checked to FAIL when its own cause is reverted and to SURVIVE when the other is.',
       '- **The fords are the one thing that came out backwards.** A river with a single bridge',
       '  is a chokepoint worth more than any wall, so two fords were added — and they did not',
       '  move the clear rate at all. What they moved was the butcher’s bill, the wrong way:',
