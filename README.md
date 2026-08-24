@@ -879,7 +879,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --parity for every faction at its own signature line, or
                    # -- --air [faction] for air against ground, or
                    # -- --deal for what the front line offers vs what it could, or
-                   # -- --pressure for the per-faction deal ordering, paste-ready)
+                   # -- --pressure for the per-faction deal ordering, paste-ready, or
+                   # -- --kits for whether the two fronts are the same fight)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)

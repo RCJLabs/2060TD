@@ -244,15 +244,25 @@ describe('veterancy in the sim', () => {
   });
 
   it('brings more men home at the margin, which is what the rank is for', () => {
-    // Measured, not assumed: one battle is noise, so sweep a thin plan against
-    // a tier that can actually stop it. Green brings ~21% of a 5R1A push back
-    // at T4; cadre brings ~33%. The edge pays in survivors, so it protects the
-    // experience that earned it.
+    // Measured, not assumed: one battle is noise, so sweep a push across the
+    // shallow rungs, where the men are still living. Green brings ~48% of an
+    // 8R2A push home over T1-T3; cadre brings ~54%. The edge pays in
+    // survivors, so it protects the experience that earned it.
+    //
+    // MOVED in v1.21, for the reason the note below already gives. This used
+    // to run a thin 5R1A push at T4, and v1.21's base-kit retune — the PLA
+    // post measured 34 clear-rate points softer than the US firebase, so its
+    // grenade and ATGM towers doubled in rate and gained reach — put that push
+    // straight onto the floor: 5.6% home at BOTH ranks, because a 15% HP bump
+    // cannot save a unit that was never going to survive the volley. Same
+    // artifact, new cause. A heavier push across T1-T3 puts it back where a
+    // multiplier is visible.
     const survivalAt = (vet: number): number => {
       let back = 0;
       let sent = 0;
+      for (const tier of [1, 2, 3])
       for (let variant = 0; variant < 3; variant++) {
-        const base = generateBase(4, variant);
+        const base = generateBase(tier, variant);
         // Flat ground, deliberately. This measures a RANK, and terrain
         // arriving in v1.19 pushed a thin 5R1A push at tier 4 down onto the
         // floor — where both ranks return exactly the same men, because a
@@ -262,11 +272,11 @@ describe('veterancy in the sim', () => {
         // the ceiling, so it has to be measured where the units were already
         // living. Terrain has its own suite.
         base.terrainSeed = 0;
-        for (let seed = 1; seed <= 12; seed++) {
+        for (let seed = 1; seed <= 16; seed++) {
           const p: SquadPlan[] = [
-            { units: { ranger: 5, abrams: 1 }, sector: 'W1', doctrine: 'assault', slot: 0, vet },
+            { units: { ranger: 8, abrams: 2 }, sector: 'W1', doctrine: 'assault', slot: 0, vet },
           ];
-          const res = resolveRaid(raidConfig(base, p, seed * 7919), p, 4, RAID_CATALOG);
+          const res = resolveRaid(raidConfig(base, p, seed * 7919), p, tier, RAID_CATALOG);
           back += res.squads[0]!.returned;
           sent += res.squads[0]!.deployed;
         }

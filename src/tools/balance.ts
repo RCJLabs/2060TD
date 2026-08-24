@@ -16,6 +16,8 @@ import { GARRISON_GUN_TRADE } from '../content/garrison';
 import {
   generateBase,
   ARCHETYPES,
+  CHINA_BASE_KIT,
+  USA_BASE_KIT,
   TARGETS_PER_TIER,
   archetypeFor,
   MAP_W,
@@ -50,6 +52,7 @@ import type {
   LayoutWall,
   SimConfig,
   StandingOrders,
+  Catalog,
 } from '../sim/types';
 
 const SEEDS = 20;
@@ -857,6 +860,75 @@ function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): numbe
 }
 
 /**
+ * The two base kits, each measured against every force (v1.21).
+ *
+ * There are exactly two: the PLA post that the USA and the UN raid, and the US
+ * firebase that China, Russia and the KPA raid. Nothing else in the harness
+ * compares them, and until v1.21 nothing had: the PLA kit measured 34
+ * clear-rate points softer for all five forces, which handed the two factions
+ * that raid it a standing advantage no amount of deal or ladder work could
+ * reach.
+ *
+ * Forced shapes on both sides, so the deal cannot move the answer, and the
+ * catalog's structures are swapped rather than its attackers — the same force
+ * meets the other side's fortifications with nothing else changed.
+ *
+ * A row near zero is the bar. A column that is uniformly softer is a faction
+ * pick behaving as a difficulty setting.
+ */
+function kitTable(): string {
+  const own = (f: FactionId): 'china' | 'usa' => (f === 'usa' || f === 'un' ? 'china' : 'usa');
+  const swapped = (f: FactionId, donor: FactionId): Catalog => {
+    const mine = raidCatalogFor(f);
+    const theirs = raidCatalogFor(donor);
+    return { ...mine, structures: theirs.structures, walls: theirs.walls };
+  };
+  const run = (faction: FactionId, kitOwner: 'china' | 'usa'): number => {
+    const kit = kitOwner === 'china' ? CHINA_BASE_KIT : USA_BASE_KIT;
+    const donor = FACTION_IDS.find((f) => own(f) === kitOwner)!;
+    const catalog = own(faction) === kitOwner ? raidCatalogFor(faction) : swapped(faction, donor);
+    const squads = RAID_PLANS[faction].map((s, at) => ({ ...s, slot: at }));
+    let cleared = 0;
+    let runs = 0;
+    for (const tier of [2, 3, 4, 5]) {
+      for (const arch of ARCHETYPES) {
+        for (let v = 0; v < 2; v++) {
+          const base = generateBase(tier, v, kit, arch.id);
+          for (let i = 0; i < 3; i++) {
+            const config = raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction));
+            if (resolveRaid(config, squads, tier, catalog).cleared) cleared++;
+            runs++;
+          }
+        }
+      }
+    }
+    return runs > 0 ? (cleared / runs) * 100 : 0;
+  };
+
+  const lines = [
+    'THE TWO KITS — every force against both sets of fortifications',
+    'FORCE   | vs PLA post | vs US firebase |   GAP | normally raids',
+    '--------+-------------+----------------+-------+---------------',
+  ];
+  let worst = 0;
+  for (const faction of FACTION_IDS) {
+    const c = run(faction, 'china');
+    const u = run(faction, 'usa');
+    worst = Math.max(worst, Math.abs(c - u));
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} | ${pad(c.toFixed(1), 11)} | ${pad(u.toFixed(1), 14)} | ` +
+        `${pad((c - u >= 0 ? '+' : '') + (c - u).toFixed(1), 5)} | ${own(faction).toUpperCase()}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    `WORST GAP ${worst.toFixed(1)} points. Two fronts differing in STYLE should not differ this ` +
+      'much in DIFFICULTY — whoever raids the softer one is playing on easy and did not choose to.',
+  );
+  return lines.join('\n');
+}
+
+/**
  * The per-faction deal ordering, printed as the literal `bases.ts` holds.
  *
  * Exists because the numbers below have to live in content and hand-copying
@@ -1219,6 +1291,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--kits')) {
+    console.log(kitTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--pressure')) {
     console.log(pressureTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -1330,6 +1407,8 @@ function main(): void {
   // the depot never, and the two hardest shapes in the game landing together
   // on T5 for every faction at once.
   sections.push(dealTable());
+  // And the layer under the deal: whether the two fronts are the same fight.
+  sections.push(kitTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));
