@@ -184,19 +184,35 @@ describe('what the wall line is worth', () => {
    * An earlier version of this test moved the garrison and the gun trade
    * together and passed with the garrison deleted, which is precisely the
    * failure it existed to catch. The wall line is earned by
-   * `GARRISON_GUN_TRADE`, not by the garrison, and the three cases below say
-   * so by holding the watch off and moving only the guns.
+   * `GARRISON_GUN_TRADE`, not by the garrison, and the cases below say so by
+   * holding the watch off and moving only the guns.
+   *
+   * REPOINTED in v1.21, and it is worth being plain about why rather than
+   * quietly loosening a bound. This used to open by reproducing the v1.19
+   * defect — at full gun strength, stripping every wall made a base EASIER to
+   * hold — and that assertion no longer holds on current content. It is not a
+   * broken test: v1.21's upgrade creep (`upgradeShareFor`) leaves a share of
+   * every deep base's gun line one level back, which reduces effective
+   * standing gun strength, which is the same lever `GARRISON_GUN_TRADE`
+   * pulls. Two changes now push the same term, so the trade's MARGIN has
+   * shrunk from the ~12.5 clear-rate points v1.20 measured to about 2.6 —
+   * while the thing that actually matters, the wall line's sign, is if
+   * anything better than it shipped (+7.6 against v1.20's +6.7).
+   *
+   * So this asserts what is true now and still fails for the right reason:
+   * cutting the guns has to move the wall line towards the defender, on this
+   * content, with nothing else moving. Delete `GARRISON_GUN_TRADE`'s effect
+   * and the second assertion goes.
    */
-  it('was negative at v1.19 gun strength and is positive after the trade', () => {
-    const oldWalls = clearRate((c) => noWatch(guns(1)(c)));
-    const oldBare = clearRate((c) => noWatch(guns(1)(strip(c))));
-    // v1.19: taking every wall away made the base EASIER to hold.
-    expect(oldBare).toBeLessThan(oldWalls);
+  it('is positive, and the gun trade is what moves it further that way', () => {
+    const wallWorth = (mult: number): number =>
+      clearRate((c) => noWatch(guns(mult)(strip(c)))) - clearRate((c) => noWatch(guns(mult)(c)));
 
-    const cutWalls = clearRate((c) => noWatch(guns(GARRISON_GUN_TRADE)(c)));
-    const cutBare = clearRate((c) => noWatch(guns(GARRISON_GUN_TRADE)(strip(c))));
-    // The gun trade alone, with no garrison anywhere near it, flips the sign.
-    expect(cutBare).toBeGreaterThan(cutWalls);
+    // Fortifying is worth something at full gun strength on v1.21 content...
+    const atFull = wallWorth(1);
+    expect(atFull).toBeGreaterThan(0);
+    // ...and cutting the guns is what moves it further the defender's way.
+    expect(wallWorth(GARRISON_GUN_TRADE)).toBeGreaterThan(atFull);
   }, 30_000);
 
   it('is still positive in the configuration that actually ships', () => {

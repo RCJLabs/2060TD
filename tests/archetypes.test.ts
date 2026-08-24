@@ -143,6 +143,73 @@ describe('every generated base', () => {
     }
   });
 
+  /**
+   * The ladder has to climb (v1.21). Before the upgrade creep, every gun on a
+   * base stepped to the next level on the same rung, which made T3->T4 a
+   * 39-point cliff in the balance harness and left T4->T5 with nothing at all
+   * to add — T4 measured HARDER than T5, so a player who ground past the wall
+   * found the next rung easier.
+   *
+   * Gun-level points (guns summed by level) is the cheap structural stand-in
+   * for that, and it catches both halves: a rung that adds nothing, and a rung
+   * that more than doubles. Deleting `upgradeShareFor` fails the second bound
+   * at T3->T4, which is the shape of the defect this exists to hold shut.
+   */
+  it('climbs the ladder instead of cliffing up it', () => {
+    for (const shape of ['compound', 'corridor', 'keep'] as const) {
+      const rungs = [1, 2, 3, 4, 5, 6].map((tier) => {
+        const guns = generateBase(tier, 0, CHINA_BASE_KIT, shape).structures.filter((s) =>
+          /tower|nest|cannon|mortar/i.test(s.kind),
+        );
+        return {
+          // Guns summed by level: what the rung is worth in standing fire.
+          points: guns.reduce((sum, g) => sum + (g.level ?? 1), 0),
+          // …and the whole shape of the line, because a rung can also add a
+          // KIND. T3 adds neither a gun nor a level — it adds anti-armor, and
+          // the harness prices that rung at -21, so points alone cannot be
+          // the only thing a rung is allowed to move.
+          signature: `${guns.length}:${[...new Set(guns.map((g) => `${g.kind}${g.level ?? 1}`))].sort().join()}`,
+        };
+      });
+      for (let i = 1; i < rungs.length; i++) {
+        const label = `${shape} T${i}->T${i + 1}`;
+        const prev = rungs[i - 1]!;
+        const here = rungs[i]!;
+        expect(here.points, `${label} goes backwards`).toBeGreaterThanOrEqual(prev.points);
+        expect(here.signature, `${label} adds nothing at all`).not.toBe(prev.signature);
+        expect(here.points, `${label} is a cliff`).toBeLessThanOrEqual(prev.points * 2);
+      }
+    }
+  });
+
+  it('creeps the upgrade through the line rather than landing it all at once', () => {
+    // T1-T3 sit at ceiling 1: there is no level to be one back from, so the
+    // shallow rungs must be untouched by the creep.
+    for (const tier of [1, 2, 3]) {
+      const guns = generateBase(tier, 0, CHINA_BASE_KIT, 'compound').structures.filter((s) =>
+        /tower/i.test(s.kind),
+      );
+      expect(guns.every((g) => g.level === 1), `T${tier} all at the ceiling`).toBe(true);
+    }
+    // T4 opens the band with a minority upgraded, T6 closes it with all of
+    // them, and the mount never upgrades at any of it.
+    const at = (tier: number) =>
+      generateBase(tier, 0, CHINA_BASE_KIT, 'compound').structures.filter((s) =>
+        /tower/i.test(s.kind),
+      );
+    const t4 = at(4);
+    const t6 = at(6);
+    expect(t4.filter((g) => g.level === 2).length).toBeLessThan(t4.length);
+    expect(t4.some((g) => g.level === 2)).toBe(true);
+    expect(t6.every((g) => g.level === 2)).toBe(true);
+    for (const tier of [4, 5, 6]) {
+      const mounts = generateBase(tier, 0, CHINA_BASE_KIT, 'compound').structures.filter(
+        (s) => s.kind === CHINA_BASE_KIT.aa,
+      );
+      expect(mounts.every((m) => m.level === 1), `T${tier} mounts`).toBe(true);
+    }
+  });
+
   it('is identical on every regeneration — scouting, raiding and replay agree', () => {
     for (const { tier, shape } of cases) {
       const a = generateBase(tier, 1, USA_BASE_KIT, shape as never);

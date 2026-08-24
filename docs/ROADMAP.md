@@ -740,7 +740,40 @@ v1.20 with a note saying the balance pass would decide. It has.
       *T3→T4 adds a structure level AND a tower; T4→T5 adds nothing but the
       bunker archetype entering the pool. So **T4 comes out harder than T5**,
       and a player who grinds past the wall at T4 finds the next rung
-      easier. The whole ladder's difficulty is one step.*
+      easier. The whole ladder's difficulty is one step. Isolating the two
+      terms on the same generated bases — demote every level, or delete one
+      gun — priced them at -16 and -12 of that -39, the rest being the keep
+      archetype entering the pool.*
+
+- [x] **Make the upgrade creep instead of land** *(v1.21, `upgradeShareFor`)* —
+      *a base's guns used to all step to the next level on the same rung. Now
+      a third of the line stands at the ceiling on the first rung of a band,
+      two thirds on the second, all of it on the third — the same ceiling,
+      spread over three rungs. `towerSpots` is ordered best-position-first, so
+      the guns already upgraded are the ones covering the key ground, which a
+      raider can read off the board.*
+
+          before  T1 100  ->  T2 95  ->  T3 74  ->  T4 35  ->  T5 36
+          after   T1 100  ->  T2 95  ->  T3 74  ->  T4 48  ->  T5 46
+                          -5        -21        -26        -2
+
+      *The cliff drops from -39 to -26 and no rung goes back up. T1-T3 do not
+      move at all, which is the control working: below the first level step
+      there is no level to be one back from.*
+
+      *Two things this cost, both worth writing down rather than discovering
+      later. **It overlaps `GARRISON_GUN_TRADE`** — both reduce effective
+      standing gun strength on deep bases, so the trade's margin has shrunk
+      from the ~12.5 clear-rate points v1.20 measured to about 2.6. The wall
+      line itself is fine (+7.6, against the +6.7 that shipped); what has gone
+      is the attribution, and `tests/garrison.test.ts` now asserts what is true
+      on this content in place of a v1.19 snapshot it can no longer reproduce.
+      **And T4→T5 is still nearly flat at -2.** Smoothing the gun count to
+      `round(2.5 + tier * 0.6)` gives T5 the gun it never gets and a proper
+      -16 step — and drops the wall line from +7.6 to +0.8, because more guns
+      means the maze goes back to steering raiders AROUND them, which is
+      exactly the v1.19 defect v1.20 was built to fix. Measured, reverted,
+      recorded: **whatever fills the T4→T5 rung, it cannot be another gun.***
 
 - [ ] **Fix the deal, then the rung.** Two content changes, separable and both
       measurable with `--deal`. The deal: pick a rung's three targets to span

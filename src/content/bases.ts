@@ -70,6 +70,36 @@ export function structureLevelFor(tier: number): number {
   return Math.min(3, 1 + Math.floor((tier - 1) / 3));
 }
 
+/**
+ * How far the upgrade has crept through the gun line at a rung (v1.21).
+ *
+ * `structureLevelFor` steps every third tier, and until v1.21 every gun on a
+ * base stepped with it on the same rung. Measured over all eight shapes and
+ * all five factions, that made the ladder one cliff rather than a curve:
+ *
+ *     rung      T1    T2    T3    T4    T5
+ *     clear%   100    95    74    35    36
+ *     step           -5   -21   -39    +1
+ *
+ * T3→T4 is where the level steps AND a gun is added; T4→T5 adds neither, so
+ * T4 came out HARDER than T5 and a player who ground past the wall found the
+ * next rung easier. Isolating the two terms on the same generated bases —
+ * demote every level, or delete one gun — priced them at -16 and -12 of that
+ * -39, with the rest the keep archetype entering the pool.
+ *
+ * So the upgrade now creeps instead of landing. This returns the share of the
+ * gun line standing at the full ceiling; the rest sit one level back. Position
+ * in the three-tier band is what drives it, which means the first rung of a
+ * band gets a third of the line, the second two thirds, and the third all of
+ * it — the same ceiling arrives, spread over three rungs instead of one.
+ *
+ * Below the first step (T1-T3, ceiling 1) there is no level to be one back
+ * from, so nothing moves and the shallow rungs measure exactly as they did.
+ */
+export function upgradeShareFor(tier: number): number {
+  return [1 / 3, 2 / 3, 1][Math.max(0, tier - 1) % 3]!;
+}
+
 class Occupancy {
   private cells = new Set<CellIndex>();
 
@@ -548,7 +578,13 @@ export function generateBase(
   const ccOrigin = idx(ccX, ccY);
   occupancy.block(footprint2(ccOrigin));
 
-  const putStructure = (kind: string, x: number, y: number, big: boolean): boolean => {
+  const putStructure = (
+    kind: string,
+    x: number,
+    y: number,
+    big: boolean,
+    at = level,
+  ): boolean => {
     const origin = idx(x, y);
     const cells = big ? footprint2(origin) : [origin];
     if (y < 1 || y + (big ? 1 : 0) > MAP_H - 2 || !occupancy.free(cells)) return false;
@@ -557,7 +593,7 @@ export function generateBase(
     // there to answer rotors, not to be a quiet ground-defence buff on every
     // base a raider has to cross — flak is priced badly against the ground,
     // and an upgraded one at tier 5 would still be another gun in the line.
-    structures.push({ cell: origin, kind, level: kind === kit.aa ? 1 : level });
+    structures.push({ cell: origin, kind, level: kind === kit.aa ? 1 : at });
     return true;
   };
 
@@ -600,6 +636,14 @@ export function generateBase(
   arch.walls(plan);
 
   // ---- towers ------------------------------------------------------------------
+  // Unchanged, and deliberately so — see the ROADMAP's open item. This steps
+  // on even tiers only, so T5 gains no gun, and with the creep above landing
+  // just two more upgrades there the T4->T5 rung measures a nearly flat -2.
+  // Smoothing it to `round(2.5 + tier * 0.6)` does give T5 its gun and a
+  // proper -16 step, and it also erases what v1.20 shipped for: more guns
+  // means the maze goes back to steering raiders AROUND them, and the wall
+  // line falls from +7.6 to +0.8. That trade is real and it is not this
+  // change's to make.
   const towerCount = Math.max(
     1,
     Math.round(Math.min(8, 3 + Math.floor(tier / 2)) * arch.towers),
@@ -613,6 +657,14 @@ export function generateBase(
     if (tier >= 2 && i % 2 === 1) return kit.towers[1]; // area denial
     return kit.towers[0];
   };
+  // The upgrade creeps through the line rather than landing on it (v1.21).
+  // `towerSpots` is ordered best-position-first, so the guns that matter most
+  // are the ones already standing at the ceiling — a base builds up its key
+  // positions before its outlying ones, and a raider can read which is which
+  // off the board. Floor, so the first rung of a band gets strictly fewer than
+  // a third rather than rounding straight back up to all of them.
+  const upgraded = Math.floor(towerCount * upgradeShareFor(tier));
+  const gunLevel = (i: number): number => Math.max(1, i < upgraded ? level : level - 1);
   let placed = 0;
   let mounts = 0;
   for (
@@ -625,7 +677,7 @@ export function generateBase(
     // standoff run would never have to enter their envelope.
     const wantAa = mounts < aaCount && (i === 2 || i === 5 || placed >= towerCount);
     const kind = wantAa ? kit.aa : towerKind(placed);
-    if (putStructure(kind, sx + ri(rng, -1, 1), sy + ri(rng, -1, 1), false)) {
+    if (putStructure(kind, sx + ri(rng, -1, 1), sy + ri(rng, -1, 1), false, gunLevel(placed))) {
       if (wantAa) mounts++;
       else placed++;
     }
@@ -637,7 +689,7 @@ export function generateBase(
   for (let i = 0; i < fallback.length && (placed < towerCount || mounts < aaCount); i++) {
     const wantAa = mounts < aaCount;
     const kind = wantAa ? kit.aa : towerKind(placed);
-    if (putStructure(kind, fallback[i]![0], fallback[i]![1], false)) {
+    if (putStructure(kind, fallback[i]![0], fallback[i]![1], false, gunLevel(placed))) {
       if (wantAa) mounts++;
       else placed++;
     }
