@@ -157,6 +157,7 @@ describe('raid fire support', () => {
       walls: [],
       structures: [],
       archetype: 'compound' as const,
+      terrainSeed: 0,
     };
     const config = raidConfig(bare, squads, 7, trainableFor('usa'), {
       powerCharges: { arty: 1 },

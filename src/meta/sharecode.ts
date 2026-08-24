@@ -48,6 +48,37 @@ export interface SharedBase {
   ccLevel: number;
   walls: LayoutWall[];
   structures: LayoutStructure[];
+  /** The ground the owner defends on (v1.19). */
+  terrainSeed: number;
+}
+
+/**
+ * The ground for a base whose code predates terrain.
+ *
+ * A share code is not a record of a battle — it is a BASE, and a base has to
+ * sit on something. So rather than flattening old codes, the seed is derived
+ * from the layout itself: both players compute the same number from the same
+ * walls and buildings, so a code pasted from a year ago still fights on real
+ * ground, and both sides fight on the SAME real ground, which is the only
+ * property a duel actually needs.
+ *
+ * (Replay codes answer this the opposite way — see replaycode.ts. A record
+ * must not change; a base may be put on a hill.)
+ */
+export function terrainSeedForLayout(base: Omit<SharedBase, 'terrainSeed'>): number {
+  let hash = 0x811c9dc5;
+  const eat = (n: number): void => {
+    hash = Math.imul(hash ^ (n & 0xff), 0x01000193) >>> 0;
+    hash = Math.imul(hash ^ ((n >>> 8) & 0xff), 0x01000193) >>> 0;
+  };
+  eat(base.ccOrigin);
+  eat(base.ccLevel);
+  for (const w of base.walls) eat(w.cell);
+  for (const st of base.structures) {
+    eat(st.cell);
+    eat(st.level ?? 1);
+  }
+  return hash >>> 0;
 }
 
 const MAX_NAME = 24;
@@ -104,6 +135,10 @@ export function encodeBase(town: TownState, name: string): string {
       previous = cell;
     }
   }
+
+  // The ground, appended (v1.19). Old codes end before this and derive their
+  // seed from the layout instead — see terrainSeedForLayout.
+  writeVarint(payload, (town.terrainSeed ?? 0) >>> 0);
 
   const sum = checksum(payload);
   payload.push(sum & 0xff, (sum >> 8) & 0xff);
@@ -182,11 +217,21 @@ export function decodeBase(raw: string): DecodeResult {
       walls.push({ cell, kind });
     }
   }
+  // A code written since v1.19 names its ground; anything older derives it.
+  let terrainSeed: number | null = null;
+  if (cur.at < cur.bytes.length) {
+    terrainSeed = readVarint(cur);
+    if (terrainSeed === null) return { ok: false, error: 'truncated' };
+  }
   if (cur.at !== cur.bytes.length) return { ok: false, error: 'content' };
 
+  const base = { faction, name: cleanName(name), ccOrigin, ccLevel, walls, structures };
   return {
     ok: true,
-    base: { faction, name: cleanName(name), ccOrigin, ccLevel, walls, structures },
+    base: {
+      ...base,
+      terrainSeed: terrainSeed && terrainSeed > 0 ? terrainSeed : terrainSeedForLayout(base),
+    },
   };
 }
 
@@ -206,6 +251,7 @@ export function baseFromShare(shared: SharedBase): GeneratedBase {
     // A friend's base is whatever they built; it is not one of the ladder's
     // shapes, and nothing reads the archetype for a duel.
     archetype: 'compound',
+    terrainSeed: shared.terrainSeed,
   };
 }
 

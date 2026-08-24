@@ -3,7 +3,6 @@ import { USA_WALLS } from '../src/content/usa';
 import { FACTION_IDS, defenseCatalogFor } from '../src/content/factions';
 import {
   canPlaceWall,
-  newTown,
   placeWall,
   removeWall,
   wallSegments,
@@ -11,7 +10,7 @@ import {
   TOWN_GRID,
   unlockAll,
 } from '../src/meta/town';
-import { makeSandbox, spawnCell, TEST_CATALOG, wallLine } from './helpers';
+import { makeSandbox, spawnCell, TEST_CATALOG, wallLine, yardTown } from './helpers';
 import type { Engine } from '../src/sim/engine';
 
 /**
@@ -277,7 +276,7 @@ describe('a gate is part of the battle the replay recorded', () => {
 
 describe('the yard treats a gate as a piece of the wall line', () => {
   const devTown = () => {
-    const town = unlockAll(newTown(T0));
+    const town = unlockAll(yardTown(T0));
     town.supplies = 50_000;
     return town;
   };

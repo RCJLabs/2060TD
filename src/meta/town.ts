@@ -1,5 +1,10 @@
 import { buildAssault, assaultLoot, probeAssault } from '../content/assaults';
 import {
+  generateTerrain,
+  TERRAIN_VERSION,
+  type TerrainField,
+} from '../sim/terrain';
+import {
   defenseCatalogFor,
   enemyRosterFor,
   townMetaFor,
@@ -267,11 +272,119 @@ export interface TownState {
    * no plan to reopen, and three empty formations is the right answer for it.
    */
   lastPlan?: StoredPlan[];
+  /**
+   * The ground this war is fought on (v1.19). One number, because terrain is
+   * DERIVED from it rather than stored — the same seed rebuilds the same
+   * sheet anywhere, so a replay carries two varints instead of 768 cells.
+   *
+   * Optional: a file written before this has no seed, and `normalizeTerrain`
+   * gives it one on the load that upgrades it. Existing buildings are fed to
+   * the generator as a constraint, so no depot ever wakes up in a river.
+   */
+  terrainSeed?: number;
   assaultLevel: number;
   victories: number;
   defeats: number;
   lastSeen: number;
   nextId: number;
+}
+
+/**
+ * A terrain seed from a timestamp. The only entropy a new war has is when it
+ * started, so that is what the ground is made of — mixed, because adjacent
+ * milliseconds should not produce adjacent maps.
+ */
+export function terrainSeedFrom(now: number): number {
+  return (Math.imul(now >>> 0, 2654435761) ^ 0x5bf03635) >>> 0;
+}
+
+/**
+ * Every cell this town has already committed to.
+ *
+ * Used only when CHOOSING a seed — never when generating from one. Terrain
+ * has to be a pure function of the seed, or the river would shift every time
+ * the player laid a wall.
+ */
+export function occupiedCells(town: TownState): CellIndex[] {
+  const out: CellIndex[] = [];
+  for (const wall of town.walls) out.push(wall.cell);
+  for (const s of town.structures) {
+    if (s.wrecked) continue;
+    out.push(...footprintCells(s.kind, s.cell));
+  }
+  return out;
+}
+
+/** The cells a town's terrain is always generated around: the command post. */
+const TOWN_KEEP_DRY = footprintCells('cc', TOWN_GRID.ccOrigin);
+
+const TERRAIN_CACHE = new Map<number, TerrainField>();
+
+/**
+ * The ground under a town. Memoised, because the placement funnel asks for it
+ * on every ghost frame and a field is a few hundred thousand noise samples.
+ */
+export function townTerrain(town: TownState): TerrainField {
+  const seed = town.terrainSeed ?? terrainSeedFrom(town.lastSeen);
+  let field = TERRAIN_CACHE.get(seed);
+  if (!field) {
+    field = generateTerrain(
+      seed,
+      TERRAIN_VERSION,
+      TOWN_GRID.width,
+      TOWN_GRID.height,
+      TOWN_KEEP_DRY,
+      TOWN_GRID.spawnColumn,
+    );
+    TERRAIN_CACHE.set(seed, field);
+  }
+  return field;
+}
+
+/**
+ * A seed whose ground fits a town that was built before there was any.
+ *
+ * The alternative — deforming the terrain around whatever happens to be on
+ * the board — would make the field a function of the layout, and the river
+ * would then move every time somebody sold a depot. So the layout is fixed
+ * and the SEED is what gives: walk seeds until one leaves every building on
+ * dry land. Roughly four per cent of the board is water, so this lands almost
+ * always on the first try, and the walk is deterministic either way.
+ */
+export function fitTerrainSeed(town: TownState, startedAt: number): number {
+  const occupied = occupiedCells(town);
+  const first = terrainSeedFrom(startedAt);
+  for (let i = 0; i < 64; i++) {
+    const seed = (first + Math.imul(i, 2246822519)) >>> 0;
+    const field = generateTerrain(
+      seed,
+      TERRAIN_VERSION,
+      TOWN_GRID.width,
+      TOWN_GRID.height,
+      TOWN_KEEP_DRY,
+      TOWN_GRID.spawnColumn,
+    );
+    if (occupied.every((cell) => field.passable(cell))) {
+      TERRAIN_CACHE.set(seed, field);
+      return seed;
+    }
+  }
+  // Sixty-four sheets and every one of them drowns something. The war keeps
+  // its buildings; the ground is the thing that gives way.
+  return first;
+}
+
+/**
+ * The seed for a town, minting one for a war that predates terrain.
+ *
+ * A file written before v1.19 has no ground. It gets some on the load that
+ * upgrades it — chosen so nothing already built ends up in a river — and
+ * stable from then on.
+ */
+export function normalizeTerrain(town: TownState, startedAt: number): number {
+  const raw: unknown = town.terrainSeed;
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) return raw >>> 0;
+  return fitTerrainSeed(town, startedAt);
 }
 
 export function newTown(now: number, faction: FactionId = 'usa'): TownState {
@@ -313,6 +426,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     log: newWarLog(now),
     vault: [],
     contracts: normalizeContracts(undefined, now),
+    terrainSeed: terrainSeedFrom(now),
     assaultLevel: 1,
     victories: 0,
     defeats: 0,
@@ -630,15 +744,21 @@ export type PlaceError =
   | 'occupied'
   | 'bounds'
   | 'spawnColumn'
+  | 'terrain'
   | 'count'
   | 'cost'
   | null;
 
 function cellsFree(town: TownState, cells: CellIndex[], ignoreId?: number): PlaceError {
   const w = TOWN_GRID.width;
+  const ground = townTerrain(town);
   for (const cell of cells) {
     if (cell < 0 || cell >= w * TOWN_GRID.height) return 'bounds';
     if (cell % w === TOWN_GRID.spawnColumn) return 'spawnColumn';
+    // The sim refuses to build here too (water lands in Grid.blocked), so the
+    // two layers have to agree or the UI offers a placement the battle would
+    // not honour. No message is needed for it: the river is on the map.
+    if (!ground.passable(cell)) return 'terrain';
     if (wallAt(town, cell)) return 'occupied';
     const s = structureAt(town, cell);
     if (s && s.id !== ignoreId) return 'occupied';
@@ -869,6 +989,11 @@ function battleConfig(
     layout: townLayout(town),
     powerCharges: { ...town.charges },
     buildLimits: buildLimitsFor(town),
+    // Every town battle is fought on the town's own ground. This is the only
+    // seam: the four config builders all come through here, so a battle that
+    // forgot its terrain would be one that skipped this function.
+    terrainSeed: town.terrainSeed ?? terrainSeedFrom(town.lastSeen),
+    terrainVersion: TERRAIN_VERSION,
     ...(defender ? { mods: { defender } } : {}),
     ...(reservedCells && reservedCells.length > 0 ? { reservedCells } : {}),
   };

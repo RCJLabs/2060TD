@@ -6,7 +6,13 @@ import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
 import { normalizePlan } from './warfare';
 import { normalizeContracts } from './contracts';
-import { newTown, normalizeWarLog, unlockAll, type TownState } from './town';
+import {
+  newTown,
+  normalizeTerrain,
+  normalizeWarLog,
+  unlockAll,
+  type TownState,
+} from './town';
 
 /**
  * Versioned save persistence: localStorage autosave plus export/import as a
@@ -231,6 +237,11 @@ export function deserialize(json: string): TownState | null {
     // The stored plan arrived in v1.16. Anything unrecognizable is dropped
     // here rather than at the planner, so what reaches the scene is a plan.
     town.lastPlan = normalizePlan(town.lastPlan);
+    // The ground arrived in v1.19. A war fought before it has none, and gets
+    // one here — derived from when it began, so the same file always upgrades
+    // to the same sheet. Buildings already on the board become a constraint
+    // on the generator rather than a casualty of it.
+    town.terrainSeed = normalizeTerrain(town, town.log?.startedAt ?? town.lastSeen);
     // The coach ledger arrived in v1.5; an older file has simply read nothing.
     town.seen = Array.isArray(town.seen)
       ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)

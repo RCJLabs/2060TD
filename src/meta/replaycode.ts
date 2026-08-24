@@ -1,5 +1,6 @@
 import { FACTION_IDS, type FactionId } from '../content/factions';
 import { standingOrdersFor, isStandingOrdersId } from '../content/standingOrders';
+import { TERRAIN_VERSION } from '../sim/terrain';
 import type {
   AutoPowerRule,
   CellIndex,
@@ -257,6 +258,20 @@ export function encodeReplay(replay: Replay): string {
   // by the reader, so a code never carries a policy table that could drift
   // out of step with the game it is pasted into.
   putString(body, c.standingOrders?.id ?? '');
+
+  // The ground (v1.19), appended rather than versioned in.
+  //
+  // A replay is a RECORD of a battle that happened, so a code written before
+  // terrain existed has to keep re-fighting the flat field it was fought on.
+  // Bumping FORMAT would refuse those codes outright — and because the vault
+  // stores codes and drops what no longer decodes, that would quietly empty
+  // every commander's shelf. So the block goes on the end and the reader
+  // treats its absence as "no terrain", which is exactly what those battles
+  // had.
+  if ((c.terrainVersion ?? 0) > 0) {
+    writeVarint(body, c.terrainVersion!);
+    writeVarint(body, (c.terrainSeed ?? 0) >>> 0);
+  }
 
   // Header, dictionary, then the body — the reader needs the names first.
   const head: number[] = [FORMAT, REPLAY_KINDS.indexOf(replay.kind)];
@@ -532,6 +547,20 @@ export function decodeReplay(raw: string): ReplayDecode {
   if (orders !== '') {
     if (!isStandingOrdersId(orders)) return bad('content');
     config.standingOrders = standingOrdersFor(orders);
+  }
+
+  // The ground, if this code was written after v1.19. Anything older simply
+  // ends here, and flat is the right answer for it — that is the field the
+  // battle was actually fought on.
+  if (cur.at < body.length) {
+    const version = readVarint(cur);
+    const terrainSeed = readVarint(cur);
+    if (version === null || terrainSeed === null) return bad('truncated');
+    if (version > TERRAIN_VERSION) return bad('version');
+    if (version > 0) {
+      config.terrainVersion = version;
+      config.terrainSeed = terrainSeed;
+    }
   }
 
   return {

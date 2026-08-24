@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { DT, Engine, TICKS_PER_SECOND } from '../src/sim/engine';
+import { generateBase } from '../src/content/bases';
+import { RAID_CATALOG } from '../src/content/catalog';
+import { raidConfig } from '../src/meta/warfare';
+import { encodeReplay, decodeReplay } from '../src/meta/replaycode';
+import { encodeBase, decodeBase } from '../src/meta/sharecode';
 import type { Catalog, SimConfig } from '../src/sim/types';
-import { makeSandbox, spawnCell, TEST_CATALOG } from './helpers';
+import {
+  CLEAR_YARD,
+  CLEAR_YARD_SEED,
+  makeSandbox,
+  spawnCell,
+  TEST_CATALOG,
+  yardTown,
+} from './helpers';
 import {
   FLAT_TERRAIN,
   Ground,
@@ -420,5 +432,151 @@ describe('cover and elevation', () => {
   it('leaves reach alone when there is no terrain', () => {
     const flat = makeSandbox(11);
     expect(flat.terrain).toBe(FLAT_TERRAIN);
+  });
+});
+
+describe('nothing gets built in a river', () => {
+  const SANDBOX: SimConfig = {
+    width: 32,
+    height: 24,
+    seed: 42,
+    ccOrigin: 11 * 32 + 27,
+    spawnColumn: 0,
+    terrainSeed: 2060,
+    terrainVersion: TERRAIN_VERSION,
+  };
+
+  it('refuses walls and structures on water, and allows them beside it', () => {
+    const engine = new Engine(SANDBOX, TEST_CATALOG);
+    const water: number[] = [];
+    const dry: number[] = [];
+    for (let c = 0; c < 32 * 24; c++) {
+      const col = c % 32;
+      if (col < 2 || col > 29) continue; // spawn column and the far edge
+      (engine.terrain.passable(c) ? dry : water).push(c);
+    }
+    expect(water.length).toBeGreaterThan(5);
+
+    for (const cell of water) {
+      expect(engine.isBuildable(cell), `cell ${cell} is water`).toBe(false);
+    }
+    // And the ban is specific: ordinary ground next door is still buildable.
+    const buildable = dry.filter((c) => engine.isBuildable(c));
+    expect(buildable.length).toBeGreaterThan(400);
+  });
+
+  it('never sites the command centre in water', () => {
+    // The CC is planted before anything else and throws if its cells are
+    // unavailable, so this is the failure that would take the whole battle
+    // down rather than degrade it.
+    for (let i = 0; i < 40; i++) {
+      const seed = (i * 7919 + 12345) >>> 0;
+      expect(
+        () => new Engine({ ...SANDBOX, terrainSeed: seed }, TEST_CATALOG),
+        `terrain seed ${seed}`,
+      ).not.toThrow();
+    }
+  });
+});
+
+describe('the seed the other suites lean on', () => {
+  it('CLEAR_YARD_SEED still leaves the yard dry, and still has water elsewhere', () => {
+    // Most suites place buildings at fixed coordinates and assert on relative
+    // positions. They pin this seed so a river through the middle cannot
+    // break them for reasons unrelated to what they test. If a future
+    // generator stops honouring the promise, this is the test that says so —
+    // rather than a dozen confusing failures in the shop and the yard.
+    const t = generateTerrain(
+      CLEAR_YARD_SEED,
+      TERRAIN_VERSION,
+      W,
+      H,
+      [11 * W + 27, 11 * W + 28, 12 * W + 27, 12 * W + 28],
+      SPAWN,
+    );
+    for (let y = CLEAR_YARD.y0; y <= CLEAR_YARD.y1; y++) {
+      for (let x = CLEAR_YARD.x0; x <= CLEAR_YARD.x1; x++) {
+        expect(t.passable(y * W + x), `yard cell (${x}, ${y}) is under water`).toBe(true);
+      }
+    }
+    // And it must still be a real map, or the suites leaning on it would be
+    // quietly testing flat ground.
+    expect(cells((c) => !t.passable(c)).length).toBeGreaterThan(10);
+  });
+});
+
+describe('codes carry the ground, without refusing the old ones', () => {
+  // The sharp edge here is the vault: it stores replay CODES and drops any
+  // that stop decoding, so bumping a format would quietly empty every
+  // commander's shelf. Both formats therefore stay at 1 and append.
+  const base = generateBase(2, 1);
+
+  it('a replay code round-trips its terrain', () => {
+    const config = raidConfig(base, [], 99);
+    expect(config.terrainVersion).toBe(TERRAIN_VERSION);
+    const code = encodeReplay({
+      kind: 'raid',
+      faction: 'usa',
+      title: 'TERRAIN',
+      won: true,
+      config,
+    });
+    const back = decodeReplay(code);
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.replay.config.terrainSeed).toBe(config.terrainSeed);
+    expect(back.replay.config.terrainVersion).toBe(config.terrainVersion);
+  });
+
+  it('a replay code written before terrain still decodes, and fights flat', () => {
+    // Simulated by encoding a config that names no ground at all, which is
+    // byte-for-byte what a pre-v1.19 encoder produced.
+    const flat = { ...raidConfig(base, [], 99) };
+    delete flat.terrainSeed;
+    delete flat.terrainVersion;
+    const back = decodeReplay(
+      encodeReplay({ kind: 'raid', faction: 'usa', title: 'OLD', won: false, config: flat }),
+    );
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.replay.config.terrainVersion).toBeUndefined();
+    expect(new Engine(back.replay.config, RAID_CATALOG).terrain).toBe(FLAT_TERRAIN);
+  });
+
+  it('a share code round-trips its terrain', () => {
+    const town = yardTown(1_700_000_000_000);
+    const back = decodeBase(encodeBase(town, 'HOME'));
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.base.terrainSeed).toBe(town.terrainSeed);
+  });
+
+  it('a share code written before terrain gets ground from its own layout', () => {
+    // A share code is a BASE, not a record of a battle, so flattening it
+    // would be the wrong answer — it has to sit on something. Both players
+    // derive the same seed from the same walls, which is the only property a
+    // duel needs.
+    const town = yardTown(1_700_000_000_000);
+    town.terrainSeed = 0; // what an encoder before v1.19 effectively wrote
+    const back = decodeBase(encodeBase(town, 'HOME'));
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.base.terrainSeed).toBeGreaterThan(0);
+    // And it is a function of the layout, so it is the same on both screens.
+    const again = decodeBase(encodeBase(town, 'HOME'));
+    expect(again.ok && again.base.terrainSeed).toBe(back.base.terrainSeed);
+  });
+
+  it('two different bases get two different sheets', () => {
+    const a = yardTown(1_700_000_000_000);
+    const b = yardTown(1_700_000_000_000);
+    a.terrainSeed = 0;
+    b.terrainSeed = 0;
+    b.walls = [{ cell: 5 * W + 5, kind: 'wall' }];
+    const seedOf = (t: typeof a): number => {
+      const back = decodeBase(encodeBase(t, 'X'));
+      return back.ok ? back.base.terrainSeed : -1;
+    };
+    expect(seedOf(a)).not.toBe(seedOf(b));
   });
 });

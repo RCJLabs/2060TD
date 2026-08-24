@@ -12,6 +12,7 @@ import {
 import { baseKitFor, defenseCatalogFor } from '../content/factions';
 import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
+import { TERRAIN_NONE, TERRAIN_VERSION } from '../sim/terrain';
 import type {
   AttackerMods,
   AutoPowerRule,
@@ -412,6 +413,10 @@ export function raidConfig(
     ccOrigin: base.ccOrigin,
     ccLevel: base.ccLevel,
     spawnColumn: 0,
+    // The target's own ground. A base carries its terrain seed, so a ladder
+    // rung, a duel and a replay of either all fight the same sheet.
+    terrainSeed: base.terrainSeed,
+    terrainVersion: base.terrainSeed > 0 ? TERRAIN_VERSION : TERRAIN_NONE,
     playerSide: 'attacker',
     siege: {
       name: `RAID — ${base.name}`,

@@ -1,4 +1,5 @@
 import { createRng, type Rng } from '../sim/rng';
+import { generateTerrain, TERRAIN_VERSION } from '../sim/terrain';
 import type { CellIndex, LayoutStructure, LayoutWall } from '../sim/types';
 
 /**
@@ -52,6 +53,8 @@ export interface GeneratedBase {
   structures: LayoutStructure[];
   /** Which kind of problem this base is (v1.6). */
   archetype: ArchetypeId;
+  /** The ground it sits on (v1.19). Derived, so it costs one number. */
+  terrainSeed: number;
 }
 
 const idx = (x: number, y: number): CellIndex => y * MAP_W + x;
@@ -521,6 +524,25 @@ export function generateBase(
   const walls: LayoutWall[] = [];
   const structures: LayoutStructure[] = [];
 
+  // The ground comes first, and from its OWN stream — drawing it from `rng`
+  // would move every base layout that has ever been generated for a given
+  // (tier, variant). Water is then blocked out of the occupancy map, so the
+  // builders below route around the river instead of into it. Both `put`
+  // helpers already fail soft, and the tower loop has a fallback ring, so
+  // this costs a placement here and there and never an exception.
+  //
+  // The command post is rolled with no occupancy check of its own, so the box
+  // it can land in is handed to the generator as ground to keep dry.
+  const terrainSeed = (Math.imul(seed, 2654435761) ^ 0x517cc1b7) >>> 0;
+  const ccBox: CellIndex[] = [];
+  for (let y = 9; y <= 13; y++) for (let x = 13; x <= 18; x++) ccBox.push(idx(x, y));
+  const terrain = generateTerrain(terrainSeed, TERRAIN_VERSION, MAP_W, MAP_H, ccBox, 0);
+  const water: CellIndex[] = [];
+  for (let cell = 0; cell < MAP_W * MAP_H; cell++) {
+    if (!terrain.passable(cell)) water.push(cell);
+  }
+  occupancy.block(water);
+
   const ccX = ri(rng, 13, 17);
   const ccY = ri(rng, 9, 12);
   const ccOrigin = idx(ccX, ccY);
@@ -622,7 +644,17 @@ export function generateBase(
   }
 
   const name = `GRID ${tier}-${variant + 1} “${CODENAMES[(seed >>> 3) % CODENAMES.length]}”`;
-  return { tier, variant, name, ccOrigin, ccLevel: level, walls, structures, archetype: arch.id };
+  return {
+    tier,
+    variant,
+    name,
+    ccOrigin,
+    ccLevel: level,
+    walls,
+    structures,
+    archetype: arch.id,
+    terrainSeed,
+  };
 }
 
 /** Loot paid per destroyed structure kind (walls pay nothing). */

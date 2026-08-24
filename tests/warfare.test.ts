@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { yardTown } from './helpers';
 import { generateBase, lootFor, MAP_H, MAP_W } from '../src/content/bases';
 import { deserialize, serialize } from '../src/meta/save';
 import {
@@ -6,7 +7,6 @@ import {
   armyManpower,
   canTrain,
   manpowerCapOf,
-  newTown,
   place,
   queueTrain,
   structureAt,
@@ -45,7 +45,7 @@ const HOURS = 3_600_000;
 const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
 
 const devTown = (): TownState => {
-  const town = unlockAll(newTown(T0));
+  const town = unlockAll(yardTown(T0));
   town.supplies = 50_000;
   town.fuel = 50_000;
   return town;

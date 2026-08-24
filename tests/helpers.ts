@@ -2,6 +2,8 @@ import { ECONOMY_STRUCTURES } from '../src/content/buildings';
 import { DAMAGE_MULT } from '../src/content/damage';
 import { USA_POWERS, USA_STRUCTURES, USA_WALLS } from '../src/content/usa';
 import { Engine } from '../src/sim/engine';
+import { newTown, type TownState } from '../src/meta/town';
+import type { FactionId } from '../src/content/factions';
 import type { AttackerProfile, Catalog, SimConfig } from '../src/sim/types';
 
 /**
@@ -153,4 +155,30 @@ export function wallLine(e: Engine, tick: number, x: number, gapY: number | null
     if (y === gapY) continue;
     e.enqueue({ tick, type: 'placeWall', cell: e.grid.idx(x, y), kind: 'wall' });
   }
+}
+
+/**
+ * A terrain seed whose ground is clear of the yard — every cell in
+ * x 1..24, y 2..18 is dry, while the rest of the board still has water on it.
+ *
+ * Terrain arrived in v1.19, and most suites are about the economy, the yard
+ * and the codecs rather than about where the river runs. They place buildings
+ * at fixed coordinates and assert on RELATIVE positions — this footprint
+ * overlaps that one, this move is blocked — so a river through the middle
+ * would break them for reasons that have nothing to do with what they test.
+ *
+ * Pinning the seed keeps those assertions meaningful. `terrain.test.ts` holds
+ * the guarantee: if a future generator stops honouring it, one clearly-named
+ * test fails saying so, instead of fourteen confusing ones elsewhere.
+ */
+export const CLEAR_YARD_SEED = 2;
+
+/** The rectangle CLEAR_YARD_SEED promises to keep dry. */
+export const CLEAR_YARD = { x0: 1, y0: 2, x1: 24, y1: 18 };
+
+/** A town on ground that leaves the yard clear. */
+export function yardTown(now: number, faction?: FactionId): TownState {
+  const town = newTown(now, faction);
+  town.terrainSeed = CLEAR_YARD_SEED;
+  return town;
 }

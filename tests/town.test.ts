@@ -8,7 +8,6 @@ import {
   canPlace,
   caps,
   move,
-  newTown,
   outcomeFromEngine,
   place,
   placeWall,
@@ -27,7 +26,7 @@ import {
   type SiegeOutcome,
   type TownState,
 } from '../src/meta/town';
-import { TEST_CATALOG } from './helpers';
+import { TEST_CATALOG, yardTown } from './helpers';
 
 const T0 = 1_700_000_000_000;
 const minutes = (m: number) => m * 60_000;
@@ -42,7 +41,7 @@ const rich = (town: TownState): TownState => {
 
 /** A town with its CC already at the given level (paid and completed). */
 function townAtCc(level: number): TownState {
-  const town = rich(newTown(T0));
+  const town = rich(yardTown(T0));
   for (let l = 1; l < level; l++) {
     expect(upgrade(town, townCc(town).id, T0)).toBe(true);
     tick(town, T0 + minutes(60));
@@ -55,14 +54,14 @@ function townAtCc(level: number): TownState {
 
 describe('town state', () => {
   it('a new town has a Command Center and starting stock', () => {
-    const town = newTown(T0);
+    const town = yardTown(T0);
     expect(townCc(town).level).toBe(1);
     expect(town.supplies).toBeGreaterThan(0);
     expect(town.assaultLevel).toBe(1);
   });
 
   it('placing a depot costs resources and takes construction time', () => {
-    const town = newTown(T0);
+    const town = yardTown(T0);
     const before = town.supplies;
     expect(place(town, 'supplyDepot', idx(5, 5), T0)).toBe(true);
     expect(town.supplies).toBe(before - 150);
@@ -73,7 +72,7 @@ describe('town state', () => {
   });
 
   it('enforces CC gating: counts, forbidden kinds, and footprint overlap', () => {
-    const town = rich(newTown(T0));
+    const town = rich(yardTown(T0));
     expect(place(town, 'supplyDepot', idx(5, 5), T0)).toBe(true);
     expect(canPlace(town, 'supplyDepot', idx(6, 6))).toBe('occupied'); // overlaps
     expect(place(town, 'supplyDepot', idx(8, 5), T0)).toBe(true);
@@ -102,7 +101,7 @@ describe('town state', () => {
   });
 
   it('accrues offline generation, capped by storage and the 8h window', () => {
-    const town = rich(newTown(T0));
+    const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0);
     town.supplies = 0;
     town.fuel = 0;
@@ -133,7 +132,7 @@ describe('town state', () => {
   });
 
   it('move respects occupancy; sell refunds half; wreck repair costs 30%', () => {
-    const town = rich(newTown(T0));
+    const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0);
     place(town, 'm2nest', idx(10, 10), T0);
     const depot = structureAt(town, idx(5, 5))!;
@@ -155,7 +154,7 @@ describe('town state', () => {
   });
 
   it('stocks power charges with Fuel, up to the cap', () => {
-    const town = rich(newTown(T0));
+    const town = rich(yardTown(T0));
     town.charges = { a10: 0, arty: 0 };
     const fuelBefore = town.fuel;
     for (let i = 0; i < CHARGE_CAP + 2; i++) buyCharge(town, 'a10');
@@ -164,7 +163,7 @@ describe('town state', () => {
   });
 
   it('round-trips through the save format', () => {
-    const town = rich(newTown(T0));
+    const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0);
     placeWall(town, idx(9, 9));
     const restored = deserialize(serialize(town));
@@ -176,7 +175,7 @@ describe('town state', () => {
 
 describe('the siege bridge', () => {
   it('builds a battle config from the town: layout, limits, charges, stockpile', () => {
-    const town = rich(newTown(T0));
+    const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0); // still under construction
     place(town, 'm2nest', idx(10, 10), T0);
     tick(town, T0 + minutes(1));
@@ -205,7 +204,7 @@ describe('the siege bridge', () => {
   });
 
   it('victory: wrecks the fallen, adopts battle-bought guns, pays loot, advances the ladder', () => {
-    const town = unlockAll(newTown(T0));
+    const town = unlockAll(yardTown(T0));
     town.supplies = 300;
     town.fuel = 100;
     place(town, 'supplyDepot', idx(5, 5), T0);
@@ -243,7 +242,7 @@ describe('the siege bridge', () => {
   });
 
   it('defeat: raiders take their cut and the ladder holds still', () => {
-    const town = newTown(T0);
+    const town = yardTown(T0);
     town.fuel = 200;
     const outcome: SiegeOutcome = {
       victory: false,

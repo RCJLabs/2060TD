@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { yardTown } from './helpers';
 import { generateBase } from '../src/content/bases';
 import { RAID_CATALOG } from '../src/content/catalog';
 import { defenseCatalogFor } from '../src/content/factions';
@@ -6,7 +7,6 @@ import { Engine } from '../src/sim/engine';
 import type { Catalog, SimConfig } from '../src/sim/types';
 import { deserialize, serialize } from '../src/meta/save';
 import {
-  newTown,
   place,
   placeWall,
   probeConfig,
@@ -57,7 +57,7 @@ const raidFixture = (): SimConfig =>
   });
 
 function probeFixture(): SimConfig {
-  const town = unlockAll(newTown(T0));
+  const town = unlockAll(yardTown(T0));
   place(town, 'supplyDepot', idx(23, 6), T0 - 1_000_000);
   place(town, 'm2nest', idx(21, 9), T0 - 1_000_000);
   tick(town, T0);
@@ -200,7 +200,7 @@ describe('a code that arrives damaged', () => {
 
 describe('the vault', () => {
   const armed = (): TownState => {
-    const town = unlockAll(newTown(T0));
+    const town = unlockAll(yardTown(T0));
     town.army = { ranger: 20, abrams: 6, javelin: 8, engineer: 6 };
     return town;
   };
