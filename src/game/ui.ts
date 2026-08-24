@@ -163,7 +163,7 @@ export function makeButton(
   const padX = Math.round(fontSize * 1.1);
 
   const bg = scene.add
-    .rectangle(x, y, width, height, COLORS.bgField)
+    .rectangle(x, y, width, height, COLORS.bgControl)
     .setOrigin(0, 0)
     .setStrokeStyle(1, COLORS.gridLine)
     .setInteractive({ useHandCursor: true });
@@ -218,7 +218,7 @@ export function makeButton(
   const refresh = () => {
     // Pointer events can trail in after a click handler destroyed the button.
     if (!alive()) return;
-    const fill = pressed ? COLORS.olive : active ? COLORS.oliveDark : COLORS.bgField;
+    const fill = pressed ? COLORS.olive : active ? COLORS.oliveDark : COLORS.bgControl;
     bg.setFillStyle(fill);
     bg.setStrokeStyle(1, active ? COLORS.olive : COLORS.gridLine);
     label.setColor(css(enabled ? COLORS.ink : COLORS.inkDim));
@@ -431,6 +431,7 @@ export class Panel {
   private readonly bg: Phaser.GameObjects.Rectangle;
   private readonly edge: Phaser.GameObjects.Rectangle;
   private readonly statusText: Phaser.GameObjects.Text;
+  private readonly statusBg: Phaser.GameObjects.Rectangle;
   private readonly titleText: Phaser.GameObjects.Text;
   private readonly scrollHint: Phaser.GameObjects.Rectangle;
   private maskShape!: Phaser.GameObjects.Graphics;
@@ -464,12 +465,25 @@ export class Panel {
     this.activeTab = tabs[0]?.id ?? '';
 
     this.bg = scene.add.rectangle(0, 0, 10, 10, COLORS.bgPanel).setOrigin(0, 0);
+    // In portrait the status strip sits ABOVE the board rather than inside
+    // the drawer, so it needs its own ground. It used to get away without one
+    // because the board was dark too; over a paper sheet, pale status text on
+    // nothing at all is unreadable.
+    this.statusBg = scene.add.rectangle(0, 0, 10, 10, COLORS.bgPanel).setOrigin(0, 0);
     this.edge = scene.add.rectangle(0, 0, 10, 2, COLORS.gridLine).setOrigin(0, 0);
     this.titleText = scene.add.text(0, 0, '2060TD', mono(14, COLORS.ink, { fontStyle: 'bold' }));
     this.statusText = scene.add.text(0, 0, '', mono(11, COLORS.inkDim, { lineSpacing: 3 }));
     this.scrollHint = scene.add.rectangle(0, 0, 3, 30, COLORS.gridLine).setOrigin(0, 0).setAlpha(0.6);
     this.rowRoot = scene.add.container(0, 0);
-    container.add([this.bg, this.edge, this.titleText, this.statusText, this.scrollHint, this.rowRoot]);
+    container.add([
+      this.bg,
+      this.statusBg,
+      this.edge,
+      this.titleText,
+      this.statusText,
+      this.scrollHint,
+      this.rowRoot,
+    ]);
 
     this.bindScroll();
   }
@@ -515,6 +529,7 @@ export class Panel {
     const { panel, status, tabs, list, pad, font } = layout;
 
     this.bg.setPosition(panel.x, panel.y).setSize(panel.w, panel.h);
+    this.statusBg.setPosition(status.x, status.y).setSize(status.w, status.h);
     if (layout.mode === 'portrait') {
       this.edge.setPosition(panel.x, panel.y).setSize(panel.w, Math.max(2, layout.px(1)));
     } else {

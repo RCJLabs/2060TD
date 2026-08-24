@@ -166,7 +166,6 @@ export class TownScene extends Phaser.Scene {
 
   private dynLayer!: Phaser.GameObjects.Graphics;
   private staticLayer!: Phaser.GameObjects.Graphics;
-  private ccLabel!: Phaser.GameObjects.Text;
   private bannerText!: Phaser.GameObjects.Text;
   private board!: BoardView;
   private panel!: Panel;
@@ -303,13 +302,6 @@ export class TownScene extends Phaser.Scene {
       spawnColumn: TOWN_GRID.spawnColumn,
     });
     this.board.world.add([sheet, this.staticLayer, this.dynLayer]);
-
-    const cc = this.town.structures.find((s) => s.kind === 'cc')!;
-    const ccCenter = this.cellCenterPx(cc.cell, 2);
-    this.ccLabel = this.add
-      .text(ccCenter.x, ccCenter.y, 'CC', mono(13, COLORS.ink, { fontStyle: 'bold' }))
-      .setOrigin(0.5);
-    this.board.world.add(this.ccLabel);
 
     this.panel = new Panel(this, this.board.ui, TABS);
     this.panel.onDrawerToggle = () => {

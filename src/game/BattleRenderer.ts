@@ -5,7 +5,6 @@ import { audio } from './audio';
 import { drawStructureGlyph, drawWallGlyph, wallJoins } from './glyphs';
 import { makeSheet } from './ground';
 import { COLORS } from './palette';
-import { mono } from './ui';
 
 interface Effect {
   kind: 'tracer' | 'boom' | 'wallBoom' | 'structBoom' | 'aoe' | 'strafe' | 'reticle' | 'flash';
@@ -102,7 +101,11 @@ export class BattleRenderer {
       const center = grid.centerOf(cell);
       const px = center.x * c;
       const py = center.y * c;
-      g.fillStyle(0x000000, 0.8);
+      // A shaft mouth is a hole in the ground, and reads as one — but it
+      // needs the same paper knockout everything else on the sheet gets.
+      g.fillStyle(COLORS.paperWarm, 0.92);
+      g.fillCircle(px, py, 17);
+      g.fillStyle(COLORS.oliveDark, 0.92);
       g.fillCircle(px, py, 11);
       g.lineStyle(2, COLORS.nkSlate, 1);
       g.strokeCircle(px, py, 11);
@@ -112,14 +115,6 @@ export class BattleRenderer {
       g.fillRect(px - 6, py - 1.5, 12, 3);
     }
 
-    // Command Center label (the block itself is drawn dynamically for HP shading).
-    const cc = this.engine.cc;
-    const label = this.scene.add
-      .text(cc.center.x * c, cc.center.y * c, 'CC', mono(13, COLORS.ink, { fontStyle: 'bold' }))
-      .setOrigin(0.5)
-      .setDepth(5);
-    // Must ride the world layer, or the HUD camera draws a second copy.
-    this.container?.add(label);
   }
 
   // ---- events → transient effects ---------------------------------------------------
@@ -316,7 +311,7 @@ export class BattleRenderer {
         }
         if (flying) {
           // The shadow is the honest position; the body is where it is in the sky.
-          g.fillStyle(0x000000, 0.35);
+          g.fillStyle(COLORS.marg, 0.3);
           g.fillEllipse(px, py + 3, 16, 7);
         }
         const y = py - (flying ? AIR_LIFT : 0);
@@ -336,191 +331,216 @@ export class BattleRenderer {
     }
   }
 
+  /**
+   * One attacker, as a counter on the sheet.
+   *
+   * Same three rules as the structures: shape is the role, colour is the
+   * allegiance, and everything gets a paper knockout so a unit standing on a
+   * contour is still a unit. Thirty-four named kinds resolve to nine
+   * silhouettes — a rifleman and a conscript are the same job in different
+   * armies, and pretending otherwise would be thirty-four shapes nobody can
+   * tell apart.
+   *
+   * Facing matters for anything with a hull or a rotor and not for a man, so
+   * only the vehicle shapes rotate.
+   */
   private drawAttackerBody(
     g: Phaser.GameObjects.Graphics,
     attacker: Attacker,
     px: number,
     py: number,
   ): void {
-    // Color is allegiance, shape is role: in raids (hostileStructures) the
-    // attacking units are the player's own — olive; defending, they're the
-    // enemy — crimson. Faction cameos (NK, RU) keep their own tints.
+    // In raids (hostileStructures) the attacking units are the player's own —
+    // olive; defending, they're the enemy — crimson.
     const friendly = this.hostileStructures;
-    const body = friendly ? COLORS.olive : COLORS.crimson;
-    const dark = friendly ? COLORS.oliveDark : COLORS.crimsonDark;
+    const body = friendly ? COLORS.oliveDark : COLORS.crimsonDark;
+    const trim = friendly ? COLORS.olive : COLORS.crimson;
+    const kind = attacker.profile.kind;
+    const u = this.cell / 32; // glyph unit: everything below is authored at CELL=32
 
-    switch (attacker.profile.kind) {
-      // ---- swarm infantry: small plain circles --------------------------------
+    const halo = (r: number): void => {
+      g.fillStyle(COLORS.paperWarm, 0.9);
+      g.fillCircle(px, py, r * u);
+    };
+    const haloBox = (w: number, h: number): void => {
+      g.fillStyle(COLORS.paperWarm, 0.9);
+      g.fillRect(px - (w * u) / 2 - 2, py - (h * u) / 2 - 2, w * u + 4, h * u + 4);
+    };
+    /** Draw `shape` rotated to the unit's heading (+x = the way it faces). */
+    const facing = (shape: () => void): void => {
+      g.save();
+      g.translateCanvas(px, py);
+      g.rotateCanvas(this.facings.get(attacker.id) ?? 0);
+      shape();
+      g.restore();
+    };
+    const hull = (len: number, wide: number, colour = body): void => {
+      g.fillStyle(colour, 1);
+      g.fillRect((-len / 2) * u, (-wide / 2) * u, len * u, wide * u);
+    };
+
+    switch (kind) {
+      // ---- infantry: a disc. Mass is how many of them there are. --------
       case 'militia':
       case 'guardsman':
-      case 'conscript':
+      case 'conscript': {
+        halo(5);
         g.fillStyle(body, 1);
-        g.fillCircle(px, py, 5);
+        g.fillCircle(px, py, 4.5 * u);
         break;
-      // ---- line infantry: ringed circles --------------------------------------
+      }
       case 'rifle':
       case 'ranger':
       case 'motorrifle':
       case 'nkrifle':
-      case 'peacekeeper':
+      case 'peacekeeper': {
+        // Line infantry: the same disc with a ring, so a section reads as
+        // heavier than a mob at a glance.
+        halo(7);
         g.fillStyle(body, 1);
-        g.fillCircle(px, py, 7);
-        g.lineStyle(1, dark, 1);
-        g.strokeCircle(px, py, 7);
+        g.fillCircle(px, py, 6 * u);
+        g.lineStyle(Math.max(1, 1.6 * u), COLORS.paperWarm, 0.9);
+        g.strokeCircle(px, py, 3.4 * u);
         break;
-      // ---- breachers: diamonds (sapper reads as pure alarm) --------------------
+      }
+
+      // ---- the ones that come for the wire ------------------------------
       case 'sapper':
-        g.fillStyle(COLORS.signal, 1);
-        g.fillPoints(
-          [
-            { x: px, y: py - 8 },
-            { x: px + 8, y: py },
-            { x: px, y: py + 8 },
-            { x: px - 8, y: py },
-          ],
-          true,
-        );
-        break;
       case 'engineer':
       case 'demoteam':
       case 'tunneler':
-      case 'unsapper':
+      case 'unsapper': {
+        // A diamond, and the only attacker shape that is not round or boxy:
+        // these are the units that decide whether your maze is a maze.
+        halo(7);
         g.fillStyle(body, 1);
         g.fillPoints(
           [
-            { x: px, y: py - 8 },
-            { x: px + 8, y: py },
-            { x: px, y: py + 8 },
-            { x: px - 8, y: py },
+            { x: px, y: py - 6.5 * u },
+            { x: px + 6.5 * u, y: py },
+            { x: px, y: py + 6.5 * u },
+            { x: px - 6.5 * u, y: py },
           ],
           true,
         );
         g.fillStyle(COLORS.tracer, 1);
-        g.fillCircle(px, py, 2);
+        g.fillCircle(px, py, 2 * u);
         break;
-      // ---- standoff fire teams: arrowheads face their heading ---------------------
+      }
+
+      // ---- standoff weapons: a disc with the tube on it -----------------
       case 'grenadier':
       case 'javelin':
       case 'rpg':
       case 'rpg7':
       case 'nlaw': {
-        const angle = this.facings.get(attacker.id) ?? 0;
-        g.save();
-        g.translateCanvas(px, py);
-        g.rotateCanvas(angle);
+        halo(7);
         g.fillStyle(body, 1);
-        g.fillTriangle(-6, -7, -6, 7, 8, 0);
-        g.fillStyle(attacker.profile.kind === 'grenadier' ? COLORS.signal : COLORS.intel, 1);
-        g.fillCircle(-2, 0, 2);
-        g.restore();
+        g.fillCircle(px, py, 5.5 * u);
+        facing(() => {
+          g.fillStyle(trim, 1);
+          g.fillRect(0, -1.4 * u, 9 * u, 2.8 * u);
+        });
         break;
       }
-      // ---- light vehicles: small hulls, facing their heading ----------------------
+
+      // ---- light vehicles: a hull, no turret ----------------------------
       case 'humvee':
       case 'zbd':
       case 'btr':
       case 'vab': {
-        const angle = this.facings.get(attacker.id) ?? 0;
-        g.save();
-        g.translateCanvas(px, py);
-        g.rotateCanvas(angle);
-        g.fillStyle(dark, 1);
-        g.fillRect(-9, -6, 18, 12);
-        g.lineStyle(1, body, 1);
-        g.strokeRect(-9, -6, 18, 12);
-        g.lineStyle(2, body, 1);
-        g.lineBetween(0, 0, 12, 0);
-        g.restore();
+        haloBox(18, 11);
+        facing(() => {
+          hull(17, 10);
+          g.fillStyle(trim, 1);
+          g.fillRect(1 * u, -3 * u, 5 * u, 6 * u);
+        });
         break;
       }
-      // ---- main battle tanks: big hulls with turret + barrel -----------------------
+
+      // ---- main battle tanks: hull, turret, gun -------------------------
       case 'abrams':
       case 'type99':
       case 't72':
       case 'chonma':
       case 'leo1': {
-        const angle = this.facings.get(attacker.id) ?? 0;
-        g.save();
-        g.translateCanvas(px, py);
-        g.rotateCanvas(angle);
-        g.fillStyle(dark, 1);
-        g.fillRect(-12, -8, 24, 16);
-        g.lineStyle(2, body, 1);
-        g.strokeRect(-12, -8, 24, 16);
-        g.fillStyle(body, 1);
-        g.fillCircle(0, 0, 5);
-        g.lineStyle(3, body, 1);
-        g.lineBetween(0, 0, 16, 0);
-        g.restore();
+        haloBox(24, 15);
+        facing(() => {
+          hull(23, 14);
+          g.fillStyle(trim, 1);
+          g.fillCircle(0, 0, 4.6 * u);
+          g.fillStyle(body, 1);
+          g.fillRect(3 * u, -1.3 * u, 11 * u, 2.6 * u);
+        });
         break;
       }
-      // ---- the air layer: rotor disc over a fuselage, facing its run ----------
+
+      // ---- rotors and wings ---------------------------------------------
       case 'reaper':
       case 'wz10':
       case 'ka52':
       case 'an2':
       case 'nh90': {
-        const angle = this.facings.get(attacker.id) ?? 0;
-        g.save();
-        g.translateCanvas(px, py);
-        g.rotateCanvas(angle);
-        g.lineStyle(1, body, 0.45);
-        g.strokeCircle(0, 0, 13); // the disc: nothing on the ground reaches it
-        g.fillStyle(dark, 1);
-        g.fillTriangle(-9, -5, -9, 5, 13, 0);
-        g.lineStyle(1, body, 1);
-        g.strokeTriangle(-9, -5, -9, 5, 13, 0);
-        g.lineStyle(2, body, 0.9);
-        g.lineBetween(-7, -9, -7, 9); // tail plane
-        g.restore();
+        halo(13);
+        facing(() => {
+          // Disc first, so the fuselage reads on top of the blur.
+          g.lineStyle(Math.max(1, 1.4 * u), body, 0.5);
+          g.strokeCircle(0, 0, 11 * u);
+          hull(17, 5);
+          g.fillStyle(trim, 1);
+          g.fillRect(-8 * u, -4 * u, 2.5 * u, 8 * u);
+        });
         break;
       }
+
+      // ---- the two that are not a job but a person ----------------------
       case 'unmedic': {
-        // The only unit in the war that keeps others alive: allegiance
-        // body, blue cross, and the faint reach of the aid it carries.
-        const reach = (attacker.profile.heal?.radius ?? 2.5) * this.cell;
-        g.lineStyle(1, COLORS.unBlue, 0.22);
-        g.strokeCircle(px, py, reach);
-        g.fillStyle(body, 1);
-        g.fillCircle(px, py, 6);
+        halo(7);
         g.fillStyle(COLORS.unBlue, 1);
-        g.fillRect(px - 4, py - 1.5, 8, 3);
-        g.fillRect(px - 1.5, py - 4, 3, 8);
+        g.fillCircle(px, py, 6 * u);
+        g.fillStyle(COLORS.paperWarm, 1);
+        g.fillRect(px - 3.2 * u, py - 1.1 * u, 6.4 * u, 2.2 * u);
+        g.fillRect(px - 1.1 * u, py - 3.2 * u, 2.2 * u, 6.4 * u);
         break;
       }
-      case 'infiltrator':
-        // The M3 cameo keeps its slate tint; in an NK raid they're yours.
-        g.fillStyle(friendly ? body : COLORS.nkSlate, 1);
+      case 'infiltrator': {
+        halo(7);
+        g.fillStyle(COLORS.nkSlate, 1);
         g.fillPoints(
           [
-            { x: px, y: py - 7 },
-            { x: px + 5, y: py },
-            { x: px, y: py + 7 },
-            { x: px - 5, y: py },
+            { x: px, y: py - 6 * u },
+            { x: px + 4.5 * u, y: py },
+            { x: px, y: py + 6 * u },
+            { x: px - 4.5 * u, y: py },
           ],
           true,
         );
-        g.lineStyle(1, COLORS.ink, 0.6);
-        g.strokeCircle(px, py, 8);
+        g.lineStyle(Math.max(1, 1.4 * u), COLORS.paperWarm, 0.85);
+        g.strokeCircle(px, py, 2.4 * u);
         break;
-      default:
-        // Unknown kinds (test/sandbox content): breakers as diamonds, rest as circles.
+      }
+
+      default: {
+        // Unknown kinds (test/sandbox content): breakers as diamonds, the
+        // rest as discs, so a sandbox still reads correctly.
+        halo(7);
         if (attacker.profile.wallDps > 20) {
-          g.fillStyle(COLORS.signal, 1);
+          g.fillStyle(body, 1);
           g.fillPoints(
             [
-              { x: px, y: py - 8 },
-              { x: px + 8, y: py },
-              { x: px, y: py + 8 },
-              { x: px - 8, y: py },
+              { x: px, y: py - 6.5 * u },
+              { x: px + 6.5 * u, y: py },
+              { x: px, y: py + 6.5 * u },
+              { x: px - 6.5 * u, y: py },
             ],
             true,
           );
         } else {
           g.fillStyle(body, 1);
-          g.fillCircle(px, py, 7);
+          g.fillCircle(px, py, 5.5 * u);
         }
         break;
+      }
     }
   }
 

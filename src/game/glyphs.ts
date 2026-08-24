@@ -463,7 +463,7 @@ export function drawStructureGlyph(
     // Construction: a dashed outline over a paper-washed body, which reads as
     // "planned" on a sheet the way a dimmed body never could.
     const half = S * 0.55;
-    g.fillStyle(COLORS.bgField, 0.62);
+    g.fillStyle(COLORS.paperWarm, 0.72);
     g.fillRect(px - half, py - half, half * 2, half * 2);
     g.lineStyle(Math.max(1.5, cell * 0.06), COLORS.marg, 0.9);
     dashedRect(g, px - half, py - half, half * 2, half * 2, cell * 0.18);
@@ -471,7 +471,7 @@ export function drawStructureGlyph(
 
   if (opts.wrecked) {
     const half = S * 0.55;
-    g.fillStyle(COLORS.bgField, 0.5);
+    g.fillStyle(COLORS.paperWarm, 0.6);
     g.fillRect(px - half, py - half, half * 2, half * 2);
     g.lineStyle(Math.max(2, cell * 0.08), COLORS.alarm, 0.9);
     const m = half * 0.75;

@@ -75,6 +75,15 @@ export const COLORS = {
   tracerExplosive: 0xff9a5c,
   /** UI panel ground. Not on the sheet — this is the table. */
   bgPanel: 0x20241f,
+  /**
+   * A control's resting face: buttons, panel rows, the tab bar.
+   *
+   * This used to be `bgField`, back when the board and the UI were the same
+   * dark colour. They are not any more — the board is paper and the UI is the
+   * table it lies on — so a control needs its own token, or every row in the
+   * drawer comes out paper-coloured with pale text on it.
+   */
+  bgControl: 0x2a2f28,
   /** UI text, on those dark panels. */
   ink: 0xd8d5c7,
   inkDim: 0x8a8878,
