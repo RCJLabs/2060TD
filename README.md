@@ -5,7 +5,9 @@ North Korea, China, and Russia attack America and the United Nations. Pick a nat
 town is the battlefield — the walls that protect your economy are the maze your enemies
 fight through.
 
-**Play it now:** https://rcjlabs.github.io/2060TD/
+### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
+
+v1.20, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -16,6 +18,61 @@ fight through.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.20: what a wall line is finally worth
+
+Three releases running, the balance harness reported the same finding — a raid
+is decided by gun coverage, not by route length or wall HP. This release went
+after the cause, and the cause turned out to be worse than the symptom.
+
+**A raid charged nothing for time.** A Front Line post had no economy
+(`cpPerSecond: 0`) and no way to spend one, so it could not react to anything.
+Since route length and wall HP can only ever spend the attacker's TIME, the
+whole fortification layer was priced at zero — and measured, below zero:
+stripping **every wall** out of a generated base made it *easier* to hold,
+86.7% clear against 81.5%. The maze's one real effect was steering raiders
+**around** the guns.
+
+- **The gun trade earns the wall line.** Standing gun damage on a raided post
+  is ×0.8, and that alone takes the wall line from −5.0 to +8.6 with the clear
+  rate unmoved. Weaker guns let attackers live longer in the open, so a wall
+  that holds a force in a corridor under fire finally outweighs a maze that
+  routes them past the shooting.
+- **The garrison earns the clock.** The base starts asleep, banks Command
+  Points at the 1.2/s every siege already runs on, and spends them standing
+  guns up on the densest knot of attackers it can see. A 60-second launch
+  stagger costs 5.1 points unwatched and 8.3 watched: arrive concentrated and
+  you beat the reserve; dawdle and you walk into guns that were not there when
+  you set off.
+- **Two fixes, and it took an isolating control to tell them apart.** The first
+  read moved both at once and credited the garrison with the wall line. The
+  test written against that read *passed with the garrison deleted* — which is
+  why every test in `tests/garrison.test.ts` now moves one thing, and why each
+  claim was checked to fail when its own cause is reverted.
+- **The watch is on screen.** The raid HUD counts orders committed and the
+  seconds of dawdling that buy the next one, because a cost the player cannot
+  see teaches nobody anything.
+
+## Current state — v1.19: the ground
+
+The board stopped being a dark field and became a buff topographic sheet, and
+the terrain on it became mechanical rather than decorative.
+
+- **Every battle is fought on generated ground**, derived from one seed and
+  never stored — a replay carries two numbers, not 768 cells. Water is
+  impassable, roads are fast, rough and steep are slow, woodland is cover
+  against aimed fire but not against a shell landing in the trees.
+- **All effects are flat multipliers.** There are no line-of-sight checks
+  anywhere in this sim, decided at M2, and terrain did not reopen it.
+- **The mockup's +40% high-ground bonus did not survive contact.** It cost the
+  reference force 33 clear points; switching the term off put terrain within
+  0.4 points of flat. It ships at +15%.
+- **Real top-down silhouettes** for 23 structure kinds and 34 attacker kinds,
+  drawn as counters on the sheet. Two defects fell out on the way: `aaSite` had
+  no case at all, and `airfield` drew at a quarter of the ground it reserves.
+- **Nothing you own can stand in a river.** A war that predates terrain gets
+  ground generated *around* what is already built, and when no sheet fits, the
+  seed gives way — never the layout.
 
 ## Current state — v1.18: building on a phone
 

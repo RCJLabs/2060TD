@@ -622,6 +622,79 @@ around it, and the cause turned out to be worse than the symptom.
 
 ---
 
+## M11 — v1.21 "Even Odds": faction parity, and an answer to air *(planned)*
+
+M10 fixed how a raid is *decided*. This one is about who is doing the raiding,
+because the same reference force on the same ladder does not remotely produce
+the same war depending on which flag it flies. Measured after v1.20, at roughly
+equal manpower (27–28 MP) against each faction's own opposite number:
+
+    faction   ground raid   MP lost   air raid   MP lost
+    USA              86.8      66.4       86.8      50.0
+    China            74.6      76.2       65.0      54.6
+    UN               64.6      72.6       86.8      50.2
+    Russia           52.2      81.2       58.8      55.6
+    NK               29.4      90.6       52.8      69.6
+
+Two findings, and neither is a tuning nit.
+
+**A 57-point spread is not asymmetry, it is a difficulty setting nobody was
+told about.** §4 of the GDD says the factions are five full kits differing in
+style, with elite-vs-swarm as the clearest balance axis — not that picking the
+KPA signs you up for a third of the USA's clear rate and 90% casualties. This
+is the ladder being broken, not the swarm being flavourful.
+
+**Air is the dominant doctrine almost everywhere, and v1.20 widened the gap.**
+Air clears as often or more often than ground for four factions of five, and
+costs far fewer men in every single case — UN goes 64.6 → 86.8 while losses
+fall from 72.6% to 50.2%. The garrison cannot answer it: `manpads` is stocked
+in the reserve but no doctrine calls for it, because a standing-order rule has
+no way to ask "is anything in the air?". That was a deliberate deferral in
+v1.20 with a note saying the balance pass would decide. It has.
+
+- [ ] **A rule can ask what it is shooting at.** `StandingOrderRule` gains a
+      target-class predicate so a garrison can put MANPADS up when, and only
+      when, there is something in the air to put it up against. Without this an
+      AA order against a ground raid burns one of three actions for nothing,
+      which is why the reserve currently has a kind nothing calls for.
+
+- [ ] **Then re-measure air against ground.** The claim to test is that air
+      buys SPEED and SURVIVAL rather than a higher clear rate — arrive before
+      the reserve, lose fewer men, but no better odds against a post that
+      expects you. If AA closes the clear-rate gap and leaves the casualty gap,
+      that is the right shape and the work is done.
+
+- [ ] **Close the faction spread, hardest first.** NK at 29.4 with 90.6%
+      losses is the priority and is also unmeasurable where it matters: T3, T4
+      and T5 all sit at 0%, and a multiplier is invisible at the floor — the
+      same artifact the first veterancy table hit. The reference plan has to
+      come off the floor before any of its numbers mean anything.
+
+- [ ] **Russia, which v1.20 moved.** It came out ~10 points easier because it
+      was the hardest faction and the gun trade helps a struggling force more
+      than the watch hurts it. That was left deliberately rather than tuned
+      back in the same release that caused it; it belongs in a parity pass.
+
+- [ ] **The v0.6 watch items, still open.** The EARLY L2→L3 cliff on all sides
+      (armor arrives before anti-armor requisitions), China MID vs L5+ (Javelin
+      overwatch), and NK MID vs L4+ (everything kills sentry nests). They have
+      been carried in `docs/BALANCE.md` for eleven releases and they are the
+      same problem this milestone is about.
+
+- [ ] **A harness that can fail.** `e2e-raid.mjs` clicks fixed pixel
+      coordinates and asserts only "no page errors", so it has been launching
+      raids with ZERO units assigned and passing. Found while writing
+      `e2e-garrison.mjs`, which taps by label and checks what it mustered
+      before it presses go. Every harness that drives a flow should assert the
+      flow happened, not merely that nothing threw.
+
+**The bar, same as the last three milestones:** parity means the SPREAD closes
+without the mean moving much, and it has to be a trade — a faction that reads
+as a swarm should still lose more men to win the same fight. Flattening all
+five into the same numbers would pass the test and fail the design.
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
