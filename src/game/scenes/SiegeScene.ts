@@ -160,6 +160,7 @@ export class SiegeScene extends Phaser.Scene {
     this.engine = new Engine(config, defenseCatalogFor(this.faction));
     this.board = new BoardView(this, { cols: GRID_W, rows: GRID_H, cell: CELL });
     this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world);
+    this.board.passable = (col, row) => this.engine.terrain.passable(row * GRID_W + col);
 
     this.panel = new Panel(this, this.board.ui, SIEGE_TABS);
     this.panel.onDrawerToggle = () => {

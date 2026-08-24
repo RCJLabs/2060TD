@@ -12,7 +12,7 @@ import { initMobileShell } from './game/mobile';
 import { COLORS, css } from './game/palette';
 import { applySettings, loadSettings } from './game/settings';
 import { liveButtons, liveTexts, liveTextRects } from './game/ui';
-import { boardCellAt, boardStrays } from './game/BoardView';
+import { boardCellAt, boardStrays, boardWetAt } from './game/BoardView';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.
 applySettings(loadSettings());
@@ -91,6 +91,7 @@ dismissBootCard(game);
   textRects: () => liveTextRects(game.scene.getScenes(true)),
   strays: () => boardStrays(),
   cell: (col: number, row: number) => boardCellAt(col, row),
+  wet: (col: number, row: number) => boardWetAt(col, row),
   get dpr() {
     return dpr;
   },

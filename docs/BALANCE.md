@@ -1,4 +1,4 @@
-# Balance snapshot (v1.17)
+# Balance snapshot (v1.19)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -9,229 +9,238 @@ an active player defends one to two ladder levels above their probe floor.
 RAID — UNITED STATES strike force (27 MP) vs PLA Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     70 |       48
-   2 |    100 |     64 |       40
-   3 |    100 |     82 |       54
-   4 |    100 |     43 |       70
-   5 |     67 |     46 |       77
+   1 |    100 |     66 |       54
+   2 |    100 |     72 |       50
+   3 |     67 |     62 |       77
+   4 |    100 |     48 |       70
+   5 |     67 |     43 |       83
 
 RAID — UNITED STATES strike force (27 MP) vs PLA Front Line — STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     76 |       36
-   2 |    100 |     65 |       37
-   3 |    100 |     83 |       48
-   4 |    100 |     47 |       70
-   5 |     67 |     48 |       76
+   1 |    100 |     71 |       44
+   2 |    100 |     80 |       37
+   3 |     97 |     70 |       63
+   4 |    100 |     52 |       70
+   5 |     67 |     49 |       77
 
 RAID — UNITED STATES strike force (27 MP) vs PLA Front Line — AIR RAID (rotors + a ground tail)
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     70 |        9
-   2 |     97 |     54 |       40
-   3 |    100 |     66 |       61
-   4 |     67 |     42 |       80
-   5 |     67 |     47 |       60
+   1 |    100 |     75 |        9
+   2 |     90 |     51 |       47
+   3 |     93 |     63 |       63
+   4 |     67 |     39 |       80
+   5 |     67 |     47 |       61
 
 RAID — PLA EXPEDITIONARY FORCE strike force (28 MP) vs US ARMY Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     66 |       48
-   2 |    100 |     48 |       72
-   3 |     37 |     54 |       91
-   4 |     40 |     34 |       90
-   5 |     33 |     27 |       92
+   1 |    100 |     63 |       67
+   2 |    100 |     51 |       67
+   3 |     87 |     52 |       78
+   4 |    100 |     43 |       75
+   5 |      0 |     33 |      100
 
 RAID — PLA EXPEDITIONARY FORCE strike force (28 MP) vs US ARMY Front Line — STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     71 |       47
-   2 |    100 |     57 |       59
-   3 |     42 |     53 |       90
-   4 |     17 |     33 |       96
-   5 |     33 |     33 |       92
+   1 |    100 |     76 |       53
+   2 |     98 |     70 |       68
+   3 |     72 |     52 |       82
+   4 |    100 |     43 |       75
+   5 |      0 |     37 |      100
 
 RAID — PLA EXPEDITIONARY FORCE strike force (28 MP) vs US ARMY Front Line — AIR RAID (rotors + a ground tail)
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     65 |        5
-   2 |     67 |     41 |       64
-   3 |     32 |     48 |       89
-   4 |     33 |     37 |       87
-   5 |     78 |     53 |       60
+   1 |    100 |     70 |        5
+   2 |     67 |     45 |       49
+   3 |      2 |     44 |       99
+   4 |     33 |     40 |       87
+   5 |     67 |     53 |       68
 
 RAID — RUSSIAN GROUND FORCES strike force (27 MP) vs US ARMY Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     78 |       28
-   2 |     95 |     46 |       66
-   3 |     33 |     54 |       91
-   4 |     88 |     43 |       79
-   5 |      3 |     33 |       97
+   1 |    100 |     85 |       41
+   2 |     38 |     41 |       91
+   3 |     33 |     41 |       91
+   4 |     38 |     33 |       90
+   5 |      0 |     30 |      100
 
 RAID — RUSSIAN GROUND FORCES strike force (27 MP) vs US ARMY Front Line — STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     82 |       22
-   2 |     97 |     49 |       58
-   3 |     40 |     65 |       89
-   4 |     85 |     48 |       78
-   5 |     12 |     43 |       93
+   1 |    100 |     87 |       31
+   2 |    100 |     60 |       63
+   3 |     67 |     50 |       79
+   4 |     67 |     39 |       83
+   5 |      0 |     35 |      100
 
 RAID — RUSSIAN GROUND FORCES strike force (27 MP) vs US ARMY Front Line — AIR RAID (rotors + a ground tail)
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     75 |        5
-   2 |    100 |     59 |       36
-   3 |     15 |     46 |       89
+   1 |    100 |     75 |        4
+   2 |     97 |     60 |       38
+   3 |      0 |     43 |      100
    4 |     33 |     36 |       91
-   5 |     67 |     45 |       65
+   5 |     25 |     44 |       81
 
 RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     80 |       44
-   2 |     57 |     49 |       91
-   3 |     18 |     50 |       98
-   4 |      0 |     27 |       99
+   1 |    100 |     80 |       54
+   2 |     32 |     46 |       97
+   3 |      0 |     38 |      100
+   4 |      0 |     17 |      100
    5 |      0 |     28 |      100
 
 RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line — hunt + raze squads TUNNELED
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     81 |       33
-   2 |     98 |     62 |       56
-   3 |     33 |     60 |       98
-   4 |     30 |     36 |       90
-   5 |     33 |     31 |       95
+   1 |    100 |     85 |       51
+   2 |    100 |     68 |       75
+   3 |     33 |     56 |       90
+   4 |      0 |     25 |      100
+   5 |     33 |     30 |       98
 
 RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line — TUNNELED + STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     75 |       26
-   2 |     98 |     70 |       47
-   3 |     60 |     66 |       90
-   4 |     30 |     37 |       88
-   5 |     35 |     35 |       94
+   1 |    100 |     85 |       44
+   2 |     98 |     72 |       62
+   3 |     45 |     60 |       87
+   4 |      7 |     27 |       97
+   5 |     33 |     32 |       98
 
 RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line — STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     81 |       36
-   2 |     88 |     63 |       75
-   3 |     28 |     65 |       92
-   4 |      8 |     35 |       93
-   5 |      2 |     33 |       99
+   1 |    100 |     82 |       49
+   2 |     65 |     65 |       83
+   3 |      0 |     46 |      100
+   4 |      0 |     22 |      100
+   5 |      0 |     33 |      100
 
 RAID — KOREAN PEOPLE'S ARMY strike force (27 MP) vs US ARMY Front Line — AIR RAID (rotors + a ground tail)
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     68 |        7
-   2 |     95 |     52 |       63
-   3 |      0 |     35 |      100
-   4 |     53 |     39 |       84
-   5 |     33 |     43 |       90
+   1 |    100 |     70 |        7
+   2 |    100 |     51 |       64
+   3 |      0 |     31 |      100
+   4 |     33 |     36 |       86
+   5 |     33 |     42 |       94
 
 RAID — UN COALITION strike force (27 MP) vs PLA Front Line
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     78 |       39
-   2 |    100 |     76 |       66
-   3 |     95 |     72 |       64
-   4 |      0 |     25 |      100
-   5 |     45 |     29 |       91
+   1 |    100 |     73 |       49
+   2 |    100 |     76 |       54
+   3 |    100 |     64 |       77
+   4 |     33 |     31 |       93
+   5 |      0 |     29 |      100
 
 RAID — UN COALITION strike force (27 MP) vs PLA Front Line — CONTROL: medics replaced by riflemen
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     77 |       46
-   2 |    100 |     72 |       65
-   3 |     95 |     63 |       63
-   4 |      0 |     25 |      100
-   5 |     45 |     29 |       91
+   1 |    100 |     72 |       50
+   2 |    100 |     85 |       50
+   3 |     67 |     61 |       89
+   4 |     33 |     31 |       93
+   5 |      0 |     29 |      100
 
 RAID — UN COALITION strike force (27 MP) vs PLA Front Line — STRIKE doctrine + fire plan
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     85 |       29
-   2 |    100 |     79 |       55
-   3 |    100 |     74 |       58
+   1 |    100 |     81 |       39
+   2 |    100 |     91 |       44
+   3 |    100 |     69 |       65
    4 |      0 |     28 |      100
-   5 |     67 |     34 |       89
+   5 |     33 |     34 |       93
 
 RAID — UN COALITION strike force (27 MP) vs PLA Front Line — AIR RAID (rotors + a ground tail)
 TIER | CLEAR% | DESTR% | MP LOST%
 -----+--------+--------+---------
-   1 |    100 |     67 |       11
-   2 |     70 |     42 |       54
-   3 |    100 |     65 |       62
+   1 |    100 |     75 |       10
+   2 |     97 |     49 |       51
+   3 |    100 |     64 |       63
    4 |     67 |     39 |       80
-   5 |     67 |     48 |       60
+   5 |     67 |     46 |       67
 
 ARCHETYPES — UNITED STATES strike force (27 MP), clear% by tier
 SHAPE        | FROM |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | DESTR% | MP LOST%
 -------------+------+------+------+------+------+------+-------+--------+---------
-COMPOUND     |    1 |  100 |  100 |  100 |  100 |   72 |  94.4 |     60 |       62
-OPEN CAMP    |    1 |  100 |  100 |  100 |   95 |  100 |  99.0 |     77 |       54
-CORRIDOR     |    1 |  100 |  100 |  100 |   70 |   43 |  82.6 |     68 |       65
-STAR FORT    |    2 |  100 |  100 |  100 |   12 |   57 |  73.8 |     50 |       63
-  └ prepared |      |  100 |  100 |  100 |   52 |   78 |  86.0 |     56 |       56
-DISPERSED DEPOT |    3 |  100 |  100 |  100 |    0 |   75 |  75.0 |     51 |       73
-  └ prepared |      |  100 |  100 |  100 |    2 |  100 |  80.4 |     56 |       65
-STRONGPOINTS |    3 |  100 |  100 |  100 |   38 |   73 |  82.2 |     62 |       66
-KEEP         |    4 |  100 |  100 |  100 |   60 |  100 |  92.0 |     55 |       66
-BUNKER COMPLEX |    5 |  100 |  100 |  100 |   23 |   33 |  71.2 |     53 |       74
-  └ prepared |      |  100 |  100 |  100 |   75 |   33 |  81.6 |     61 |       66
+COMPOUND     |    1 |  100 |  100 |  100 |  100 |  100 | 100.0 |     63 |       59
+OPEN CAMP    |    1 |  100 |  100 |   67 |   97 |  100 |  92.8 |     75 |       55
+CORRIDOR     |    1 |  100 |  100 |  100 |  100 |   88 |  97.6 |     63 |       63
+STAR FORT    |    2 |  100 |  100 |  100 |   33 |   48 |  76.2 |     54 |       68
+  └ prepared |      |  100 |  100 |  100 |   65 |   33 |  79.6 |     60 |       61
+DISPERSED DEPOT |    3 |  100 |  100 |  100 |  100 |  100 | 100.0 |     52 |       60
+  └ prepared |      |  100 |  100 |  100 |  100 |  100 | 100.0 |     56 |       57
+STRONGPOINTS |    3 |  100 |  100 |  100 |   65 |  100 |  93.0 |     60 |       66
+KEEP         |    4 |  100 |  100 |  100 |   90 |   77 |  93.4 |     56 |       65
+BUNKER COMPLEX |    5 |  100 |  100 |   67 |   33 |   40 |  68.0 |     55 |       78
+  └ prepared |      |  100 |  100 |   67 |   65 |   67 |  79.8 |     66 |       70
 
 FIELD CONDITIONS — UNITED STATES strike force (27 MP), clear% by tier
 CONDITION    |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | vs CLEAR
 -------------+------+------+------+------+------+-------+---------
-CLEAR LINE   |  100 |  100 |  100 |  100 |   67 |  93.4 |     +0.0
-HARD RAIN    |  100 |  100 |  100 |  100 |   67 |  93.4 |     +0.0
-DUG IN       |  100 |  100 |  100 |   62 |   55 |  83.4 |    -10.0
-FUEL CRISIS  |  100 |  100 |   95 |   63 |   42 |  80.0 |    -13.4
-BLACKOUT     |  100 |  100 |  100 |  100 |   67 |  93.4 |     +0.0
-ATTRITION    |  100 |  100 |   70 |   40 |   55 |  73.0 |    -20.4
+CLEAR LINE   |  100 |  100 |   67 |  100 |   67 |  86.8 |     +0.0
+HARD RAIN    |  100 |  100 |  100 |  100 |   67 |  93.4 |     +6.6
+DUG IN       |  100 |  100 |   67 |   68 |   48 |  76.6 |    -10.2
+FUEL CRISIS  |  100 |  100 |   67 |   35 |   33 |  67.0 |    -19.8
+BLACKOUT     |  100 |  100 |   67 |  100 |   67 |  86.8 |     +0.0
+ATTRITION    |  100 |  100 |  100 |   72 |   33 |  81.0 |     -5.8
+
+TERRAIN — the UNITED STATES reference force vs PLA posts, flat ground vs real
+GROUND      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
+------------+-------+-------+-------+-------+-------+-------+---------
+       FLAT |   100 |   100 |   100 |   100 |    67 |  93.4 |       72
+     GROUND |   100 |   100 |    67 |   100 |    67 |  86.8 |       81
+    SHEET 1 |   100 |   100 |   100 |   100 |   100 | 100.0 |       69
+    SHEET 2 |   100 |   100 |     0 |   100 |     0 |  60.0 |       91
+    SHEET 3 |   100 |   100 |   100 |   100 |   100 | 100.0 |       83
 
 VETERANCY — UNITED STATES strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   40 |   47 |   31 |   11 |   11 |  28.0 |     93
-LINE    | 1.04 |   40 |   50 |   31 |   11 |   11 |  28.6 |     93
-VETERAN | 1.09 |   47 |   51 |   33 |   11 |   11 |  30.6 |     93
-CADRE   | 1.15 |   51 |   50 |   44 |   13 |   11 |  33.8 |     93
+GREEN   | 1.00 |   31 |   34 |   11 |   11 |    9 |  19.2 |     87
+LINE    | 1.04 |   31 |   41 |   11 |   11 |    9 |  20.6 |     87
+VETERAN | 1.09 |   34 |   52 |   13 |   11 |   11 |  24.2 |     87
+CADRE   | 1.15 |   40 |   52 |   20 |   11 |   11 |  26.8 |     90
 
 VETERANCY — PLA EXPEDITIONARY FORCE strike force (28 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   38 |   11 |    3 |    3 |    3 |  11.6 |     62
-LINE    | 1.04 |   39 |   20 |    3 |    3 |    3 |  13.6 |     63
-VETERAN | 1.09 |   39 |   23 |    3 |    3 |    3 |  14.2 |     62
-CADRE   | 1.15 |   46 |   25 |    3 |    3 |    3 |  16.0 |     62
+GREEN   | 1.00 |   17 |   16 |    7 |    8 |    0 |   9.6 |     77
+LINE    | 1.04 |   28 |   13 |    7 |    8 |    0 |  11.2 |     78
+VETERAN | 1.09 |   29 |   12 |    6 |    8 |    0 |  11.0 |     74
+CADRE   | 1.15 |   44 |   19 |    6 |    8 |    0 |  15.4 |     74
 
 VETERANCY — RUSSIAN GROUND FORCES strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   61 |   17 |    3 |    9 |    1 |  18.2 |     64
-LINE    | 1.04 |   65 |   22 |    3 |    8 |    2 |  20.0 |     63
-VETERAN | 1.09 |   68 |   22 |    3 |    8 |    3 |  20.8 |     63
-CADRE   | 1.15 |   65 |   22 |    3 |    8 |    3 |  20.2 |     63
+GREEN   | 1.00 |   48 |    7 |    3 |    3 |    0 |  12.2 |     42
+LINE    | 1.04 |   49 |   13 |    3 |    4 |    0 |  13.8 |     56
+VETERAN | 1.09 |   51 |   18 |    4 |    6 |    0 |  15.8 |     61
+CADRE   | 1.15 |   48 |   18 |    6 |    7 |    0 |  15.8 |     70
 
 VETERANCY — KOREAN PEOPLE'S ARMY strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   53 |    6 |    1 |    0 |    0 |  12.0 |     35
-LINE    | 1.04 |   59 |   11 |    3 |    0 |    0 |  14.6 |     39
-VETERAN | 1.09 |   61 |   19 |    3 |    1 |    0 |  16.8 |     43
-CADRE   | 1.15 |   70 |   28 |    3 |    0 |    0 |  20.2 |     45
+GREEN   | 1.00 |   39 |    2 |    0 |    0 |    0 |   8.2 |     26
+LINE    | 1.04 |   45 |    9 |    0 |    0 |    0 |  10.8 |     31
+VETERAN | 1.09 |   45 |    6 |    0 |    0 |    0 |  10.2 |     32
+CADRE   | 1.15 |   49 |    8 |    0 |    0 |    0 |  11.4 |     33
 
 VETERANCY — UN COALITION strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   51 |   22 |   24 |    0 |    5 |  20.4 |     68
-LINE    | 1.04 |   56 |   24 |   25 |    0 |    7 |  22.4 |     72
-VETERAN | 1.09 |   59 |   25 |   28 |    0 |    7 |  23.8 |     72
-CADRE   | 1.15 |   60 |   34 |   33 |    0 |    7 |  26.8 |     73
+GREEN   | 1.00 |   42 |   36 |   17 |    3 |    0 |  19.6 |     67
+LINE    | 1.04 |   46 |   40 |   20 |    3 |    1 |  22.0 |     68
+VETERAN | 1.09 |   50 |   41 |   20 |    3 |    3 |  23.4 |     72
+CADRE   | 1.15 |   51 |   47 |   24 |    1 |    3 |  25.2 |     68
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
@@ -395,110 +404,6 @@ MID (CC2)   |  100 |  100 |  100 |    0 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
 ```
 
-## Launch delays (v1.15)
-
-`npm run balance -- --delay [faction]`. The same reference strike force, the same tiers,
-the same seeds — only the clock differs. SLOT 1/2/3 is men-returned% per standing
-formation, SECS the mean length of the battle.
-
-```
-LAUNCH DELAYS — UNITED STATES strike force (27 MP), men returned% by tier
-PATTERN     | T+       |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR% | SECS | SLOT 1/2/3
-------------+----------+------+------+------+------+------+-------+--------+------+-----------
-ALL AT ONCE |    0/0/0 |   38 |   35 |   24 |   12 |   11 |  24.0 |     93 |   59 |  54/ 12/ 18
-DEFAULT     |   0/6/12 |   40 |   47 |   31 |   11 |   11 |  28.0 |     93 |   62 |  50/ 14/ 28
-WIDE        |  0/20/45 |   49 |   45 |   39 |   11 |   12 |  31.2 |     93 |   70 |  51/ 21/ 29
-SEQUENTIAL  |  0/30/60 |   48 |   56 |   30 |   16 |   11 |  32.2 |     92 |   75 |  49/ 32/ 24
-LEAD LAST   |   12/6/0 |   35 |   28 |   17 |   11 |    8 |  19.8 |     92 |   74 |  53/  9/ 11
-
-LAUNCH DELAYS — PLA EXPEDITIONARY FORCE strike force (28 MP)
-ALL AT ONCE |    0/0/0 |   35 |   12 |    3 |    3 |    3 |  11.2 |     60 |   92 |  28/  6/  6
-DEFAULT     |   0/6/12 |   38 |   11 |    3 |    3 |    3 |  11.6 |     62 |   91 |  25/ 10/  7
-WIDE        |  0/20/45 |   55 |   11 |    3 |    3 |    3 |  15.0 |     55 |   95 |  22/ 11/ 14
-SEQUENTIAL  |  0/30/60 |   42 |   12 |    4 |    5 |    3 |  13.2 |     64 |  106 |  23/ 10/ 10
-LEAD LAST   |   12/6/0 |   32 |    8 |    2 |    3 |    3 |    9.6 |    57 |  103 |  25/  3/  5
-
-LAUNCH DELAYS — RUSSIAN FEDERATION strike force
-ALL AT ONCE |    0/0/0 |   50 |   17 |    2 |    9 |    2 |  16.0 |     67 |  114 |  40/ 16/  8
-DEFAULT     |   0/6/12 |   61 |   17 |    3 |    9 |    1 |  18.2 |     64 |  111 |  44/ 16/ 10
-WIDE        |  0/20/45 |   75 |    5 |    3 |    4 |    0 |  17.4 |     47 |  108 |  30/  9/ 18
-SEQUENTIAL  |  0/30/60 |   56 |    4 |    2 |    5 |    0 |  13.4 |     44 |  115 |  29/  9/ 10
-LEAD LAST   |   12/6/0 |   51 |   18 |    2 |    9 |    0 |  16.0 |     65 |  125 |  46/ 13/  8
-
-LAUNCH DELAYS — KOREAN PEOPLE'S ARMY strike force
-ALL AT ONCE |    0/0/0 |   64 |   11 |    4 |    7 |    0 |  17.2 |     58 |   73 |  29/ 11/ 15
-DEFAULT     |   0/6/12 |   53 |    6 |    1 |    0 |    0 |  12.0 |     35 |   68 |  12/  8/ 14
-WIDE        |  0/20/45 |   26 |    2 |    0 |    0 |    0 |    5.6 |    26 |   84 |  11/  4/  4
-SEQUENTIAL  |  0/30/60 |   34 |   11 |    0 |    0 |    0 |    9.0 |    26 |   86 |  11/  7/  9
-LEAD LAST   |   12/6/0 |   61 |   13 |    1 |    2 |    0 |   15.4 |     43 |   71 |  30/  9/ 12
-
-LAUNCH DELAYS — UN COALITION strike force
-ALL AT ONCE |    0/0/0 |   49 |   38 |   27 |    4 |    5 |  24.6 |     74 |   83 |  40/ 19/ 17
-DEFAULT     |   0/6/12 |   51 |   22 |   24 |    0 |    5 |  20.4 |     68 |   90 |  31/ 14/ 18
-WIDE        |  0/20/45 |   55 |   30 |   29 |    0 |    5 |  23.8 |     70 |  102 |  31/ 11/ 28
-SEQUENTIAL  |  0/30/60 |   51 |   37 |   32 |    0 |    4 |  24.8 |     68 |  107 |  31/ 11/ 30
-LEAD LAST   |   12/6/0 |   48 |   22 |   20 |    0 |    4 |  18.8 |     68 |   97 |  36/  7/ 15
-```
-
-- **Mass takes the base; patience brings the men home.** Every faction reads the same two
-  columns in opposite directions: widening the stagger raises MEAN men-returned and lowers
-  CLEAR% — China 62→55, Russia 64→44, NK 35→26 going from the default to WIDE. That is the
-  trade the picker exists to sell, and it is a trade because the two things the player wants
-  are not the same thing.
-- **How much the trade costs is the faction.** The USA can trickle for free (clear% is flat
-  at 92–93 across every pattern, men-back rises 24→32) — quality and response, exactly the
-  identity on the tin. NK cannot trickle at all: ALL AT ONCE is best on BOTH columns
-  (17.2 / 58%) and WIDE collapses it to 5.6 / 26%, because a swarm that arrives in thirds is
-  a swarm that dies in thirds. Russia sits between them and wants its armour together.
-- **LEAD LAST is a blunder in five factions out of five.** Putting the assault formation in
-  behind the hunters is worst or near-worst on both columns everywhere. The picker lets you
-  do it; the numbers say do not. A control row that always loses is worth keeping — it is
-  the evidence that arrival ORDER is doing work, not just arrival SPREAD.
-- **Time is free in a raid, and that is a finding, not a feature.** Raids run 59–125s against
-  a 300s hard stop, and no pattern ever times out, so holding a formation costs the attacker
-  nothing but wall-clock. It is free because a raided garrison gets no CP and never repairs:
-  the base cannot use the minute you hand it. The fix, when it is worth the re-tune, is to
-  give raided bases the v0.8 standing-orders trickle — then dawdling buys the defender
-  something and the trade prices itself. Filed rather than bolted on, because it moves every
-  number in this file.
-
-## Gates (v1.17)
-
-`npm run balance -- --gates [faction]`. The reference strike force against rings with
-0/4/12/24/48 segments swapped for gates — closed and unattended, the base as an offline
-probe finds it.
-
-```
-GATES — soft spots in a PLA ring, unattended, vs the UNITED STATES reference force
-GATES |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
-------+-------+-------+-------+-------+-------+-------+---------
-    0 |   100 |   100 |   100 |   100 |    67 |  93.4 |       72
-    4 |   100 |   100 |   100 |    95 |    67 |  92.4 |       71
-   12 |   100 |   100 |   100 |   100 |    67 |  93.4 |       72
-   24 |   100 |   100 |   100 |   100 |    67 |  93.4 |       72
-   48 |   100 |   100 |   100 |    95 |    67 |  92.4 |       73
-```
-
-- **This table killed the price it was written to confirm.** A gate was meant to pay for
-  itself by carrying about half a wall's HP. Forty-eight doors in a ring — most of the
-  wall line — move the clear rate by one point and men-lost by one. The soft spot is not
-  a cost at all.
-- **The reason is the maze rule doing its job.** Weighted A* sends attackers AROUND
-  walls; a raid is decided by route length and gun coverage, not by wall HP. BALANCE.md
-  already recorded the same effect for field conditions ("wall HP alone barely moves a
-  fixed force, because softer walls just deliver it to the guns sooner"). Gates are that
-  finding a second time, at four times the dose.
-- **So the price moved to the wall allowance**: a gate spends two segments where a wall
-  spends one. Ring LENGTH is a number the player feels on every build and cannot route
-  around, and charging it for a hole you deliberately left in your own wall is the
-  honest version of the trade. The HP difference stays because a door should be a door,
-  but it is flavour, not the price.
-- **What the harness cannot price is the gate's actual value**, because that is a live
-  decision — you open one to pull the assault into a killzone — and no headless matrix
-  plays. The unit tests carry that half: opening a gate re-routes the attack through it,
-  and a unit that cannot break anything is stuck at a shut gate and walking at an open
-  one.
-
 ## Reading the tables (v0.8 pass)
 
 - **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.
@@ -585,6 +490,40 @@ GATES |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
   that was never going to survive the volley. Measured at full strength the signal is
   monotone for all five. The lesson is general — a multiplier is invisible at the floor
   and at the ceiling, so it has to be measured where the units were already living.
+- **The ground (v1.19) is a trade, and the reading is the SPREAD.** Terrain has to change
+  WHICH bases are hard rather than making all of them harder — the same bar field
+  conditions clear. It does: GROUND lands 6.6 points under FLAT on the mean, inside the
+  ±9 band, while the three sheets disagree with each other by forty points. Two of them
+  are walkovers for the reference force and one stops it dead at T3 and T5. That is the
+  whole point of putting a base somewhere rather than nowhere.
+- **The first cut of terrain was a difficulty spike, and the harness said which term did
+  it.** GROUND opened at 33 points under FLAT. Switching the elevation multiplier off
+  put it at 93.0 against 93.4 — meaning water, cover and movement cost together
+  accounted for almost NONE of the drop and elevation accounted for all of it. The
+  mockup had proposed +40% reach on the top band; it ships at +15%.
+- **That is the third time this project has learned the same thing**: a raid is decided
+  by GUN COVERAGE, not by route length or wall HP. Field conditions found it (defender
+  weaponDamage is by far the strongest lever, wall HP barely moves a fixed force), gates
+  found it (48 doors in a ring moved the clear rate by one point, because attackers
+  route rather than breach), and terrain found it again. Reach is read from the firer’s
+  cell for BOTH sides, which is symmetric in code and deeply asymmetric in play: a
+  defender’s guns sit in fixed emplacements and keep whatever ground they were built
+  on, while an attacker mostly closes to contact and never collects the bonus.
+- **The fords are the one thing that came out backwards.** A river with a single bridge
+  is a chokepoint worth more than any wall, so two fords were added — and they did not
+  move the clear rate at all. What they moved was the butcher’s bill, the wrong way:
+  losses rose from 85% to 91% on the hardest sheet, because a force that splits across
+  three crossings arrives piecemeal, and piecemeal is how you die. Three doors is worse
+  than one if you insist on using all of them.
+- **Woodland is a trade because artillery ignores it.** Cover applies to aimed fire and
+  not to a barrage or mortar splash: canopy hides a man from a gunner, not from
+  something that lands in the trees. That asymmetry is what stops it being a free
+  hiding place, and it is what gives the fire-mission layer something to answer.
+- **Terrain moved the veterancy fixture onto the floor, which is its own lesson.** The
+  survival test measures a thin 5R1A push at tier 4; with ground under it, GREEN and
+  CADRE bring home exactly the same men, because a 15% HP bump cannot save a unit that
+  was never going to survive the volley. It measures on flat ground now — the same
+  correction the first veterancy table needed, for the same reason.
 - **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before
   anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+
   (everything kills sentry nests).

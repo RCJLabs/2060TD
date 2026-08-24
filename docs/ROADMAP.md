@@ -519,6 +519,59 @@ carries the candidates.
 
 ---
 
+## M9 — v1.19 "The Ground": mechanical terrain on a topographic sheet
+
+The owner's read on the board was "too simplistic and also complicated at the
+same time" — two layers failing in opposite directions. Twenty-two structure
+kinds shared four rectangles, so *text* carried all the identification, and the
+density that resulted read as clutter rather than detail.
+
+- [x] **The ground is mechanical** *(v1.19)* — *elevation, water, woodland and
+      roads, generated from a seed and read by the sim. Water is impassable and
+      feeds the existing `blocked` set; road and slope are a movement-cost term
+      in the weighted A* that was already there; canopy is a damage multiplier;
+      height is reach. Every effect is a flat multiplier, because there are no
+      line-of-sight checks in this sim and terrain did not reopen that.*
+
+      *Three things this had to get right, each a way to silently corrupt a
+      battle fought months ago. Terrain draws from its OWN rng — the engine's
+      stream is consumed in tick order and sharing it would shift every later
+      roll. The engine never calls `Grid.obstacleHpAt`, it builds its own
+      pathView, so ground wired only into Grid would pass its unit tests and be
+      invisible in play. And A* prices a step at 1/speed, so a road cheaper than
+      that breaks admissibility — and because closed nodes are never reopened,
+      the failure is a silently wrong path rather than a crash.*
+
+      *The mockup proposed +40% reach on high ground and the harness refused it:
+      the clear rate fell 33 points, and switching that one term off put terrain
+      within 0.4 points of flat. It ships at +15%. That is the third time this
+      project has measured the same thing — a raid is decided by gun coverage,
+      not by route length or wall HP.*
+
+- [x] **Silhouettes** *(v1.19)* — *23 structure kinds and 34 attacker kinds
+      redrawn as counters on the sheet: shape is the role, colour is the
+      allegiance, and everything gets a paper knockout so it sits ON a busy
+      topographic ground rather than competing with it. Both `CC` labels came
+      off the board, because a command post with a mast on it can say what it
+      is. Two defects fixed on the way: `aaSite` had no case at all and fell
+      through to a default dot on every ladder base ever generated, and
+      `airfield` drew at a quarter of the ground it reserves because it was
+      missing from all three of presentation's separate "big kind" tables.
+      Those tables are gone — the footprint is read off the structure.*
+
+- [x] **No format bumps, no losses** *(v1.19)* — *a save gains one optional
+      number and the schema stays 6. Neither codec bumped: `decodeReplay` had no
+      trailing-byte check at all and `decodeBase`'s runs after the body, so an
+      appended block is invisible to old codes. That matters more than it
+      sounds, because the vault stores codes and silently drops what stops
+      decoding — a bump would have emptied every commander's shelf. The two
+      formats answer the same question opposite ways on purpose: a replay is a
+      RECORD, so one without terrain re-fights the flat field it was fought on;
+      a share code is a BASE, and a base has to sit on something, so an old one
+      derives its ground from its own walls.*
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.

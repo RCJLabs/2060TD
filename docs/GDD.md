@@ -289,6 +289,38 @@ A gate is a wall with a state, and the only thing in the game that lets the play
   be what prices a gate. Ring length is, and it is exactly the right thing to charge for
   a hole you chose to leave in your own wall.
 
+### 5.2b The ground *(v1.19)*
+
+Every battle is fought on a generated sheet, derived from one seed and never stored. The
+same seed rebuilds the same ground anywhere, so a replay carries two numbers rather than
+768 cells, and `TERRAIN_VERSION` names a generator rather than a revision of one — improving
+the maths means adding a version, so an archived battle keeps re-fighting the ground it was
+fought on.
+
+Every effect is a flat multiplier. There are no line-of-sight checks anywhere in this sim
+(decided at M2, §5.4) and terrain does not reopen that.
+
+| Ground | What it does |
+|---|---|
+| **Water** | Impassable. A river across a flank is a wall you did not pay for — and one the enemy has to walk around, which is your maze doing free work. Three crossings: a road bridge and two fords. |
+| **Road** | 0.7× movement. Where an assault wants to be, which makes "where the road enters your perimeter" the first question you answer when you build. |
+| **Rough / steep** | 1.3× / 1.6× movement. Attackers grind uphill into your guns. |
+| **Woodland** | Incoming **aimed** fire ×0.7, and 1.15× movement. Cover against a gunner, nothing at all against a barrage or mortar splash — canopy hides a man, not a shell landing in the trees. That asymmetry is what stops it being a free hiding place, and what gives the fire-mission layer something to answer. |
+| **Elevation** | A gun's reach ×(1 + 0.05 per band), so the top band is +15%. |
+
+**Nothing you own can stand in a river.** The generator takes every occupied cell as a
+constraint, so a war that predates terrain gets ground *around* what is already built — and
+when no sheet fits, the SEED is what gives way, never the layout. Terrain must stay a pure
+function of its seed, or the river would move every time somebody sold a depot.
+
+**Why elevation is only +15%.** The mockup proposed +40% and the harness refused it: the
+reference force's clear rate fell 33 points, and switching the term off put terrain within
+0.4 points of flat ground — meaning water, cover and movement cost together accounted for
+almost none of the drop. Reach is read from the firer's cell for both sides, which is
+symmetric in code and deeply asymmetric in play, because a defender's guns sit in fixed
+emplacements and an attacker mostly closes to contact. Same lesson as field conditions and
+as gates: **a raid is decided by gun coverage.** See `docs/BALANCE.md`.
+
 ### 5.3 The maze rule (core mechanic)
 
 Attackers use **weighted pathfinding**: a wall tile's traversal cost = time to walk plus
@@ -567,27 +599,53 @@ same reason — an abbreviation that takes two lines is not one.
 
 ## 6. Presentation
 
-### 6.1 Art direction — "the map table"
+### 6.1 Art direction — "the map table" *(rewritten v1.19)*
 
-Flat vector top-down, styled as a live tactical operations map: crisp geometric silhouettes,
-NATO-symbology-influenced iconography, subtle grid, blueprint overlays in build mode. Muted
-palette with faction accents:
+**You are not looking down at a battlefield. You are looking at a map of one, and drawing
+your defences onto it.**
+
+A buff topographic sheet, lying on a dark table. Contours traced from the real height field,
+a watercourse, woodland, a road, kilometre grid with edge references. Your base sits on top
+in ink: real top-down silhouettes, one per structure kind, each with a paper knockout behind
+it the way a counter is printed over a map.
+
+The fiction earns its keep. It explains why the view is top-down and abstract, it makes
+marginalia native instead of clutter — a map is *supposed* to carry a scale bar and a grid
+reference — and it turns your buildings into what they already are: counters placed on ground
+somebody surveyed.
+
+**The value rule, measured, and it is about AREA rather than lightness alone:**
+
+> Ground that **covers area** — paper, road, water, woodland — sits between L\* 63 and 83.
+> Everything you own that covers area sits between L\* 21 and 35. Nothing occupies the gap.
+
+Ground *marks* may go darker (the index contour is L\* 46) because a hairline covering no
+area cannot compete with a filled shape. Alarm accents are the deliberate exception: the
+tracer sits at L\* 76, squarely inside the ground band, and is unmissable anyway because it
+earns its read from hue and a knockout rather than from lightness.
+
+**The UI is not on the sheet.** Panels, rows and text stay dark — they are the table the map
+is lying on. That is why the whole board changed and the drawer did not.
 
 | Token | Hex | Use |
 |---|---|---|
-| `bg-field` | `#171a17` | Terrain base |
-| `bg-panel` | `#20241f` | UI panels |
-| `grid-line` | `#262b24` | Grid |
-| `olive` / `olive-dark` | `#6b7f43` / `#4a5a33` | USA structures/units |
-| `sand` / `sand-dark` | `#c2b280` / `#8a7f5c` | Walls, terrain accents |
-| `steel` | `#7d8a8f` | Neutral machinery |
-| `alarm` | `#c0392b` | Hostiles, alerts |
-| `signal` | `#d35400` | Fire/explosions, warnings |
-| `intel` | `#4a7fa5` | Intel, scanning, friendly UI |
-| `ink` | `#d8d5c7` | Text |
+| `bg-field` | `#d9cdb4` | The sheet |
+| `paper-warm` | `#e2d8c2` | Knockout halos, the inside of a gate |
+| `contour` | `#a88253` | Every 10 m, hairline |
+| `contour-index` | `#8a6538` | Every 50 m, heavier |
+| `water` / `water-deep` | `#93aaba` / `#6e8c9e` | Watercourse and its bank |
+| `wood` / `wood-edge` | `#8ca06a` / `#6f8050` | Canopy tint and stipple |
+| `road-case` / `road-fill` | `#f0eadb` / `#c9bfa6` | The road |
+| `grid-line` | `#7c7a6e` | Kilometre grid, at 14% |
+| `marg` | `#5a5346` | Sheet name, scale bar, grid references |
+| `olive-dark` / `olive` | `#2e3626` / `#3e4a32` | Structure ink |
+| `sand-dark` / `sand` | `#39422f` / `#4b563c` | Wall line, hesco |
+| `crimson` / `crimson-dark` | `#7a2b24` / `#5a1e19` | Hostile |
+| `bg-panel` / `bg-control` | `#20241f` / `#2a2f28` | The table: panels, and a control's face |
+| `ink` | `#d8d5c7` | UI text, on those dark panels |
+| `alarm` / `signal` / `tracer` | `#c0392b` / `#d35400` / `#e8b44a` | Accents |
 
-Faction accent hues: USA olive, China crimson `#a83232`, Russia rust `#8c5a2b`, NK slate
-`#5c6670`, UN blue `#4a7fa5`.
+Faction cameos: NK slate `#4a535c`, Russia rust `#6b4520`, UN blue `#3f6bab`.
 
 ### 6.2 Audio
 

@@ -302,6 +302,9 @@ export class TownScene extends Phaser.Scene {
       spawnColumn: TOWN_GRID.spawnColumn,
     });
     this.board.world.add([sheet, this.staticLayer, this.dynLayer]);
+    // So the harness can ask the board which cells are wet — see boardWetAt.
+    const ground = townTerrain(this.town);
+    this.board.passable = (col, row) => ground.passable(row * TOWN_GRID.width + col);
 
     this.panel = new Panel(this, this.board.ui, TABS);
     this.panel.onDrawerToggle = () => {

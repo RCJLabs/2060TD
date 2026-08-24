@@ -37,8 +37,27 @@ export const TERRAIN_NONE = 0;
 /** The road, and therefore the cheapest ground on the board. */
 export const MIN_MOVE_COST = 0.7;
 
-/** How much reach a gun gains per elevation band. Band 3 is +40%. */
-export const RANGE_PER_BAND = 0.133;
+/**
+ * How much reach a gun gains per elevation band. Band 3 is +15%.
+ *
+ * The mockup proposed +40%, and the harness refused it: at that value the
+ * reference force's clear rate fell 33 points, which is a difficulty spike
+ * rather than a trade. Switching the term off entirely put GROUND at 93.0
+ * against FLAT's 93.4 — meaning water, cover and movement cost together
+ * accounted for almost none of the drop, and elevation accounted for all of
+ * it.
+ *
+ * That is the same lesson this project has now learned three times: a raid is
+ * decided by GUN COVERAGE, not by route length or wall HP. Reach is read from
+ * the firer's cell for both sides, which is symmetric in code and deeply
+ * asymmetric in play — a defender's guns sit in fixed emplacements and keep
+ * whatever ground they were built on, while an attacker mostly closes to
+ * contact and never collects the bonus.
+ *
+ * At 0.05 the mean lands 6.6 points under flat, inside the same band field
+ * conditions are held to, and the spread between sheets stays 40 points.
+ */
+export const RANGE_PER_BAND = 0.05;
 
 /** Incoming direct fire under canopy. Artillery is not fooled by trees. */
 export const WOOD_COVER = 0.7;
@@ -342,6 +361,35 @@ export function generateTerrain(
       if (y > 0) steepest = Math.max(steepest, Math.abs(elev[cell]! - elev[cell - width]!));
       if (y < height - 1) steepest = Math.max(steepest, Math.abs(elev[cell]! - elev[cell + width]!));
       ground[cell] = steepest > 13.5 ? Ground.Steep : steepest > 9.5 ? Ground.Rough : Ground.Open;
+    }
+  }
+
+  // Fords.
+  //
+  // The first cut of this had exactly one crossing — the road bridge — and
+  // the harness said so: the reference force's clear rate fell 33 points,
+  // which is a difficulty spike wearing terrain's clothes. A river IS a wall
+  // you did not pay for, and that is the point, but a single door on a
+  // 32-cell map is worth more than any wall in the game.
+  //
+  // Two more crossings keep the water a wall and turn "there is one way in"
+  // into "there are three, and they are not equally good".
+  //
+  // They did NOT move the clear rate — the elevation term turned out to be
+  // what was crushing it — but they moved the butcher's bill the other way
+  // from the obvious guess: more crossings cost the attacker MORE men
+  // (85% to 91% on the hardest sheet), because a force that splits across
+  // three fords arrives piecemeal, and piecemeal is how you die.
+  for (const t of [0.28, 0.68]) {
+    const at = riverPts[Math.floor(riverPts.length * t)];
+    if (!at) continue;
+    const fx = Math.round(at[0]);
+    const fy = Math.round(at[1]);
+    for (let dx = -2; dx <= 2; dx++) {
+      const x = fx + dx;
+      if (x < 0 || x >= width || fy < 0 || fy >= height) continue;
+      const cell = fy * width + x;
+      if (ground[cell] === Ground.Water) ground[cell] = Ground.Rough; // a shallow, and slow
     }
   }
 

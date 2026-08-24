@@ -71,9 +71,31 @@ export function boardCellAt(col: number, row: number): { x: number; y: number } 
   return null;
 }
 
+/**
+ * Is a board cell under water on the live rig?
+ *
+ * The companion to `boardCellAt`. Terrain arrived in v1.19 and brought a rule
+ * the player meets by tapping — you cannot build in a river — and the only
+ * honest way to test that is to tap a wet cell and a dry one. The harness
+ * cannot work out which is which on its own (the sim is not in its process),
+ * so the board answers.
+ */
+export function boardWetAt(col: number, row: number): boolean {
+  for (const rig of rigs) {
+    if (!rig.scene.sys.isActive() || !rig.passable) continue;
+    return !rig.passable(col, row);
+  }
+  return false;
+}
+
 export class BoardView {
   readonly world: Phaser.GameObjects.Container;
   readonly ui: Phaser.GameObjects.Container;
+  /**
+   * Set by a scene that has ground under it, so `boardWetAt` can answer. Left
+   * unset by scenes with no terrain, which then report every cell as dry.
+   */
+  passable?: (col: number, row: number) => boolean;
   readonly camera: Phaser.Cameras.Scene2D.Camera;
   readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
 

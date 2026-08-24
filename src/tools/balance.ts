@@ -557,6 +557,70 @@ function gateTable(faction: FactionId): string {
   return lines.join('\n');
 }
 
+/**
+ * Is the ground a trade, or a buff wearing a costume? (v1.19)
+ *
+ * Terrain arrived with a promise attached: it should change WHICH bases are
+ * hard rather than making all of them harder or all of them easier. The bar
+ * is the same one field conditions have to clear — and the reading is the
+ * SPREAD, not the mean. Ground that lifts the clear rate everywhere is a
+ * defender nerf; ground that drops it everywhere is a difficulty spike; ground
+ * that does different things to different sheets is terrain.
+ *
+ * Every row is the same reference force against the same archetypes. FLAT is
+ * the pre-v1.19 control — the exact battles docs/BALANCE.md was measured on —
+ * and the GROUND rows are the same targets with their real terrain under them,
+ * split so a sheet's own character shows rather than averaging away.
+ */
+function terrainTable(faction: FactionId): string {
+  const flavor = flavorFor(faction);
+  const lines = [
+    `TERRAIN — the ${flavor.faction} reference force vs ${flavor.enemy} posts, flat ground vs real`,
+    `GROUND      | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST%`,
+    `------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
+  ];
+
+  /** One row: every (tier, variant, seed), with terrain on or off. */
+  const row = (label: string, ground: boolean, pick?: (variant: number) => boolean): void => {
+    const clears: number[] = [];
+    let sent = 0;
+    let home = 0;
+    for (const tier of RAID_TIERS) {
+      let cleared = 0;
+      let runs = 0;
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        if (pick && !pick(variant)) continue;
+        const base = generateBase(tier, variant, baseKitFor(faction));
+        if (!ground) base.terrainSeed = 0; // the flat control
+        for (let i = 0; i < SEEDS; i++) {
+          const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
+          const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+          const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
+          for (const ret of res.squads) {
+            home += ret.returned;
+            sent += ret.deployed;
+          }
+          if (res.cleared) cleared++;
+          runs++;
+        }
+      }
+      clears.push(runs > 0 ? Math.round((cleared / runs) * 100) : 0);
+    }
+    const mean = clears.reduce((a, b) => a + b, 0) / clears.length;
+    lines.push(
+      `${pad(label, 11)} | ${clears.map((c) => pad(c, 5)).join(' | ')} | ` +
+        `${pad(mean.toFixed(1), 5)} | ${pad(sent > 0 ? Math.round((1 - home / sent) * 100) : 0, 8)}`,
+    );
+  };
+
+  row('FLAT', false);
+  row('GROUND', true);
+  // Each variant is a different sheet. If terrain is doing its job these
+  // three rows disagree with each other more than they disagree with FLAT.
+  for (let v = 0; v < VARIANTS; v++) row(`SHEET ${v + 1}`, true, (variant) => variant === v);
+  return lines.join('\n');
+}
+
 function delayTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const PATTERNS: { name: string; delays: number[] }[] = [
@@ -683,6 +747,12 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--terrain')) {
+    const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
+    console.log(terrainTable(pick));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--gates')) {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(gateTable(pick));
@@ -756,6 +826,8 @@ function main(): void {
   }
   sections.push(archetypeTable('usa'));
   sections.push(conditionTable('usa'));
+  // The ground has to be a trade, and the reading is the SPREAD, not the mean.
+  sections.push(terrainTable('usa'));
   // Veterancy pays in survivors, not in wins, so it is measured per faction:
   // the survival column is the whole claim and the swarms have to show it too.
   for (const faction of FACTION_IDS) sections.push(veterancyTable(faction));
@@ -811,7 +883,7 @@ function main(): void {
 
   if (process.argv.includes('--md')) {
     const md = [
-      '# Balance snapshot (v1.9)',
+      '# Balance snapshot (v1.19)',
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -908,6 +980,40 @@ function main(): void {
       '  that was never going to survive the volley. Measured at full strength the signal is',
       '  monotone for all five. The lesson is general — a multiplier is invisible at the floor',
       '  and at the ceiling, so it has to be measured where the units were already living.',
+      '- **The ground (v1.19) is a trade, and the reading is the SPREAD.** Terrain has to change',
+      '  WHICH bases are hard rather than making all of them harder — the same bar field',
+      '  conditions clear. It does: GROUND lands 6.6 points under FLAT on the mean, inside the',
+      '  ±9 band, while the three sheets disagree with each other by forty points. Two of them',
+      '  are walkovers for the reference force and one stops it dead at T3 and T5. That is the',
+      '  whole point of putting a base somewhere rather than nowhere.',
+      '- **The first cut of terrain was a difficulty spike, and the harness said which term did',
+      '  it.** GROUND opened at 33 points under FLAT. Switching the elevation multiplier off',
+      '  put it at 93.0 against 93.4 — meaning water, cover and movement cost together',
+      '  accounted for almost NONE of the drop and elevation accounted for all of it. The',
+      '  mockup had proposed +40% reach on the top band; it ships at +15%.',
+      '- **That is the third time this project has learned the same thing**: a raid is decided',
+      '  by GUN COVERAGE, not by route length or wall HP. Field conditions found it (defender',
+      '  weaponDamage is by far the strongest lever, wall HP barely moves a fixed force), gates',
+      '  found it (48 doors in a ring moved the clear rate by one point, because attackers',
+      '  route rather than breach), and terrain found it again. Reach is read from the firer’s',
+      '  cell for BOTH sides, which is symmetric in code and deeply asymmetric in play: a',
+      '  defender’s guns sit in fixed emplacements and keep whatever ground they were built',
+      '  on, while an attacker mostly closes to contact and never collects the bonus.',
+      '- **The fords are the one thing that came out backwards.** A river with a single bridge',
+      '  is a chokepoint worth more than any wall, so two fords were added — and they did not',
+      '  move the clear rate at all. What they moved was the butcher’s bill, the wrong way:',
+      '  losses rose from 85% to 91% on the hardest sheet, because a force that splits across',
+      '  three crossings arrives piecemeal, and piecemeal is how you die. Three doors is worse',
+      '  than one if you insist on using all of them.',
+      '- **Woodland is a trade because artillery ignores it.** Cover applies to aimed fire and',
+      '  not to a barrage or mortar splash: canopy hides a man from a gunner, not from',
+      '  something that lands in the trees. That asymmetry is what stops it being a free',
+      '  hiding place, and it is what gives the fire-mission layer something to answer.',
+      '- **Terrain moved the veterancy fixture onto the floor, which is its own lesson.** The',
+      '  survival test measures a thin 5R1A push at tier 4; with ground under it, GREEN and',
+      '  CADRE bring home exactly the same men, because a 15% HP bump cannot save a unit that',
+      '  was never going to survive the volley. It measures on flat ground now — the same',
+      '  correction the first veterancy table needed, for the same reason.',
       '- **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before',
       '  anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+',
       '  (everything kills sentry nests).',

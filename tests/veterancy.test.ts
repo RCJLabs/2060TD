@@ -253,6 +253,15 @@ describe('veterancy in the sim', () => {
       let sent = 0;
       for (let variant = 0; variant < 3; variant++) {
         const base = generateBase(4, variant);
+        // Flat ground, deliberately. This measures a RANK, and terrain
+        // arriving in v1.19 pushed a thin 5R1A push at tier 4 down onto the
+        // floor — where both ranks return exactly the same men, because a
+        // 15% HP bump cannot save a unit that was never going to survive the
+        // volley. That is the same lesson the first veterancy table taught
+        // (docs/BALANCE.md): a multiplier is invisible at the floor and at
+        // the ceiling, so it has to be measured where the units were already
+        // living. Terrain has its own suite.
+        base.terrainSeed = 0;
         for (let seed = 1; seed <= 12; seed++) {
           const p: SquadPlan[] = [
             { units: { ranger: 5, abrams: 1 }, sector: 'W1', doctrine: 'assault', slot: 0, vet },

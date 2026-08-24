@@ -179,19 +179,21 @@ export class RaidScene extends Phaser.Scene {
     this.board = new BoardView(this, { cols: MAP_W, rows: MAP_H, cell: CELL });
     this.baseLayer = this.add.graphics();
     this.dynLayer = this.add.graphics();
+    const raidGround = generateTerrain(
+      this.base.terrainSeed,
+      this.base.terrainSeed > 0 ? TERRAIN_VERSION : TERRAIN_NONE,
+      MAP_W,
+      MAP_H,
+    );
     const sheet = makeSheet(this, {
       width: MAP_W,
       height: MAP_H,
       cell: CELL,
-      terrain: generateTerrain(
-        this.base.terrainSeed,
-        this.base.terrainSeed > 0 ? TERRAIN_VERSION : TERRAIN_NONE,
-        MAP_W,
-        MAP_H,
-      ),
+      terrain: raidGround,
       spawnColumn: -1, // no home entry strip: this is somebody else's ground
     });
     this.board.world.add([sheet, this.baseLayer, this.dynLayer]);
+    this.board.passable = (col, row) => raidGround.passable(row * MAP_W + col);
 
     this.fogText = this.add
       .text(0, 0, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {

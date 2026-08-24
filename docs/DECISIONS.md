@@ -67,3 +67,11 @@ here with the change and its date.
 ## Change log
 
 - 2026-08-22 — Initial ten decisions locked.
+- 2026-08-24 — **Decision 4 deepened, not changed.** "Flat vector top-down,
+  tactical-map aesthetic" now means a buff topographic SHEET rather than a dark
+  field: the fiction is that you are looking at a military map and planning
+  defences on it. The board goes from dark to paper; the UI stays dark, because
+  it is the table the map is lying on. Structures become real top-down
+  silhouettes instead of coloured rectangles. Isometric remains as unavailable
+  as it always was, and nothing in the sim assumes a camera. See GDD §6.1 and
+  the "Map Table" mockup.
