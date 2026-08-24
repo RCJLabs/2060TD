@@ -138,3 +138,72 @@ describe('determinism', () => {
     expect(s.kills).toBeGreaterThan(0); // the guns did work
   });
 });
+
+describe('terrain does not disturb a battle that never asked for it', () => {
+  // The whole risk of adding a generated field to the sim is that it moves a
+  // battle nobody wanted moved. These pin the two halves of that: a config
+  // with no terrain fields must behave EXACTLY as it did before v1.19, and a
+  // config with them must behave differently — otherwise terrain is inert.
+  it('a config with no terrain fields hashes as it always did', () => {
+    const a = new Engine(SANDBOX_CONFIG, TEST_CATALOG);
+    for (const cmd of sandboxScript(SANDBOX_CONFIG)) a.enqueue(cmd);
+    const b = new Engine({ ...SANDBOX_CONFIG }, TEST_CATALOG);
+    for (const cmd of sandboxScript(SANDBOX_CONFIG)) b.enqueue(cmd);
+    expect(checkpoints(a, CHECKPOINT_TICKS)).toEqual(checkpoints(b, CHECKPOINT_TICKS));
+  });
+
+  it('terrainVersion 0 is byte-for-byte the same battle as no terrain at all', () => {
+    const bare = new Engine(SANDBOX_CONFIG, TEST_CATALOG);
+    for (const cmd of sandboxScript(SANDBOX_CONFIG)) bare.enqueue(cmd);
+    const zeroed = new Engine(
+      { ...SANDBOX_CONFIG, terrainSeed: 999, terrainVersion: 0 },
+      TEST_CATALOG,
+    );
+    for (const cmd of sandboxScript(SANDBOX_CONFIG)) zeroed.enqueue(cmd);
+    expect(checkpoints(zeroed, CHECKPOINT_TICKS)).toEqual(checkpoints(bare, CHECKPOINT_TICKS));
+  });
+
+  it('terrain changes the battle when it is switched on', () => {
+    const flat = new Engine(SANDBOX_CONFIG, TEST_CATALOG);
+    for (const cmd of sandboxScript(SANDBOX_CONFIG)) flat.enqueue(cmd);
+    const ground = new Engine(
+      { ...SANDBOX_CONFIG, terrainSeed: 2060, terrainVersion: 1 },
+      TEST_CATALOG,
+    );
+    for (const cmd of sandboxScript(SANDBOX_CONFIG)) ground.enqueue(cmd);
+    expect(checkpoints(ground, CHECKPOINT_TICKS)).not.toEqual(
+      checkpoints(flat, CHECKPOINT_TICKS),
+    );
+  });
+
+  it('the same terrain seed replays identically', () => {
+    const seeded = (): Engine => {
+      const e = new Engine({ ...SANDBOX_CONFIG, terrainSeed: 2060, terrainVersion: 1 }, TEST_CATALOG);
+      for (const cmd of sandboxScript(SANDBOX_CONFIG)) e.enqueue(cmd);
+      return e;
+    };
+    expect(checkpoints(seeded(), CHECKPOINT_TICKS)).toEqual(
+      checkpoints(seeded(), CHECKPOINT_TICKS),
+    );
+  });
+
+  it('a different terrain seed is a different battle', () => {
+    const on = (terrainSeed: number): Engine => {
+      const e = new Engine({ ...SANDBOX_CONFIG, terrainSeed, terrainVersion: 1 }, TEST_CATALOG);
+      for (const cmd of sandboxScript(SANDBOX_CONFIG)) e.enqueue(cmd);
+      return e;
+    };
+    expect(checkpoints(on(2060), CHECKPOINT_TICKS)).not.toEqual(
+      checkpoints(on(31337), CHECKPOINT_TICKS),
+    );
+  });
+
+  it('the battles above are real battles, not empty fields', () => {
+    // Every hash-equality assertion here is worthless if nothing happened.
+    const e = new Engine({ ...SANDBOX_CONFIG, terrainSeed: 2060, terrainVersion: 1 }, TEST_CATALOG);
+    for (const cmd of sandboxScript(SANDBOX_CONFIG)) e.enqueue(cmd);
+    e.run(600);
+    expect(e.stats.spawned).toBe(8);
+    expect(e.attackers.filter((a) => a.state === 'stuck')).toHaveLength(0);
+  });
+});

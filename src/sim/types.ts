@@ -324,6 +324,22 @@ export interface SimConfig {
   /** Column reserved for attacker entry; nothing can be built there. */
   spawnColumn: number;
   /**
+   * Seed for the terrain field. Ignored unless `terrainVersion` names a real
+   * generator. Kept separate from `seed` because the engine's RNG is a single
+   * stream consumed in tick order — drawing terrain from it would shift every
+   * later roll and change every battle already recorded.
+   */
+  terrainSeed?: number;
+  /**
+   * Which terrain generator to run. Absent or 0 means flat ground, which is
+   * what every config written before v1.19 gets — so an archived replay
+   * re-fights exactly the battle it recorded.
+   *
+   * A version names a generator, not a revision of one: improving the maths
+   * means adding a version, never editing one.
+   */
+  terrainVersion?: number;
+  /**
    * Which side the player commands. Defaults to 'defender' (town sieges):
    * powers strike the attacking wave. As 'attacker' (raids): powers strike
    * structures and walls instead, and cost no CP — charges are the budget.

@@ -2,6 +2,14 @@ import { Grid } from './grid';
 import { fnv1a } from './hash';
 import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
+import {
+  FLAT_TERRAIN,
+  MIN_MOVE_COST,
+  RANGE_PER_BAND,
+  generateTerrain,
+  TERRAIN_NONE,
+  type TerrainField,
+} from './terrain';
 import type {
   AttackerProfile,
   AutoPowerRule,
@@ -26,6 +34,32 @@ export const TICKS_PER_SECOND = 20;
 export const DT = 1 / TICKS_PER_SECOND;
 /** How close a flyer gets to its target's edge before working it over. */
 const AIR_STANDOFF = 0.6;
+
+/**
+ * Cells the terrain generator must leave dry.
+ *
+ * Everything already committed to the board before the ground exists: the
+ * command centre, the persistent town layout, and the tunnel mouths a raid
+ * plan has already sited. Water on any of these either drowns something the
+ * player built or strands a squad that was promised a way in.
+ */
+function occupiedCellsOf(config: SimConfig, catalog: Catalog): CellIndex[] {
+  const w = config.width;
+  const out: CellIndex[] = [];
+  const footprint = (origin: CellIndex, size: number): void => {
+    for (let dy = 0; dy < size; dy++) {
+      for (let dx = 0; dx < size; dx++) out.push(origin + dy * w + dx);
+    }
+  };
+
+  footprint(config.ccOrigin, 2);
+  for (const wall of config.layout?.walls ?? []) out.push(wall.cell);
+  for (const structure of config.layout?.structures ?? []) {
+    footprint(structure.cell, catalog.structures[structure.kind]?.footprint ?? 1);
+  }
+  for (const cell of config.reservedCells ?? []) out.push(cell);
+  return out;
+}
 
 /**
  * Which layer a weapon engages when its profile does not say (v1.0).
@@ -171,6 +205,9 @@ export class Engine {
   /** Structures with id below this came from the town layout — not removable. */
   private layoutWatermark = 0;
   private readonly pathView: PathGrid;
+  /** The ground. Immutable for the life of the battle — terrain does not
+   *  burn, flood or crater, which is what lets the state hash ignore it. */
+  readonly terrain: TerrainField;
   /** Research multipliers, resolved once (identity when absent). */
   private readonly defWeaponMult: number;
   private readonly defWallHpMult: number;
@@ -195,6 +232,19 @@ export class Engine {
     this.catalog = catalog;
     this.grid = new Grid(config.width, config.height);
     this.rng = createRng(config.seed);
+    // Terrain draws from its OWN stream. Sharing `this.rng` would shift every
+    // later roll and re-fight every archived battle on different ground.
+    this.terrain =
+      (config.terrainVersion ?? TERRAIN_NONE) === TERRAIN_NONE
+        ? FLAT_TERRAIN
+        : generateTerrain(
+            config.terrainSeed ?? config.seed,
+            config.terrainVersion!,
+            config.width,
+            config.height,
+            occupiedCellsOf(config, catalog),
+            config.spawnColumn,
+          );
     this.phase = config.siege ? 'setup' : 'sandbox';
     this.supplies = config.siege?.startingSupplies ?? 0;
     this.cp = config.siege?.startingCp ?? 0;
@@ -214,6 +264,16 @@ export class Engine {
     );
 
     // Plant the Command Center: 2×2, hard-blocked, the thing everyone dies for.
+    // Water is a blocker, which is what makes it unbuildable and keeps
+    // findSpawnCell off it. Pathfinding learns about it separately, through
+    // pathView.moveCostAt — the two are different questions.
+    if (this.terrain.version !== TERRAIN_NONE) {
+      const cells = config.width * config.height;
+      for (let cell = 0; cell < cells; cell++) {
+        if (!this.terrain.passable(cell)) this.grid.addBlocker(cell);
+      }
+    }
+
     const cc = this.createStructure(config.ccOrigin, 'cc', config.ccLevel ?? 1, 1, false, true);
     if (!cc) throw new Error('invalid Command Center placement or missing cc profile');
     this.cc = cc;
@@ -245,6 +305,11 @@ export class Engine {
         }
         return 0;
       },
+      // Terrain has to be wired HERE, not only into Grid: the engine never
+      // calls Grid.obstacleHpAt, so ground added there alone would pass its
+      // unit tests and be invisible in every real battle.
+      moveCostAt: (cell) => this.terrain.moveCost(cell),
+      minMoveCost: this.terrain.version === TERRAIN_NONE ? 1 : MIN_MOVE_COST,
     };
 
     // Inject the persistent town layout, free of charge, before anything moves.
@@ -839,8 +904,24 @@ export class Engine {
 
   // ---- combat resolution ----------------------------------------------------------
 
-  private damageAttacker(attacker: Attacker, raw: number, type: DamageType): void {
-    attacker.hp -= raw * this.catalog.damage[type][attacker.profile.armor];
+  /**
+   * `direct` says whether the shot had to find the target — aimed fire from a
+   * gun, or a mine that saw it walk past. Canopy hides a man from a gunner,
+   * so it applies there; it does not hide him from a shell that lands in the
+   * trees, so barrages and mortar splash pass `false`.
+   *
+   * That asymmetry is the whole point of woodland as a mechanic: it is a
+   * trade, not a hiding place, and it is what gives the fire-mission layer
+   * something to answer.
+   */
+  private damageAttacker(
+    attacker: Attacker,
+    raw: number,
+    type: DamageType,
+    direct = true,
+  ): void {
+    const cover = direct ? this.terrain.cover(this.grid.cellAt(attacker.pos)) : 1;
+    attacker.hp -= raw * cover * this.catalog.damage[type][attacker.profile.armor];
   }
 
   private damageStructure(
@@ -896,7 +977,8 @@ export class Engine {
           // a gun that can elevate, which is the whole point of AA cover.
           if (attacker.hp <= 0 || attacker.profile.air) continue;
           if (inShape(shape, attacker.pos.x, attacker.pos.y)) {
-            this.damageAttacker(attacker, impact.damage, impact.damageType);
+            // A barrage lands where it lands; the canopy does not stop it.
+            this.damageAttacker(attacker, impact.damage, impact.damageType, false);
           }
         }
       }
@@ -985,6 +1067,21 @@ export class Engine {
     }
   }
 
+  /**
+   * A weapon's reach from where it stands. Height is worth distance: a gun on
+   * the crest sees further than the same gun in the bottom of the valley, up
+   * to +40% at the top band.
+   *
+   * Both sides read this from the FIRER's cell, so it is symmetric — it buys
+   * a defender the high ground and buys an attacker who takes it exactly the
+   * same thing. Minimum range is deliberately not scaled: a mortar's dead
+   * zone is a property of its arc, not of the hill it sits on.
+   */
+  private reachFrom(origin: Vec2, range: number): number {
+    if (this.terrain.version === TERRAIN_NONE) return range;
+    return range * (1 + RANGE_PER_BAND * this.terrain.band(this.grid.cellAt(origin)));
+  }
+
   private acquireAttacker(
     origin: Vec2,
     range: number,
@@ -993,7 +1090,8 @@ export class Engine {
   ): Attacker | null {
     let best: Attacker | null = null;
     let bestDistSq = Infinity;
-    const rangeSq = range * range;
+    const reach = this.reachFrom(origin, range);
+    const rangeSq = reach * reach;
     const minSq = minRange * minRange;
     for (const attacker of this.attackers) {
       if (attacker.hp <= 0) continue;
@@ -1069,7 +1167,8 @@ export class Engine {
         const dx = attacker.pos.x - shell.to.x;
         const dy = attacker.pos.y - shell.to.y;
         if (dx * dx + dy * dy <= shell.splashRadius * shell.splashRadius) {
-          this.damageAttacker(attacker, shell.damage, shell.damageType);
+          // Mortar splash, likewise: no cover against something that lobs.
+          this.damageAttacker(attacker, shell.damage, shell.damageType, false);
         }
       }
       events.push({ type: 'aoe', at: { ...shell.to }, radius: shell.splashRadius });
@@ -1210,18 +1309,26 @@ export class Engine {
         const dx = waypoint.x - attacker.pos.x;
         const dy = waypoint.y - attacker.pos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        // Charged per segment, at the cost of the cell being ENTERED — the
+        // same model weighted A* used to choose this route. Scaling the whole
+        // tick's budget once would be off by up to a cell whenever the budget
+        // carries across a waypoint, and a unit that moves on different terms
+        // than the planner drifts off the path it was given.
+        const ground = this.terrain.moveCost(targetCell);
+        const spend = dist * ground;
 
-        if (dist > budget) {
+        if (spend > budget) {
+          const step = (budget / ground) / dist;
           attacker.lastDir = { x: dx / dist, y: dy / dist };
-          attacker.pos.x += (dx / dist) * budget;
-          attacker.pos.y += (dy / dist) * budget;
+          attacker.pos.x += dx * step;
+          attacker.pos.y += dy * step;
           budget = 0;
           break;
         }
 
         if (dist > 0) attacker.lastDir = { x: dx / dist, y: dy / dist };
         attacker.pos = { ...waypoint };
-        budget -= dist;
+        budget -= spend;
         if (attacker.pathIndex >= attacker.path.length - 1) {
           // Arrived at a goal cell; assault begins next tick.
           attacker.path = [targetCell];
@@ -1365,7 +1472,8 @@ export class Engine {
     minRange: number,
     prefer?: 'defense' | 'economy',
   ): Structure | null {
-    const rangeSq = range * range;
+    const reach = this.reachFrom(origin, range);
+    const rangeSq = reach * reach;
     const minSq = minRange * minRange;
     const pick = (filter: ((s: Structure) => boolean) | null): Structure | null => {
       let best: Structure | null = null;

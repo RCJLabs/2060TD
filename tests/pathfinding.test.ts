@@ -118,3 +118,93 @@ describe('weighted A* — the maze rule', () => {
     expect(findPath(grid, start, grid.width * grid.height, WALKER)).toBeNull();
   });
 });
+
+describe('weighted A* — the ground', () => {
+  /** A PathGrid over open ground with a per-cell move cost we control. */
+  function ground(costs: Map<number, number>, min = 1) {
+    const grid = new Grid(21, 11);
+    return {
+      grid,
+      view: {
+        width: grid.width,
+        height: grid.height,
+        obstacleHpAt: (c: number) => grid.obstacleHpAt(c),
+        neighbors4: (c: number, out: number[]) => grid.neighbors4(c, out),
+        moveCostAt: (c: number) => costs.get(c) ?? 1,
+        minMoveCost: min,
+      },
+      start: grid.idx(0, 5),
+      goal: grid.idx(20, 5),
+    };
+  }
+
+  it('charges the ground multiplier for entering a cell, exactly', () => {
+    const costs = new Map<number, number>();
+    const grid0 = new Grid(21, 11);
+    // Six columns of mud at 1.5×, bank to bank, so there is nothing to walk
+    // around and the price is forced.
+    for (let x = 5; x < 11; x++) for (let y = 0; y < 11; y++) costs.set(grid0.idx(x, y), 1.5);
+    const { view, start, goal } = ground(costs);
+    const path = findPath(view, start, goal, { speed: 2, wallDps: 0 });
+    expect(path).not.toBeNull();
+    expect(path!.cells.length).toBe(21);
+    // Twenty cells entered: fourteen at 1×, six at 1.5×, all priced at 1/speed.
+    expect(path!.cost).toBeCloseTo((14 * 1 + 6 * 1.5) / 2, 10);
+  });
+
+  it('detours around mud when the detour is genuinely cheaper', () => {
+    const costs = new Map<number, number>();
+    const grid0 = new Grid(21, 11);
+    // A thick, expensive band across the direct line, open one row above.
+    for (let x = 8; x < 13; x++) for (let y = 3; y <= 10; y++) costs.set(grid0.idx(x, y), 4);
+    const { view, start, goal } = ground(costs);
+    const path = findPath(view, start, goal, { speed: 2, wallDps: 0 });
+    expect(path).not.toBeNull();
+    expect(path!.cells.some((c) => costs.get(c) === 4)).toBe(false);
+  });
+
+  it('treats Infinity ground as impassable for everyone, wall-chewers included', () => {
+    const costs = new Map<number, number>();
+    const grid0 = new Grid(21, 11);
+    for (let y = 0; y < 11; y++) costs.set(grid0.idx(10, y), Infinity); // a river, bank to bank
+    const { view, start, goal } = ground(costs);
+    expect(findPath(view, start, goal, { speed: 2, wallDps: 0 })).toBeNull();
+    expect(findPath(view, start, goal, BREACHER)).toBeNull();
+  });
+
+  it('refuses a goal the water took', () => {
+    const costs = new Map<number, number>();
+    const grid0 = new Grid(21, 11);
+    costs.set(grid0.idx(20, 5), Infinity);
+    const { view, start, goal } = ground(costs);
+    expect(findPath(view, start, goal, { speed: 2, wallDps: 0 })).toBeNull();
+  });
+
+  it('finds the true cheapest route when a road costs less than open ground', () => {
+    // The heuristic is Manhattan × stepCost × minMoveCost. Drop that last
+    // factor and this is the test that fails: an unscaled heuristic
+    // over-estimates a route that ends on cheap ground, and because closed
+    // nodes are never reopened the search commits to the wrong path.
+    const costs = new Map<number, number>();
+    const grid0 = new Grid(21, 11);
+    // Direct line is ordinary ground. One row down is a road at 0.5×, which
+    // is cheaper overall despite the two extra steps to reach it.
+    for (let x = 0; x <= 20; x++) costs.set(grid0.idx(x, 6), 0.5);
+    const { view, start, goal } = ground(costs, 0.5);
+    const path = findPath(view, start, goal, { speed: 2, wallDps: 0 });
+    expect(path).not.toBeNull();
+    const onRoad = path!.cells.filter((c) => costs.get(c) === 0.5).length;
+    expect(onRoad).toBeGreaterThan(15);
+    // Twenty-two cells entered: down onto the road, twenty along it, then one
+    // ordinary step up onto the goal.
+    expect(path!.cost).toBeCloseTo((21 * 0.5 + 1) / 2, 10);
+  });
+
+  it('costs nothing when the grid declares no ground at all', () => {
+    // Every existing PathGrid — the bare Grid, and the tests above — omits
+    // moveCostAt entirely, and must path exactly as it did before terrain.
+    const grid = new Grid(21, 11);
+    const path = findPath(grid, grid.idx(0, 5), grid.idx(20, 5), { speed: 2, wallDps: 0 });
+    expect(path!.cost).toBeCloseTo(20 / 2, 10);
+  });
+});

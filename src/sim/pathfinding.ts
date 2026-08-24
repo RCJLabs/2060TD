@@ -25,6 +25,20 @@ export interface PathGrid {
   /** 0 = open, finite = breakable obstacle HP, Infinity = impassable. */
   obstacleHpAt(cell: CellIndex): number;
   neighbors4(cell: CellIndex, out: CellIndex[]): number;
+  /**
+   * Ground multiplier on the time it takes to enter a cell — a road is below
+   * 1, mud and slope above it. Absent means flat ground everywhere.
+   *
+   * The movement integrator in the engine MUST charge the same multiplier per
+   * segment, or units drift off the paths they were given.
+   */
+  moveCostAt?(cell: CellIndex): number;
+  /**
+   * The smallest value `moveCostAt` can ever return. The heuristic is scaled
+   * by it, and getting this wrong is the one way terrain can break A*: see
+   * the note on `heuristic` below.
+   */
+  readonly minMoveCost?: number;
 }
 
 export interface PathProfile {
@@ -111,8 +125,12 @@ export function findPath(
   const inBounds = (c: CellIndex) => c >= 0 && c < size;
   if (!inBounds(start)) return null;
 
+  // A goal nobody can stand on is not a goal. Both filters matter: the first
+  // drops the command centre's own cells, the second drops anything the water
+  // took.
   const goalList = (Array.isArray(goals) ? goals : [goals]).filter(
-    (g) => inBounds(g) && grid.obstacleHpAt(g) !== Infinity,
+    (g) =>
+      inBounds(g) && grid.obstacleHpAt(g) !== Infinity && (grid.moveCostAt?.(g) ?? 1) !== Infinity,
   );
   if (goalList.length === 0) return null;
 
@@ -120,9 +138,21 @@ export function findPath(
   if (goalSet.has(start)) return { cells: [start], cost: 0 };
 
   const stepCost = 1 / profile.speed;
+  const minMove = grid.minMoveCost ?? 1;
   const goalXs = goalList.map((g) => g % grid.width);
   const goalYs = goalList.map((g) => Math.floor(g / grid.width));
 
+  /**
+   * Manhattan distance priced at the CHEAPEST ground on the board.
+   *
+   * The `* minMove` is not a refinement — it is what keeps A* correct once a
+   * road costs less than a plain step. An unscaled heuristic assumes every
+   * remaining cell costs `1 / speed`, which over-estimates any route that
+   * ends on roads; combined with `closed[next]` below (nodes are never
+   * reopened) an inadmissible heuristic returns a silently suboptimal path
+   * rather than failing. The price is a weaker bound and more nodes expanded,
+   * which on a 32×24 board is nothing.
+   */
   const heuristic = (cell: CellIndex): number => {
     const x = cell % grid.width;
     const y = Math.floor(cell / grid.width);
@@ -131,7 +161,7 @@ export function findPath(
       const d = Math.abs(x - goalXs[i]!) + Math.abs(y - goalYs[i]!);
       if (d < best) best = d;
     }
-    return best * stepCost;
+    return best * stepCost * minMove;
   };
 
   const g = new Float64Array(size).fill(Infinity);
@@ -169,10 +199,13 @@ export function findPath(
       const next = neighbors[i]!;
       if (closed[next]) continue;
 
+      const ground = grid.moveCostAt?.(next) ?? 1;
+      if (ground === Infinity) continue; // water
       const obstacleHp = grid.obstacleHpAt(next);
-      let enterCost = stepCost;
+      let enterCost = stepCost * ground;
       if (obstacleHp > 0) {
         if (obstacleHp === Infinity || profile.wallDps <= 0) continue; // impassable
+        // Chewing through a wall takes the same time wherever it stands.
         enterCost += obstacleHp / profile.wallDps;
       }
 
