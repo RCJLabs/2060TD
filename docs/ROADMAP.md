@@ -852,17 +852,71 @@ v1.20 with a note saying the balance pass would decide. It has.
           USA             98.6  ->  79.6      and it has a ladder again
           China, Russia, NK unchanged — the other kit was not touched
 
-- [ ] **The UN is the floor now, at 53.2 — the second term.** With the kits
-      level, what is left is the offence side, and it is legible: against the
-      same fortifications the five forces rank USA 92, China 93, Russia 82,
-      UN 57, NK 48. Same manpower (27-28 MP) and near-identical HP/MP (56-64),
-      so it is not bulk. It is demolition — wallDPS runs NK 304, USA 253,
-      Russia 234, China 193, **UN 134**, and hqDPS the same shape with the UN
-      last again at 106. In a game whose entire pathfinding cost model is
-      TIME, and where breaching costs `obstacleHp / wallDps`, the UN spends
-      far longer chewing wire under fire than anybody else. Measure whether
-      that is the term before touching the roster — the sustainment identity
-      (medics, `UN_NO_MEDICS` in the harness) is the other candidate.
+- [x] **The UN is the floor — and the demolition hypothesis was wrong**
+      *(v1.21, `--plans`)* — *it was pre-registered, which is the only reason
+      it could be refuted cleanly. The UN sits at parity on HP (x1.04) and
+      slightly ABOVE the others on gun damage (x0.95), short only on
+      demolition: wallDps needs x1.84 and hqDps x1.59 to reach the mean of the
+      other four. Moving each to that mean, one at a time:*
+
+          wallDps x1.84 (to the mean)      -0.8
+          hqDps   x1.59 (to the mean)      +0.4
+          both                             -1.2
+          CONTROL gun damage x1.18         +5.1
+          CONTROL hp x1.18                 +5.9
+          the medics swapped for rifles    -3.5
+
+      *Nothing. And the levers ARE connected — x100 wallDps is +9.8 and x0.01
+      is -3.9 — so both stats simply saturate, and the UN is already past the
+      useful range of them. Closing a deficit that is real as a number and
+      irrelevant as a cause would have achieved exactly nothing.*
+
+      ***Why they saturate: attackers essentially never breach.** Instrumenting
+      the battles, 1.0% of a base's walls fall to the UN and 1.5% to the USA.
+      `wallDps` is very nearly a dead stat on the whole roster, and the wall
+      mechanism is ROUTING rather than demolition. Worth remembering next time
+      a wall question comes up.*
+
+- [x] **The plan is worth up to 15 points, and it reorders the table**
+      *(v1.21, `--plans`)* — *chasing the UN found something larger. The five
+      reference plans were written by hand one at a time and are not equally
+      good: every one sits 4-19 points below what its own roster can do at the
+      same manpower. Applying ONE recipe to all five barely moves the spread
+      (26.6 -> 27.0) and completely reorders it:*
+
+          faction   reference   one recipe   best
+          CHINA        62.1        77.1      77.1
+          RUSSIA       60.4        72.1      72.1
+          NK           64.6        64.6      64.6
+          USA          61.3        61.7      61.7
+          UN           43.8        55.0      55.0
+
+      *Neither set is wrong; both are one person's idea of a sane force. What
+      is wrong is reading either as a measurement of the FACTION — and
+      `--parity` has been read that way for several releases, including by me
+      an hour before writing this.*
+
+      ***So the "USA is the outlier" reading above needs its caveat.** The KIT
+      half of that finding stands untouched: `--kits` holds the force fixed and
+      swaps only the fortifications, so plan quality cancels exactly within
+      each row, and every row showed the same +30 to +40. What does not stand
+      is the faction ranking that came with it. On best-plan the USA is FOURTH
+      at 61.7, not the runaway leader. The kit fix was justified on its own
+      evidence; the parity ordering was not yet measurable.*
+
+      *The harness now reports both plans and the gap between them. Read BEST
+      as the faction and the gap as the error bar that belongs on every
+      cross-faction number.*
+
+- [ ] **The UN is still the floor at its own best plan: 55.0 against 62-77.**
+      Refuted so far: demolition (saturated), bulk (at parity), gun damage
+      (above the mean), the medics (net positive — removing them costs 3.5),
+      and per-unit value (a Leopard is 93 HP/MP against an Abrams' 88). What
+      is left to look at: the UN reaches the command post in only 54% of raids
+      against the USA's 68%, and takes 1591 ticks to the USA's 1176 on the same
+      bases — it is not that its units are weak, it is that its raids take a
+      third longer and more of them stall before the objective. Find what the
+      clock is being spent on before touching a stat.
 
 - [x] **What the wall line is actually worth, and what v1.20 could not have
       known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line

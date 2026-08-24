@@ -860,6 +860,123 @@ function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): numbe
 }
 
 /**
+ * A SECOND plan per faction, built to one recipe rather than by hand (v1.21).
+ *
+ * The five reference plans above were written one at a time, and they are not
+ * equally good. Every one of them sits 4-19 clear-rate points below what its
+ * own roster can do at the same manpower, and the shortfall is uneven — so a
+ * cross-faction row carries as much PLAN as it does faction.
+ *
+ * How uneven: applying a single recipe — heavy up front with a screen, light
+ * armour and the ranged specialists in the middle, breachers and filler behind
+ * — to all five rosters does not shift the spread much (26.6 -> 27.0) but it
+ * REORDERS the table completely:
+ *
+ *     faction   reference   one recipe
+ *     CHINA        52.7        71.9
+ *     RUSSIA       50.4        64.1
+ *     NK           55.5        55.5
+ *     USA          52.0        52.3
+ *     UN           28.9        44.9
+ *
+ * The USA leads on the shipping plans and comes fourth on these. Neither set is
+ * wrong; both are one player's idea of a sane force. What is wrong is reading
+ * either as a measurement of the FACTION, and `--parity` had been read that way
+ * for several releases.
+ *
+ * So the harness reports both and the SPREAD between them. A faction's ceiling
+ * over the plans tried is a better invariant than any single plan's result, and
+ * the spread is the error bar that belongs on every cross-faction number.
+ *
+ * Note what this does NOT touch: `--kits` holds the force fixed and swaps only
+ * the fortifications, so plan quality cancels exactly within each row. That
+ * finding stands.
+ */
+const RECIPE_PLANS: Record<FactionId, SquadPlan[]> = {
+  usa: [
+    { units: { abrams: 1, ranger: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { humvee: 2, javelin: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { javelin: 1, engineer: 1, ranger: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  china: [
+    { units: { type99: 1, rifle: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { zbd: 2, grenadier: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { grenadier: 2, sapper: 2 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  russia: [
+    { units: { t72: 1, motorrifle: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { btr: 2, rpg: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { rpg: 1, demoteam: 2, motorrifle: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  // No light armour in the roster, so the middle is ranged and the mass goes
+  // behind. That is the KPA's identity rather than a break in the recipe.
+  nk: [
+    { units: { chonma: 1, nkrifle: 3 }, sector: 'W1', doctrine: 'assault' },
+    { units: { rpg7: 3, tunneler: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { tunneler: 1, infiltrator: 4, nkrifle: 4 }, sector: 'S1', doctrine: 'raze' },
+  ],
+  un: [
+    { units: { leo1: 1, peacekeeper: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { vab: 2, nlaw: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { nlaw: 1, unsapper: 1, unmedic: 1 }, sector: 'S1', doctrine: 'raze' },
+  ],
+};
+
+function planTable(): string {
+  const run = (faction: FactionId, plan: SquadPlan[]): number => {
+    const cat = raidCatalogFor(faction);
+    let cleared = 0;
+    let runs = 0;
+    for (const tier of RAID_TIERS) {
+      for (const arch of ARCHETYPES) {
+        for (let v = 0; v < 2; v++) {
+          const base = generateBase(tier, v, baseKitFor(faction), arch.id);
+          const squads = (faction === 'nk' ? tunnelPlanFor('nk', base, tier) : plan).map(
+            (s, at) => ({ ...s, slot: at }),
+          );
+          for (let i = 0; i < 3; i++) {
+            const config = raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction));
+            if (resolveRaid(config, squads, tier, cat).cleared) cleared++;
+            runs++;
+          }
+        }
+      }
+    }
+    return runs > 0 ? (cleared / runs) * 100 : 0;
+  };
+
+  const lines = [
+    'THE PLAN, NOT THE FACTION — the same roster asked twice',
+    'FACTION | REF MP | REFERENCE | RECIPE MP | RECIPE |  BEST | PLAN IS WORTH',
+    '--------+--------+-----------+-----------+--------+-------+--------------',
+  ];
+  const best: number[] = [];
+  let widest = 0;
+  for (const faction of FACTION_IDS) {
+    const ref = run(faction, RAID_PLANS[faction]);
+    const rec = run(faction, RECIPE_PLANS[faction]);
+    best.push(Math.max(ref, rec));
+    widest = Math.max(widest, Math.abs(rec - ref));
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} | ${pad(planManpower(faction), 6)} | ${pad(ref.toFixed(1), 9)} | ` +
+        `${pad(planManpower(faction, RECIPE_PLANS[faction]), 9)} | ${pad(rec.toFixed(1), 6)} | ` +
+        `${pad(Math.max(ref, rec).toFixed(1), 5)} | ${pad((rec - ref >= 0 ? '+' : '') + (rec - ref).toFixed(1), 13)}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    `PLAN IS WORTH UP TO ${widest.toFixed(1)} POINTS — comparable to every effect this harness ` +
+      'measures. Read BEST as the faction and the last column as the error bar; a single ' +
+      'plan\'s row is not a reading of a kit.',
+  );
+  lines.push(
+    `BEST-PLAN SPREAD ${(Math.max(...best) - Math.min(...best)).toFixed(1)} points. ` +
+      '`--kits` is unaffected: it holds the force fixed and swaps only the fortifications.',
+  );
+  return lines.join('\n');
+}
+
+/**
  * The two base kits, each measured against every force (v1.21).
  *
  * There are exactly two: the PLA post that the USA and the UN raid, and the US
@@ -1291,6 +1408,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--plans')) {
+    console.log(planTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--kits')) {
     console.log(kitTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -1409,6 +1531,8 @@ function main(): void {
   sections.push(dealTable());
   // And the layer under the deal: whether the two fronts are the same fight.
   sections.push(kitTable());
+  // And the error bar that belongs on every faction row above.
+  sections.push(planTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));
