@@ -53,7 +53,7 @@ export const NK_ATTACKERS: Record<string, AttackerProfile> = {
     wallDps: 4,
     hqDps: 9,
     cpValue: 3,
-    weapon: { damageType: 'shaped', damage: 40, shotsPerSecond: 0.45, range: 3.8 },
+    weapon: { damageType: 'shaped', damage: 60, shotsPerSecond: 0.45, range: 3.8 },
     speedJitter: 0.06,
   },
   chonma: {
@@ -63,9 +63,9 @@ export const NK_ATTACKERS: Record<string, AttackerProfile> = {
     speed: 1.6,
     armor: 'heavy',
     wallDps: 22,
-    hqDps: 20,
+    hqDps: 16,
     cpValue: 9,
-    weapon: { damageType: 'kinetic', damage: 30, shotsPerSecond: 0.5, range: 3.4 },
+    weapon: { damageType: 'kinetic', damage: 24, shotsPerSecond: 0.5, range: 3.4 },
     speedJitter: 0.05,
   },
   an2: {

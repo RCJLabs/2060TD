@@ -55,7 +55,7 @@ export const CHINA_ATTACKERS: Record<string, AttackerProfile> = {
     cpValue: 5,
     weapon: {
       damageType: 'explosive',
-      damage: 22,
+      damage: 33,
       shotsPerSecond: 0.8,
       range: 4.0,
     },
@@ -85,11 +85,11 @@ export const CHINA_ATTACKERS: Record<string, AttackerProfile> = {
     speed: 1.2,
     armor: 'heavy',
     wallDps: 30,
-    hqDps: 25,
+    hqDps: 20,
     cpValue: 15,
     weapon: {
       damageType: 'explosive',
-      damage: 55,
+      damage: 44,
       shotsPerSecond: 0.4,
       range: 4.0,
     },

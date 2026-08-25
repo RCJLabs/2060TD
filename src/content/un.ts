@@ -53,7 +53,7 @@ export const UN_ATTACKERS: Record<string, AttackerProfile> = {
     wallDps: 4,
     hqDps: 9,
     cpValue: 3,
-    weapon: { damageType: 'shaped', damage: 45, shotsPerSecond: 0.45, range: 3.9 },
+    weapon: { damageType: 'shaped', damage: 68, shotsPerSecond: 0.45, range: 3.9 },
     speedJitter: 0.06,
   },
   vab: {
@@ -75,9 +75,9 @@ export const UN_ATTACKERS: Record<string, AttackerProfile> = {
     speed: 1.5,
     armor: 'heavy',
     wallDps: 26,
-    hqDps: 22,
+    hqDps: 18,
     cpValue: 12,
-    weapon: { damageType: 'kinetic', damage: 38, shotsPerSecond: 0.5, range: 3.5 },
+    weapon: { damageType: 'kinetic', damage: 30, shotsPerSecond: 0.5, range: 3.5 },
     speedJitter: 0.05,
   },
   nh90: {

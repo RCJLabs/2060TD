@@ -190,3 +190,17 @@ here with the change and its date.
   pretending). Nothing is tuned until that is settled, because a buff to a unit
   that never reaches the post buys nothing — which cost three separate
   measurements to learn.
+- 2026-08-25 — **A raid is now two units for three factions, and still one for
+  two.** v1.22 moved anti-structure power out of the heavy (×0.8 on both its
+  channels) and into the ranged infantry (×1.5 on its weapon), which unlike the
+  riflemen fire `shaped` or `explosive` and so can hurt a command post from a
+  standoff. Measured: the clear rate moved 40.3 → 40.2 and the parity spread
+  26.4 → 27.0, both inside noise, while the heavy's share of a raid fell from
+  67% to 50%. Russia, the KPA and the UN now have a real second carry at 55%,
+  62% and 36%. The USA and China do not, and the reason is worth recording
+  because the obvious guess was wrong: their escorts are not incapable, their
+  raids simply succeed on the tank alone, so silencing the escort changes
+  nothing. Normalising the heavies' damage type was measured as the fix and is
+  not one — it costs 12-22 clear points and leaves the Javelin at 8%. What is
+  left needs the heavy to be insufficient by itself, which is a difficulty
+  decision as much as a design one.

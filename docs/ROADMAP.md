@@ -1088,6 +1088,34 @@ v1.20 with a note saying the balance pass would decide. It has.
       aimed at the Abrams specifically, or the USA keeps playing a different
       game from everybody else.
 
+- [x] **Shipped the trade** *(v1.22)* — *heavy anti-structure ×0.8 on both
+      channels, ranged infantry weapon damage ×1.5, applied to all five rosters
+      as ten content edits. Measured against the prediction:*
+
+          clear rate      40.3  ->  40.2      (a trade, not a spike)
+          heavy share      67%  ->   50%
+          parity spread   26.4  ->   27.0     (undisturbed)
+
+      *It landed for three factions and not for two. The AT arm's share of a
+      raid, per faction: **Russia 55%, the KPA 62%, the UN 36%** — from bit
+      parts to genuine second carries. **The USA 8% and China 9%, unchanged.***
+
+      ***And the reason is not what the earlier caveat guessed.** It is not that
+      their infantry cannot contribute: those two raids simply succeed on the
+      tank alone, so removing the escort changes nothing. Redundancy, not
+      incapacity. Normalising the heavies' damage type was measured as the
+      candidate fix and is not one — it costs the USA 11.7 clear points and
+      leaves the Javelin at 8%, while costing China 21.8. Fixing it means making
+      the heavy insufficient on its own, which is direction 2 and a separate
+      decision.*
+
+- [ ] **The USA and China still win on the tank alone.** The v1.22 trade moved
+      the other three; these two need the heavy to stop being sufficient by
+      itself rather than merely less dominant. That is a difficulty change as
+      much as a design one — every measured way of doing it so far costs 10-20
+      clear-rate points — so it wants a deliberate decision about how hard a
+      deep raid should be, not another multiplier.
+
 - [x] **What the wall line is actually worth, and what v1.20 could not have
       known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line
       worth -5.2 at full gun strength and +7.3 after `GARRISON_GUN_TRADE`. The

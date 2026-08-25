@@ -51,7 +51,7 @@ export const USA_UNITS: Record<string, AttackerProfile> = {
     wallDps: 6,
     hqDps: 10,
     cpValue: 4,
-    weapon: { damageType: 'shaped', damage: 45, shotsPerSecond: 0.5, range: 4.0 },
+    weapon: { damageType: 'shaped', damage: 68, shotsPerSecond: 0.5, range: 4.0 },
     speedJitter: 0.06,
   },
   humvee: {
@@ -73,9 +73,9 @@ export const USA_UNITS: Record<string, AttackerProfile> = {
     speed: 1.3,
     armor: 'heavy',
     wallDps: 35,
-    hqDps: 30,
+    hqDps: 24,
     cpValue: 14,
-    weapon: { damageType: 'explosive', damage: 60, shotsPerSecond: 0.5, range: 4.0 },
+    weapon: { damageType: 'explosive', damage: 48, shotsPerSecond: 0.5, range: 4.0 },
     speedJitter: 0.03,
   },
   reaper: {

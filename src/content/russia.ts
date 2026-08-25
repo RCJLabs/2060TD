@@ -51,7 +51,7 @@ export const RU_ATTACKERS: Record<string, AttackerProfile> = {
     wallDps: 5,
     hqDps: 10,
     cpValue: 4,
-    weapon: { damageType: 'shaped', damage: 50, shotsPerSecond: 0.45, range: 4.0 },
+    weapon: { damageType: 'shaped', damage: 75, shotsPerSecond: 0.45, range: 4.0 },
     speedJitter: 0.06,
   },
   btr: {
@@ -73,11 +73,11 @@ export const RU_ATTACKERS: Record<string, AttackerProfile> = {
     speed: 1.5,
     armor: 'heavy',
     wallDps: 32,
-    hqDps: 26,
+    hqDps: 21,
     cpValue: 13,
     weapon: {
       damageType: 'kinetic',
-      damage: 45,
+      damage: 36,
       shotsPerSecond: 0.5,
       range: 3.8,
     },
