@@ -36,10 +36,12 @@ import {
   type FactionId,
 } from '../content/factions';
 import {
+  DOCTRINE_IDS,
   raidConfig,
   resolveRaid,
   tunnelSiteValid,
   type RaidSupport,
+  type SectorId,
   type SquadPlan,
 } from '../meta/warfare';
 import { CONDITIONS } from '../content/conditions';
@@ -47,6 +49,12 @@ import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
+import {
+  OBJECTIVES,
+  OBJECTIVE_FLOOR,
+  OBJECTIVE_IDS,
+  OBJECTIVE_SHARE,
+} from '../meta/objectives';
 import type {
   CellIndex,
   DefenderMods,
@@ -56,6 +64,7 @@ import type {
   StandingOrders,
   Catalog,
   DamageType,
+  Doctrine,
 } from '../sim/types';
 
 const SEEDS = 20;
@@ -1382,6 +1391,147 @@ function seedTable(combatVersion = COMBAT_CURRENT): string {
 }
 
 /**
+ * Would an objective layer select for different forces, or is it decoration?
+ *
+ * This is the measurement that had a veto. A raid has always had exactly one
+ * ending that counted, and everything the player keeps read that one boolean —
+ * so the planner was decoration around *did you bring the tank*. Adding named
+ * objectives only helps if a force built for one is genuinely bad at another.
+ * If the same column tops every objective, the layer is theatre and the
+ * milestone stops.
+ *
+ * Three forces per faction at the same 27 manpower — everything the motorpool
+ * will sell, everything the barracks will sell, and the reference plan — each
+ * run under all three doctrines against the same ladder.
+ */
+function objectiveTable(share = OBJECTIVE_SHARE): string {
+  const SEEDS = 3;
+  const TIERS = [2, 3, 4];
+  const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
+  const quota = (standing: number): number =>
+    Math.min(standing, Math.max(OBJECTIVE_FLOOR, Math.round(standing * share)));
+
+  /** Fill to 27 manpower from one facility's units, dearest first. */
+  const build = (faction: FactionId, facility: string): Record<string, number> => {
+    const pool = trainableFor(faction)
+      .filter((t) => t.facility === facility)
+      .sort((a, b) => b.manpower - a.manpower);
+    const out: Record<string, number> = {};
+    let left = 27;
+    for (const meta of pool) {
+      while (meta.manpower <= left) {
+        out[meta.kind] = (out[meta.kind] ?? 0) + 1;
+        left -= meta.manpower;
+      }
+    }
+    return out;
+  };
+  const flatten = (plan: SquadPlan[]): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const sq of plan) {
+      for (const [kind, n] of Object.entries(sq.units)) out[kind] = (out[kind] ?? 0) + n;
+    }
+    return out;
+  };
+  /** One force, three squads on fixed sectors, all under one doctrine. */
+  const spread = (units: Record<string, number>, doctrine: Doctrine): SquadPlan[] => {
+    const sectors: SectorId[] = ['W1', 'N1', 'S1'];
+    const squads: SquadPlan[] = sectors.map((sector, slot) => ({
+      units: {},
+      sector,
+      doctrine,
+      slot,
+    }));
+    let at = 0;
+    for (const [kind, n] of Object.entries(units)) {
+      for (let i = 0; i < n; i++) {
+        const sq = squads[at % 3]!;
+        sq.units[kind] = (sq.units[kind] ?? 0) + 1;
+        at++;
+      }
+    }
+    return squads.filter((sq) => Object.keys(sq.units).length > 0);
+  };
+
+  const lines = [
+    `WHAT A RAID COULD COME FOR — quota is ${Math.round(share * 100)}% of what the base holds`,
+    'FORCE  | DOCTRINE | TAKE POST | SPIKE GUNS | RAID STORES',
+    '-------+----------+-----------+------------+------------',
+  ];
+  let distinctWinners = 0;
+  let objectives = 0;
+
+  for (const faction of FACTION_IDS) {
+    const cat = raidCatalogFor(faction);
+    const forces: [string, Record<string, number>][] = [
+      ['ARMOUR', build(faction, 'motorpool')],
+      ['FOOT', build(faction, 'barracks')],
+      ['MIXED', flatten(RAID_PLANS[faction])],
+    ];
+    lines.push(`${faction.toUpperCase()}`);
+    const best: Record<string, { at: string; pct: number }> = {};
+    for (const [name, units] of forces) {
+      for (const doctrine of DOCTRINE_IDS) {
+        const squads = spread(units, doctrine);
+        if (squads.length === 0) continue;
+        let runs = 0;
+        const hit: Record<string, number> = { post: 0, guns: 0, stores: 0 };
+        for (const tier of TIERS) {
+          for (const arch of ARCHETYPES) {
+            const base = generateBase(tier, 0, baseKitFor(faction), arch.id, faction);
+            for (let i = 0; i < SEEDS; i++) {
+              const config = raidConfig(base, squads, seedFor(i), trainableFor(faction));
+              const engine = new Engine(config, cat);
+              const startGuns = engine.countStanding('defense');
+              const startStores = engine.countStanding('economy');
+              const res = resolveRaid(config, squads, tier, cat);
+              runs++;
+              if (res.cleared) hit['post']!++;
+              const killed = (cls: 'defense' | 'economy'): number => {
+                let n = 0;
+                for (const [kind, count] of Object.entries(res.destroyed)) {
+                  const profile = cat.structures[kind];
+                  if (!profile || !profile.targetable || kind === 'cc') continue;
+                  const isGun = profile.weapon !== undefined;
+                  if (cls === 'defense' ? isGun : !isGun) n += count;
+                }
+                return n;
+              };
+              if (startGuns >= OBJECTIVE_FLOOR && killed('defense') >= quota(startGuns)) hit['guns']!++;
+              if (startStores >= OBJECTIVE_FLOOR && killed('economy') >= quota(startStores)) hit['stores']!++;
+            }
+          }
+        }
+        const pct = (id: string): number => (runs > 0 ? (hit[id]! / runs) * 100 : 0);
+        for (const id of OBJECTIVE_IDS) {
+          const at = `${name}/${doctrine.toUpperCase()}`;
+          if (!best[id] || pct(id) > best[id]!.pct) best[id] = { at, pct: pct(id) };
+        }
+        lines.push(
+          `${pad(name, 6)} | ${pad(doctrine.toUpperCase(), 8)} | ${pad(pct('post').toFixed(1), 9)} | ` +
+            `${pad(pct('guns').toFixed(1), 10)} | ${pad(pct('stores').toFixed(1), 11)}`,
+        );
+      }
+    }
+    const winners = new Set(OBJECTIVE_IDS.map((id) => best[id]?.at ?? ''));
+    distinctWinners += winners.size;
+    objectives += OBJECTIVE_IDS.length;
+    lines.push(
+      `       best: ${OBJECTIVE_IDS.map((id) => `${OBJECTIVES[id].short} ${best[id]?.at ?? '—'}`).join('  ·  ')}`,
+    );
+    lines.push('-------+----------+-----------+------------+------------');
+  }
+
+  lines.push('');
+  lines.push(
+    `DISTINCT WINNERS ${distinctWinners} of ${objectives}. One force topping every column ` +
+      'would mean the objective is a label on the same raid; a different force per column ' +
+      'is the whole argument for letting a raid declare what it came for.',
+  );
+  return lines.join('\n');
+}
+
+/**
  * Price every candidate variance model on the one measure that matters.
  *
  * Each model preserves its mean by construction, so a shift in CLEAR is a
@@ -1838,6 +1988,12 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--objective')) {
+    const arg = process.argv[process.argv.indexOf('--objective') + 1];
+    console.log(objectiveTable(/^0?\.\d+$/.test(arg ?? '') ? Number(arg) : OBJECTIVE_SHARE));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--sweep')) {
     console.log(sweepTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -1992,6 +2148,9 @@ function main(): void {
   // …and the caveat that belongs on every percentage above it: CLEAR% is a
   // count of matchups tipped, and this is how few of them the seed can tip.
   sections.push(seedTable());
+  // …and the answer to the question all of the above kept raising: whether a
+  // raid could come for something other than the command post.
+  sections.push(objectiveTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));

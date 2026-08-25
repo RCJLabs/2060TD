@@ -1508,6 +1508,23 @@ export class Engine {
     attacker.pos.y += (dy / dist) * Math.min(budget, dist);
   }
 
+  /**
+   * How many of a class are still standing.
+   *
+   * A query, not a rule: the sim knows what a structure IS, and the war layer
+   * decides what a raid came for. `src/meta/objectives.ts` reads this rather
+   * than keeping its own list of kinds, because a hand-written list is one
+   * content addition away from being wrong and these predicates are not.
+   */
+  countStanding(cls: 'defense' | 'economy'): number {
+    let n = 0;
+    for (const s of this.structures) {
+      if (s.hp <= 0) continue;
+      if (cls === 'defense' ? this.isDefenseStructure(s) : this.isEconomyStructure(s)) n++;
+    }
+    return n;
+  }
+
   private isDefenseStructure(s: Structure): boolean {
     return s.profile.targetable && s.profile.weapon !== undefined && !s.inert;
   }
