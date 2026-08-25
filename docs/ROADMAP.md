@@ -1039,6 +1039,55 @@ v1.20 with a note saying the balance pass would decide. It has.
       reaches the post buys nothing. That cost three separate measurements to
       learn this milestone.
 
+      **The four obvious levers were measured first, and three of them do not
+      work.** Mean clear rate and mean carry share across all five factions:
+
+          option                          clear   carry
+          shipping                         40.3     67%
+          1a breachers can blow the post   40.5     67%
+          1b smallArms vs structure x2.3   40.3     67%
+          2a heavy HP x0.7                 34.2     62%
+          2b anti-armor tower x1.6         34.5     67%
+
+      *1b was a **disconnected lever** and would have been reported as a false
+      negative without the check: **no unit in any reference plan fires
+      smallArms.** The types in play are explosive, shaped, kinetic and NONE, so
+      the rifle-versus-building multiplier was never going to matter. 1a moves
+      nothing because breachers never survive to the post — x100 on their melee
+      is worth -1.0. And both halves of direction 2 lower the carry share only
+      by making the game harder, which is a difficulty change wearing a
+      design's clothes.*
+
+      *Escort melee saturates the same way every other stat in this game does:
+      x10 on the non-heavy units is worth +3.1 to the USA and +0.5 to the UN,
+      while x100 is worth +8.8 and +14.1. Their binding constraint is TIME ON
+      TARGET, not damage rate — so no amount of damage fixes an escort that is
+      not there.*
+
+- [ ] **The one measured option that is a trade: move power out of the heavy
+      and into the ranged infantry.** The AT teams (javelin, NLAW, RPG, RPG-7,
+      grenadier) fire `shaped` or `explosive` — 0.8 and 1.0 against a structure
+      — so unlike the riflemen they can already hurt a post from a standoff,
+      and they are the second-largest contributor in every plan. Cutting the
+      heavy's anti-structure output and giving it to them:
+
+          heavy / AT-inf   clear   carry   per faction (USA CN RU NK UN)
+          x1.0 / x1.0       40.3     67%   86% 87% 63% 46% 53%
+          x0.8 / x1.5       40.2     51%   86% 79% 30% 19% 38%
+          x0.7 / x2.0       45.6     42%   79% 62% 18% 11% 40%
+          x0.6 / x2.5       47.2     35%   65% 56% 13% 11% 30%
+
+      **x0.8 / x1.5 is the trade point** — the clear rate moves 0.1 while the
+      carry share falls 16 points, which is the same bar v1.20's gun trade was
+      held to. Past it the game simply gets easier.
+
+      **But it is a partial fix and the caveat matters: the USA does not move
+      at all** (86% → 86%). Its escorts are inert in a way the others' are not
+      — two Javelin teams deliver -1.0 at baseline, so half again of nearly
+      nothing is still nearly nothing. Whatever ships here needs a second step
+      aimed at the Abrams specifically, or the USA keeps playing a different
+      game from everybody else.
+
 - [x] **What the wall line is actually worth, and what v1.20 could not have
       known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line
       worth -5.2 at full gun strength and +7.3 after `GARRISON_GUN_TRADE`. The
