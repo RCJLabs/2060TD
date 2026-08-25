@@ -1597,6 +1597,35 @@ enough kinds.** That is a content change, not a tuning change.
       unmeasured — but a rung whose three targets are 0/50/100 by accident is not the
       graded choice the deal claims to offer.
 
+### Air is a tax, and the search will not pay it
+
+`--derive-air` runs the same search over the whole roster with one constraint — the
+force must contain something flown. Given that free hand, **four of five factions put
+in exactly one aircraft**, the minimum the constraint allows, and spend the rest on
+ground. Compared like with like, both held-out on the same generator:
+
+| | best ground plan | best plan containing air | what flying costs |
+| --- | --- | --- | --- |
+| USA | 83.3 | 73.3 (`2xabrams 2xranger 1xreaper`) | **−10.0** |
+| CHINA | 85.8 | 93.3 (`3xtype99 1xwz10`) | **+7.5** |
+| RUSSIA | 89.2 | 82.5 (`5xbtr 1xka52 1xrpg`) | −6.7 |
+| KPA | 67.5 | 65.0 (`1xan2 16xnkrifle 3xtunneler`) | −2.5 |
+| UN | 83.3 | 72.5 (`3xnh90 3xvab`) | **−10.8** |
+
+The v1.0 air thesis — two squads of rotors and a ground tail — is dominated everywhere
+it was measured: the shipped air plans lose to the search by up to +16.7, and the plans
+that beat them are ground plans with one aircraft bolted on. Only China's WZ-10 pays
+for itself, and the per-manpower table says why: it carries 35.0 HP, 4.3 hqDps and 4.5
+weapon dps per point of manpower against the Reaper's 25.0 / 3.0 / 3.7. Every air unit
+also has `wallDps` 0, so none of them can open a line.
+
+- [ ] **Price the air roster against the WZ-10, or accept air as a specialist.** The
+      Reaper and the NH90 are the two worst buys in the game per manpower and belong to
+      the two factions air costs the most (−10.0 and −10.8). Either they come up to the
+      WZ-10's line, or the air thesis is rewritten as "one aircraft supports a ground
+      force" — which is what the search actually plays. This wants its own measured
+      pass with a thesis, not a stat nudge.
+
 - [ ] **ASSAULT is still weakly dominated** for Russia, the KPA and the UN — carried
       from M14. Removing the doctrine remains the untested option.
 

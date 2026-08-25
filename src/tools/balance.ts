@@ -143,6 +143,16 @@ const RAID_PLANS: Record<FactionId, SquadPlan[]> = {
  * The v1.0 air thesis, offense side: roughly the same manpower, flown. Two
  * squads of rotors and a small ground tail, so the run still has something
  * to hold ground while the air layer works.
+ *
+ * **These are a THESIS, not a derived optimum, and v1.25 measured the
+ * difference.** `--derive-air` searches the whole roster under one constraint —
+ * the force must contain something flown — and four of five factions answer
+ * with exactly ONE aircraft, the minimum the constraint allows, spending the
+ * rest on ground. It beats these plans by up to +16.7. Kept as written anyway,
+ * because the `--air` table's question is "what does flying buy you", and a
+ * reference that has quietly stopped flying cannot answer it. The honest
+ * reading is in the ROADMAP: air costs 2.5 to 10.8 clear points for everyone
+ * except China.
  */
 const AIR_RAID_PLANS: Record<FactionId, SquadPlan[]> = {
   usa: [
@@ -1445,22 +1455,37 @@ function seedTable(combatVersion = COMBAT_CURRENT): string {
  * sample is drawn from a fixed seed, so this is repeatable rather than a
  * one-off.
  */
-function deriveTable(sampleSize = 200): string {
+function deriveTable(sampleSize = 200, air = false): string {
   const SCREEN_TIERS = [3];
   const SCREEN_ARCH: ArchetypeId[] = ['compound', 'keep', 'star', 'corridor'];
   const SCREEN_SEEDS = 2;
   const FINALISTS = 8;
   const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
 
-  /** Every multiset of units inside the manpower band, at most three kinds. */
+  /**
+   * Every multiset of units inside the manpower band, at most three kinds.
+   *
+   * In air mode the pool is the whole roster rather than the airfield alone:
+   * the shipped air plans are two squads of rotors and a ground tail, and a
+   * search that could only fly would be answering a different question than
+   * the one the reference asks. What makes a plan an AIR plan is that it must
+   * contain something flown, which is filtered below.
+   */
   const compositions = (faction: FactionId): Record<string, number>[] => {
+    const airKinds = new Set(
+      trainableFor(faction)
+        .filter((t) => t.facility === 'airfield')
+        .map((t) => t.kind),
+    );
     const pool = trainableFor(faction)
-      .filter((t) => t.facility !== 'airfield')
+      .filter((t) => air || t.facility !== 'airfield')
       .map((t) => ({ kind: t.kind, manpower: t.manpower }));
     const out: Record<string, number>[] = [];
     const walk = (at: number, left: number, kinds: number, acc: Record<string, number>): void => {
       if (at === pool.length) {
-        if (27 - left >= 24 && kinds > 0) out.push({ ...acc });
+        if (27 - left < 24 || kinds === 0) return;
+        if (air && !Object.keys(acc).some((k) => airKinds.has(k))) return;
+        out.push({ ...acc });
         return;
       }
       const meta = pool[at]!;
@@ -1534,7 +1559,7 @@ function deriveTable(sampleSize = 200): string {
       .join(' ');
 
   const lines = [
-    `IS THE REFERENCE PLAN ANY GOOD? — ${sampleSize} sampled compositions x 3 doctrines`,
+    `IS THE ${air ? 'AIR ' : ''}REFERENCE PLAN ANY GOOD? — ${sampleSize} sampled compositions x 3 doctrines`,
     'FACTION | REF MP | REFERENCE | IN-SAMPL | HELD OUT | CURSE | GAIN | THE PLAN THAT BEAT IT',
     '--------+--------+-----------+----------+----------+-------+------+----------------------',
   ];
@@ -1607,7 +1632,8 @@ function deriveTable(sampleSize = 200): string {
       }
     }
     // ...then score the winner and the reference on battles neither has seen.
-    const refScore = score(faction, RAID_PLANS[faction], RAID_TIERS, FULL_ARCH, 3, HELD_OUT);
+    const reference = air ? AIR_RAID_PLANS[faction] : RAID_PLANS[faction];
+    const refScore = score(faction, reference, RAID_TIERS, FULL_ARCH, 3, HELD_OUT);
     const held = best === null ? refScore : score(faction, best.squads, RAID_TIERS, FULL_ARCH, 3, HELD_OUT);
     const gain = held - refScore;
     const curse = best === null ? 0 : best.at - held;
@@ -1639,7 +1665,9 @@ function deriveTable(sampleSize = 200): string {
   lines.push('');
   lines.push('WHAT GOT BEATEN — the shipped reference, flattened to a composition');
   for (const faction of FACTION_IDS) {
-    lines.push(`  ${pad(faction.toUpperCase(), 7)} ${describe(asUnits(RAID_PLANS[faction]))}`);
+    lines.push(
+      `  ${pad(faction.toUpperCase(), 7)} ${describe(asUnits(air ? AIR_RAID_PLANS[faction] : RAID_PLANS[faction]))}`,
+    );
   }
   lines.push('');
   lines.push(
@@ -2255,9 +2283,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
-  if (process.argv.includes('--derive')) {
-    const arg = process.argv[process.argv.indexOf('--derive') + 1];
-    console.log(deriveTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 200));
+  if (process.argv.includes('--derive') || process.argv.includes('--derive-air')) {
+    const air = process.argv.includes('--derive-air');
+    const flag = air ? '--derive-air' : '--derive';
+    const arg = process.argv[process.argv.indexOf(flag) + 1];
+    console.log(deriveTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 200, air));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
