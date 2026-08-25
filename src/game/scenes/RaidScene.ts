@@ -531,6 +531,17 @@ export class RaidScene extends Phaser.Scene {
     // A duel is somebody's snapshot, not the front: no weather, no bonus.
     const condition = this.challenge ? undefined : conditionAt(now);
     const config = raidConfig(this.base, squads, now >>> 0, this.trainable, {
+      // A duel is a puzzle to beat, not a live match — `town.duels` records
+      // the ones you have solved, and both commanders fight the same pasted
+      // base whenever they like. The existing rule already strips the weather
+      // and the bonus so that the PLAN is what differs between two attempts;
+      // rolls that varied per attempt would put the luck straight back in, and
+      // "beaten" would stop meaning solved. So a challenge pins its rolls to
+      // the code's own fingerprint, and the ladder — seeded from the clock —
+      // is a different battle every time you go out.
+      ...(this.challenge
+        ? { combatSeed: parseInt(this.challenge.fingerprint, 36) >>> 0 }
+        : {}),
       ...(fx.unitHp !== 1 || fx.unitDamage !== 1
         ? { mods: { hp: fx.unitHp, damage: fx.unitDamage } }
         : {}),

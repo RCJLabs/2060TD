@@ -14,6 +14,7 @@ import { GARRISON_GUN_TRADE, garrisonEconomy, garrisonFor } from '../content/gar
 import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
 import { TERRAIN_NONE, TERRAIN_VERSION } from '../sim/terrain';
+import { COMBAT_CURRENT } from '../sim/combat';
 import type {
   AttackerMods,
   AutoPowerRule,
@@ -361,6 +362,16 @@ export function raidWave(squads: SquadPlan[], trainable: TrainMeta[] = TRAINABLE
 }
 
 export interface RaidSupport {
+  /**
+   * Pin the combat rolls instead of deriving them from the battle seed.
+   *
+   * A duel is a puzzle to beat, not a live match: both commanders fight the
+   * same pasted base whenever they like, and the existing rule already strips
+   * the weather and the bonus from it so that the PLAN is what differs. Rolls
+   * that varied per attempt would put that back — so a challenge pins this to
+   * its code's fingerprint and the ladder leaves it alone.
+   */
+  combatSeed?: number;
   /** Research multipliers for the raiding units. */
   mods?: AttackerMods;
   /** Pre-planned fire missions, evaluated in-sim. */
@@ -416,6 +427,12 @@ export function raidConfig(
     // rung, a duel and a replay of either all fight the same sheet.
     terrainSeed: base.terrainSeed,
     terrainVersion: base.terrainSeed > 0 ? TERRAIN_VERSION : TERRAIN_NONE,
+    // Every new battle rolls (v1.23). Absent the override below the engine
+    // derives the combat stream from `seed`, so a ladder raid — seeded from
+    // the clock — is a different battle every time it is fought, and a replay
+    // that carries the same seed re-fights the one that happened.
+    combatVersion: COMBAT_CURRENT,
+    ...(support.combatSeed !== undefined ? { combatSeed: support.combatSeed >>> 0 } : {}),
     playerSide: 'attacker',
     // The watch on the wire (v1.20). Derived from the base's own shape and
     // rung, both of which a share code and a replay already carry, so a

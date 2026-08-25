@@ -5,6 +5,11 @@ import { M1_CATALOG } from '../src/content/catalog';
 import { Engine } from '../src/sim/engine';
 import type { SimConfig } from '../src/sim/types';
 import { TEST_CATALOG } from './helpers';
+import { CHINA_BASE_KIT, generateBase } from '../src/content/bases';
+import { raidCatalogFor } from '../src/content/factions';
+import { TRAINABLE } from '../src/content/usaUnits';
+import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
+import { raidConfig, resolveRaid, type SquadPlan } from '../src/meta/warfare';
 
 /**
  * The combat-variance contract (v1.23).
@@ -154,5 +159,83 @@ describe('the engine only rolls when asked', () => {
       jittered({ ...BASE, combatVersion: COMBAT_CURRENT, combatSeed: 999 }),
       'the combat seed changed nothing on a model that rolls',
     ).not.toEqual(flat);
+  });
+});
+
+// ---- the codec side -----------------------------------------------------------
+
+describe('a replay names the model it was fought under', () => {
+  const KIT = CHINA_BASE_KIT;
+  const CATALOG = raidCatalogFor('usa');
+  const squads = (): SquadPlan[] => [
+    { units: { abrams: 1, ranger: 1 }, sector: 'W1', doctrine: 'assault', slot: 0 },
+    { units: { javelin: 2, engineer: 1 }, sector: 'N1', doctrine: 'hunt', slot: 1 },
+  ];
+
+  it('round-trips the version and re-fights the identical battle', () => {
+    const base = generateBase(3, 1, KIT);
+    const config = raidConfig(base, squads(), 4242, TRAINABLE);
+    expect(config.combatVersion, 'a new raid did not ask to roll').toBe(COMBAT_CURRENT);
+    const back = decodeReplay(
+      encodeReplay({ kind: 'raid', faction: 'usa', title: base.name, won: true, config }),
+    );
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.replay.config.combatVersion).toBe(COMBAT_CURRENT);
+    const before = resolveRaid(config, squads(), 3, CATALOG);
+    const after = resolveRaid(back.replay.config, squads(), 3, CATALOG);
+    expect(after.ticks).toBe(before.ticks);
+    expect(after.cleared).toBe(before.cleared);
+  });
+
+  it('and carries a pinned duel seed, including zero', () => {
+    const base = generateBase(3, 1, KIT);
+    for (const combatSeed of [0, 1, 0xdead_beef]) {
+      const config = raidConfig(base, squads(), 4242, TRAINABLE, { combatSeed });
+      const back = decodeReplay(
+        encodeReplay({ kind: 'raid', faction: 'usa', title: base.name, won: true, config }),
+      );
+      expect(back.ok).toBe(true);
+      if (!back.ok) return;
+      // Zero is the interesting one: written as "0 means absent" it would fall
+      // back to the engine's derivation, which is a different battle.
+      expect(back.replay.config.combatSeed, `combatSeed ${combatSeed} was lost`).toBe(combatSeed);
+      expect(resolveRaid(back.replay.config, squads(), 3, CATALOG).ticks).toBe(
+        resolveRaid(config, squads(), 3, CATALOG).ticks,
+      );
+    }
+  });
+
+  it('and a code written before the rolls re-fights flat', () => {
+    // A replay is a RECORD. A code with no combat block was fought by a sim
+    // that never rolled, and has to keep being fought by one.
+    const base = generateBase(2, 0, KIT);
+    const config: SimConfig = { ...raidConfig(base, squads(), 8, TRAINABLE) };
+    delete config.combatVersion;
+    delete config.combatSeed;
+    delete config.garrison;
+    const back = decodeReplay(
+      encodeReplay({ kind: 'raid', faction: 'usa', title: base.name, won: false, config }),
+    );
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.replay.config.combatVersion).toBeUndefined();
+    expect(back.replay.config.garrison).toBeUndefined();
+    expect(resolveRaid(back.replay.config, squads(), 2, CATALOG).ticks).toBe(
+      resolveRaid(config, squads(), 2, CATALOG).ticks,
+    );
+  });
+
+  it('and rolling actually changes the raid it is recorded on', () => {
+    // The liveness half of all of the above: if the model did nothing to this
+    // fixture, every equality here would pass for the wrong reason.
+    const base = generateBase(3, 1, KIT);
+    const flat: SimConfig = { ...raidConfig(base, squads(), 4242, TRAINABLE) };
+    delete flat.combatVersion;
+    const rolled = raidConfig(base, squads(), 4242, TRAINABLE, { combatSeed: 7 });
+    const other = raidConfig(base, squads(), 4242, TRAINABLE, { combatSeed: 99 });
+    const ticksOf = (c: SimConfig): number => resolveRaid(c, squads(), 3, CATALOG).ticks;
+    expect(ticksOf(rolled), 'the model changed nothing at all').not.toBe(ticksOf(flat));
+    expect(ticksOf(rolled), 'two combat seeds fought the same battle').not.toBe(ticksOf(other));
   });
 });

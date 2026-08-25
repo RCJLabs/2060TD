@@ -2,6 +2,7 @@ import { FACTION_IDS, type FactionId } from '../content/factions';
 import { garrisonById, isGarrisonId } from '../content/garrison';
 import { standingOrdersFor, isStandingOrdersId } from '../content/standingOrders';
 import { TERRAIN_VERSION } from '../sim/terrain';
+import { COMBAT_CURRENT, COMBAT_NONE } from '../sim/combat';
 import type {
   AutoPowerRule,
   CellIndex,
@@ -275,17 +276,38 @@ export function encodeReplay(replay: Replay): string {
   // on it would write garrison bytes where the reader looks for terrain, and
   // read them as a version and a seed. Writing an explicit version 0 costs
   // two bytes and keeps the two optional blocks in a fixed order.
+  // The rolls (v1.23) go on last, and each optional block forces the ones
+  // before it: a code that skipped the garrison block but wrote combat bytes
+  // would have those bytes read as a garrison id.
+  const combatVersion = c.combatVersion ?? COMBAT_NONE;
+  const needCombat = combatVersion > COMBAT_NONE;
   const garrisonId = c.garrison?.id ?? '';
-  if ((c.terrainVersion ?? 0) > 0 || garrisonId !== '') {
+  const needGarrison = garrisonId !== '' || needCombat;
+  if ((c.terrainVersion ?? 0) > 0 || needGarrison) {
     writeVarint(body, c.terrainVersion ?? 0);
     writeVarint(body, (c.terrainSeed ?? 0) >>> 0);
   }
 
   // The watch (v1.20). Posture and action ceiling only — the rules come from
   // the reader's own doctrine table, exactly as standing orders do above.
-  if (garrisonId !== '') {
+  // An empty id is the placeholder that keeps the block order fixed when a
+  // battle has rolls but no watch.
+  if (needGarrison) {
     putString(body, garrisonId);
     writeVarint(body, c.garrison?.maxActions ?? 0);
+  }
+
+  // The rolls. A replay is a RECORD, so it has to name the model it was fought
+  // under: a battle recorded flat stays flat forever, and one recorded under a
+  // model re-fights under that same model even after a newer one ships.
+  //
+  // The seed is written with a presence byte rather than as "0 means absent",
+  // because a pinned duel seed of exactly 0 is a real value and the engine's
+  // fallback derivation is a different battle.
+  if (needCombat) {
+    writeVarint(body, combatVersion);
+    body.push(c.combatSeed === undefined ? 0 : 1);
+    if (c.combatSeed !== undefined) writeVarint(body, c.combatSeed >>> 0);
   }
 
   // Header, dictionary, then the body — the reader needs the names first.
@@ -585,8 +607,28 @@ export function decodeReplay(raw: string): ReplayDecode {
     const id = getString(cur);
     const maxActions = readVarint(cur);
     if (id === null || maxActions === null) return bad('truncated');
-    if (!isGarrisonId(id)) return bad('content');
-    config.garrison = garrisonById(id, maxActions);
+    // The empty placeholder a v1.23 writer emits for a rolling battle with no
+    // watch on it. No writer before v1.23 could produce one, so accepting it
+    // costs nothing and refusing it would refuse every new raid.
+    if (id !== '') {
+      if (!isGarrisonId(id)) return bad('content');
+      config.garrison = garrisonById(id, maxActions);
+    }
+  }
+
+  // The rolls, if this code was written after v1.23. Anything older ends here
+  // and re-fights flat, which is the battle it actually recorded.
+  if (cur.at < body.length) {
+    const version = readVarint(cur);
+    const hasSeed = body[cur.at++];
+    if (version === null || hasSeed === undefined) return bad('truncated');
+    if (version > COMBAT_CURRENT) return bad('version');
+    if (hasSeed === 1) {
+      const combatSeed = readVarint(cur);
+      if (combatSeed === null) return bad('truncated');
+      config.combatSeed = combatSeed;
+    }
+    if (version > COMBAT_NONE) config.combatVersion = version;
   }
 
   return {

@@ -46,7 +46,7 @@ import { CONDITIONS } from '../content/conditions';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
-import { COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
+import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
 import type {
   CellIndex,
   DefenderMods,
@@ -342,6 +342,10 @@ function defenseMatrix(
           ccOrigin: CC_ORIGIN,
           ccLevel: base.ccLevel,
           spawnColumn: 0,
+          // The shipped game rolls (v1.23). This matrix builds its config by
+          // hand rather than through `battleConfig`, so it is the one place
+          // that would quietly keep measuring the sim as it was.
+          combatVersion: COMBAT_CURRENT,
           siege: { ...buildAssault(level, roster), startingSupplies: 0 },
           layout: {
             walls: base.walls.map((w) => ({ ...w })),
@@ -1135,7 +1139,7 @@ const RECIPE_PLANS: Record<FactionId, SquadPlan[]> = {
   ],
 };
 
-function planTable(combatVersion = COMBAT_NONE): string {
+function planTable(combatVersion = COMBAT_CURRENT): string {
   const run = (faction: FactionId, plan: SquadPlan[]): number => {
     const cat = raidCatalogFor(faction);
     let cleared = 0;
@@ -1163,7 +1167,7 @@ function planTable(combatVersion = COMBAT_NONE): string {
 
   const lines = [
     'THE PLAN, NOT THE FACTION — the same roster asked twice' +
-      (combatVersion === COMBAT_NONE ? '' : ` (${combatModelFor(combatVersion).label})`),
+      (combatVersion === COMBAT_NONE ? ' (no rolls)' : ''),
     'FACTION | REF MP | REFERENCE | RECIPE MP | RECIPE |  BEST | PLAN IS WORTH',
     '--------+--------+-----------+-----------+--------+-------+--------------',
   ];
@@ -1281,7 +1285,7 @@ function kitTable(): string {
  * - **length** — spread in ticks. This one moves today, because the ±3-8%
  *   spawn jitter perturbs arrival times without perturbing who wins.
  */
-function seedTable(combatVersion = COMBAT_NONE): string {
+function seedTable(combatVersion = COMBAT_CURRENT): string {
   const SEED_COUNT = 12;
   const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
 
@@ -1840,8 +1844,8 @@ function main(): void {
     return;
   }
   if (process.argv.includes('--seed')) {
-    const at = process.argv.indexOf('--seed');
-    console.log(seedTable(Number(process.argv[at + 1] ?? COMBAT_NONE) || COMBAT_NONE));
+    const arg = process.argv[process.argv.indexOf('--seed') + 1];
+    console.log(seedTable(/^\d+$/.test(arg ?? '') ? Number(arg) : COMBAT_CURRENT));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
@@ -1856,8 +1860,8 @@ function main(): void {
     return;
   }
   if (process.argv.includes('--plans')) {
-    const at = process.argv.indexOf('--plans');
-    console.log(planTable(Number(process.argv[at + 1] ?? COMBAT_NONE) || COMBAT_NONE));
+    const arg = process.argv[process.argv.indexOf('--plans') + 1];
+    console.log(planTable(/^\d+$/.test(arg ?? '') ? Number(arg) : COMBAT_CURRENT));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

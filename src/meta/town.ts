@@ -4,6 +4,7 @@ import {
   TERRAIN_VERSION,
   type TerrainField,
 } from '../sim/terrain';
+import { COMBAT_CURRENT } from '../sim/combat';
 import {
   defenseCatalogFor,
   enemyRosterFor,
@@ -994,6 +995,10 @@ function battleConfig(
     // forgot its terrain would be one that skipped this function.
     terrainSeed: town.terrainSeed ?? terrainSeedFrom(town.lastSeen),
     terrainVersion: TERRAIN_VERSION,
+    // …and every town battle rolls (v1.23), including the offline probes: a
+    // probe is a battle the war actually fought while you were away, not a
+    // prediction of one, so it is entitled to go the way battles go.
+    combatVersion: COMBAT_CURRENT,
     ...(defender ? { mods: { defender } } : {}),
     ...(reservedCells && reservedCells.length > 0 ? { reservedCells } : {}),
   };
