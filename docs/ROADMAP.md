@@ -1474,6 +1474,119 @@ five into the same numbers would pass the test and fail the design.
 
 ---
 
+## M15 — v1.25 "The Yardstick": measure against a plan somebody would actually play
+
+### What shipped
+
+- [x] **Auras take the best rate in range, not the sum.** Searching the plan space
+      found an exploit before it found a stale plan. Healing summed over every source,
+      so a ball of N medics healed itself at N×(N−1)×rate: at the same 26 manpower,
+      thirteen UN medics cleared posts 79.2% of the time with 78% walking home while
+      thirteen PEACEKEEPERS — three times the melee each — cleared 4.2%. Nineteen-fold,
+      from replacing the entire fighting force with the unit that barely fights.
+      Best-source keeps what the medic is for (one medic still heals at full rate;
+      2 medics 16.7% → 15.3%) and kills only the stacking (13 medics 79.2% → 9.7%).
+
+- [x] **`--derive` is honest about the winner's curse.** Finalists were validated on
+      seeds that overlapped the ones that selected them. Selection now draws 0–99 and
+      validation 1000+, with the gap reported as its own CURSE column — the KPA's
+      apparent +30.0 was really +25.8. Sampling is also stratified by headcount, because
+      a manpower band admits combinatorially more cheap-unit compositions than expensive
+      ones and a uniform sample was nearly all large forces. That is the wrong end:
+      clear rate FALLS with headcount for every faction holding a real heavy (China 100%
+      at 3–5 bodies against 25.6% at 18+). The USA's gain went +8.3 → +21.7 once
+      three-Abrams forces were in the sample at all.
+
+- [x] **The reference plans are derived, not written.** The hand-authored plans lost by
+      20.0 to 36.7 points on held-out battles — more than the parity spread the tables
+      built on them were being read for. Two things they had backwards: concentration
+      beats spread (a raid is a race to the post, not an attrition contest), and one
+      doctrine beats three (splitting assault/hunt/raze arrives under strength).
+
+- [x] **Parity, read on plans that are current.** The spread closed from 25.6 to 17.2
+      and the ordering changed: **the UN was never the floor.** It sat last at 53.4
+      because its plan was the worst of the five — its derived winner gained the most of
+      any faction, +36.7 — and it is third at 83.4 played properly. M11's "UN is the
+      floor" reading, and what it drove, was an artifact. The KPA is the real floor.
+
+### The ladder does not climb, and it is not a knob
+
+`--deal` on current plans reads **T1 99 → T2 99 → T3 94 → T4 62 → T5 53**: two free
+rungs and then a 32-point wall. Twelve configurations of the tower schedule were
+measured against it and **none of them improves the curve**:
+
+| change | T1→T2 | T2→T3 | T3→T4 | T4→T5 | wall line | parity |
+| --- | --- | --- | --- | --- | --- | --- |
+| v1.24 baseline | -0 | -5 | -32 | -9 | +6.0 | 25.6 |
+| derived plans (shipped) | -0 | -5 | -32 | -9 | +6.0 | **17.2** |
+| smoothed tower count | -0 | -6 | -20 | -37 | **-0.6** | — |
+| level ceiling 1,1,2,2,2 | -0 | -29 | -8 | -9 | +5.8 | — |
+| level ceiling 1,1,2,2,3 | -0 | -29 | -8 | -31 | +6.2 | — |
+| level ceiling 1,2,2,3,3 | -7 | -22 | -41 | +2 | +7.2 | — |
+| linear gun level 1.0→1.8 | -0 | -4 | -40 | -5 | +6.2 | — |
+| linear gun level 1.0→2.0 | -0 | -8 | -43 | -5 | +6.6 | — |
+| linear gun level 1.0→2.4 | -0 | -9 | -50 | +0 | +7.0 | — |
+| linear gun level 1.0→2.8 | -0 | -15 | -48 | -2 | +7.4 | — |
+| anti-armour from T1 | -2 | -2 | -32 | -9 | **+7.4** | **14.8** |
+| … + area denial moved to T3 | **+1** | -6 | -32 | -9 | +7.4 | 14.0 |
+| linear 1.0→2.0 + anti-armour T1 | -2 | -6 | -43 | -5 | +8.0 | 17.6 |
+
+Four things this establishes, none of them a knob:
+
+1. **A level step is worth about −30 clear points wherever it lands.** Moving the
+   ceiling relocates the cliff, it does not remove it. Three levels across five rungs
+   is too coarse to be a curve.
+2. **The two halves of the level progression are phase-locked and it is a landmine.**
+   `upgradeShareFor` cycles on `(tier − 1) % 3` against a ceiling that steps every 3.
+   Move the ceiling alone and the AVERAGE gun level goes non-monotonic — a ceiling of
+   1,1,2,2,2 gives averages 1.00, 1.00, 2.00, 1.33, 1.67, and T3 outguns T4. Anyone
+   touching one must touch both, or express them as one average and derive the pair.
+3. **Guns cannot be the lever; levels can.** Every level row holds the v1.20 wall line
+   (+5.8 to +7.4). The gun-count smoothing that `bases.ts` itself proposes takes it
+   from +6.0 to **−0.6** and erases what v1.20 shipped for. A base can be built UP
+   without the maze ceasing to matter; it cannot be built WIDER.
+4. **A finer progression quantises to nothing on a small post.**
+   `floor(towerCount × share)` with four guns and a 0.20 share upgrades zero of them,
+   which is why no linear ramp moved T1→T2 at all.
+
+**Why the shallow rungs are free — the one mechanical answer found.** `towerKind`
+gated the anti-armour tower behind `tier >= 3`, so a T1/T2 post fields only
+`towers[0]`, which is smallArms, and smallArms against heavy armour is ×0.2. Three
+HMG towers do about 20 dps to an Abrams; an ATGM tower does 52.9, eight times as much.
+A tank did not fight through the first two rungs, it drove through them — **at any
+force size**. Scaling the raid down to what a T1 town can field (`manpowerCap` starts
+at 6) does not help: at 11 MP one Abrams and one Javelin still clear T1 and T2 at 100%,
+while Russia's 12 MP of APCs — no heavy armour — reads 89/50/24/7/4. The rungs are free
+for ARMOUR specifically, which is also why every plan `--derive` finds is built on it.
+
+Ungating it pays real dividends — parity 17.2 → 14.8, wall line +6.0 → +7.4 — and was
+still **not shipped**, because `tests/archetypes.test.ts` correctly refuses it: anti-
+armour at T3 was the *only* thing tier 3 added over tier 2 for a four-gun compound, so
+moving it makes T3 an empty rung. Every attempt to give T3 something back was worse:
+moving area denial up makes T1→T2 climb (+1), and the linear progression makes T3→T4
+worse (−43). **The rung schedule needs a kind to add at every step, and there are not
+enough kinds.** That is a content change, not a tuning change.
+
+- [ ] **The T3→T4 cliff belongs to two shapes, not to the tier.** Decomposing the −32:
+      every shape loses 4–18 points at T4 except **star (87 → 12)** and **strongpoints
+      (96 → 43)**, with `keep` then entering the pool at 35. Fix those two archetypes'
+      tier response and the rung is a rung. This supersedes the "L2→L3 cliff carried
+      since v0.6" item — on current plans the cliff is at T3→T4.
+
+- [ ] **Layout variance is half the difficulty and the deal cannot see it.** Shape
+      explains only 38–64% of the variance in clear rate; within one shape and one tier,
+      the three dealt layouts range from 0% to 100% (USA `compound` at T4:
+      `100 100 100 100 100 100 100 0`). `DEAL_ORDER` bands the three targets by SHAPE,
+      which is the variable that explains less of it. Scouting is the existing answer to
+      "which of these three is the hard one", so this is not wrong so much as
+      unmeasured — but a rung whose three targets are 0/50/100 by accident is not the
+      graded choice the deal claims to offer.
+
+- [ ] **ASSAULT is still weakly dominated** for Russia, the KPA and the UN — carried
+      from M14. Removing the doctrine remains the untested option.
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
