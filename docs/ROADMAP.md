@@ -976,15 +976,68 @@ v1.20 with a note saying the balance pass would decide. It has.
       identity, it is simply an unpriced one. Whichever way, `--plans` says the
       faction ordering is not yet a reliable target, so settle the plans first.
 
-- [ ] **The UN's floor is still unexplained.** Eliminated across #128 and #129:
-      demolition (both stats saturate), bulk (HP at parity), gun damage (above
-      the mean), the medics (net positive), per-unit value (a Leopard is 93
-      HP/MP against an Abrams' 88), infantry melee (-0.4), and the heavy's
-      damage type (worth +7.3, still leaves it last). It is 74% slower at the
-      objective than the USA with more units alive when it gets there, and no
-      single stat accounts for it. The next candidate is composition rather
-      than stats: the UN fields three unarmed body types where the USA fields
-      two, and a medic that heals rather than shoots.
+- [x] **A raid is one unit** *(v1.21, `--carry`)* — *the largest finding of
+      this milestone, arrived at while chasing the UN, and it reframes
+      everything above it. Silencing one unit kind at a time — both damage
+      channels, everything else held — measures what each actually DELIVERS
+      rather than what its stat line advertises:*
+
+          USA  baseline 51.6      UN  baseline 29.7
+            abrams  -44.3           leo1        -16.1
+            humvee   -4.2           nlaw         -6.3
+            javelin  -1.0           vab          -5.7
+            engineer -1.0           peacekeeper  -1.0
+            ranger   -0.0           unmedic      -0.0
+                                    unsapper     -0.0
+
+      *Across all five:*
+
+          faction   carry unit   its MP   raid is   dead weight
+          USA       abrams            8      86%    16 of 27 MP
+          CHINA     type99            7      87%    12 of 28 MP
+          RUSSIA    t72               7      63%    11 of 27 MP
+          NK        chonma            5      46%    18 of 27 MP
+          UN        leo1              6      53%    12 of 27 MP
+
+      ***One tank is 46-87% of a raid, and 11-18 of every 27 manpower delivers
+      nothing measurable.*** *Three USA Ranger squads move the outcome by zero.
+      So do the UN's medics and its breach team.*
+
+      *The mechanism is the one `--structure` found: ending a raid means killing
+      the command post, ranged fire is discounted hard against structures, and
+      melee only fires when a unit is ADJACENT. The heavy is the only thing that
+      reliably survives to get there and hits hard when it does.*
+
+      *This is what the UN's floor is. Delivered per manpower the Abrams is
+      worth 5.53 and the Leopard 2.69 — the same 2x that `--kits` and
+      `--structure` each found from a different direction, arriving here as the
+      bottom line. It also explains why `--plans` reorders the table so
+      violently: an armour-forward plan is not a better idea, it is the ONLY
+      idea, and the reference plans differ mainly in how much manpower they
+      waste before finding it.*
+
+- [ ] **Decide whether a raid should be one unit.** This is a design question
+      before it is a balance one, and it is the biggest thing M11 turned up.
+      As it stands the raid planner — squads, sectors, doctrines, launch
+      delays, veterancy, the whole offence half of the game — is decoration
+      around "did you bring the tank". Three directions, and they are not
+      exclusive:
+
+      - **Make infantry able to hurt a command post.** The discount on ranged
+        fire vs structures (smallArms 0.15) is what makes escorts inert. A
+        demolition charge, a satchel, or simply a better structure multiplier
+        on a dedicated breacher would give the other 60% of a force a job.
+      - **Make the heavy killable enough to need escorts.** If the tank were
+        not near-guaranteed to arrive, the escort would be earning something.
+        The garrison (v1.20) was the first move in this direction and it is
+        not yet enough.
+      - **Or accept it and say so** — a raid is a tank delivery problem, and
+        the planner should stop pretending otherwise.
+
+      Whichever way: `--carry` is the instrument, and no unit stat should be
+      tuned until this is settled, because a buff to something that never
+      reaches the post buys nothing. That cost three separate measurements to
+      learn this milestone.
 
 - [x] **What the wall line is actually worth, and what v1.20 could not have
       known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line

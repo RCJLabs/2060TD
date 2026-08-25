@@ -862,6 +862,114 @@ function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): numbe
 }
 
 /**
+ * Who carries a raid (v1.21). The largest finding of this milestone and the
+ * one that reframes the rest of it.
+ *
+ * Silencing one unit kind at a time — both damage channels, everything else
+ * held — measures DELIVERED contribution rather than the potential a stat line
+ * advertises. The answer is that a raid is very nearly one unit:
+ *
+ *     USA  baseline 51.6      UN  baseline 29.7
+ *       abrams  -44.3           leo1        -16.1
+ *       humvee   -4.2           nlaw         -6.3
+ *       javelin  -1.0           vab          -5.7
+ *       engineer -1.0           peacekeeper  -1.0
+ *       ranger   -0.0           unmedic      -0.0
+ *                               unsapper     -0.0
+ *
+ * Eighty-six percent of a USA raid is the Abrams. Three Ranger squads — 6 of
+ * 27 manpower — deliver ZERO measurable outcome, as do the UN's medics and
+ * breachers. Between a third and a half of every reference plan is manpower
+ * spent on units that do not change whether the raid succeeds.
+ *
+ * Why: ending a raid means killing the command post, ranged fire is discounted
+ * hard against structures, and melee only fires when a unit is ADJACENT. The
+ * heavy is the only unit that reliably survives to get there and hit hard when
+ * it does. Everything else is escort.
+ *
+ * This is what the UN's floor actually is. Delivered per manpower, the Abrams
+ * is worth 5.53 and the Leopard 2.69 — the same 2x that shows up in `--kits`
+ * and `--structure`, arriving here as the bottom line. And it explains why
+ * `--plans` reorders the table so violently: an armour-forward plan is not a
+ * better idea, it is the only idea, and the reference plans differ mostly in
+ * how much manpower they waste before finding it.
+ *
+ * Read this before tuning any unit stat. A buff to something that never
+ * reaches the post buys nothing, which cost this milestone three separate
+ * measurements to learn.
+ */
+function carryTable(): string {
+  const silence = (cat: Catalog, kind: string): Catalog => ({
+    ...cat,
+    attackers: Object.fromEntries(
+      Object.entries(cat.attackers).map(([k, p]) => [
+        k,
+        k === kind
+          ? { ...p, hqDps: 0, weapon: p.weapon ? { ...p.weapon, damage: 0 } : p.weapon }
+          : p,
+      ]),
+    ),
+  });
+  const run = (faction: FactionId, cat: Catalog): number => {
+    const squads = RAID_PLANS[faction].map((s, at) => ({ ...s, slot: at }));
+    let cleared = 0;
+    let runs = 0;
+    for (const tier of [2, 3, 4, 5]) {
+      for (const arch of ARCHETYPES) {
+        for (let v = 0; v < 2; v++) {
+          const base = generateBase(tier, v, baseKitFor(faction), arch.id);
+          for (let i = 0; i < 2; i++) {
+            const config = raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction));
+            if (resolveRaid(config, squads, tier, cat).cleared) cleared++;
+            runs++;
+          }
+        }
+      }
+    }
+    return runs > 0 ? (cleared / runs) * 100 : 0;
+  };
+
+  const lines = [
+    'WHO CARRIES A RAID — each unit kind silenced in turn, both damage channels',
+    'FACTION | CARRY UNIT   | ITS MP | RAID IS | DEAD WEIGHT (MP delivering nothing)',
+    '--------+--------------+--------+---------+------------------------------------',
+  ];
+  let topShare = 0;
+  for (const faction of FACTION_IDS) {
+    const cat = raidCatalogFor(faction);
+    const base = run(faction, cat);
+    const counts: Record<string, number> = {};
+    for (const s of RAID_PLANS[faction]) {
+      for (const [k, n] of Object.entries(s.units)) counts[k] = (counts[k] ?? 0) + n;
+    }
+    const mpOf = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
+    const drops = Object.keys(counts).map((k) => ({ k, drop: base - run(faction, silence(cat, k)) }));
+    drops.sort((a, b) => b.drop - a.drop);
+    const carry = drops[0]!;
+    const share = base > 0 ? (carry.drop / base) * 100 : 0;
+    topShare = Math.max(topShare, share);
+    const dead = drops
+      .filter((d) => d.drop < 1.5)
+      .reduce((a, d) => a + (mpOf[d.k] ?? 0) * (counts[d.k] ?? 0), 0);
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} | ${pad(carry.k, 12)} | ` +
+        `${pad((mpOf[carry.k] ?? 0) * (counts[carry.k] ?? 0), 6)} | ${pad(`${share.toFixed(0)}%`, 7)} | ` +
+        `${pad(`${dead} of ${planManpower(faction)} MP`, 35)}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    `ONE UNIT IS UP TO ${topShare.toFixed(0)}% OF A RAID. Ending a raid means killing the command ` +
+      'post; ranged fire is discounted hard against structures and melee only fires when ADJACENT,',
+  );
+  lines.push(
+    '  so the heavy is the only unit that reliably survives to get there and hits hard when it does. ' +
+      'Everything else is escort — and a buff to an escort buys nothing.',
+  );
+  return lines.join('\n');
+}
+
+/**
  * What actually kills a command post, and what that costs each faction (v1.21).
  *
  * Chasing the UN's floor split its clock at the moment the post first takes
@@ -1512,6 +1620,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--carry')) {
+    console.log(carryTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--structure')) {
     console.log(structureTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -1644,6 +1757,8 @@ function main(): void {
   sections.push(planTable());
   // …and the single largest number in the game that nobody chose deliberately.
   sections.push(structureTable());
+  // …and the bottom line under all of it: a raid is very nearly one unit.
+  sections.push(carryTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));

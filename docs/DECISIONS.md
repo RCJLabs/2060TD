@@ -174,3 +174,19 @@ here with the change and its date.
   rule, and the third instance of it this milestone: a number that looks like
   flavour can be load-bearing, and the way to find out is to swap it and
   measure rather than to reason about what it obviously does.
+- 2026-08-25 — **A raid is one unit, and nobody decided that.** Silencing each
+  unit kind in turn — both damage channels, everything else held — measures what
+  a unit delivers rather than what its stat line advertises. One tank is 46-87%
+  of a raid for every faction, and 11-18 of every 27 manpower delivers nothing
+  measurable: three USA Ranger squads move the outcome by zero, as do the UN's
+  medics and its breach team. The mechanism is that ending a raid means killing
+  the command post, ranged fire is discounted hard against structures, and melee
+  only fires when a unit is adjacent, so the heavy is the only thing that
+  reliably arrives and hurts. This is a design question before it is a balance
+  one: as it stands the raid planner — squads, sectors, doctrines, launch
+  delays, veterancy — is decoration around whether the tank was brought. The
+  three ways out are recorded in the ROADMAP (give infantry a way to hurt a
+  post, make the heavy killable enough to need escorts, or accept it and stop
+  pretending). Nothing is tuned until that is settled, because a buff to a unit
+  that never reaches the post buys nothing — which cost three separate
+  measurements to learn.

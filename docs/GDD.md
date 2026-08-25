@@ -157,6 +157,34 @@ correct — they are fighting different enemies — and nothing in the codecs de
 share codes and replay codes both carry a layout cell by cell rather than a `(tier, variant)` to
 re-generate from.
 
+### What a raid is, measured *(v1.21)*
+
+**A raid is very nearly one unit, and this is a design question the game has not
+answered.** Ending a raid means killing the command post. Ranged fire goes through
+`DAMAGE_MULT` and is discounted hard against a structure — smallArms 0.15, flak 0.1,
+kinetic 0.5, explosive 1.0 — while melee (`hqDps`) ignores the table but only fires when a
+unit is **adjacent**. The heavy is the only thing that reliably survives to get there and
+hits hard when it does, and it lands 60–84% of the killing blows.
+
+Silencing one unit kind at a time to measure what each delivers:
+
+    faction   carry unit   its MP   raid is   dead weight
+    USA       abrams            8      86%    16 of 27 MP
+    CHINA     type99            7      87%    12 of 28 MP
+    RUSSIA    t72               7      63%    11 of 27 MP
+    NK        chonma            5      46%    18 of 27 MP
+    UN        leo1              6      53%    12 of 27 MP
+
+Three USA Ranger squads move the outcome by **zero**. So do the UN's medics and its breach
+team. Between a third and two thirds of every reference plan is manpower that does not
+change whether the raid succeeds — which means the raid planner, with its squads, sectors,
+doctrines, launch delays and veterancy, is currently decoration around *did you bring the
+tank*.
+
+`npm run balance -- --carry` is the instrument. The ROADMAP carries the three directions
+out of it; nothing has been tuned on the strength of it yet, because a buff to a unit that
+never reaches the post buys nothing.
+
 ### The two fronts *(v1.21)*
 
 The game has exactly two Front Line kits — the PLA post that the USA and the UN raid, and the US
