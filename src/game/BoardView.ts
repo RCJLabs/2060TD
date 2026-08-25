@@ -87,6 +87,28 @@ export function boardWetAt(col: number, row: number): boolean {
   return false;
 }
 
+/**
+ * Live board camera state (device px), or null when no board is on screen.
+ *
+ * The double-scroll bug of v1.22 was invisible to every harness we had: a
+ * gesture that pans the map AND scrolls the drawer leaves no button pressed
+ * and no text changed, so the only way to see it is to read both viewports
+ * before and after one gesture. This is the map half; `panelScroll` is the
+ * other.
+ */
+export function boardCamera(): {
+  zoom: number;
+  cx: number;
+  cy: number;
+  rect: { x: number; y: number; w: number; h: number };
+} | null {
+  for (const rig of rigs) {
+    if (!rig.scene.sys.isActive()) continue;
+    return rig.probe();
+  }
+  return null;
+}
+
 export class BoardView {
   readonly world: Phaser.GameObjects.Container;
   readonly ui: Phaser.GameObjects.Container;
@@ -108,6 +130,16 @@ export class BoardView {
 
   // gesture state
   private dragging = false;
+  /**
+   * `downTime` of the press that owns the current pan; -1 when idle.
+   *
+   * `dragging` alone is not enough. The pointer-up that ends a drag over the
+   * drawer is swallowed by the row under the finger, so `end` never runs and
+   * the flag stays raised — and the NEXT gesture, wherever it starts, pans
+   * the map as well as scrolling the list. One finger has to move one thing,
+   * so the pan is bound to the press that opened it and no other.
+   */
+  private dragPress = -1;
   private pinching = false;
   private movedBy = 0;
   private downAt = 0;
@@ -247,6 +279,11 @@ export class BoardView {
     this.camera.centerOn(this.centerX, this.centerY);
   }
 
+  /** Test seam: where the camera is looking, for `boardCamera`. */
+  probe(): { zoom: number; cx: number; cy: number; rect: Rect } {
+    return { zoom: this.zoom, cx: this.centerX, cy: this.centerY, rect: { ...this.rect } };
+  }
+
   private inBoard(pointer: Phaser.Input.Pointer): boolean {
     // A modal owns every gesture: the board must not pan under a briefing.
     if (modalOpen()) return false;
@@ -326,6 +363,7 @@ export class BoardView {
         return;
       }
       this.dragging = true;
+      this.dragPress = pointer.downTime;
       this.movedBy = 0;
       this.downAt = this.scene.time.now;
       this.downX = pointer.x;
@@ -342,6 +380,7 @@ export class BoardView {
     input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
       if (modalOpen()) {
         this.dragging = false;
+        this.dragPress = -1;
         this.pinching = false;
         return;
       }
@@ -378,6 +417,15 @@ export class BoardView {
         return;
       }
       if (!this.dragging || !pointer.isDown) return;
+      // A press this pan never accepted — one that started in the drawer, or
+      // one that followed an up the drawer ate — moves the list, not the map.
+      if (this.dragPress !== pointer.downTime) {
+        this.dragging = false;
+        this.dragPress = -1;
+        this.edgePan.x = 0;
+        this.edgePan.y = 0;
+        return;
+      }
       const dx = pointer.x - this.lastX;
       const dy = pointer.y - this.lastY;
       this.movedBy += Math.abs(dx) + Math.abs(dy);
@@ -426,6 +474,7 @@ export class BoardView {
       this.edgePan.y = 0;
       if (!this.dragging) return;
       this.dragging = false;
+      this.dragPress = -1;
       // A double tap reframes the whole grid, and that has to work with a tool
       // in hand — losing your bearings is exactly when you reach for it.
       if (wasPinching) return;

@@ -741,7 +741,12 @@ destroyed rather than re-flowed when the viewport changed; and — because that
 same swallowed pointer-up left the drag anchored to the previous gesture —
 every second swipe snapped the drawer back to the top. Drags are now tracked
 from the pointer's own press identity, carry a flick, and a modal owns the
-gesture so nothing scrolls or pans behind it. `scripts/e2e-touch.mjs` drives
+gesture so nothing scrolls or pans behind it. `scripts/e2e-gesture.mjs` holds the
+rule that a gesture belongs to whichever region it started in: it reads the board
+camera and the drawer's scroll offset across one gesture, in both orientations,
+and fails if either moves under a gesture that was not its own — a bug no other
+harness could see, because nothing is pressed and no text changes.
+`scripts/e2e-touch.mjs` drives
 real touch events through CDP to keep all of that honest.
 
 ## v0.8: standing orders
@@ -984,6 +989,7 @@ node scripts/e2e-gates.mjs           # a gate built in the yard and worked in th
 node scripts/e2e-build.mjs           # moving the map with a tool in hand, and precise placement
 node scripts/e2e-terrain.mjs         # the sheet on the board, and a river that refuses a wall
 node scripts/e2e-garrison.mjs        # the watch counting down while a raid walks in
+node scripts/e2e-gesture.mjs         # one finger moves one thing: map or drawer, never both
 
 # Harnesses wait for STATE, never for a stopwatch (v1.21). A tap followed by a
 # fixed sleep followed by a read reports the harness's own timing rather than

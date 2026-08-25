@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from './audio';
 import { music } from './music';
-import type { Layout } from './layout';
+import type { Layout, Rect } from './layout';
 import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
 
@@ -424,6 +424,28 @@ export interface PanelTab {
  * panel diffs it against a pooled set of buttons, so scrolling, re-layout and
  * orientation flips need no bookkeeping from the caller.
  */
+/** Live panels, so the harness can read the drawer's scroll offset. */
+const livePanels = new Set<Panel>();
+
+/**
+ * Live drawer scroll offset and list rect (device px), or null when no panel
+ * is on screen. The companion to `boardCamera`: together they are what a
+ * double-scroll check reads before and after one gesture.
+ */
+export function panelScroll(): {
+  scrollY: number;
+  max: number;
+  /** Speed the flick is still coasting at; 0 when the list is at rest. */
+  fling: number;
+  rect: { x: number; y: number; w: number; h: number };
+} | null {
+  for (const panel of livePanels) {
+    const at = panel.probe();
+    if (at) return at;
+  }
+  return null;
+}
+
 export class Panel {
   private readonly scene: Phaser.Scene;
   private readonly root: Phaser.GameObjects.Container;
@@ -486,6 +508,23 @@ export class Panel {
     ]);
 
     this.bindScroll();
+    livePanels.add(this);
+    const forget = (): void => {
+      livePanels.delete(this);
+    };
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, forget);
+    scene.events.once(Phaser.Scenes.Events.DESTROY, forget);
+  }
+
+  /** Test seam: how far the list is scrolled, for `panelScroll`. */
+  probe(): { scrollY: number; max: number; fling: number; rect: Rect } | null {
+    if (!this.scene.sys.isActive() || !this.layout) return null;
+    return {
+      scrollY: this.scrollY,
+      max: Math.max(0, this.contentH - this.layout.list.h),
+      fling: this.fling,
+      rect: { ...this.layout.list },
+    };
   }
 
   get tab(): string {
@@ -728,14 +767,22 @@ export class Panel {
   }
 
   private inList(pointer: Phaser.Input.Pointer): boolean {
+    return this.inListAt(pointer.x, pointer.y);
+  }
+
+  /**
+   * Is a point inside the scrolling list?
+   *
+   * A drag is judged on where the finger went DOWN, never on where it is now.
+   * Testing the live position let a pan that started on the map get adopted
+   * by the drawer the moment it crossed the boundary — so one gesture moved
+   * both, and it moved the list by the whole distance back to a press that
+   * happened somewhere else entirely.
+   */
+  private inListAt(x: number, y: number): boolean {
     const { list } = this.layout ?? {};
     if (!list) return false;
-    return (
-      pointer.x >= list.x &&
-      pointer.x <= list.x + list.w &&
-      pointer.y >= list.y &&
-      pointer.y <= list.y + list.h
-    );
+    return x >= list.x && x <= list.x + list.w && y >= list.y && y <= list.y + list.h;
   }
 
   /** Run the action currently bound to a pooled row slot. */
@@ -762,11 +809,18 @@ export class Panel {
       if (this.dragPress !== pointer.downTime) {
         // A press this drag has not seen before: a new gesture starts here,
         // anchored on where the finger actually landed.
-        if (!this.inList(pointer)) return;
+        //
+        // It also catches the flick, wherever it landed: a throw that is still
+        // coasting belongs to the gesture that threw it, and letting it run on
+        // means the drawer is still moving while the next drag pans the map —
+        // one finger moving two things, which is the rule this whole file is
+        // about. The catch is on the first MOVE and not on the press, because
+        // a touch release can synthesize a compatibility mouse-down: stopping
+        // on the press kills every flick at the moment of the lift.
+        this.stopFling();
+        if (!this.inListAt(pointer.downX, pointer.downY)) return;
         this.dragPress = pointer.downTime;
         this.dragMoved = 0;
-        this.velocity = 0;
-        this.fling = 0;
         this.lastPointerY = pointer.downY;
       }
       const dy = pointer.y - this.lastPointerY;
@@ -799,6 +853,12 @@ export class Panel {
     };
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
     this.scene.events.once(Phaser.Scenes.Events.DESTROY, stop);
+  }
+
+  /** Stop the list dead, wherever it is: a new gesture owns the screen now. */
+  private stopFling(): void {
+    this.velocity = 0;
+    this.fling = 0;
   }
 
   /** End the drag, handing whatever speed it had to the flick. */

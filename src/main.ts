@@ -11,8 +11,8 @@ import { devicePixelRatioCapped } from './game/layout';
 import { initMobileShell } from './game/mobile';
 import { COLORS, css } from './game/palette';
 import { applySettings, loadSettings } from './game/settings';
-import { liveButtons, liveTexts, liveTextRects } from './game/ui';
-import { boardCellAt, boardStrays, boardWetAt } from './game/BoardView';
+import { liveButtons, liveTexts, liveTextRects, panelScroll } from './game/ui';
+import { boardCamera, boardCellAt, boardStrays, boardWetAt } from './game/BoardView';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.
 applySettings(loadSettings());
@@ -92,6 +92,8 @@ dismissBootCard(game);
   strays: () => boardStrays(),
   cell: (col: number, row: number) => boardCellAt(col, row),
   wet: (col: number, row: number) => boardWetAt(col, row),
+  camera: () => boardCamera(),
+  scroll: () => panelScroll(),
   get dpr() {
     return dpr;
   },

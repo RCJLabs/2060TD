@@ -222,3 +222,28 @@ here with the change and its date.
   says they cannot, which is the right answer. The lesson is the one this
   milestone keeps teaching from new angles: check what a number is supposed to
   mean before deciding it is wrong.
+- 2026-08-25 — **A gesture belongs to whichever region it started in.** The
+  owner reported that a single scroll moved the map and the button drawer at
+  once, and the first guess — overlapping rects — was wrong: the board and the
+  drawer are disjoint in both orientations, and both wheel handlers were
+  already correctly gated. Three separate faults produced the same symptom, and
+  none of them was visible to any existing harness, because a double-scroll
+  presses no button and changes no text. (1) The drawer decided ownership from
+  where the finger *is*, not where it went *down*, so a pan that started on the
+  map was adopted the moment it crossed the boundary — and then anchored on a
+  press that happened somewhere else, which snapped the list by the whole
+  distance between them. It now tests `pointer.downX/downY`. (2) The board's
+  pan flag had no owner: the pointer-up that ends a drag over the drawer is
+  swallowed by the row under the finger, so `dragging` stayed raised and the
+  *next* gesture — wherever it started — panned the map as well. The pan is now
+  bound to the `downTime` of the press that opened it, the same way the drawer
+  already bound its own. (3) A flick left coasting kept running under the next
+  gesture, so the drawer was still moving while a drag panned the map. A new
+  gesture now catches it, on its first movement rather than on the press —
+  stopping on the press kills every flick, because a touch release can
+  synthesize a compatibility mouse-down at the moment of the lift. Pinned by
+  `scripts/e2e-gesture.mjs`, which reads the board camera and the drawer's
+  scroll offset across one gesture; each of the three checks was verified to
+  fail when its own cause is reverted, and two false passes were found and
+  fixed in the harness itself along the way — a list already at its stop cannot
+  move, and reads zero for a reason that has nothing to do with the fix.
