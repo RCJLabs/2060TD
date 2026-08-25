@@ -1457,13 +1457,20 @@ function deriveTable(sampleSize = 200): string {
     return squads.filter((sq) => Object.keys(sq.units).length > 0);
   };
 
-  /** Clear rate on TAKE THE POST, which is what the parity table reads. */
+  /**
+   * Clear rate on TAKE THE POST, which is what the parity table reads.
+   *
+   * `from` offsets the seed stream. Selecting a winner and then scoring it on
+   * the battles it was selected on reports the winner's curse as if it were a
+   * gain, so validation draws from a block this search has never touched.
+   */
   const score = (
     faction: FactionId,
     squads: SquadPlan[],
     tiers: number[],
     archetypes: ArchetypeId[],
     seeds: number,
+    from = 0,
   ): number => {
     const cat = raidCatalogFor(faction);
     let cleared = 0;
@@ -1472,7 +1479,7 @@ function deriveTable(sampleSize = 200): string {
       for (const arch of archetypes) {
         const base = generateBase(tier, 0, baseKitFor(faction), arch, faction);
         for (let i = 0; i < seeds; i++) {
-          const config = raidConfig(base, squads, seedFor(i), trainableFor(faction));
+          const config = raidConfig(base, squads, seedFor(from + i), trainableFor(faction));
           if (resolveRaid(config, squads, tier, cat).cleared) cleared++;
           runs++;
         }
@@ -1480,6 +1487,8 @@ function deriveTable(sampleSize = 200): string {
     }
     return runs > 0 ? (cleared / runs) * 100 : 0;
   };
+  /** Seeds 0-99 select; 1000+ validate. Disjoint by construction. */
+  const HELD_OUT = 1000;
 
   const asUnits = (plan: SquadPlan[]): Record<string, number> => {
     const out: Record<string, number> = {};
@@ -1494,23 +1503,49 @@ function deriveTable(sampleSize = 200): string {
 
   const lines = [
     `IS THE REFERENCE PLAN ANY GOOD? — ${sampleSize} sampled compositions x 3 doctrines`,
-    'FACTION | REFERENCE | BEST FOUND | GAIN | THE PLAN THAT BEAT IT',
-    '--------+-----------+------------+------+----------------------',
+    'FACTION | REF MP | REFERENCE | IN-SAMPL | HELD OUT | CURSE | GAIN | THE PLAN THAT BEAT IT',
+    '--------+--------+-----------+----------+----------+-------+------+----------------------',
   ];
   const FULL_ARCH = ARCHETYPES.map((a) => a.id);
   let worst = 0;
+  const winners: { faction: FactionId; squads: SquadPlan[] }[] = [];
 
   for (const faction of FACTION_IDS) {
     const all = compositions(faction);
     // A fixed stream per faction, so the sample is the same every run.
     const rng = createRng(((FACTION_IDS.indexOf(faction) + 1) * 2654435761) >>> 0);
+
+    // Stratified by headcount, not uniform over compositions. A manpower band
+    // admits combinatorially more ways to spend it on cheap units than on
+    // expensive ones, so a uniform sample is nearly all large forces — and
+    // large is the WRONG end: clear rate falls with headcount for every faction
+    // holding a real heavy (China 100% at 3-5 bodies against 25.6% at 18+).
+    // Uniform sampling was therefore under-searching the region that wins.
+    const byCount = new Map<number, Record<string, number>[]>();
+    for (const units of all) {
+      const bodies = Object.values(units).reduce((a, b) => a + b, 0);
+      const at = byCount.get(bodies);
+      if (at) at.push(units);
+      else byCount.set(bodies, [units]);
+    }
+    const strata = [...byCount.keys()].sort((a, b) => a - b).map((k) => byCount.get(k)!);
     const picked: Record<string, number>[] = [];
-    const seen = new Set<number>();
-    while (picked.length < Math.min(sampleSize, all.length)) {
-      const at = Math.floor(rng() * all.length);
-      if (seen.has(at)) continue;
-      seen.add(at);
-      picked.push(all[at]!);
+    const taken = strata.map(() => new Set<number>());
+    let stratum = 0;
+    let exhausted = 0;
+    while (picked.length < Math.min(sampleSize, all.length) && exhausted < strata.length) {
+      const pool = strata[stratum % strata.length]!;
+      const seen = taken[stratum % strata.length]!;
+      if (seen.size >= pool.length) {
+        exhausted++;
+      } else {
+        exhausted = 0;
+        let at = Math.floor(rng() * pool.length);
+        while (seen.has(at)) at = (at + 1) % pool.length;
+        seen.add(at);
+        picked.push(pool[at]!);
+      }
+      stratum++;
     }
 
     // Screen wide and shallow, then run the finalists properly — a single
@@ -1530,31 +1565,62 @@ function deriveTable(sampleSize = 200): string {
     }
     screened.sort((a, b) => b.at - a.at);
 
-    const reference = spread(asUnits(RAID_PLANS[faction]), 'assault');
-    const refScore = score(faction, RAID_PLANS[faction], RAID_TIERS, FULL_ARCH, 3);
-    let best = { at: refScore, label: 'the reference' };
+    // Rank the finalists on the selection seeds...
+    let best: { at: number; squads: SquadPlan[]; label: string } | null = null;
     for (const candidate of screened.slice(0, FINALISTS)) {
       const squads = spread(candidate.units, candidate.doctrine);
       const at = score(faction, squads, RAID_TIERS, FULL_ARCH, 3);
-      if (at > best.at) {
-        best = { at, label: `${describe(candidate.units)} ${candidate.doctrine.toUpperCase()}` };
+      if (best === null || at > best.at) {
+        best = { at, squads, label: `${describe(candidate.units)} ${candidate.doctrine.toUpperCase()}` };
       }
     }
-    void reference;
-    const gain = best.at - refScore;
+    // ...then score the winner and the reference on battles neither has seen.
+    const refScore = score(faction, RAID_PLANS[faction], RAID_TIERS, FULL_ARCH, 3, HELD_OUT);
+    const held = best === null ? refScore : score(faction, best.squads, RAID_TIERS, FULL_ARCH, 3, HELD_OUT);
+    const gain = held - refScore;
+    const curse = best === null ? 0 : best.at - held;
     worst = Math.max(worst, gain);
+    if (best !== null && gain > 0) winners.push({ faction, squads: best.squads });
     lines.push(
-      `${pad(faction.toUpperCase(), 7)} | ${pad(refScore.toFixed(1), 9)} | ${pad(best.at.toFixed(1), 10)} | ` +
-        `${pad((gain >= 0 ? '+' : '') + gain.toFixed(1), 4)} | ${best.label}`,
+      `${pad(faction.toUpperCase(), 7)} | ${pad(planManpower(faction), 6)} | ${pad(refScore.toFixed(1), 9)} | ` +
+        `${pad(best === null ? '—' : best.at.toFixed(1), 8)} | ${pad(held.toFixed(1), 8)} | ` +
+        `${pad(curse.toFixed(1), 5)} | ${pad((gain >= 0 ? '+' : '') + gain.toFixed(1), 4)} | ` +
+        `${best === null ? 'nothing beat it' : best.label}`,
     );
   }
 
+  if (winners.length > 0) {
+    lines.push('');
+    lines.push('THE DERIVED PLANS AS SOURCE — the sector split follows roster order, so this');
+    lines.push('is emitted rather than transcribed:');
+    for (const { faction, squads } of winners) {
+      lines.push(`  ${faction}: [`);
+      for (const sq of squads) {
+        const units = Object.entries(sq.units)
+          .map(([k, n]) => `${k}: ${n}`)
+          .join(', ');
+        lines.push(`    { units: { ${units} }, sector: '${sq.sector}', doctrine: '${sq.doctrine}' },`);
+      }
+      lines.push('  ],');
+    }
+  }
+  lines.push('');
+  lines.push('WHAT GOT BEATEN — the shipped reference, flattened to a composition');
+  for (const faction of FACTION_IDS) {
+    lines.push(`  ${pad(faction.toUpperCase(), 7)} ${describe(asUnits(RAID_PLANS[faction]))}`);
+  }
   lines.push('');
   lines.push(
-    `WORST GAIN ${worst.toFixed(1)} POINTS. The parity spread is what this has to be read ` +
-      'against: a gain of that size means a faction row is measuring the PLAN and not the ' +
-      'kit, and no amount of tuning content will fix a row that is really a stale plan. ' +
+    `WORST HELD-OUT GAIN ${worst.toFixed(1)} POINTS. The parity spread is what this has to be ` +
+      'read against: a gain of that size means a faction row is measuring the PLAN and not ' +
+      'the kit, and no amount of tuning content will fix a row that is really a stale plan. ' +
       'A gain near zero means the references are current and parity can be read as it stands.',
+  );
+  lines.push(
+    'CURSE is how much of IN-SAMPLE did not survive fresh seeds. GAIN is HELD OUT minus ' +
+      'REFERENCE, both measured on battles the search never saw, and is the only column ' +
+      'worth acting on. REF MP is there because a gain bought with more manpower is not a ' +
+      'better plan; the search is capped at the 24-27 band the references sit in.',
   );
   return lines.join('\n');
 }
