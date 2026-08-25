@@ -82,4 +82,28 @@ export function initMobileShell(): void {
   // Create the probe up front so the first layout has real insets rather than
   // zeroes it would have to be recomputed out of a frame later.
   safeAreaInsets();
+  registerServiceWorker();
+}
+
+/**
+ * Register the offline worker — in a PRODUCTION build served over http(s),
+ * and nowhere else.
+ *
+ * Both guards earn their place. In dev a worker would cache the Vite dev
+ * server and hand stale modules to the next edit, and it would do the same to
+ * the twenty E2E harnesses that drive that server. Off http(s) — the
+ * single-file build opened from a `file://` URL, which is how the artifact is
+ * shared — `register` throws rather than returning a rejected promise on some
+ * engines, so the check has to come first.
+ *
+ * Failure is silent by design: a game that will not cache is a game that
+ * needs a connection, not a game that is broken.
+ */
+function registerServiceWorker(): void {
+  if (!import.meta.env.PROD) return;
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => undefined);
+  });
 }

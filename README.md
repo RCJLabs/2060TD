@@ -1058,6 +1058,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --objective [share] for what a raid could come for, or
                    # -- --derive [n] to search for a plan that beats the reference, or
                    # -- --derive-air [n] for the same search, forced to fly)
+node scripts/e2e-pwa.mjs     # installable + offline, against a real dist/
+                   # build served over http (run `npm run build` first)
 node scripts/e2e-mobile.mjs  # the mobile audit: target sizes, mis-tap gaps,
                    # thumb reach, clipped text, safe-area plumbing, across
                    # three phone viewports
