@@ -166,6 +166,8 @@ export class TownScene extends Phaser.Scene {
    */
   private pendingCell: number | null = null;
   private confirmBtn: Button | null = null;
+  /** Whether the layout currently has a band reserved for the confirm bar. */
+  private barReserved = false;
   private cancelBtn: Button | null = null;
   private selectedId: number | null = null;
   private demoMode = false;
@@ -388,7 +390,21 @@ export class TownScene extends Phaser.Scene {
   }
 
   private applyLayout(): void {
-    this.layout = layoutOf(this, this.drawerOpen);
+    // The confirm bar asks for the primary band while something is aimed
+    // (v1.26). It used to sit at the bottom of the BOARD, which on a portrait
+    // phone is the middle of the screen — `e2e-mobile` measured CONFIRM 54% up,
+    // the same defect the launch button had and hidden for the same reason:
+    // it only exists mid-placement, and an audit that looks at idle screens
+    // never sees it.
+    //
+    // Reserved only while aiming, so an idle drawer keeps its full height. The
+    // reflow costs the drawer a row for the duration of a placement, which is
+    // legible rather than jarring: it happens on the mode change, not per
+    // frame, and it says you are placing something.
+    const wantBar = this.pendingCell !== null && !this.overlay;
+    const primaryH = wantBar ? layoutOf(this, this.drawerOpen).rowH : 0;
+    this.barReserved = wantBar;
+    this.layout = layoutOf(this, this.drawerOpen, primaryH);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     this.layoutConfirmBar();
@@ -1544,11 +1560,17 @@ export class TownScene extends Phaser.Scene {
    * root is drawn twice, once per camera, and two harnesses fail on it.
    */
   private layoutConfirmBar(): void {
-    const { board, pad, gap, font, compact } = this.layout;
-    const h = Math.round(this.layout.px(compact ? 46 : 38));
-    const w = Math.round(Math.min(board.w / 2 - gap, this.layout.px(compact ? 150 : 170)));
-    const y = board.y + board.h - pad - h;
-    const midX = board.x + board.w / 2;
+    const { primary, board, pad, gap, font, compact } = this.layout;
+    // Inside the reserved band when there is one — CONFIRM and CANCEL split it
+    // down the middle. With no band (nothing aimed) the buttons are hidden
+    // anyway, so the board fallback is only ever a resting place.
+    const banded = primary.w > 0 && primary.h > 0;
+    const h = banded ? primary.h : Math.round(this.layout.px(compact ? 46 : 38));
+    const w = banded
+      ? Math.round(primary.w / 2 - gap / 2)
+      : Math.round(Math.min(board.w / 2 - gap, this.layout.px(compact ? 150 : 170)));
+    const y = banded ? primary.y : board.y + board.h - pad - h;
+    const midX = banded ? primary.x + primary.w / 2 : board.x + board.w / 2;
     if (!this.confirmBtn) {
       this.confirmBtn = makeButton(this, 0, 0, w, h, 'CONFIRM', () => this.commitPending(), {
         align: 'center',
@@ -1581,6 +1603,10 @@ export class TownScene extends Phaser.Scene {
   /** Shown only while something is aimed and not yet spent. */
   private updateConfirmBar(): void {
     const showing = this.pendingCell !== null && !this.overlay;
+    // Aiming and not-aiming are different layouts, because the band above the
+    // tab strip only exists while there is something to confirm. Re-lay-out on
+    // the CHANGE, never per frame.
+    if (showing !== this.barReserved) this.applyLayout();
     this.confirmBtn?.setVisible(showing);
     this.cancelBtn?.setVisible(showing);
     if (showing) this.confirmBtn?.setEnabled(this.pendingLegal());

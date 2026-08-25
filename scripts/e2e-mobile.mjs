@@ -72,9 +72,59 @@ const DEVICES = [
  * has a dozen buttons and only one of them is the reason you opened it.
  */
 const SCENES = [
-  { demo: 'town', label: 'town', primary: /^BUILD|^CONFIRM|^BASE/ },
+  { demo: 'town', label: 'town', primary: /^BUILD$/ },
   { demo: 'raid', label: 'raid planner', primary: /LAUNCH RAID/ },
+  /**
+   * The aimed state, which is where the town's real primary action lives.
+   *
+   * CONFIRM only exists while something is parked on the board, so an audit
+   * that only ever looks at idle screens cannot see it — and it was pinned to
+   * the bottom of the BOARD, exactly the defect the launch button had. Any
+   * control that appears mid-interaction has to be driven to before it can be
+   * measured, and the most reach-critical ones usually are mid-interaction.
+   */
+  {
+    demo: 'town',
+    label: 'town, aiming a build',
+    primary: /^CONFIRM$/,
+    prepare: async (page, dpr) => {
+      const tap = async (label) => {
+        const at = await page.evaluate((needle) => {
+          const b = window.lastline
+            .buttons()
+            .find((x) => x.label.toUpperCase().includes(needle));
+          return b ? { x: b.x + b.w / 2, y: b.y + b.h / 2 } : null;
+        }, label);
+        if (!at) return false;
+        await page.mouse.click(at.x / dpr, at.y / dpr);
+        await wait(600);
+        return true;
+      };
+      if (!(await tap('SUPPLY DEPOT'))) return false;
+      // Slide to aim: the lift decides the cell, and only CONFIRM spends.
+      const cell = await page.evaluate(() => {
+        const api = window.lastline;
+        for (let c = 4; c < 16; c++) {
+          for (let r = 4; r < 14; r++) {
+            const hit = api.cell(c, r);
+            if (hit) return { x: hit.x / api.dpr, y: hit.y / api.dpr };
+          }
+        }
+        return null;
+      });
+      if (!cell) return false;
+      await page.mouse.move(cell.x, cell.y);
+      await page.mouse.down();
+      await page.mouse.move(cell.x + 6, cell.y + 6, { steps: 4 });
+      await page.mouse.up();
+      await wait(700);
+      return true;
+    },
+  },
 ];
+
+/** The probe reports device px; a mouse click wants CSS px. */
+const shotDpr = (dpr) => dpr;
 
 const overlaps = (a, b) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -118,6 +168,15 @@ try {
         waitUntil: 'networkidle',
       });
       await wait(2600);
+
+      if (scene.prepare) {
+        const ready = await scene.prepare(page, shotDpr(await page.evaluate(() => window.lastline.dpr)));
+        check(`${where}: the screen could be driven into its state`, ready === true, '');
+        if (!ready) {
+          await page.close();
+          continue;
+        }
+      }
 
       const shot = await page.evaluate(() => {
         const api = window.lastline;
