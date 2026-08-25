@@ -6,7 +6,7 @@ import { DT, Engine } from '../../sim/engine';
 import type { AttackerProfile } from '../../sim/types';
 import { BattleRenderer, type GhostPreview } from '../BattleRenderer';
 import { BoardView } from '../BoardView';
-import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Panel, type PanelRow } from '../ui';
 
 const CELL = 32;
@@ -37,7 +37,8 @@ export class PlaygroundScene extends Phaser.Scene {
   private board!: BoardView;
   private panel!: Panel;
   private layout!: Layout;
-  private drawerOpen = true;
+  /** The drawer's share of the safe height. See `layout.ts` detents. */
+  private drawer: number = DRAWER_HALF;
 
   constructor() {
     super('playground');
@@ -65,7 +66,13 @@ export class PlaygroundScene extends Phaser.Scene {
 
     this.panel = new Panel(this, this.board.ui, LAB_TABS);
     this.panel.onDrawerToggle = () => {
-      this.drawerOpen = !this.drawerOpen;
+      this.drawer = this.drawer > 0 ? DRAWER_SHUT : DRAWER_HALF;
+      this.applyLayout();
+    };
+    // The handle reports a live share while it is being dragged and a snapped
+    // one when it is let go; both are just a re-layout at a new height.
+    this.panel.onDrawerShare = (share) => {
+      this.drawer = share;
       this.applyLayout();
     };
 
@@ -79,7 +86,7 @@ export class PlaygroundScene extends Phaser.Scene {
   }
 
   private applyLayout(): void {
-    this.layout = layoutOf(this, this.drawerOpen);
+    this.layout = layoutOf(this, this.drawer);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
   }

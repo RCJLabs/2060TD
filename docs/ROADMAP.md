@@ -1699,8 +1699,34 @@ and the bottom third is what a thumb reaches without the hand shifting grip.
       arbitration — the module the double-scroll bug lived in, three fixes deep
       — to save one tap. Worth doing; not worth doing hastily, and not why the
       game read as ported.
-- [ ] **A drawer that behaves like one.** Grab handle, snap points, swipe
-      between tabs, swipe a row for its secondary action.
+- [x] **A drawer that behaves like one (v1.27).** Through v1.26 the only way to
+      collapse it was to re-tap the ACTIVE tab — a real gesture with nothing on
+      screen to suggest it, which is as good as no gesture. It has a grab
+      handle now: drag to resize, release to snap to shut/half/full, tap to
+      toggle. The drawer's height stopped being a boolean and became a share,
+      so a drag has intermediate values to land on.
+
+      Three things this got wrong first, all caught by measuring rather than
+      by looking:
+
+      - The test seam reported `layoutOf(scene)`, which RECOMPUTES a layout
+        from defaults — so it read a half-open drawer however the real one was
+        sitting, and the harness measured a constant. It reports the layout the
+        panel was actually given now.
+      - Making the share a fraction of the REMAINING room rather than of the
+        safe height silently shrank the drawer by 115px the moment the handle
+        took its 44, which cost the SYS tab its last row and broke `e2e-touch`.
+      - The board could be dragged down to 22px. It has a 120px floor now —
+        this is a map game, and a drawer that can cover the board is a way to
+        lose the thing you are playing on.
+
+      And one wrong check: "two drags of the same length end at the same
+      height" fails on CORRECT behaviour, because two equal drags from
+      different starting heights land on different detents. The honest property
+      is that a nudge too small to reach the next detent springs back exactly.
+
+- [ ] **Swipe between tabs, and a row's secondary action.** The rest of #4:
+      the five-tab strip is still the only way to change tab.
 - [ ] **Muster rows are still text.** `drawAttackerBody` is a private method on
       BattleRenderer taking a live sim entity; extracting it into a shared
       glyph the way structures have one is its own change.

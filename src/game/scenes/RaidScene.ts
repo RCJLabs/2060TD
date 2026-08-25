@@ -85,7 +85,7 @@ import { makeSheet } from '../ground';
 import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
 import { BoardView } from '../BoardView';
 import { haptic } from '../haptics';
-import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
@@ -144,7 +144,8 @@ export class RaidScene extends Phaser.Scene {
   private board!: BoardView;
   private panel!: Panel;
   private layout!: Layout;
-  private drawerOpen = true;
+  /** The drawer's share of the safe height. See `layout.ts` detents. */
+  private drawer: number = DRAWER_HALF;
   private launchButton!: Button;
   private overlay: Overlay | null = null;
   /** A duel against a pasted snapshot instead of a rung on the ladder. */
@@ -250,7 +251,13 @@ export class RaidScene extends Phaser.Scene {
 
     this.panel = new Panel(this, this.board.ui, RAID_TABS);
     this.panel.onDrawerToggle = () => {
-      this.drawerOpen = !this.drawerOpen;
+      this.drawer = this.drawer > 0 ? DRAWER_SHUT : DRAWER_HALF;
+      this.applyLayout();
+    };
+    // The handle reports a live share while it is being dragged and a snapped
+    // one when it is let go; both are just a re-layout at a new height.
+    this.panel.onDrawerShare = (share) => {
+      this.drawer = share;
       this.applyLayout();
     };
     this.launchButton = makeButton(this, 0, 0, 10, 10, '', () => this.launch(), {
@@ -294,8 +301,8 @@ export class RaidScene extends Phaser.Scene {
     // `e2e-mobile` put it 52% up a 915px screen, so the one control this whole
     // screen exists to press was a two-handed reach. Reserving it above the tab
     // strip costs the drawer a row and puts it under the thumb.
-    const primaryH = layoutOf(this, this.drawerOpen).rowH;
-    this.layout = layoutOf(this, this.drawerOpen, primaryH);
+    const primaryH = layoutOf(this, this.drawer).rowH;
+    this.layout = layoutOf(this, this.drawer, primaryH);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     const { primary, board, pad, font } = this.layout;

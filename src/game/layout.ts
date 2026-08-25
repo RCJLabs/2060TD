@@ -18,6 +18,31 @@ import { safeAreaInsets, type SafeArea } from './mobile';
 
 export type LayoutMode = 'portrait' | 'landscape';
 
+/**
+ * How much of the screen the portrait drawer takes, as a share of the safe
+ * height. A FRACTION rather than the open/shut boolean it replaced (v1.26),
+ * because a drawer you can only toggle is a drawer you cannot drag: the handle
+ * needs to report where the finger is on every frame, and "somewhere between
+ * half and full" has to be expressible for that to look like anything.
+ *
+ * The detents are what a release snaps to. SHUT hands the whole screen back to
+ * the board, HALF is what every release before this one shipped as "open", and
+ * FULL is for reading a long list without fighting the map for room.
+ */
+export const DRAWER_SHUT = 0;
+export const DRAWER_HALF = 0.42;
+export const DRAWER_FULL = 0.72;
+export const DRAWER_DETENTS = [DRAWER_SHUT, DRAWER_HALF, DRAWER_FULL];
+
+/** The detent a release lands on, by nearest. */
+export function snapDrawer(share: number): number {
+  let best = DRAWER_DETENTS[0]!;
+  for (const detent of DRAWER_DETENTS) {
+    if (Math.abs(share - detent) < Math.abs(share - best)) best = detent;
+  }
+  return best;
+}
+
 export interface Rect {
   x: number;
   y: number;
@@ -52,6 +77,11 @@ export interface Layout {
   status: Rect;
   /** Tab strip. */
   tabs: Rect;
+  /**
+   * The grab handle above the drawer, in portrait. Zero-sized in landscape,
+   * where the panel is a fixed rail and there is nothing to drag.
+   */
+  handle: Rect;
   /**
    * The band a scene's PRIMARY action sits in, directly above the tab strip
    * and inside the thumb arc. Zero-sized unless the scene asked for one by
@@ -115,13 +145,13 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
  * @param cssWidth  viewport width in CSS px
  * @param cssHeight viewport height in CSS px
  * @param dpr       capped device pixel ratio
- * @param drawerOpen portrait only: is the bottom drawer expanded?
+ * @param drawer portrait only: the drawer's share of the safe height, 0..1.
  */
 export function computeLayout(
   cssWidth: number,
   cssHeight: number,
   dpr: number,
-  drawerOpen = true,
+  drawer: number = DRAWER_HALF,
   insets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 },
   primaryH = 0,
 ): Layout {
@@ -150,6 +180,7 @@ export function computeLayout(
   let tabs: Rect;
   let list: Rect;
   let primary: Rect;
+  let handle: Rect;
   let cols = 1;
   // The band plus the gutter under it, or nothing at all.
   const primaryBand = primaryH > 0 ? primaryH + gap : 0;
@@ -167,22 +198,42 @@ export function computeLayout(
   if (mode === 'portrait') {
     const statusH = px(t.statusH);
     const tabsH = px(t.tabsH);
-    // The drawer takes a bounded share of the screen so the board keeps the
-    // majority of it; collapsing gives the board nearly the whole viewport.
-    const drawerH = drawerOpen ? clamp(Math.round(sh * 0.42), px(200), px(400)) : 0;
+    // The handle is on screen even when the drawer is shut — it is the
+    // affordance that says the drawer can come back. Before v1.26 the only way
+    // to reopen one was to re-tap the active tab, a gesture with nothing on
+    // screen to suggest it.
+    const handleH = px(22);
+    // The board never goes away. This is a map game: a drawer that can cover
+    // the whole board turns a drag into a way to lose the thing you are
+    // playing on, and a full drag measured the board down to 22px before this
+    // floor existed.
+    const minBoard = px(120);
+    // What is left once the fixed furniture is out, and what the DRAWER may
+    // take of it. The board is sized from `available`, not `room` — sizing it
+    // from `room` cancels the floor exactly, because `room` has already had
+    // the floor subtracted and a full drawer then leaves nothing.
+    const available = sh - statusH - tabsH - handleH;
+    const room = Math.max(px(140), available - minBoard);
+    // The share is of the SAFE HEIGHT, not of `room`. Measuring it against the
+    // leftovers looks equivalent and is not: it silently shrank the drawer by
+    // 115px the moment the handle took its 44, which cost the SYS tab its last
+    // row and broke `e2e-touch`. The handle's height comes out of the board,
+    // which had the majority to give.
+    const drawerH = drawer <= 0 ? 0 : clamp(Math.round(sh * drawer), px(140), room);
     status = { x: sx, y: sy, w: sw, h: statusH };
-    board = { x: sx, y: sy + statusH, w: sw, h: sh - statusH - drawerH - tabsH };
+    board = { x: sx, y: sy + statusH, w: sw, h: available - drawerH };
+    handle = { x: sx, y: board.y + board.h, w: sw, h: handleH };
     // The list stops a gutter short of the tab strip. Flush, the last row a
     // player can see is touching a navigation tab, and a thumb aimed at the row
     // changes tab instead — a mis-tap that crosses a mode boundary, which is
     // worse than any two neighbours inside one strip.
-    list = { x: sx, y: board.y + board.h, w: sw, h: Math.max(0, drawerH - gap - primaryBand) };
+    list = { x: sx, y: handle.y + handleH, w: sw, h: Math.max(0, drawerH - gap - primaryBand) };
     tabs = { x: sx, y: sy + sh - tabsH, w: sw, h: tabsH };
     primary =
       primaryH > 0
         ? { x: sx + pad, y: tabs.y - primaryH - gap, w: sw - pad * 2, h: primaryH }
         : { x: sx, y: tabs.y, w: 0, h: 0 };
-    panel = { x: sx, y: list.y, w: sw, h: drawerH + tabsH };
+    panel = { x: sx, y: handle.y, w: sw, h: handleH + drawerH + tabsH };
     // Wide phones fit two columns of rows; narrow ones stay single-file.
     cols = cssWidth >= 500 ? 2 : 1;
   } else {
@@ -192,6 +243,9 @@ export function computeLayout(
     const tabsH = px(t.tabsH);
     board = { x: sx, y: sy, w: sw - railW, h: sh };
     panel = { x: sx + sw - railW, y: sy, w: railW, h: sh };
+    // Nothing to drag in landscape: the rail is a fixed column, and a handle
+    // there would be an affordance for a gesture that does nothing.
+    handle = { x: panel.x, y: sy, w: 0, h: 0 };
     status = { x: panel.x, y: sy, w: railW, h: statusH };
     // The strip goes at the BOTTOM of the rail, not under the status block
     // (v1.26). A phone held sideways is still held at its bottom corners, and
@@ -226,6 +280,7 @@ export function computeLayout(
     status,
     tabs,
     primary,
+    handle,
     list,
     rowH,
     gap,
@@ -243,14 +298,14 @@ export function computeLayout(
 }
 
 /** Layout for a scene's current canvas size. */
-export function layoutOf(scene: Phaser.Scene, drawerOpen = true, primaryH = 0): Layout {
+export function layoutOf(scene: Phaser.Scene, drawer = DRAWER_HALF, primaryH = 0): Layout {
   const dpr = devicePixelRatioCapped();
   const size = scene.scale.gameSize;
   return computeLayout(
     size.width / dpr,
     size.height / dpr,
     dpr,
-    drawerOpen,
+    drawer,
     safeAreaInsets(),
     primaryH,
   );

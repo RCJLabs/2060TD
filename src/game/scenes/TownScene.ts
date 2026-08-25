@@ -85,7 +85,7 @@ import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standin
 import { BoardView } from '../BoardView';
 import { drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
 import { haptic } from '../haptics';
-import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
@@ -188,7 +188,8 @@ export class TownScene extends Phaser.Scene {
   private board!: BoardView;
   private panel!: Panel;
   private layout!: Layout;
-  private drawerOpen = true;
+  /** The drawer's share of the safe height. See `layout.ts` detents. */
+  private drawer: number = DRAWER_HALF;
   /** Research project id seen last frame — completion flips it to a banner. */
   private lastActiveResearch: string | null = null;
   private overlay: Overlay | null = null;
@@ -333,7 +334,13 @@ export class TownScene extends Phaser.Scene {
 
     this.panel = new Panel(this, this.board.ui, TABS);
     this.panel.onDrawerToggle = () => {
-      this.drawerOpen = !this.drawerOpen;
+      this.drawer = this.drawer > 0 ? DRAWER_SHUT : DRAWER_HALF;
+      this.applyLayout();
+    };
+    // The handle reports a live share while it is being dragged and a snapped
+    // one when it is let go; both are just a re-layout at a new height.
+    this.panel.onDrawerShare = (share) => {
+      this.drawer = share;
       this.applyLayout();
     };
     this.bannerText = this.add.text(0, 0, '', mono(11, COLORS.signal));
@@ -403,9 +410,9 @@ export class TownScene extends Phaser.Scene {
     // legible rather than jarring: it happens on the mode change, not per
     // frame, and it says you are placing something.
     const wantBar = this.pendingCell !== null && !this.overlay;
-    const primaryH = wantBar ? layoutOf(this, this.drawerOpen).rowH : 0;
+    const primaryH = wantBar ? layoutOf(this, this.drawer).rowH : 0;
     this.barReserved = wantBar;
-    this.layout = layoutOf(this, this.drawerOpen, primaryH);
+    this.layout = layoutOf(this, this.drawer, primaryH);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     this.layoutConfirmBar();

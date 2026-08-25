@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { audio } from './audio';
 import { haptic } from './haptics';
 import { music } from './music';
-import type { Layout, Rect } from './layout';
+import { DRAWER_FULL, snapDrawer, type Layout, type Rect } from './layout';
 import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
 
@@ -551,6 +551,22 @@ const livePanels = new Set<Panel>();
  * is on screen. The companion to `boardCamera`: together they are what a
  * double-scroll check reads before and after one gesture.
  */
+/**
+ * The layout a live panel is actually laid out with.
+ *
+ * NOT `layoutOf(scene)`, which is what the seam did first and which recomputes
+ * a layout from defaults — so it reported a half-open drawer however the real
+ * one was sitting, and a harness measuring the drawer measured a constant.
+ * The panel stores what it was given; that is the only copy that is true.
+ */
+export function panelLayout(): Layout | null {
+  for (const panel of livePanels) {
+    const live = panel.liveLayout();
+    if (live) return live;
+  }
+  return null;
+}
+
 export function panelScroll(): {
   scrollY: number;
   max: number;
@@ -576,6 +592,19 @@ export class Panel {
   private readonly titleText: Phaser.GameObjects.Text;
   private readonly scrollHint: Phaser.GameObjects.Rectangle;
   private maskShape!: Phaser.GameObjects.Graphics;
+  /**
+   * The drawer's grab handle: a hit strip with a grip pill drawn on it.
+   *
+   * Two objects rather than one because the target and the mark are different
+   * sizes on purpose — the pill reads at about 40px wide so it looks like
+   * something to pinch, while the strip it lives on spans the panel and is
+   * tall enough to actually catch a thumb.
+   */
+  private handleHit!: Phaser.GameObjects.Rectangle;
+  private handleGrip!: Phaser.GameObjects.Rectangle;
+  /** Live drag: the press that owns the handle, and where the drawer started. */
+  private handlePress = -1;
+  private handleFrom = 0;
 
   private tabButtons: Button[] = [];
   private pool: Button[] = [];
@@ -617,6 +646,12 @@ export class Panel {
     // nothing at all is unreadable.
     this.statusBg = scene.add.rectangle(0, 0, 10, 10, COLORS.bgPanel).setOrigin(0, 0);
     this.edge = scene.add.rectangle(0, 0, 10, 2, COLORS.gridLine).setOrigin(0, 0);
+    this.handleHit = scene.add
+      .rectangle(0, 0, 10, 10, COLORS.bgPanel)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    this.handleGrip = scene.add.rectangle(0, 0, 10, 4, COLORS.gridLine).setOrigin(0, 0);
+    this.bindHandle();
     this.titleText = scene.add.text(0, 0, '2060TD', mono(14, COLORS.ink, { fontStyle: 'bold' }));
     this.statusText = scene.add.text(0, 0, '', mono(11, COLORS.inkDim, { lineSpacing: 3 }));
     this.scrollHint = scene.add.rectangle(0, 0, 3, 30, COLORS.gridLine).setOrigin(0, 0).setAlpha(0.6);
@@ -625,6 +660,8 @@ export class Panel {
       this.bg,
       this.statusBg,
       this.edge,
+      this.handleHit,
+      this.handleGrip,
       this.titleText,
       this.statusText,
       this.scrollHint,
@@ -638,6 +675,80 @@ export class Panel {
     };
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, forget);
     scene.events.once(Phaser.Scenes.Events.DESTROY, forget);
+  }
+
+  /**
+   * The handle's gesture: drag to resize, release to snap, tap to toggle.
+   *
+   * Its own press rather than a shared one. The drawer's height IS the
+   * layout, so a drag here re-lays-out the scene on every move — which is
+   * only affordable because the handle is a strip nothing else competes for.
+   * Trying to drive this from the list's scroll gesture would put a resize
+   * and a scroll on the same finger, which is the double-scroll bug wearing a
+   * different hat.
+   *
+   * The press is identified by `downTime`, the same way BoardView and the list
+   * tell one press from the next: a touch release can synthesise a compat
+   * mouse event, and without an owner check the drawer would take a second,
+   * phantom drag from a gesture that already ended.
+   */
+  private bindHandle(): void {
+    const input = this.scene.input;
+    this.handleHit.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (!this.layout || this.layout.mode !== 'portrait') return;
+      this.handlePress = p.downTime;
+      this.handleFrom = this.drawerShare();
+      haptic('tap');
+    });
+    input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
+      if (this.handlePress !== p.downTime || !p.isDown || !this.layout) return;
+      const room = this.dragRoom();
+      if (room <= 0) return;
+      // Up is a bigger drawer: the handle moves with the finger, so dragging
+      // toward the top of the screen grows what is below it.
+      const moved = (this.handleFrom * room - (p.y - p.downY)) / room;
+      this.onDrawerShare?.(Math.min(DRAWER_FULL, Math.max(0, moved)));
+    });
+    const release = (p: Phaser.Input.Pointer): void => {
+      if (this.handlePress !== p.downTime) return;
+      this.handlePress = -1;
+      const travelled = Math.abs(p.y - p.downY);
+      // A press that never moved is a TAP, and a tap on the handle toggles —
+      // the same thing re-tapping the active tab has always done, now with
+      // something on screen that suggests it.
+      if (travelled <= DRAG_SLOP) {
+        this.onDrawerToggle?.();
+        return;
+      }
+      const room = this.dragRoom();
+      const at = room > 0 ? this.handleFrom - (p.y - p.downY) / room : this.handleFrom;
+      this.onDrawerShare?.(snapDrawer(Math.min(DRAWER_FULL, Math.max(0, at))));
+      haptic('tap');
+    };
+    input.on(Phaser.Input.Events.POINTER_UP, release);
+    input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, release);
+  }
+
+  /** Height the drawer can travel through, in device px. */
+  private dragRoom(): number {
+    const l = this.layout;
+    if (!l || l.mode !== 'portrait') return 0;
+    return Math.max(1, l.height - l.safe.top - l.safe.bottom - l.status.h - l.tabs.h - l.handle.h);
+  }
+
+  /** What share the drawer is currently at, derived from the rects. */
+  private drawerShare(): number {
+    const l = this.layout;
+    if (!l || l.mode !== 'portrait') return 0;
+    return (l.list.h + l.gap) / this.dragRoom();
+  }
+
+  /** Live drawer share during a drag, and the snapped one on release. */
+  onDrawerShare?: (share: number) => void;
+
+  /** Test seam: the layout this panel was last given, for `panelLayout`. */
+  liveLayout(): Layout | null {
+    return this.scene.sys.isActive() ? this.layout : null;
   }
 
   /** Test seam: how far the list is scrolled, for `panelScroll`. */
@@ -693,6 +804,20 @@ export class Panel {
 
     this.bg.setPosition(panel.x, panel.y).setSize(panel.w, panel.h);
     this.statusBg.setPosition(status.x, status.y).setSize(status.w, status.h);
+    // The handle: a full-width strip to catch a thumb, with a short grip pill
+    // centred on it so it reads as something to pinch rather than a divider.
+    const { handle } = layout;
+    const grabbable = handle.w > 0 && handle.h > 0;
+    this.handleHit.setVisible(grabbable).setPosition(handle.x, handle.y).setSize(handle.w, handle.h);
+    if (this.handleHit.input) {
+      (this.handleHit.input.hitArea as Phaser.Geom.Rectangle).setTo(0, 0, handle.w, handle.h);
+    }
+    const gripW = Math.min(handle.w * 0.25, layout.px(44));
+    const gripH = Math.max(2, layout.px(4));
+    this.handleGrip
+      .setVisible(grabbable)
+      .setPosition(handle.x + (handle.w - gripW) / 2, handle.y + (handle.h - gripH) / 2)
+      .setSize(gripW, gripH);
     if (layout.mode === 'portrait') {
       this.edge.setPosition(panel.x, panel.y).setSize(panel.w, Math.max(2, layout.px(1)));
     } else {

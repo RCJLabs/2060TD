@@ -13,7 +13,7 @@ import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleR
 import { COLORS, css } from '../palette';
 import { TERRAIN_VERSION } from '../../sim/terrain';
 import { BoardView } from '../BoardView';
-import { layoutOf, onLayoutChange, type Layout } from '../layout';
+import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
@@ -84,7 +84,8 @@ export class SiegeScene extends Phaser.Scene {
   private board!: BoardView;
   private panel!: Panel;
   private layout!: Layout;
-  private drawerOpen = true;
+  /** The drawer's share of the safe height. See `layout.ts` detents. */
+  private drawer: number = DRAWER_HALF;
   private primary!: Button;
   private overlay: Overlay | null = null;
   private buttons: Record<string, Button> = {};
@@ -164,7 +165,13 @@ export class SiegeScene extends Phaser.Scene {
 
     this.panel = new Panel(this, this.board.ui, SIEGE_TABS);
     this.panel.onDrawerToggle = () => {
-      this.drawerOpen = !this.drawerOpen;
+      this.drawer = this.drawer > 0 ? DRAWER_SHUT : DRAWER_HALF;
+      this.applyLayout();
+    };
+    // The handle reports a live share while it is being dragged and a snapped
+    // one when it is let go; both are just a re-layout at a new height.
+    this.panel.onDrawerShare = (share) => {
+      this.drawer = share;
       this.applyLayout();
     };
     // The one action that must always be under a thumb.
@@ -196,7 +203,7 @@ export class SiegeScene extends Phaser.Scene {
   }
 
   private applyLayout(): void {
-    this.layout = layoutOf(this, this.drawerOpen);
+    this.layout = layoutOf(this, this.drawer);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     const { board, pad, rowH, font } = this.layout;
