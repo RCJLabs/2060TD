@@ -335,18 +335,29 @@ try {
   // wave — which is the design, not a delay to paper over. Run the clock up so
   // the harness is not sitting through it in real time.
   for (let i = 0; i < 3; i++) await page.keyboard.press('S'); // speed ×8
-  let armed = false;
-  for (let i = 0; i < 40; i++) {
-    const ready = await page.evaluate(() => {
-      const row = window.lastline.buttons().find((b) => b.label.toUpperCase().includes('WORK THE GATES'));
-      return row?.enabled === true;
-    });
-    if (ready) {
-      armed = true;
-      break;
+  /**
+   * Wait until a swing is affordable again.
+   *
+   * A swing is priced in CP and CP accrues while the shooting goes on, so
+   * "can I work the gates" is a question about the budget and not about the
+   * lever. Waiting a flat interval instead is what made the second-swing check
+   * flaky — 1 -> 2 on one run and 1 -> 1 on the next, depending only on how
+   * much CP had happened to bank before the first swing spent it.
+   */
+  const waitForCp = async () => {
+    for (let i = 0; i < 40; i++) {
+      const ready = await page.evaluate(() => {
+        const row = window.lastline
+          .buttons()
+          .find((b) => b.label.toUpperCase().includes('WORK THE GATES'));
+        return row?.enabled === true;
+      });
+      if (ready) return true;
+      await wait(400);
     }
-    await wait(400);
-  }
+    return false;
+  };
+  const armed = await waitForCp();
   check('the lever opens for business once the CP is there', armed, await gateLever());
   await tapRow('WORK THE GATES', 500);
   // Find the gate the way a player does: by looking at the wall line. Both the
@@ -390,6 +401,10 @@ try {
       },
       worked,
     );
+    // Bank the next swing before asking for it, rather than hoping 800ms was
+    // enough. The tool stays armed; the BUDGET is what has to come back.
+    const funded = await waitForCp();
+    check('and the budget comes back for another swing', funded, await gateLever());
     await page.mouse.click(at.x, at.y);
     await wait(800);
     const shut = shutOf(await gateLever());
