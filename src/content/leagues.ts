@@ -111,6 +111,30 @@ export const CLEAR_BASE = 18;
 export const CLEAR_PER_TIER = 7;
 /** A raid that failed to kill the post. The army is gone; the board notices. */
 export const FAILED_RAID = -14;
+/**
+ * A lesser objective filled (v1.24), as a share of what clearing the post
+ * would have paid at the same rung.
+ *
+ * Well under half, and deliberately. Spiking the guns is easier than taking
+ * the post for a force built for it AND brings roughly twice as many men home,
+ * so it can be run far more often — if it paid anything close to a clear, the
+ * league board would be farmed with cheap raids and the ladder would be the
+ * slow way up. The bar this is set against is standing per man lost, measured
+ * rather than argued: taking the post has to stay the efficient climb.
+ */
+export const OBJECTIVE_STANDING_SHARE = 0.4;
+/**
+ * Failing SPIKE THE GUNS. Smaller than FAILED_RAID because less was attempted
+ * — a raid that went out for two towers and came back with one has not thrown
+ * away an army on a post it could never take. RAID THE STORES is off the
+ * board entirely and pays neither way.
+ */
+export const FAILED_OBJECTIVE = -6;
+/**
+ * What RAID THE STORES pays instead of standing: a premium on everything the
+ * force carried out. Its currency is material, not reputation.
+ */
+export const STORES_LOOT_BONUS = 1.5;
 /** An offline probe your garrison threw off. */
 export const PROBE_HELD = 5;
 /** An offline probe that reached the command post. */

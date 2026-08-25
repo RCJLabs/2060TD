@@ -1,6 +1,6 @@
 import { generateBase, lootFor, MAP_H, MAP_W, type GeneratedBase } from '../content/bases';
 import type { Condition } from '../content/conditions';
-import { FAILED_RAID } from '../content/leagues';
+import { STORES_LOOT_BONUS } from '../content/leagues';
 import { RAID_CATALOG } from '../content/catalog';
 import {
   newSquadRecords,
@@ -28,7 +28,7 @@ import type {
 } from '../sim/types';
 import {
   awardStanding,
-  clearAward,
+  objectiveAward,
   leagueOf,
   probeAward,
   scoutingBlocked,
@@ -633,6 +633,12 @@ export function resolveRaid(
 
   loot.supplies = Math.round(loot.supplies * payout.supplies);
   loot.fuel = Math.round(loot.fuel * payout.fuel);
+  // RAID THE STORES is paid in material rather than reputation: filling it
+  // pays a premium on everything the force carried out.
+  if (objective === 'stores' && withdrew) {
+    loot.supplies = Math.round(loot.supplies * STORES_LOOT_BONUS);
+    loot.fuel = Math.round(loot.fuel * STORES_LOOT_BONUS);
+  }
 
   return {
     cleared: engine.phase === 'defeat', // the DEFENDER lost its command post
@@ -648,7 +654,11 @@ export function resolveRaid(
     reserves: engine.ordersExecuted,
     ccHpFraction: Math.max(0, engine.cc.hp / engine.cc.profile.maxHp),
     objective,
-    objectiveMet: objective === 'post' ? engine.phase === 'defeat' : withdrew,
+    // Taking the post is a superset of every lesser objective: a force sent
+    // for the guns that ends up killing the command post did not FAIL its
+    // mission. Uniform rather than branched, because for 'post' there is no
+    // quota to withdraw on and `withdrew` is always false.
+    objectiveMet: engine.phase === 'defeat' || withdrew,
     quota: watch.quota,
     // The post is not a quota; for the other two this is how far they got.
     progress: watch.progress(),
@@ -711,7 +721,10 @@ export function applyRaidResult(
       deployed: ret.deployed,
       returned: ret.returned,
       tier: foughtTier,
-      cleared: resolution.cleared,
+      // A formation that did what it was sent to do had a good day, whether
+      // or not the post fell. Before v1.24 there was only one thing to be
+      // sent to do, so this read `cleared`.
+      cleared: resolution.objectiveMet,
     });
   }
   // Ordnance fired in support is gone from the shared stock.
@@ -763,9 +776,19 @@ export function applyRaidResult(
   }
   // The board moves either way (M7): a rung pays standing at today's rate, a
   // failed raid costs it. Both count as playing, so the decay grace resets.
+  // Since v1.24 the rate depends on what the raid went out for — only taking
+  // the post pays a full clear, and only taking the post moved the rung above.
   awardStanding(
     town,
-    resolution.cleared ? clearAward(base.tier, now) : FAILED_RAID,
+    objectiveAward(
+      // …and it pays like one. A raid that took the post is a post raid on the
+      // board whatever it declared, which is also the only reading consistent
+      // with the rung it just banked above.
+      resolution.cleared ? 'post' : resolution.objective,
+      resolution.objectiveMet,
+      base.tier,
+      now,
+    ),
     now,
   );
 

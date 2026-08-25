@@ -8,8 +8,17 @@ import {
   objectiveAvailable,
   quotaFor,
 } from '../src/meta/objectives';
+import { FAILED_OBJECTIVE, FAILED_RAID } from '../src/content/leagues';
+import { objectiveAward } from '../src/meta/ladder';
 import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
-import { RAID_MAX_TICKS, raidConfig, resolveRaid, type SquadPlan } from '../src/meta/warfare';
+import {
+  RAID_MAX_TICKS,
+  applyRaidResult,
+  raidConfig,
+  resolveRaid,
+  type SquadPlan,
+} from '../src/meta/warfare';
+import { makeResolution, yardTown } from './helpers';
 
 /**
  * What a raid came for (v1.24).
@@ -118,9 +127,13 @@ describe('a raid stops when it has what it came for', () => {
           const post = resolveRaid({ ...config, objective: 'post' }, squads, tier, CATALOG);
           const guns = resolveRaid({ ...config, objective: 'guns' }, squads, tier, CATALOG);
           runs++;
-          if (!guns.objectiveMet) continue;
+          // Filtered on WITHDREW, not objectiveMet: since taking the post is a
+          // superset of any lesser objective, a guns raid that killed the
+          // command post outright also reports met — and it is not the trade
+          // being measured here.
+          if (!guns.withdrew) continue;
           met++;
-          expect(guns.withdrew, 'met the objective without withdrawing').toBe(true);
+          expect(guns.objectiveMet, 'withdrew without meeting the objective').toBe(true);
           expect(guns.progress).toBeGreaterThanOrEqual(guns.quota);
           expect(guns.ticks).toBeLessThan(post.ticks);
           tPost += post.ticks;
@@ -132,7 +145,7 @@ describe('a raid stops when it has what it came for', () => {
     }
     // Liveness again: an objective nothing ever meets would pass every
     // assertion in the loop above by never entering it.
-    expect(met / runs, `guns objective met in ${met}/${runs}`).toBeGreaterThan(0.25);
+    expect(met / runs, `guns raids that withdrew: ${met}/${runs}`).toBeGreaterThan(0.25);
     expect(tGuns / met, 'withdrawing did not shorten the raid').toBeLessThan(tPost / met);
     expect(
       hGuns / met,
@@ -214,5 +227,70 @@ describe('a replay stops where the raid stopped', () => {
     expect(back?.objective).toBe('stores');
     expect(back?.combatVersion).toBe(bare.combatVersion);
     expect(back?.combatSeed).toBe(4242);
+  });
+});
+
+describe('what an objective pays', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('pays a full clear only for the post', () => {
+    for (const tier of [1, 3, 5]) {
+      const full = objectiveAward('post', true, tier, NOW);
+      expect(full).toBeGreaterThan(0);
+      expect(objectiveAward('post', false, tier, NOW)).toBe(FAILED_RAID);
+      // Spiking the guns is worth a fraction, and a miss costs less than
+      // failing a post raid because less was attempted.
+      const guns = objectiveAward('guns', true, tier, NOW);
+      expect(guns).toBeGreaterThan(0);
+      expect(guns).toBeLessThan(full);
+      expect(objectiveAward('guns', false, tier, NOW)).toBe(FAILED_OBJECTIVE);
+      expect(FAILED_OBJECTIVE).toBeGreaterThan(FAILED_RAID);
+      // The stores are off the board in both directions.
+      expect(objectiveAward('stores', true, tier, NOW)).toBe(0);
+      expect(objectiveAward('stores', false, tier, NOW)).toBe(0);
+    }
+  });
+
+  it('and taking the post pays like taking the post, whatever was declared', () => {
+    // A force sent for the guns that kills the command post has not failed,
+    // and must not be charged FAILED_OBJECTIVE for a rung it just banked.
+    const town = yardTown(NOW);
+    town.frontline.tier = 3;
+    const base = generateBase(3, 0, KIT, 'compound', 'usa');
+    const config = raidConfig(base, hunters(), seedOf(5), trainableFor('usa'));
+    const before = town.frontline.standing;
+    applyRaidResult(
+      town,
+      base,
+      makeResolution({ objective: 'guns', objectiveMet: true, cleared: true, quota: 3, progress: 3 }),
+      config,
+      NOW,
+    );
+    expect(town.frontline.wins, 'the rung was not banked').toBe(1);
+    expect(
+      town.frontline.standing - before,
+      'a post taken paid a lesser objective rate',
+    ).toBe(objectiveAward('post', true, 3, NOW));
+  });
+
+  it('and a filled lesser objective moves the board but never the rung', () => {
+    const town = yardTown(NOW);
+    town.frontline.tier = 3;
+    const base = generateBase(3, 0, KIT, 'compound', 'usa');
+    const config = raidConfig(base, hunters(), seedOf(6), trainableFor('usa'));
+    const before = town.frontline.standing;
+    applyRaidResult(
+      town,
+      base,
+      makeResolution({ objective: 'guns', objectiveMet: true, cleared: false, quota: 3, progress: 3 }),
+      config,
+      NOW,
+    );
+    // The ladder is what keeps meaning something: only the post climbs it.
+    expect(town.frontline.wins, 'a lesser objective climbed the ladder').toBe(0);
+    expect(town.frontline.tier).toBe(3);
+    const gained = town.frontline.standing - before;
+    expect(gained).toBeGreaterThan(0);
+    expect(gained).toBeLessThan(objectiveAward('post', true, 3, NOW));
   });
 });

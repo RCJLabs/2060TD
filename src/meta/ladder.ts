@@ -15,8 +15,12 @@ import {
   PROBE_BREACHED,
   PROBE_HELD,
   SEASON_CARRY,
+  FAILED_OBJECTIVE,
+  FAILED_RAID,
+  OBJECTIVE_STANDING_SHARE,
   type League,
 } from '../content/leagues';
+import type { ObjectiveId } from './objectives';
 import type { FrontlineState, SeasonRecord, StandingHistory, TownState } from './town';
 
 /**
@@ -248,6 +252,33 @@ export function awardStanding(
 /** Standing for a cleared rung, after today's condition multiplier. */
 export function clearAward(tier: number, now: number): number {
   return Math.round(clearStanding(tier) * conditionAt(now).standing);
+}
+
+/**
+ * What a raid pays the board, by what it went out for (v1.24).
+ *
+ * Only taking the post pays a full clear, and only taking the post moves the
+ * Front Line at all — those are the two things that keep the ladder meaning
+ * something once a raid can come home with less.
+ */
+export function objectiveAward(
+  objective: ObjectiveId,
+  met: boolean,
+  tier: number,
+  now: number,
+): number {
+  if (objective === 'post') return met ? clearAward(tier, now) : FAILED_RAID;
+  // The stores are paid in supplies, not reputation: nobody is impressed that
+  // you robbed a depot, and nobody holds it against you either. Neutral in
+  // both directions rather than zero-on-success — paying nothing for a hit
+  // while charging for a miss makes the expected standing NEGATIVE, which
+  // measured as a tax of -0.13 to -0.48 per man lost on an objective that is
+  // supposed to be a free choice. It costs men and pays material; the board
+  // simply does not follow it.
+  if (objective === 'stores') return 0;
+  return met
+    ? Math.round(clearAward(tier, now) * OBJECTIVE_STANDING_SHARE)
+    : FAILED_OBJECTIVE;
 }
 
 export const probeAward = (held: boolean): number => (held ? PROBE_HELD : PROBE_BREACHED);
