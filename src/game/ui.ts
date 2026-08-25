@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from './audio';
+import { haptic } from './haptics';
 import { music } from './music';
 import type { Layout, Rect } from './layout';
 import { modalOpen } from './modal';
@@ -288,7 +289,18 @@ export function makeButton(
     ev?.stopPropagation();
     audio.unlock(); // first gesture wakes the audio context
     music.resume(); // …and the score, which asked before it was allowed
-    if (!enabled) return;
+    if (!enabled) {
+      // A control that will not do what you asked says so with a rhythm a
+      // thumb can tell from success — two pulses, not a longer one. Fired on
+      // the DOWN, because a disabled button never reaches a release.
+      haptic('deny');
+      return;
+    }
+    // On the down, not the release: an acknowledgement that arrives after the
+    // action has already happened is not an acknowledgement. This is the only
+    // haptic most presses will ever produce, so it is the lightest one there
+    // is — anything heavier becomes noise at the rate a drawer gets tapped.
+    haptic('tap');
     holding = true;
     pressed = true; // visible press state matters more without a hover cursor
     refresh();

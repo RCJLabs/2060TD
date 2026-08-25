@@ -84,6 +84,7 @@ import {
 import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standingOrders';
 import { BoardView } from '../BoardView';
 import { drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
+import { haptic } from '../haptics';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
@@ -1542,14 +1543,22 @@ export class TownScene extends Phaser.Scene {
   private commitPending(): void {
     const cell = this.pendingCell;
     if (cell === null) return;
+    // `commit` when something was actually spent, `deny` when the placement
+    // was refused. The button's own press haptic already fired on the DOWN,
+    // so this is the second half of the answer: the finger learns whether the
+    // thing it pressed worked before the eye has finished reading the board.
+    let spent = false;
     if (this.tool.type === 'build') {
-      if (place(this.town, this.tool.kind, cell, Date.now())) this.saveSoon();
+      spent = place(this.town, this.tool.kind, cell, Date.now());
+      if (spent) this.saveSoon();
     } else if (this.tool.type === 'move') {
-      if (move(this.town, this.tool.id, cell)) {
+      spent = move(this.town, this.tool.id, cell);
+      if (spent) {
         this.setTool({ type: 'select' });
         this.saveSoon();
       }
     }
+    haptic(spent ? 'commit' : 'deny');
     this.pendingCell = null;
   }
 

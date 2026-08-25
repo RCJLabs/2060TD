@@ -84,6 +84,7 @@ import { COLORS } from '../palette';
 import { makeSheet } from '../ground';
 import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
 import { BoardView } from '../BoardView';
+import { haptic } from '../haptics';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
@@ -530,6 +531,10 @@ export class RaidScene extends Phaser.Scene {
   private launch(): void {
     if (this.result || planUnitCount(this.squads) === 0) return;
     if (this.town.frontline.pendingCounterattack) return;
+    // The heaviest thing this screen does gets the heaviest answer. A raid is
+    // committed manpower — it cannot be taken back — and that should be felt
+    // rather than only read in a report a moment later.
+    haptic('commit');
     // Stamp each formation's current rank onto the plan it launches with, so
     // the config carries it and the replay re-fights the raid with the squad
     // that actually went out — not the one promoted or gutted since.

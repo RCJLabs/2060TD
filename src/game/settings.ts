@@ -1,4 +1,5 @@
 import { audio } from './audio';
+import { setHapticsEnabled } from './haptics';
 import { applyPalette } from './palette';
 
 /**
@@ -11,6 +12,12 @@ export interface Settings {
   music: number;
   sfx: number;
   colorblind: boolean;
+  /**
+   * Whether the phone answers the finger. On by default and absent from every
+   * save written before v1.26, which is why it reads `!== false` rather than
+   * `=== true`: an existing player should get the feature, not have to find it.
+   */
+  haptics: boolean;
 }
 
 /** Old name on purpose — see meta/save.ts: a key is an address, not a label. */
@@ -49,12 +56,14 @@ export function loadSettings(): Settings {
           music: silent ? 0 : DEFAULTS.music,
           sfx: silent ? 0 : DEFAULTS.sfx,
           colorblind: parsed.colorblind === true,
+          haptics: parsed.haptics !== false,
         };
       }
       return {
         music: clamp01(parsed.music, DEFAULTS.music),
         sfx: clamp01(parsed.sfx, DEFAULTS.sfx),
         colorblind: parsed.colorblind === true,
+        haptics: parsed.haptics !== false,
       };
     }
   } catch {
@@ -64,7 +73,7 @@ export function loadSettings(): Settings {
 }
 
 /** Effects at full, music under them — it is a bed, not a soundtrack. */
-const DEFAULTS: Settings = { music: 0.5, sfx: 1, colorblind: false };
+const DEFAULTS: Settings = { music: 0.5, sfx: 1, colorblind: false, haptics: true };
 
 export function saveSettings(settings: Settings): void {
   try {
@@ -79,4 +88,5 @@ export function applySettings(settings: Settings): void {
   audio.setSfxVolume(settings.sfx);
   audio.setMusicVolume(settings.music);
   applyPalette(settings.colorblind);
+  setHapticsEnabled(settings.haptics);
 }

@@ -3,6 +3,7 @@ import { forgetCoach } from '../meta/coach';
 import { downloadSave, pickAndImportSave, saveTown, SAVE_FILENAME } from '../meta/save';
 import type { TownState } from '../meta/town';
 import type { Layout } from './layout';
+import { haptic, hapticsSupported } from './haptics';
 import { Overlay } from './overlay';
 import { COLORS } from './palette';
 import {
@@ -79,6 +80,20 @@ export function buildSettings(
   };
   volume('EFFECTS', 'sfx');
   volume('MUSIC', 'music');
+  // Only offered where there is a motor to switch off. iOS Safari does not
+  // implement the Vibration API at all, and a dead toggle is worse than no
+  // toggle: it says the feature exists and is failing, rather than absent.
+  if (hapticsSupported()) {
+    toggle('HAPTICS', settings.haptics, () => {
+      const next = { ...loadSettings(), haptics: !settings.haptics };
+      saveSettings(next);
+      applySettings(next);
+      // Fired AFTER applying, so switching it on demonstrates itself and
+      // switching it off is silent — the setting is its own preview.
+      haptic('tap');
+      opts.rebuild();
+    });
+  }
   toggle('COLORBLIND PALETTE', settings.colorblind, () => {
     const next = { ...loadSettings(), colorblind: !settings.colorblind };
     saveSettings(next);
