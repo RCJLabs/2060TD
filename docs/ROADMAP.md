@@ -1109,12 +1109,45 @@ v1.20 with a note saying the balance pass would decide. It has.
       the heavy insufficient on its own, which is direction 2 and a separate
       decision.*
 
-- [ ] **The USA and China still win on the tank alone.** The v1.22 trade moved
-      the other three; these two need the heavy to stop being sufficient by
-      itself rather than merely less dominant. That is a difficulty change as
-      much as a design one — every measured way of doing it so far costs 10-20
-      clear-rate points — so it wants a deliberate decision about how hard a
-      deep raid should be, not another multiplier.
+- [x] **The USA and China still win on the tank alone — and that is the design
+      working, not failing** *(v1.22)* — *closed without a change, which took
+      more measuring than changing it would have.*
+
+      *Four routes were tried and none moved the USA off 86%: heavy HP ×0.7
+      (-6 clear points, carry barely moves), anti-armor tower ×1.6 (-6, carry
+      unchanged), normalising the heavies' damage type (-11.7 USA and -21.8
+      China, Javelin still 8%), and thickening the command post ×1.4 to ×2.2
+      (-3 to -10, USA at 86% at every setting). A lever that immovable is
+      pointing at the wrong term.*
+
+      *It was. Measuring each force WITHOUT its heavy:*
+
+          faction   full   no heavy   escort force is   bodies   HP    anti-struct
+          USA       49.0        8.3               17%        8   805           199
+          CHINA     52.6       11.5               22%       12   935           183
+          UN        29.2       17.2               59%        9   985           146
+          RUSSIA    47.9       31.3               65%       10  1035           182
+          NK        20.3       16.1               79%       17  1120           254
+
+      *The USA's escorts have the second-highest anti-structure output in the
+      game and the fewest bodies and the least hit points. They fail on
+      SURVIVAL, not on output — escort HP ×1.3 takes the escort-only clear rate
+      from 8.3 to 20.3 and ×2.0 takes it to 43.2, while doubling their damage
+      only reaches 29.2. They have the guns; they do not live to fire them.*
+
+      ***So the fix would be a buff to the strongest faction, and it would erase
+      the faction.*** *GDD §4.1 gives the USA "few, expensive, excellent" and
+      "low unit counts, **every loss hurts**". Eight escort bodies at 805 hit
+      points dying before the objective IS that sentence, expressed in the sim.
+      §4.2 gives China "**individually fragile units**", and China's escorts are
+      the thinnest per body in the game at 78. Both are on-identity.*
+
+      *The v1.22 trade landed for exactly the three factions whose rosters are
+      built to sustain a second arm, and did not move the two whose stated
+      design is that they cannot. That is the correct outcome and the item
+      closes here. What would have been wrong is the change: it would have
+      raised the top faction, narrowed nothing, and deleted a weakness the GDD
+      names twice.*
 
 - [x] **What the wall line is actually worth, and what v1.20 could not have
       known** *(v1.21)* — *v1.20 shipped on a clear-rate reading: the wall line

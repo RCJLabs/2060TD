@@ -204,3 +204,21 @@ here with the change and its date.
   not one — it costs 12-22 clear points and leaves the Javelin at 8%. What is
   left needs the heavy to be insufficient by itself, which is a difficulty
   decision as much as a design one.
+- 2026-08-25 — **Concentration is not always a defect: closing the USA/China
+  carry share without a change.** After v1.22 those two still won on the tank
+  alone (86% and 79%) where the other three had a real second arm. Four routes
+  were measured and none moved them — heavy HP, anti-armor towers, normalising
+  the heavies' damage type, thickening the command post — each costing 3-22
+  clear-rate points for nothing. The reason is that every one of them attacked
+  the tank or the defence, and the actual term is the escorts: the USA's have
+  the second-highest anti-structure output in the game and the fewest bodies
+  and the least hit points, so they fail on survival rather than output (escort
+  HP ×1.3 lifts their standalone clear rate from 8.3 to 20.3; doubling their
+  damage only reaches 29.2). Which makes the fix a buff to the strongest
+  faction — and worse, GDD §4.1 gives the USA "low unit counts, every loss
+  hurts" and §4.2 gives China "individually fragile units". Eight escort bodies
+  dying before the objective is that design working. The trade landed for the
+  three rosters built to sustain a second arm and left the two whose identity
+  says they cannot, which is the right answer. The lesson is the one this
+  milestone keeps teaching from new angles: check what a number is supposed to
+  mean before deciding it is wrong.
