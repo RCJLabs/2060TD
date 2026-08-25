@@ -1567,11 +1567,26 @@ moving area denial up makes T1→T2 climb (+1), and the linear progression makes
 worse (−43). **The rung schedule needs a kind to add at every step, and there are not
 enough kinds.** That is a content change, not a tuning change.
 
-- [ ] **The T3→T4 cliff belongs to two shapes, not to the tier.** Decomposing the −32:
-      every shape loses 4–18 points at T4 except **star (87 → 12)** and **strongpoints
-      (96 → 43)**, with `keep` then entering the pool at 35. Fix those two archetypes'
-      tier response and the rung is a rung. This supersedes the "L2→L3 cliff carried
-      since v0.6" item — on current plans the cliff is at T3→T4.
+- [x] **The T3→T4 cliff was two shapes and a half-integer.** Decomposing the −32: every
+      shape loses 4–18 points at T4 except **star (87 → 12)** and **strongpoints
+      (96 → 43)** — and those are the only two shapes carrying a 1.10 tower multiplier.
+      `round(4 × 1.1)` is 4 and `round(5 × 1.1)` is 6, so a 10% bonus became 0% at T3
+      and +20% at T4, and those two shapes gained TWO guns on a rung where everything
+      else gained one. Holding every shape to one gun per rung (`towerCountFor`, with
+      the deferred gun handed back at T5 rather than dropped) fixes it at the source:
+
+          rung           T1→T2   T2→T3   T3→T4   T4→T5
+          before            -0      -5     -32      -9
+          after             -0      -5     -20     -20
+
+      star T4 12 → 53, strongpoints T4 43 → 80, parity spread 17.2 → **15.0**, and the
+      v1.20 wall line unmoved at +6.0. Two even steps where there was a wall and a
+      shrug. This supersedes the "L2→L3 cliff carried since v0.6" item.
+
+- [ ] **The shallow rungs are still free** — T1→T2 −0 and T2→T3 −5 are untouched by any
+      of the above, and the cause is known and documented (anti-armour gated to tier 3;
+      a tank is immune below it). Fixing it needs a rung schedule with a kind to add at
+      every step, which is content, not tuning.
 
 - [ ] **Layout variance is half the difficulty and the deal cannot see it.** Shape
       explains only 38–64% of the variance in clear rate; within one shape and one tier,

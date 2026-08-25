@@ -66,6 +66,39 @@ const CODENAMES = [
   'HOLLOW CROWN', 'BLACK TERRACE',
 ];
 
+/**
+ * How many guns a shape stands at a rung — climbing by at most one (v1.25).
+ *
+ * The baseline steps on even tiers, `min(8, 3 + floor(tier / 2))`, and each
+ * shape scales it by its own multiplier. Rounding that product turned a 10%
+ * bonus into an uneven staircase, because 4 x 1.1 rounds DOWN to 4 and
+ * 5 x 1.1 rounds UP to 6:
+ *
+ *     shape           T1 T2 T3 T4 T5     steps
+ *     compound         3  4  4  5  5   +1 +0 +1 +0
+ *     star             3  4  4  6  6   +1 +0 +2 +0   <- two guns in one rung
+ *     strongpoints     3  4  4  6  6   +1 +0 +2 +0   <- and again
+ *     camp             2  3  3  3  3   +1 +0 +0 +0
+ *
+ * Star and strongpoints are the only shapes that gain two guns on one rung,
+ * and they are exactly the two that fall out of the ladder there: `--deal`
+ * priced the T3->T4 step at -32 overall, made up of every other shape losing
+ * 4 to 18 points and these two losing **75 and 53**. The tier was never the
+ * problem; a half-integer was.
+ *
+ * So a rung adds at most one gun, which is the invariant the ladder wants
+ * anyway. Only these two shapes move — everything else already climbed by one
+ * or zero — and the clamp hands the deferred gun back at T5 rather than
+ * dropping it, so a shape that wants six guns still gets six.
+ */
+export function towerCountFor(tier: number, towers: number): number {
+  const want = (t: number): number =>
+    Math.max(1, Math.round(Math.min(8, 3 + Math.floor(t / 2)) * towers));
+  let count = want(1);
+  for (let t = 2; t <= Math.max(1, tier); t++) count = Math.min(want(t), count + 1);
+  return count;
+}
+
 export function structureLevelFor(tier: number): number {
   return Math.min(3, 1 + Math.floor((tier - 1) / 3));
 }
@@ -723,10 +756,7 @@ export function generateBase(
   // means the maze goes back to steering raiders AROUND them, and the wall
   // line falls from +7.6 to +0.8. That trade is real and it is not this
   // change's to make.
-  const towerCount = Math.max(
-    1,
-    Math.round(Math.min(8, 3 + Math.floor(tier / 2)) * arch.towers),
-  );
+  const towerCount = towerCountFor(tier, arch.towers);
   // Air cover is an ADDITION to the compound, never a substitution. Swapping
   // a gun for a mount made every ground raid measurably easier — the exact
   // opposite of what the layer is for.

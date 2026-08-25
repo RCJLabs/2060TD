@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
-  archetypeFor,
-  generateBase,
-  structureLevelFor,
   ARCHETYPES,
   ARCHETYPE_BY_ID,
   CHINA_BASE_KIT,
+  DEAL_ORDER,
   MAP_H,
   MAP_W,
   TARGETS_PER_TIER,
-  DEAL_ORDER,
   USA_BASE_KIT,
+  archetypeFor,
+  generateBase,
+  structureLevelFor,
+  towerCountFor,
 } from '../src/content/bases';
 import { FACTION_IDS } from '../src/content/factions';
 
@@ -230,6 +231,37 @@ describe('every generated base', () => {
     }
     // An unknown faction falls back rather than throwing.
     expect(archetypeFor(3, 0, 'martians')).toBeDefined();
+  });
+
+  /**
+   * No rung adds two guns (v1.25).
+   *
+   * The gun line is `round(baseline(tier) x arch.towers)`, and rounding a
+   * per-shape multiplier made that staircase uneven: 4 x 1.1 rounds DOWN to 4
+   * and 5 x 1.1 rounds UP to 6, so the two shapes carrying a 1.10 multiplier
+   * gained TWO guns at T3->T4 while every other shape gained one. They are
+   * also exactly the two shapes that fell out of the ladder there — `--deal`
+   * priced the rung at -32 overall, of which star lost 75 points and
+   * strongpoints 53, against 4 to 18 for everything else.
+   *
+   * This holds every shape to one gun per rung, which is what fixed it:
+   * T3->T4 went -32 to -20 and T4->T5 -9 to -20, two even steps where there
+   * was a wall and a shrug. Reverting `towerCountFor` to the bare `round`
+   * fails this at star T3->T4.
+   */
+  it('never adds two guns on one rung', () => {
+    for (const arch of ARCHETYPES) {
+      const line = [1, 2, 3, 4, 5, 6].map((tier) => towerCountFor(tier, arch.towers));
+      for (let i = 1; i < line.length; i++) {
+        const step = line[i]! - line[i - 1]!;
+        const label = `${arch.id} T${i}->T${i + 1} (${line.join(',')})`;
+        expect(step, `${label} goes backwards`).toBeGreaterThanOrEqual(0);
+        expect(step, `${label} adds ${step} guns at once`).toBeLessThanOrEqual(1);
+      }
+      // Liveness: a table of all-equal counts would pass both bounds above
+      // while measuring nothing, so the line has to actually climb.
+      expect(line[line.length - 1]!, `${arch.id} never gains a gun`).toBeGreaterThan(line[0]!);
+    }
   });
 
   it('climbs the ladder instead of cliffing up it', () => {
