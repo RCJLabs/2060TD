@@ -288,12 +288,17 @@ export class RaidScene extends Phaser.Scene {
   }
 
   private applyLayout(): void {
-    this.layout = layoutOf(this, this.drawerOpen);
+    // The launch button asks for a band of its own (v1.26). It used to float
+    // at the bottom of the BOARD, which in portrait is the middle of the phone:
+    // `e2e-mobile` put it 52% up a 915px screen, so the one control this whole
+    // screen exists to press was a two-handed reach. Reserving it above the tab
+    // strip costs the drawer a row and puts it under the thumb.
+    const primaryH = layoutOf(this, this.drawerOpen).rowH;
+    this.layout = layoutOf(this, this.drawerOpen, primaryH);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
-    const { board, pad, rowH, font } = this.layout;
-    const w = Math.min(board.w - pad * 2, this.layout.px(320));
-    this.launchButton.setRect(board.x + (board.w - w) / 2, board.y + board.h - rowH - pad, w, rowH);
+    const { primary, board, pad, font } = this.layout;
+    this.launchButton.setRect(primary.x, primary.y, primary.w, primary.h);
     this.launchButton.setFont(font.body);
     this.fogText.setPosition(board.x + board.w / 2, board.y + board.h / 2).setFontSize(font.body);
     this.hintText.setPosition(board.x + board.w / 2, board.y + pad).setFontSize(font.tiny);

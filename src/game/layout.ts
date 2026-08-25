@@ -52,6 +52,13 @@ export interface Layout {
   status: Rect;
   /** Tab strip. */
   tabs: Rect;
+  /**
+   * The band a scene's PRIMARY action sits in, directly above the tab strip
+   * and inside the thumb arc. Zero-sized unless the scene asked for one by
+   * passing a height — a screen with no single obvious action does not get a
+   * bar reserved for one it does not have.
+   */
+  primary: Rect;
   /** Scrolling row list inside the panel. */
   list: Rect;
   /** Row height, gaps and padding, in device px. */
@@ -116,6 +123,7 @@ export function computeLayout(
   dpr: number,
   drawerOpen = true,
   insets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 },
+  primaryH = 0,
 ): Layout {
   const mode: LayoutMode = cssHeight > cssWidth ? 'portrait' : 'landscape';
   // Phones and small tablets get thumb-sized controls; big screens stay tight.
@@ -141,7 +149,10 @@ export function computeLayout(
   let status: Rect;
   let tabs: Rect;
   let list: Rect;
+  let primary: Rect;
   let cols = 1;
+  // The band plus the gutter under it, or nothing at all.
+  const primaryBand = primaryH > 0 ? primaryH + gap : 0;
 
   // Everything lays out inside the safe box, not the canvas. `viewport-fit=cover`
   // means the canvas runs under the notch and the home indicator, and a control
@@ -165,8 +176,12 @@ export function computeLayout(
     // player can see is touching a navigation tab, and a thumb aimed at the row
     // changes tab instead — a mis-tap that crosses a mode boundary, which is
     // worse than any two neighbours inside one strip.
-    list = { x: sx, y: board.y + board.h, w: sw, h: Math.max(0, drawerH - gap) };
+    list = { x: sx, y: board.y + board.h, w: sw, h: Math.max(0, drawerH - gap - primaryBand) };
     tabs = { x: sx, y: sy + sh - tabsH, w: sw, h: tabsH };
+    primary =
+      primaryH > 0
+        ? { x: sx + pad, y: tabs.y - primaryH - gap, w: sw - pad * 2, h: primaryH }
+        : { x: sx, y: tabs.y, w: 0, h: 0 };
     panel = { x: sx, y: list.y, w: sw, h: drawerH + tabsH };
     // Wide phones fit two columns of rows; narrow ones stay single-file.
     cols = cssWidth >= 500 ? 2 : 1;
@@ -178,14 +193,22 @@ export function computeLayout(
     board = { x: sx, y: sy, w: sw - railW, h: sh };
     panel = { x: sx + sw - railW, y: sy, w: railW, h: sh };
     status = { x: panel.x, y: sy, w: railW, h: statusH };
-    tabs = { x: panel.x, y: sy + statusH, w: railW, h: tabsH };
-    // Same gutter in landscape, where the strip is above the list rather than
-    // below it.
+    // The strip goes at the BOTTOM of the rail, not under the status block
+    // (v1.26). A phone held sideways is still held at its bottom corners, and
+    // `e2e-mobile` measured the town's tab strip 76% up the screen — the one
+    // control you navigate with, out past the reach of the thumb holding the
+    // device. Bottom-of-rail also matches portrait's order, so the strip is in
+    // the same place relative to the content in both orientations.
+    tabs = { x: panel.x, y: sy + sh - tabsH, w: railW, h: tabsH };
+    primary =
+      primaryH > 0
+        ? { x: panel.x + pad, y: tabs.y - primaryH - gap, w: railW - pad * 2, h: primaryH }
+        : { x: panel.x, y: tabs.y, w: 0, h: 0 };
     list = {
       x: panel.x,
-      y: sy + statusH + tabsH + gap,
+      y: sy + statusH + gap,
       w: railW,
-      h: sh - statusH - tabsH - gap,
+      h: sh - statusH - tabsH - gap * 2 - primaryBand,
     };
     cols = compact ? 1 : 1;
   }
@@ -202,6 +225,7 @@ export function computeLayout(
     panel,
     status,
     tabs,
+    primary,
     list,
     rowH,
     gap,
@@ -219,7 +243,7 @@ export function computeLayout(
 }
 
 /** Layout for a scene's current canvas size. */
-export function layoutOf(scene: Phaser.Scene, drawerOpen = true): Layout {
+export function layoutOf(scene: Phaser.Scene, drawerOpen = true, primaryH = 0): Layout {
   const dpr = devicePixelRatioCapped();
   const size = scene.scale.gameSize;
   return computeLayout(
@@ -228,6 +252,7 @@ export function layoutOf(scene: Phaser.Scene, drawerOpen = true): Layout {
     dpr,
     drawerOpen,
     safeAreaInsets(),
+    primaryH,
   );
 }
 

@@ -44,12 +44,16 @@ const check = (name, ok, detail) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failures.push(name);
 };
-const note = (name, detail) => console.log(`  ..  ${name} — ${detail}`);
 
 /** Apple HIG minimum; Material asks 48. Anything under this is a mis-tap. */
 const MIN_TARGET = 44;
 /** Below this, two targets share a fingertip. */
 const MIN_GAP = 8;
+/**
+ * How far up the screen a primary action may sit, as a percentage. The bottom
+ * third is what a thumb reaches without the hand shifting its grip.
+ */
+const THUMB_ARC = 33;
 
 /**
  * Devices worth holding the line on: the narrowest phone still in use, a
@@ -171,19 +175,28 @@ try {
         tight.slice(0, 3).join(', ') + (tight.length > 3 ? ` (+${tight.length - 3})` : ''),
       );
 
-      // ---- 3. how far the primary action sits from the thumb -----------------
+      // ---- 3. the primary action is inside the thumb arc ---------------------
+      // A phone is held at its bottom corners in either orientation, and the
+      // thumb arcs comfortably over the bottom third. Above that line a control
+      // is a two-handed reach. Through v1.25 both screens failed this: LAUNCH
+      // RAID floated at the bottom of the BOARD, which is the middle of a
+      // portrait phone (52%), and the town's tab strip sat at the top of the
+      // landscape rail (76%).
       const primary = buttons.find((b) => scene.primary.test(b.label));
+      check(
+        `${where}: a primary action is on screen`,
+        primary !== undefined,
+        primary ? `"${primary.label}"` : `nothing matched ${scene.primary}`,
+      );
       if (primary) {
         const centre = primary.y + primary.h / 2;
-        const fromBottom = vh - centre;
         const share = ((vh - centre) / vh) * 100;
-        note(
-          `${where}: REACH "${primary.label}"`,
-          `${fromBottom.toFixed(0)}px from the bottom (${share.toFixed(0)}% up the screen)` +
-            (share > 33 ? ' — ABOVE THE THUMB ARC' : ''),
+        check(
+          `${where}: the primary action is inside the thumb arc`,
+          share <= THUMB_ARC,
+          `"${primary.label}" ${(vh - centre).toFixed(0)}px from the bottom ` +
+            `(${share.toFixed(0)}% up the screen, bar is ${THUMB_ARC}%)`,
         );
-      } else {
-        note(`${where}: REACH`, 'no primary action matched on this screen');
       }
 
       // ---- 4. nothing the player needs is cut off ----------------------------
