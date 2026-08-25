@@ -2,6 +2,7 @@ import { Grid } from './grid';
 import { fnv1a } from './hash';
 import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
+import { COMBAT_NONE, combatModelFor, type CombatModel } from './combat';
 import {
   FLAT_TERRAIN,
   MIN_MOVE_COST,
@@ -194,6 +195,14 @@ export class Engine {
   readonly goalCells: CellIndex[];
 
   private readonly rng: Rng;
+  /**
+   * Combat rolls draw from their OWN stream, for the same reason terrain does:
+   * the engine's `rng` is one sequence consumed in tick order, so a new draw
+   * site inside it would shift every later roll and re-fight every archived
+   * battle differently.
+   */
+  private readonly combatRng: Rng;
+  private readonly combat: CombatModel;
   private nextId = 1;
   private queue: Command[] = [];
   private spawnCursor = 0;
@@ -260,6 +269,8 @@ export class Engine {
     this.catalog = catalog;
     this.grid = new Grid(config.width, config.height);
     this.rng = createRng(config.seed);
+    this.combat = combatModelFor(config.combatVersion);
+    this.combatRng = createRng((config.combatSeed ?? config.seed ^ 0x9e3779b9) >>> 0);
     // Terrain draws from its OWN stream. Sharing `this.rng` would shift every
     // later roll and re-fight every archived battle on different ground.
     this.terrain =
@@ -970,14 +981,30 @@ export class Engine {
    * trade, not a hiding place, and it is what gives the fire-mission layer
    * something to answer.
    */
+  /**
+   * One shot's damage multiplier, from the combat model.
+   *
+   * Drawn ONCE PER SHOT even when the shot splashes — a shell that catches
+   * four men is one shell. Rolling per victim would turn every burst into an
+   * average of independent draws, and `src/sim/combat.ts` measured what that
+   * costs: a fine spread washes out and changes almost nothing.
+   *
+   * Version 0 never draws, so a config without `combatVersion` consumes the
+   * combat stream zero times and hashes exactly as it did before v1.23.
+   */
+  private rollShot(): number {
+    return this.combat.version === COMBAT_NONE ? 1 : this.combat.shot(this.combatRng);
+  }
+
   private damageAttacker(
     attacker: Attacker,
     raw: number,
     type: DamageType,
     direct = true,
+    roll = 1,
   ): void {
     const cover = direct ? this.terrain.cover(this.grid.cellAt(attacker.pos)) : 1;
-    attacker.hp -= raw * cover * this.catalog.damage[type][attacker.profile.armor];
+    attacker.hp -= raw * roll * cover * this.catalog.damage[type][attacker.profile.armor];
   }
 
   private damageStructure(
@@ -985,9 +1012,10 @@ export class Engine {
     raw: number,
     type: DamageType,
     source = 'fires',
+    roll = 1,
   ): void {
     const before = structure.hp;
-    structure.hp -= raw * this.catalog.damage[type]['structure'];
+    structure.hp -= raw * roll * this.catalog.damage[type]['structure'];
     if (structure === this.cc && before > 0 && structure.hp <= 0) {
       this.stats.ccKillerKind ??= source;
     }
@@ -1066,12 +1094,13 @@ export class Engine {
           }
         }
         if (tripped) {
+          const roll = this.rollShot();
           for (const attacker of this.attackers) {
             if (attacker.hp <= 0 || attacker.profile.air) continue;
             const dx = attacker.pos.x - structure.center.x;
             const dy = attacker.pos.y - structure.center.y;
             if (dx * dx + dy * dy <= t.splashRadius * t.splashRadius) {
-              this.damageAttacker(attacker, t.damage * this.defWeaponMult, t.damageType);
+              this.damageAttacker(attacker, t.damage * this.defWeaponMult, t.damageType, true, roll);
             }
           }
           events.push({ type: 'aoe', at: { ...structure.center }, radius: t.splashRadius });
@@ -1112,7 +1141,13 @@ export class Engine {
           splashRadius: weapon.splashRadius ?? 0,
         });
       } else {
-        this.damageAttacker(target, weapon.damage * this.defWeaponMult, weapon.damageType);
+        this.damageAttacker(
+          target,
+          weapon.damage * this.defWeaponMult,
+          weapon.damageType,
+          true,
+          this.rollShot(),
+        );
         events.push({
           type: 'shot',
           from: { ...structure.center },
@@ -1218,13 +1253,14 @@ export class Engine {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const shell = this.projectiles[i]!;
       if (shell.impactTick > this.tick) continue;
+      const roll = this.rollShot();
       for (const attacker of this.attackers) {
         if (attacker.hp <= 0) continue;
         const dx = attacker.pos.x - shell.to.x;
         const dy = attacker.pos.y - shell.to.y;
         if (dx * dx + dy * dy <= shell.splashRadius * shell.splashRadius) {
           // Mortar splash, likewise: no cover against something that lobs.
-          this.damageAttacker(attacker, shell.damage, shell.damageType, false);
+          this.damageAttacker(attacker, shell.damage, shell.damageType, false, roll);
         }
       }
       events.push({ type: 'aoe', at: { ...shell.to }, radius: shell.splashRadius });
@@ -1304,6 +1340,7 @@ export class Engine {
               weapon.damage * attacker.damageMult,
               weapon.damageType,
               attacker.profile.name,
+              this.rollShot(),
             );
             events.push({
               type: 'shot',
@@ -1432,6 +1469,7 @@ export class Engine {
             weapon.damage * attacker.damageMult,
             weapon.damageType,
             attacker.profile.name,
+            this.rollShot(),
           );
           events.push({
             type: 'shot',

@@ -46,6 +46,7 @@ import { CONDITIONS } from '../content/conditions';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
+import { COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
 import type {
   CellIndex,
   DefenderMods,
@@ -1134,7 +1135,7 @@ const RECIPE_PLANS: Record<FactionId, SquadPlan[]> = {
   ],
 };
 
-function planTable(): string {
+function planTable(combatVersion = COMBAT_NONE): string {
   const run = (faction: FactionId, plan: SquadPlan[]): number => {
     const cat = raidCatalogFor(faction);
     let cleared = 0;
@@ -1147,7 +1148,10 @@ function planTable(): string {
             (s, at) => ({ ...s, slot: at }),
           );
           for (let i = 0; i < 3; i++) {
-            const config = raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction));
+            const config = {
+              ...raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction)),
+              combatVersion,
+            };
             if (resolveRaid(config, squads, tier, cat).cleared) cleared++;
             runs++;
           }
@@ -1158,7 +1162,8 @@ function planTable(): string {
   };
 
   const lines = [
-    'THE PLAN, NOT THE FACTION — the same roster asked twice',
+    'THE PLAN, NOT THE FACTION — the same roster asked twice' +
+      (combatVersion === COMBAT_NONE ? '' : ` (${combatModelFor(combatVersion).label})`),
     'FACTION | REF MP | REFERENCE | RECIPE MP | RECIPE |  BEST | PLAN IS WORTH',
     '--------+--------+-----------+-----------+--------+-------+--------------',
   ];
@@ -1276,7 +1281,7 @@ function kitTable(): string {
  * - **length** — spread in ticks. This one moves today, because the ±3-8%
  *   spawn jitter perturbs arrival times without perturbing who wins.
  */
-function seedTable(): string {
+function seedTable(combatVersion = COMBAT_NONE): string {
   const SEED_COUNT = 12;
   const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
 
@@ -1307,7 +1312,7 @@ function seedTable(): string {
         const ticks: number[] = [];
         for (let i = 0; i < SEED_COUNT; i++) {
           const res = resolveRaid(
-            raidConfig(base, squads, seedFor(i), trainableFor(faction)),
+            { ...raidConfig(base, squads, seedFor(i), trainableFor(faction)), combatVersion },
             squads,
             tier,
             cat,
@@ -1343,7 +1348,8 @@ function seedTable(): string {
   const mean = allClear.reduce((a, b) => a + b, 0) / allClear.length;
   const tickMean = allTickSpread.reduce((a, b) => a + b, 0) / allTickSpread.length;
   const lines = [
-    `WHAT THE SEED DECIDES — the same matchup fought ${SEED_COUNT} times`,
+    `WHAT THE SEED DECIDES — the same matchup fought ${SEED_COUNT} times` +
+      (combatVersion === COMBAT_NONE ? '' : ` (${combatModelFor(combatVersion).label})`),
     'FORCE   | MATCHUPS | DECIDED     | SAME MEN HOME | LENGTH | CLEAR',
     '--------+----------+-------------+---------------+--------+------',
     ...rows,
@@ -1355,10 +1361,113 @@ function seedTable(): string {
     '',
     'DECIDED is the headline and high is bad: those are matchups where every',
     'seed agreed, so the pairing is the result and the battle is a formality.',
-    'SAME MEN HOME is harsher still — the identical force walked back every',
-    'time. LENGTH is what does move: the spawn jitter changes when units',
-    'arrive without changing who wins, which is why nothing looked wrong.',
+    'SAME MEN HOME is harsher still — the identical force walked back every time.',
+    ...(combatVersion === COMBAT_NONE
+      ? [
+          'LENGTH is the only thing that moves without a combat model: the spawn',
+          'jitter changes when units arrive without changing who wins, which is',
+          'why nothing ever looked wrong from the outside.',
+        ]
+      : [
+          'Against v0 — 86% decided, 54% bringing the same men home — this is what',
+          'the model bought. LENGTH widening alongside is the same battles being',
+          'fought to different lengths rather than replayed.',
+        ]),
   ];
+  return lines.join('\n');
+}
+
+/**
+ * Price every candidate variance model on the one measure that matters.
+ *
+ * Each model preserves its mean by construction, so a shift in CLEAR is a
+ * variance effect and not a buff — which is exactly the confound that would
+ * otherwise make these rows unreadable. What is being bought is the fall in
+ * DECIDED; what is being watched for is CLEAR wandering, which would mean the
+ * mean-preservation is not holding in practice whatever the algebra says.
+ */
+function sweepTable(): string {
+  const SEED_COUNT = 8;
+  const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
+
+  const measure = (version: number): { decided: number; home: number; clear: number } => {
+    let matchups = 0;
+    let decided = 0;
+    let sameHome = 0;
+    let clearSum = 0;
+    for (const faction of FACTION_IDS) {
+      const cat = raidCatalogFor(faction);
+      for (const tier of RAID_TIERS) {
+        for (const arch of ARCHETYPES) {
+          const base = generateBase(tier, 0, baseKitFor(faction), arch.id, faction);
+          const squads = (
+            faction === 'nk' ? tunnelPlanFor('nk', base, tier) : RAID_PLANS[faction]
+          ).map((sq, at) => ({ ...sq, slot: at }));
+          let won = 0;
+          const home: number[] = [];
+          for (let i = 0; i < SEED_COUNT; i++) {
+            const res = resolveRaid(
+              {
+                ...raidConfig(base, squads, seedFor(i), trainableFor(faction)),
+                combatVersion: version,
+              },
+              squads,
+              tier,
+              cat,
+            );
+            if (res.cleared) won++;
+            home.push(res.squads.reduce((a, sq) => a + sq.returned, 0));
+          }
+          matchups++;
+          if (won === 0 || won === SEED_COUNT) decided++;
+          if (Math.max(...home) === Math.min(...home)) sameHome++;
+          clearSum += (won / SEED_COUNT) * 100;
+        }
+      }
+    }
+    return {
+      decided: (decided / matchups) * 100,
+      home: (sameHome / matchups) * 100,
+      clear: clearSum / matchups,
+    };
+  };
+
+  const base = measure(COMBAT_NONE);
+  const lines = [
+    `PRICING THE ROLL — every candidate on the same ${SEED_COUNT} seeds`,
+    'VER | MODEL                | DECIDED | SAME HOME | CLEAR | vs FLAT',
+    '----+----------------------+---------+-----------+-------+--------',
+    `${pad('0', 3)} | ${pad('no rolls (today)', 20)} | ${pad(base.decided.toFixed(0) + '%', 7)} | ` +
+      `${pad(base.home.toFixed(0) + '%', 9)} | ${pad(base.clear.toFixed(1), 5)} | ${pad('—', 6)}`,
+  ];
+  const only = process.argv
+    .slice(process.argv.indexOf('--sweep') + 1)
+    .filter((a) => /^\d+$/.test(a))
+    .map(Number);
+  const versions = (
+    only.length > 0
+      ? only
+      : Object.keys(COMBAT_MODELS)
+          .map(Number)
+          .filter((v) => v !== COMBAT_NONE)
+  ).sort((a, b) => a - b);
+  for (const version of versions) {
+    const m = measure(version);
+    const delta = m.clear - base.clear;
+    lines.push(
+      `${pad(String(version), 3)} | ${pad(combatModelFor(version).label, 20)} | ` +
+        `${pad(m.decided.toFixed(0) + '%', 7)} | ${pad(m.home.toFixed(0) + '%', 9)} | ` +
+        `${pad(m.clear.toFixed(1), 5)} | ${pad((delta >= 0 ? '+' : '') + delta.toFixed(1), 6)}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    'DECIDED falling is what is being bought. CLEAR drifting is the warning ' +
+      'sign: every model preserves its mean by construction, so a large vs FLAT ' +
+      'means the variance is interacting with a threshold rather than sitting ' +
+      'symmetrically around it — which is a difficulty change and has to be ' +
+      'priced as one.',
+  );
   return lines.join('\n');
 }
 
@@ -1725,8 +1834,14 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--sweep')) {
+    console.log(sweepTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--seed')) {
-    console.log(seedTable());
+    const at = process.argv.indexOf('--seed');
+    console.log(seedTable(Number(process.argv[at + 1] ?? COMBAT_NONE) || COMBAT_NONE));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
@@ -1741,7 +1856,8 @@ function main(): void {
     return;
   }
   if (process.argv.includes('--plans')) {
-    console.log(planTable());
+    const at = process.argv.indexOf('--plans');
+    console.log(planTable(Number(process.argv[at + 1] ?? COMBAT_NONE) || COMBAT_NONE));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

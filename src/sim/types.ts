@@ -351,6 +351,22 @@ export interface SimConfig {
    */
   terrainVersion?: number;
   /**
+   * Which combat-variance model to run. Absent or 0 means the sim never
+   * rolls in combat, which is what every config written before v1.23 gets —
+   * so an archived replay re-fights exactly the battle it recorded.
+   *
+   * Like `terrainVersion`, a version names a MODEL and not a revision of one:
+   * changing what the rolls do means adding a version, never editing one.
+   */
+  combatVersion?: number;
+  /**
+   * Seed for the combat rolls. Kept separate from `seed` for the same reason
+   * `terrainSeed` is: the engine's RNG is a single stream consumed in tick
+   * order, and drawing combat rolls from it would shift every later draw and
+   * change every battle already recorded.
+   */
+  combatSeed?: number;
+  /**
    * Which side the player commands. Defaults to 'defender' (town sieges):
    * powers strike the attacking wave. As 'attacker' (raids): powers strike
    * structures and walls instead, and cost no CP — charges are the budget.
