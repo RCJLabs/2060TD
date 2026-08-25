@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.23, in the browser. No install, no account, works on a phone.
+v1.24, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -18,6 +18,48 @@ v1.23, in the browser. No install, no account, works on a phone.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.24: a raid declares what it came for
+
+Four milestones in a row arrived at the same complaint: a raid was 46–87% one
+tank, so the planner — squads, sectors, doctrines, launch delays, veterancy —
+was decoration around *did you bring the heavy*. The cause turned out to be
+narrower than "there is only one way to end a raid". A failed raid already
+razes a third of the post and banks about half a win's loot; the command post
+is only 40% of the prize. **Partial success existed. Progress did not** — the
+ladder, standing, veterancy and contracts all read one boolean.
+
+A raid now says what it is going out for:
+
+- **TAKE THE POST** — kill the command post. The only mission that moves the
+  Front Line, and it pays a full clear.
+- **SPIKE THE GUNS** — break 65% of the emplacements and withdraw. Pays 40% of
+  a clear in standing.
+- **RAID THE STORES** — break 65% of the depots and withdraw. Pays a 1.5×
+  premium on everything you carried out, and nothing on the board either way.
+
+**A lesser mission ends the raid the moment it is filled**, and that is the
+whole trade. Measured over 96 raids: withdrawing on the quota ends at 653 ticks
+instead of 1692 and brings **3.00 men home instead of 1.54**. You come back
+with less and keep the army you spent.
+
+- **The design had a veto, and passed it.** Named missions only help if a force
+  built for one is genuinely bad at another. Three forces per faction at equal
+  manpower, each under all three doctrines: **15 distinct winners of 15**. A
+  specialist lands 83–86% on its own mission and 0–25% on the others.
+- **The reason was already in the game.** Melee ignores the damage table so
+  infantry can kill a command post, while ranged fire is discounted hard
+  against structures so the same infantry cannot kill a tower. China's
+  barracks-only force takes posts 13.9% of the time while destroying *exactly
+  zero* emplacements.
+- **The ladder still means something.** Only the post advances a rung, and the
+  standing rates were set from standing per man lost rather than argued —
+  taking the post stays the efficient climb in all five factions by 1.5–2.3×.
+- **One obvious fix was priced and thrown away.** The ASSAULT doctrine has been
+  called "Beeline HQ" since the design doc and never beelined. Making it fire
+  on the move gave armour huge gains (the KPA 36% → 81% at taking a post) — and
+  was still wrong: on the plans players actually send it made three factions
+  worse, widened the faction spread, and deleted a mechanic tested since M2.
 
 ## Current state — v1.23: the seed starts to matter
 

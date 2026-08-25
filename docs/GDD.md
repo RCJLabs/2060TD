@@ -203,6 +203,48 @@ would have turned China's guns into the other kit's identity.
 `npm run balance -- --kits` is the measurement of record; `tests/kits.test.ts` is the structural
 guard that fails first.
 
+### What a raid comes for *(v1.24)*
+
+Until v1.24 a raid had exactly one ending that counted. Everything the player keeps —
+ladder rungs, standing, veterancy records, contracts, a duel marked solved — read the one
+boolean `cleared`. The material economy already knew better: a failed raid razes a third
+of the post and comes home with roughly half a win's loot, and the command post is only
+40% of the lootable value on the board. **Partial success existed; only progress did
+not** — which is what made one unit the whole raid.
+
+A raid now declares one of three missions before it launches:
+
+| | what it takes | what it pays |
+| --- | --- | --- |
+| **TAKE THE POST** | kill the command post | a full clear, and the only rung the Front Line gives |
+| **SPIKE THE GUNS** | 65% of the emplacements standing | 40% of a clear in standing |
+| **RAID THE STORES** | 65% of the depots standing | a 1.5× loot premium; nothing on the board |
+
+**A lesser mission ends the raid the moment it is filled**, and that is the trade: over 96
+measured raids, withdrawing on the quota ended at 653 ticks instead of 1692 and brought
+**3.00 men home instead of 1.54**. You come back with less and keep the army you spent.
+
+The quota is a share of what the base is *holding*, fixed at tick zero — a flat count is
+impossible on a small base and free on a large one, and a quota the raid could move by
+filling it would be a moving target.
+
+**Only taking the post advances the ladder**, so three wins still climb a tier and that
+still means something. The failure mode of paying anything for a lesser mission is that a
+cheap raid you can run twice as often becomes the fast climb; measured as standing per man
+lost, taking the post is the efficient route in all five factions by 1.5–2.3×.
+
+This works because the doctrines already deliver very differently, and because the reason
+is in the damage model rather than bolted on: melee ignores `DAMAGE_MULT` so infantry can
+kill a command post, while ranged fire is discounted hard against structures so the same
+infantry cannot kill a tower. `npm run balance -- --objective` is the instrument, and its
+headline is that **three objectives select three genuinely different forces** — 15 distinct
+winners of 15, with each winner scoring 0–25% on the missions it was not built for.
+
+Taking the post is a superset of every lesser mission: a force sent for the guns that ends
+up killing the command post has not failed, and pays like a post raid whatever it declared.
+A duel is always for the post — `town.duels` records the codes you have *beaten*, and that
+has to mean the same thing for everyone who fights one.
+
 ### A raid is a roll *(v1.23)*
 
 For twelve releases the sim never rolled in combat. The engine's one shared stream had

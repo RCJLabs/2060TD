@@ -303,3 +303,49 @@ here with the change and its date.
   one release is how a milestone ends up unable to say which half did the
   work, and this project has recorded that mistake before — Russia's ten
   points were left standing for the same reason in v1.20.
+- 2026-08-25 — **A raid declares what it came for, and progress stops being one
+  boolean.** Four milestones kept arriving at the same place: a raid was 46-87%
+  one tank and the planner was decoration around *did you bring the heavy*.
+  The cause turned out to be narrower and cheaper to fix than "there is only
+  one way to end a raid". A failed raid already razes a third of the post and
+  banks about half a win's loot — the material economy had partial credit all
+  along. What had none was PROGRESS: `frontline.wins`, standing, veterancy
+  records, `postsTaken` and duel completion all read `cleared`. So the razers
+  and hunters did deliver something; it was the currency that could not
+  advance you. The measurement with a veto over the whole design was whether
+  named objectives would select for different forces, and it came back **15
+  distinct winners of 15** — a specialist lands 83-86% on its own mission and
+  0-25% on the others. The mechanism was already in the damage model: melee
+  ignores `DAMAGE_MULT` so infantry can kill a command post, while ranged fire
+  is discounted hard against structures so the same infantry cannot kill a
+  tower. Different missions need different armies because the combat maths
+  already made them need different armies.
+- 2026-08-25 — **The objective lives in the war layer, not the sim.** The
+  engine knows what a structure IS — `structureClass` and `countStanding` are
+  queries it answers — and `src/meta/objectives.ts` decides what that means
+  for a raid. So there is no new `Phase`, no engine branch and no determinism
+  risk; the objective rides the config only so the resolver and the replay
+  stop on the same tick, through one shared `watchObjective` they both build
+  rather than two checks that could drift. The quota is a share of what the
+  base is holding rather than a flat count, because a flat count is impossible
+  on a small base and free on a large one; 0.65 was swept, not chosen. Only
+  taking the post advances the ladder, which protects it by construction, and
+  the standing rates were set from standing per MAN LOST rather than argued —
+  the post stays the efficient climb in all five factions by 1.5-2.3x.
+- 2026-08-25 — **"Beeline HQ" never beelined, and fixing that was the wrong
+  change.** ASSAULT halts for whatever comes into reach, exactly as HUNT and
+  RAZE do, only without preferring anything — which measured across three
+  force compositions left it the worst doctrine for guns, economy and loot in
+  every row, with a best case of TYING hunt at taking the post. Making it fire
+  on the move looked like the obvious fix and gave enormous gains: armour-only
+  forces went 59.7 to 88.9 for Russia, 36.1 to 80.6 for the KPA, 54.2 to 77.8
+  for the UN. It was still rejected. On the plans players actually send it made
+  three factions worse, the parity spread went 25.6 to 30.8, and it deleted a
+  mechanic specified and tested since M2 — two of its three test failures were
+  the single assertion "a ranged attacker stops to destroy a defensive
+  structure, then moves on". The armour-only row keeps being seductive and
+  keeps being wrong: a force nobody sends is not evidence about the game. What
+  objectives DID give ASSAULT is a reason to exist — there is now an ending
+  that only cares about the post — and it is the best post-taker for the USA
+  and China. For the other three it remains weakly dominated, and the untested
+  option is removing the doctrine outright.

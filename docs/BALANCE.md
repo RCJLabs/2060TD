@@ -1,4 +1,4 @@
-# Balance snapshot (v1.23)
+# Balance snapshot (v1.24)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -334,6 +334,72 @@ SAME MEN HOME is harsher still — the identical force walked back every time.
 Against v0 — 86% decided, 54% bringing the same men home — this is what
 the model bought. LENGTH widening alongside is the same battles being
 fought to different lengths rather than replayed.
+
+WHAT A RAID COULD COME FOR — quota is 65% of what the base holds
+FORCE  | DOCTRINE | TAKE POST | SPIKE GUNS | RAID STORES
+-------+----------+-----------+------------+------------
+USA
+ARMOUR |  ASSAULT |      83.3 |       47.2 |        15.3
+ARMOUR |     HUNT |      75.0 |       80.6 |        45.8
+ARMOUR |     RAZE |      76.4 |       51.4 |        65.3
+  FOOT |  ASSAULT |      40.3 |       23.6 |         6.9
+  FOOT |     HUNT |      36.1 |       37.5 |        29.2
+  FOOT |     RAZE |      33.3 |       19.4 |        48.6
+ MIXED |  ASSAULT |      62.5 |       19.4 |        11.1
+ MIXED |     HUNT |      62.5 |       70.8 |        38.9
+ MIXED |     RAZE |      58.3 |       23.6 |        63.9
+       best: POST ARMOUR/ASSAULT  ·  GUNS ARMOUR/HUNT  ·  STORES ARMOUR/RAZE
+-------+----------+-----------+------------+------------
+CHINA
+ARMOUR |  ASSAULT |      90.3 |       48.6 |        22.2
+ARMOUR |     HUNT |      90.3 |       87.5 |        51.4
+ARMOUR |     RAZE |      90.3 |       52.8 |        76.4
+  FOOT |  ASSAULT |      13.9 |        0.0 |         0.0
+  FOOT |     HUNT |       4.2 |       22.2 |         0.0
+  FOOT |     RAZE |       0.0 |        0.0 |        16.7
+ MIXED |  ASSAULT |      69.4 |       30.6 |        18.1
+ MIXED |     HUNT |      59.7 |       66.7 |        30.6
+ MIXED |     RAZE |      54.2 |       23.6 |        75.0
+       best: POST ARMOUR/ASSAULT  ·  GUNS ARMOUR/HUNT  ·  STORES ARMOUR/RAZE
+-------+----------+-----------+------------+------------
+RUSSIA
+ARMOUR |  ASSAULT |      59.7 |       33.3 |        18.1
+ARMOUR |     HUNT |      66.7 |       66.7 |        41.7
+ARMOUR |     RAZE |      69.4 |       37.5 |        66.7
+  FOOT |  ASSAULT |      55.6 |       38.9 |        20.8
+  FOOT |     HUNT |      55.6 |       61.1 |        40.3
+  FOOT |     RAZE |      48.6 |       44.4 |        54.2
+ MIXED |  ASSAULT |      54.2 |       26.4 |         6.9
+ MIXED |     HUNT |      62.5 |       68.1 |        38.9
+ MIXED |     RAZE |      43.1 |       23.6 |        77.8
+       best: POST ARMOUR/RAZE  ·  GUNS MIXED/HUNT  ·  STORES MIXED/RAZE
+-------+----------+-----------+------------+------------
+NK
+ARMOUR |  ASSAULT |      36.1 |       13.9 |        16.7
+ARMOUR |     HUNT |      52.8 |       63.9 |        25.0
+ARMOUR |     RAZE |      29.2 |       12.5 |        52.8
+  FOOT |  ASSAULT |      18.1 |        0.0 |         0.0
+  FOOT |     HUNT |      72.2 |       86.1 |         0.0
+  FOOT |     RAZE |       5.6 |        0.0 |        86.1
+ MIXED |  ASSAULT |      41.7 |        6.9 |         0.0
+ MIXED |     HUNT |      75.0 |       79.2 |        15.3
+ MIXED |     RAZE |      36.1 |       16.7 |        83.3
+       best: POST MIXED/HUNT  ·  GUNS FOOT/HUNT  ·  STORES FOOT/RAZE
+-------+----------+-----------+------------+------------
+UN
+ARMOUR |  ASSAULT |      54.2 |       38.9 |        18.1
+ARMOUR |     HUNT |      48.6 |       63.9 |        34.7
+ARMOUR |     RAZE |      44.4 |       31.9 |        41.7
+  FOOT |  ASSAULT |      48.6 |       33.3 |        15.3
+  FOOT |     HUNT |      29.2 |       43.1 |        33.3
+  FOOT |     RAZE |      37.5 |       27.8 |        47.2
+ MIXED |  ASSAULT |      48.6 |       15.3 |         8.3
+ MIXED |     HUNT |      59.7 |       63.9 |        20.8
+ MIXED |     RAZE |      52.8 |       19.4 |        70.8
+       best: POST MIXED/HUNT  ·  GUNS ARMOUR/HUNT  ·  STORES MIXED/RAZE
+-------+----------+-----------+------------+------------
+
+DISTINCT WINNERS 15 of 15. One force topping every column would mean the objective is a label on the same raid; a different force per column is the whole argument for letting a raid declare what it came for.
 
 GARRISON — the UNITED STATES reference force vs PLA posts
 CONFIG      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%

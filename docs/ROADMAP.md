@@ -1372,6 +1372,101 @@ orders and the ladder.
 
 ---
 
+---
+
+## M14 — v1.24 "The Objective": a raid declares what it came for *(shipped)*
+
+M11 measured that a raid was 46-87% one tank. M12 moved that for three factions and
+could not move it for two. M13 gave the instrument resolution. This milestone is the
+design change all three kept pointing at: a raid had exactly one ending that counted,
+and everything the player keeps read that one boolean.
+
+The material economy already knew better — a failed raid razes a third of the post and
+comes home with about half a win's loot, and the command post is only 40% of the
+lootable value on the board. Partial success existed; only PROGRESS did not.
+
+- [x] **An instrument, and the measurement that had a veto** *(v1.24, `--objective`)* —
+      *named objectives only help if a force built for one is genuinely bad at another.
+      Three forces per faction at the same 27 manpower, each under all three doctrines,
+      scored against all three candidate objectives:*
+
+          NK                 TAKE POST   SPIKE GUNS   RAID STORES
+          FOOT / HUNT             72.2         84.7           0.0
+          FOOT / RAZE              5.6          0.0          86.1
+          MIXED / RAZE            36.1         16.7          83.3
+          ARMOUR / ASSAULT        36.1         13.9          16.7
+
+      ***DISTINCT WINNERS 15 of 15.*** *A specialist lands 83-86% on its own objective
+      and 0-25% on the others; a generalist is mediocre at all three. The mechanism was
+      already in the damage model rather than invented for this: melee ignores
+      `DAMAGE_MULT` so infantry can kill a command post, while ranged fire is discounted
+      hard against structures so the same infantry cannot kill a tower. China's
+      barracks-only force takes posts 13.9% of the time while destroying exactly zero
+      emplacements.*
+
+- [x] **A raid stops when it has what it came for** *(v1.24)* — *the quota is a share of
+      what the base is HOLDING, fixed at tick zero. 0.65 was swept rather than chosen:
+      at 0.5 the lesser objectives are nearly free for the right force.*
+
+          when the guns objective is met, over 96 raids
+          ticks   post 1692   guns  653
+          home    post 1.54   guns 3.00
+
+      *Pulling out on the quota nearly doubles the men who walk back. That is the whole
+      trade — you keep the army you spent.*
+
+- [x] **Only the post moves the Front Line** *(v1.24)* — *so the ladder is protected by
+      construction. Spiking the guns pays 40% of a clear in standing; raiding the stores
+      pays a 1.5x loot premium and nothing on the board either way. Priced on standing
+      per MAN LOST, because men are the limiting resource:*
+
+          faction   POST    GUNS   ratio
+          USA      22.56    9.64   2.34x
+          CHINA    19.46   10.13   1.92x
+          RUSSIA    9.69    5.33   1.82x
+          NK        6.02    4.03   1.49x
+          UN        6.12    4.08   1.50x
+
+      *Taking the post is the efficient climb in all five. The FIRST run of that said
+      the KPA was inverted, because it assumed armour/assault was the post force — the
+      objective table had already said the KPA takes posts best with a HUNT force.*
+
+- [ ] **ASSAULT is still weakly dominated for three factions, and the obvious fix is
+      not it.** With objectives, ASSAULT finally has a REASON to exist — there is now an
+      ending that only cares about the post — and it is the best post-taker for the USA
+      and China. For Russia, the KPA and the UN it is not: their best post forces are
+      ARMOUR/RAZE and MIXED/HUNT.
+
+      *The fix that looked obvious was priced and REJECTED. GDD §2.2 has always called
+      this doctrine "Beeline HQ" and it never beelined — it halts for whatever comes
+      into reach, exactly as HUNT and RAZE do, only without preferring anything. Making
+      it fire on the move gave enormous gains to armour-only forces:*
+
+          ARMOUR/ASSAULT taking a post   before   after
+          RUSSIA                           59.7    88.9
+          NK                               36.1    80.6
+          UN                               54.2    77.8
+
+      ***And it was still the wrong change.*** *On the plans players actually send it
+      made three factions worse, the parity spread went 25.6 -> 30.8, and it deleted a
+      mechanic specified and tested since M2 — "a ranged attacker stops to destroy a
+      defensive structure, then moves on". Two of the three test failures were that one
+      mechanic. The lesson is the one the armour-only row keeps teaching: a force nobody
+      sends is not evidence about the game.*
+
+      *What is left untested is the other option: REMOVE the doctrine and let TAKE THE
+      POST be the objective rather than a posture. That is a content and codec change
+      and it belongs in its own pass.*
+
+- [ ] **The parity spread, still.** 25.6 points and China's T4 is still an exact zero.
+      Nothing in this milestone was tuned for it, deliberately — two releases running now
+      that the measure changed, which is a pattern to be suspicious of. The next
+      milestone should be the parity pass, with the reference plans re-derived: `--plans`
+      says a plan is worth up to 13.7 points and the plans predate both the roll and the
+      objective.
+
+---
+
 **The bar, same as the last three milestones:** parity means the SPREAD closes
 without the mean moving much, and it has to be a trade — a faction that reads
 as a swarm should still lose more men to win the same fight. Flattening all
