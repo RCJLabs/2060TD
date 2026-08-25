@@ -506,6 +506,15 @@ export interface RaidResolution {
   powersUsed: Record<string, number>;
   /** Reserves the base's garrison stood up while you were getting there (v1.20). */
   reserves: number;
+  /**
+   * How much of the command post was still standing when the raid ended,
+   * 0..1 (v1.23).
+   *
+   * A raid is a roll now, so the report has to be able to say how the roll
+   * went. On a repulse this is how close the post came to falling; on a clear
+   * it is 0 and the margin is read off who came home instead.
+   */
+  ccHpFraction: number;
 }
 
 /** Loot multipliers a raid is fought under (league band × field condition). */
@@ -608,6 +617,7 @@ export function resolveRaid(
     destructionPct: initialTotal > 0 ? destroyedTotal / initialTotal : 0,
     powersUsed,
     reserves: engine.ordersExecuted,
+    ccHpFraction: Math.max(0, engine.cc.hp / engine.cc.profile.maxHp),
   };
 }
 

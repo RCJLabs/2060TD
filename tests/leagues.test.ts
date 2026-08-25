@@ -218,8 +218,9 @@ describe('the board and the war', () => {
   const win = {
     cleared: true, ticks: 100, deployed: {}, survivors: {}, losses: {},
     destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1, powersUsed: {}, reserves: 0, squads: [],
+    ccHpFraction: 0,
   };
-  const loss = { ...win, cleared: false, destructionPct: 0.2 };
+  const loss = { ...win, cleared: false, destructionPct: 0.2, ccHpFraction: 0.6 };
   const plan: SquadPlan[] = [{ units: { ranger: 1 }, sector: 'W1', doctrine: 'assault' }];
 
   it('pays standing for a rung and takes it back for a failed raid', () => {

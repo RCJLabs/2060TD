@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.22, in the browser. No install, no account, works on a phone.
+v1.23, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -18,6 +18,50 @@ v1.22, in the browser. No install, no account, works on a phone.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.23: the seed starts to matter
+
+For twelve releases the sim never rolled in combat. Its one shared random stream
+had exactly three draw sites — a small speed jitter at spawn and two for barrage
+scatter — so a raid was decided by its **matchup** and not by its **battle**.
+`npm run balance -- --seed` was written to ask, fighting each of 200 matchups
+twelve times:
+
+    200 matchups          BEFORE      AFTER
+    every seed agreed     172 (86%)   125 (63%)
+    same men walked back  108 (54%)    55 (28%)
+
+Two things followed from the *before* column and both were live. Every CLEAR%
+in every table was a **count of matchups tipped** rather than a probability, so
+twelve releases of tuning had been read off a measure that moves in 6.7-point
+steps. And re-fighting a base was pointless, which quietly hollowed out the
+league, the day orders and the whole ladder.
+
+- **Not every burst tells.** A quarter of fire does nothing at all, and the rest
+  is scaled up so a gun's expected output over a battle is exactly what its stat
+  line says. Nothing is buffed and nothing is nerfed — what changes is that a
+  unit's death is no longer a fixed number of ticks after it comes into range.
+- **Twelve candidates were priced first, and two findings were not the guess.**
+  A *fine* spread washes out: ±50% on every shot barely moves the verdict,
+  because many small independent rolls average to their mean inside one
+  engagement. And *aiming loosely* — letting a gun pick among near-equal targets
+  — turned out to be a difficulty change rather than a variance one, making
+  raids easier while *undoing* six points of resolution when stacked on the
+  winner. It was measured, it lost, and the mechanism was deleted with it.
+- **A duel is a puzzle, so it is pinned.** A challenge fixes its rolls to the
+  pasted code's own fingerprint: the game already records the challenges you
+  have *solved*, and rolls that varied per attempt would put the luck back in.
+  The ladder varies. Old replays re-fight exactly what they recorded — the model
+  is a frozen version, and version 0 is the sim that never rolled.
+- **Every spread narrowed without a single content change** — parity 27.0 →
+  25.6, the two-kit gap 13.5 → 12.0, best-plan spread 20.4 → 18.3 — and the
+  ladder's *impossible* rungs mostly stopped being impossible. Nothing was
+  tuned in the same release that changed the measure; doing both at once is how
+  you end up unable to say which half did the work.
+- **One gesture moves one thing.** A drag on the map no longer scrolls the
+  button drawer as well, in either direction and for the wheel too. Three
+  separate faults produced that one symptom, and `scripts/e2e-gesture.mjs` now
+  reads both viewports across a single gesture to keep them fixed.
 
 ## Current state — v1.22: a raid stops being one unit
 
@@ -967,7 +1011,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --plans for how much of a faction row is the plan, or
                    # -- --structure for what actually kills a command post, or
                    # -- --carry for how much of a raid is one unit, or
-                   # -- --seed for how much of a raid the seed decides)
+                   # -- --seed [ver] for how much of a raid the seed decides, or
+                   # -- --sweep [vers] to price combat-variance candidates)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)

@@ -668,8 +668,26 @@ export class RaidScene extends Phaser.Scene {
     const ordnanceLine = Object.entries(res.powersUsed)
       .map(([kind, n]) => `${n}× ${kind.toUpperCase()}`)
       .join('  ');
+    // How the roll went (v1.23). A raid is no longer decided by its matchup,
+    // so the report has to be able to say whether this one was close — and it
+    // is read off different things either way round. Winning, the margin is
+    // who walked back; losing, it is how much of the post was left standing.
+    const sent = res.squads.reduce((a, sq) => a + sq.deployed, 0);
+    const home = res.squads.reduce((a, sq) => a + sq.returned, 0);
+    const margin = res.cleared
+      ? sent > 0 && home / sent < 0.2
+        ? 'Close-run: the post fell with almost nobody left to hold it.'
+        : sent > 0 && home / sent > 0.6
+          ? 'Comfortable: the post fell and most of the force walked back.'
+          : null
+      : res.ccHpFraction < 0.25
+        ? 'Close-run: the post was nearly down when the last of them fell.'
+        : res.ccHpFraction > 0.9
+          ? 'One-sided: the post was barely scratched.'
+          : null;
     const lines = [
       `Destruction: ${Math.round(res.destructionPct * 100)}%   Duration: ${Math.floor(res.ticks / 20)}s`,
+      ...(res.cleared ? [] : [`Post integrity: ${Math.round(res.ccHpFraction * 100)}%`]),
       `Loot: +${res.loot.supplies} SUP  +${res.loot.fuel} FUEL`,
       lossLine ? `Losses: ${lossLine}` : 'Losses: none',
       ...(this.squadReport ?? []),
@@ -680,6 +698,7 @@ export class RaidScene extends Phaser.Scene {
       ...(res.reserves > 0
         ? [`Garrison stood up: ${res.reserves} reserve${res.reserves === 1 ? '' : 's'}`]
         : []),
+      ...(margin ? [margin] : []),
       res.cleared
         ? `Front Line: ${this.town.frontline.wins}/3 to next tier` +
           (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')

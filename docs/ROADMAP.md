@@ -1278,6 +1278,100 @@ closed *without* a change. The single content edit is ten numbers.
       the check needs, on a deadline generous enough that only a real fault
       reaches it.*
 
+---
+
+## M13 — v1.23 "The Roll": make the seed matter *(shipped)*
+
+M11 and M12 both ended by noticing that the instrument was the problem. This milestone
+pointed the instrument at itself.
+
+`npm run balance -- --seed` fights each matchup twelve times and asks how often they all
+agree. On v1.22 the answer was **86%** — and in **54%** of matchups the identical force
+walked back every time. The only thing the seed reliably changed was how long a battle
+took. So `clearPct` in every table was a count of matchups tipped rather than a
+probability, twelve releases of tuning had been read off a measure with 6.7-point steps,
+and re-fighting a base was pointless, which quietly hollowed out the league, the day
+orders and the ladder.
+
+- [x] **An instrument that can see the seed** *(v1.23, `--seed`)* — *the baseline, and a
+      corroboration of v1.22 from a new direction: the USA and China, whose raids succeed
+      on the tank alone, were the most decided at 93% and 95%; the three with a real
+      second arm sat at 80–83%.*
+
+- [x] **Four shapes priced, one shipped** *(v1.23)* — *twelve candidates, each on the same
+      8 seeds and 200 matchups, each built so its expected multiplier is exactly 1 — a roll
+      whose mean drifts is a difficulty change wearing a variance costume and the tables
+      could not tell them apart.*
+
+          MODEL                  DECIDED   SAME HOME   CLEAR vs FLAT
+          no rolls (v1.22)          88%        56%          —
+          damage ±50%               77%        42%        +0.4
+          miss 25%    <- shipped    64%        30%        +1.1
+          miss 40%                  65%        24%        +2.1
+          glance 40% at x0.3        69%        31%        +0.6
+          aim slack 6               78%        37%        +2.2
+          miss 25% + slack 1.5      70%        31%        +1.9
+
+      ***A fine spread washes out*** *— ±50% on every shot barely moves the verdict,
+      because many small independent rolls average to their mean inside one engagement.
+      Variance has to be COARSE to survive to the outcome.*
+
+      ***The zero matters, not just the variance*** *— the glance and the miss above have
+      almost the same variance (0.327 against 0.333) and land five points apart, because a
+      shot that does nothing lets a unit at 1hp live and a shot that half-lands does not.*
+
+      ***Aiming loosely is a difficulty change, not a variance one*** *— +2.2 clear for a
+      thin fall in DECIDED, and stacked on the winner it UNDID six points of it. Spreading
+      fire across a force averages the damage instead of concentrating it, so nobody
+      crosses a threshold early. Measured, lost, and the mechanism deleted with it.*
+
+      *25% is an optimum rather than a floor: 30% and 40% both buy less resolution for more
+      drift, because past a point a battle stops being uncertain and starts being long.*
+
+- [x] **Shipped behind a frozen version** *(v1.23)* — *`combatVersion` on `SimConfig`, its
+      own RNG stream, and version 0 meaning exactly the sim that never rolled. Replay codes
+      carry the block on the v1.19 pattern with no FORMAT bump, so no vault is emptied and
+      a battle recorded flat stays flat. The replay tests found the gap before the codec
+      closed it — four failures the moment raids started rolling, every one of them a
+      replay re-fighting a battle that never happened.*
+
+- [x] **A duel is a puzzle, so it is pinned** *(v1.23)* — *a challenge pins its rolls to
+      the pasted code's fingerprint. `town.duels` records the challenges you have SOLVED,
+      and the existing rule already strips the weather and the bonus so the plan is what
+      differs between attempts; rolls that varied per attempt would put the luck straight
+      back in and "beaten" would stop meaning solved. The ladder, seeded from the clock,
+      varies.*
+
+- [x] **Re-read, deliberately not re-tuned** *(v1.23)* — *every spread narrowed without a
+      single content change:*
+
+          parity spread     27.0 -> 25.6
+          two-kit gap       13.5 -> 12.0
+          best-plan spread  20.4 -> 18.3
+          mean clear        58.3 -> 59.7
+
+      *The mean rising ~1 point is the threshold asymmetry the pricing predicted: a raid
+      needs its heavy to reach the post, so noise in the fire trying to stop it helps the
+      attacker slightly more often than it hurts. The ladder's IMPOSSIBLE rungs mostly
+      stopped being impossible — four exact zeros in the parity table became one.*
+
+      ***Nothing was tuned in the same release that changed the measure.*** *Doing both at
+      once is how a milestone ends up unable to say which half did the work, and this
+      project has recorded that mistake before.*
+
+- [ ] **The parity pass, now that there is something to measure with.** The spread is 25.6
+      points and China's T4 is still an exact zero. Every open balance item below this line
+      was written against a measure with 6.7-point steps and should be re-read before any
+      of it is acted on — including the T3–T5 items, the air table, and the eleven-release
+      L2→L3 cliff.
+
+- [ ] **Decide whether the +1 belongs to the attacker.** The mean rose because variance is
+      asymmetric around a threshold. That is a real finding about the shape of a raid, not
+      an artifact, and it is either a small difficulty gift to be taken back or evidence
+      that the post should be harder to reach than to kill. It has not been decided.
+
+---
+
 **The bar, same as the last three milestones:** parity means the SPREAD closes
 without the mean moving much, and it has to be a trade — a faction that reads
 as a swarm should still lose more men to win the same fight. Flattening all

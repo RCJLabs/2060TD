@@ -247,3 +247,59 @@ here with the change and its date.
   fail when its own cause is reverted, and two false passes were found and
   fixed in the harness itself along the way — a list already at its stop cannot
   move, and reads zero for a reason that has nothing to do with the fix.
+- 2026-08-25 — **The seed was nearly inert, and every balance table was a count.**
+  `npm run balance -- --seed` was written to ask a question nobody had asked in
+  twelve releases: does the seed change a raid? Fighting each of 200 matchups
+  twelve times, **86% reached the same verdict every time** and in **54%** the
+  identical force walked back. The one thing that moved was how long a battle
+  took — the ±3–8% spawn jitter perturbing arrival times without perturbing
+  who wins, which is exactly why nothing ever looked wrong. Two consequences
+  followed and both were live: `clearPct` in every matrix was a COUNT of
+  matchups tipped rather than a probability, so a 15-cell mean moved in
+  6.7-point steps and twelve releases of tuning had been read off it; and
+  re-fighting a base was pointless, which quietly hollowed out the league, the
+  day orders and the ladder. The per-faction split corroborated v1.22 from a
+  new direction — the USA and China, whose raids succeed on the tank alone,
+  were the most decided at 93% and 95%, against 80–83% for the three with a
+  real second arm.
+- 2026-08-25 — **Not every burst tells: a quarter of fire does nothing, and the
+  rest is scaled so nothing is buffed.** Twelve candidates across four shapes
+  were priced on the same 8 seeds, each built so its expected multiplier is
+  exactly 1 — a roll whose mean drifts is a difficulty change wearing a
+  variance costume and the tables cannot tell the two apart. Three findings,
+  two of them not the guess. **A fine spread washes out**: ±50% on every shot
+  moved DECIDED only 88%→77%, because many small independent rolls average to
+  their mean inside one engagement, so variance has to be COARSE to survive to
+  the outcome. **The zero matters, not just the variance**: a 40% glance to
+  ×0.3 and a 25% miss have almost identical variance (0.327 against 0.333) and
+  land five points apart, because a shot that does nothing lets a unit at 1hp
+  live. **Aiming loosely is a difficulty change rather than a variance one**:
+  letting a gun pick among near-equal targets cost +2.2 clear for a thin fall
+  in DECIDED, and stacked on the winner it UNDID six points of it — spreading
+  fire across a force averages the damage instead of concentrating it, so
+  nobody crosses a threshold early. It was measured, it lost, and the
+  mechanism was deleted rather than left in as dead surface. 25% turned out to
+  be an optimum rather than a floor: 30% and 40% both buy less resolution for
+  more drift. Shipped: DECIDED 86%→63%, SAME MEN HOME 54%→28%, and the plan is
+  still worth up to 13.7 points, so skill did not wash out with the certainty.
+- 2026-08-25 — **A duel is a puzzle to beat, so its rolls are pinned; the
+  ladder's are not.** Once combat rolls, "fight this pasted code" splits in
+  two. A challenge pins its rolls to the code's own fingerprint: `town.duels`
+  records the challenges you have SOLVED, and the rule already in place strips
+  the weather and the loot bonus from a duel so that the PLAN is what differs
+  between two attempts — rolls that varied per attempt would put the luck
+  straight back in and "beaten" would stop meaning solved. The ladder, seeded
+  from the clock, is a different battle every time you go out, which is the
+  half of the game that was stale. Share codes needed no change at all: a code
+  carries a BASE, and the model is a property of the battle fought against it.
+- 2026-08-25 — **Changed the measure, did not tune in the same release.** Every
+  spread narrowed on its own — parity 27.0→25.6, the two-kit gap 13.5→12.0,
+  the best-plan spread 20.4→18.3 — and the ladder's impossible rungs mostly
+  stopped being impossible, four exact zeros in the parity table becoming one.
+  The mean rose ~1 point, which the pricing predicted and which is threshold
+  asymmetry rather than a broken mean: a raid needs its heavy to reach the
+  post, so noise in the fire trying to stop it helps the attacker slightly
+  more often than it hurts. None of that was tuned back. Doing both halves in
+  one release is how a milestone ends up unable to say which half did the
+  work, and this project has recorded that mistake before — Russia's ten
+  points were left standing for the same reason in v1.20.

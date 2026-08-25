@@ -203,6 +203,49 @@ would have turned China's guns into the other kit's identity.
 `npm run balance -- --kits` is the measurement of record; `tests/kits.test.ts` is the structural
 guard that fails first.
 
+### A raid is a roll *(v1.23)*
+
+For twelve releases the sim never rolled in combat. The engine's one shared stream had
+exactly three draw sites — a ±3–8% speed jitter at spawn and two for barrage scatter — so a
+raid was decided by its **matchup** rather than by its **battle**. `npm run balance -- --seed`
+is the instrument that measured it, fighting each matchup twelve times:
+
+    200 matchups          BEFORE      AFTER
+    every seed agreed     172 (86%)   125 (63%)
+    same men walked back  108 (54%)    55 (28%)
+    mean clear rate          58.3       59.7
+
+The only thing that moved before was how *long* a battle took, which is the spawn jitter
+perturbing arrival times without perturbing who wins — and is why nothing ever looked wrong
+from the outside. It mattered anyway: `clearPct` in every table was a **count of matchups
+tipped**, not a probability, so a 15-cell mean moved in steps of 6.7 points; and re-fighting
+a base was pointless, which quietly hollowed out the league, the day orders and the ladder.
+
+**The model is that not every burst tells.** A quarter of fire does nothing at all and the
+rest is scaled up so a gun's expected output over a battle is exactly what its stat line
+says — nothing is buffed and nothing is nerfed. What changes is that a unit's death is no
+longer a fixed number of ticks after it comes into range.
+
+Twelve candidates were priced before that one was chosen, and two of the findings were not
+the guess. **A fine spread washes out**: ±50% on every shot barely moves the verdict,
+because many small independent rolls average to their mean inside one engagement. **The
+zero matters, not just the variance**: a 40%-chance glance to ×0.3 has almost the same
+variance as a 25% miss and lands five points apart, because a shot that does nothing lets a
+unit at 1hp live. And **aiming loosely is a difficulty change rather than a variance one** —
+letting a gun pick among near-equal targets made raids easier for a thin fall in DECIDED,
+and stacked on the winner it *undid* six points of it, because spreading fire across a force
+averages the damage instead of concentrating it.
+
+Determinism is untouched. The rolls draw from their own stream, seeded separately, so the
+same `(seed, combatSeed, model)` is the same battle every time and a replay re-fights what
+it recorded. The model is a **version**, frozen forever: version 0 is the sim that never
+rolled, which is what every config written before v1.23 gets.
+
+**A duel does not roll differently between attempts.** A challenge pins its rolls to the
+pasted code's own fingerprint, because `town.duels` records the challenges you have *solved*
+and the existing rule already strips the weather and the bonus so that the plan is what
+differs. The ladder, seeded from the clock, is a different battle every time you go out.
+
 ### The ladder *(v1.21)*
 
 Tier scales three things, and until v1.21 it scaled them in one lump. `structureLevelFor` steps
