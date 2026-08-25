@@ -1058,6 +1058,9 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --objective [share] for what a raid could come for, or
                    # -- --derive [n] to search for a plan that beats the reference, or
                    # -- --derive-air [n] for the same search, forced to fly)
+node scripts/e2e-mobile.mjs  # the mobile audit: target sizes, mis-tap gaps,
+                   # thumb reach, clipped text, safe-area plumbing, across
+                   # three phone viewports
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)

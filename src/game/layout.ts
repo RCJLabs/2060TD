@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { safeAreaInsets, type SafeArea } from './mobile';
 
 /**
  * Responsive layout (v0.9, mobile-first).
@@ -62,6 +63,12 @@ export interface Layout {
   cols: number;
   /** CSS px → device px, for anything laid out ad hoc. */
   px: (cssValue: number) => number;
+  /**
+   * What the hardware is sitting on, in DEVICE px — the notch, the home
+   * indicator, a punch-hole in landscape. Every rect above is already inset
+   * by this; it is exposed so an overlay laid out ad hoc can be too.
+   */
+  safe: SafeArea;
 }
 
 /** Retina is worth it; 3× costs fill rate for no legibility gain. */
@@ -75,7 +82,10 @@ export function devicePixelRatioCapped(): number {
 /** Design tokens in CSS px, before the DPR multiply. */
 const COMPACT = {
   rowH: 44,
-  gap: 6,
+  // 8, not 6: below about 8px two targets start sharing a fingertip and the
+  // wrong one fires. `e2e-mobile` holds the line, and it was 6 through v1.25 —
+  // every tab strip in the game was inside the mis-tap band.
+  gap: 8,
   pad: 10,
   statusH: 58,
   tabsH: 56,
@@ -105,6 +115,7 @@ export function computeLayout(
   cssHeight: number,
   dpr: number,
   drawerOpen = true,
+  insets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 },
 ): Layout {
   const mode: LayoutMode = cssHeight > cssWidth ? 'portrait' : 'landscape';
   // Phones and small tablets get thumb-sized controls; big screens stay tight.
@@ -132,31 +143,50 @@ export function computeLayout(
   let list: Rect;
   let cols = 1;
 
+  // Everything lays out inside the safe box, not the canvas. `viewport-fit=cover`
+  // means the canvas runs under the notch and the home indicator, and a control
+  // drawn there is one the hardware is sitting on: unreadable at best, untappable
+  // at worst. The board is inset with the rest rather than bled edge-to-edge,
+  // because its cells are targets — a tile under the notch cannot be built on.
+  const sx = px(insets.left);
+  const sy = px(insets.top);
+  const sw = width - px(insets.left) - px(insets.right);
+  const sh = height - px(insets.top) - px(insets.bottom);
+
   if (mode === 'portrait') {
     const statusH = px(t.statusH);
     const tabsH = px(t.tabsH);
     // The drawer takes a bounded share of the screen so the board keeps the
     // majority of it; collapsing gives the board nearly the whole viewport.
-    const drawerH = drawerOpen
-      ? clamp(Math.round(height * 0.42), px(200), px(400))
-      : 0;
-    status = { x: 0, y: 0, w: width, h: statusH };
-    board = { x: 0, y: statusH, w: width, h: height - statusH - drawerH - tabsH };
-    list = { x: 0, y: board.y + board.h, w: width, h: drawerH };
-    tabs = { x: 0, y: height - tabsH, w: width, h: tabsH };
-    panel = { x: 0, y: list.y, w: width, h: drawerH + tabsH };
+    const drawerH = drawerOpen ? clamp(Math.round(sh * 0.42), px(200), px(400)) : 0;
+    status = { x: sx, y: sy, w: sw, h: statusH };
+    board = { x: sx, y: sy + statusH, w: sw, h: sh - statusH - drawerH - tabsH };
+    // The list stops a gutter short of the tab strip. Flush, the last row a
+    // player can see is touching a navigation tab, and a thumb aimed at the row
+    // changes tab instead — a mis-tap that crosses a mode boundary, which is
+    // worse than any two neighbours inside one strip.
+    list = { x: sx, y: board.y + board.h, w: sw, h: Math.max(0, drawerH - gap) };
+    tabs = { x: sx, y: sy + sh - tabsH, w: sw, h: tabsH };
+    panel = { x: sx, y: list.y, w: sw, h: drawerH + tabsH };
     // Wide phones fit two columns of rows; narrow ones stay single-file.
     cols = cssWidth >= 500 ? 2 : 1;
   } else {
-    const railW = Math.round(clamp(width * 0.3, px(258), px(340)));
+    const railW = Math.round(clamp(sw * 0.3, px(258), px(340)));
     // Title plus three resource lines, with breathing room.
     const statusH = px(t.font.label + t.font.tiny * 3 + t.pad * 2.6);
     const tabsH = px(t.tabsH);
-    board = { x: 0, y: 0, w: width - railW, h: height };
-    panel = { x: width - railW, y: 0, w: railW, h: height };
-    status = { x: panel.x, y: 0, w: railW, h: statusH };
-    tabs = { x: panel.x, y: statusH, w: railW, h: tabsH };
-    list = { x: panel.x, y: statusH + tabsH, w: railW, h: height - statusH - tabsH };
+    board = { x: sx, y: sy, w: sw - railW, h: sh };
+    panel = { x: sx + sw - railW, y: sy, w: railW, h: sh };
+    status = { x: panel.x, y: sy, w: railW, h: statusH };
+    tabs = { x: panel.x, y: sy + statusH, w: railW, h: tabsH };
+    // Same gutter in landscape, where the strip is above the list rather than
+    // below it.
+    list = {
+      x: panel.x,
+      y: sy + statusH + tabsH + gap,
+      w: railW,
+      h: sh - statusH - tabsH - gap,
+    };
     cols = compact ? 1 : 1;
   }
 
@@ -179,6 +209,12 @@ export function computeLayout(
     font,
     cols,
     px,
+    safe: {
+      top: px(insets.top),
+      right: px(insets.right),
+      bottom: px(insets.bottom),
+      left: px(insets.left),
+    },
   };
 }
 
@@ -186,7 +222,13 @@ export function computeLayout(
 export function layoutOf(scene: Phaser.Scene, drawerOpen = true): Layout {
   const dpr = devicePixelRatioCapped();
   const size = scene.scale.gameSize;
-  return computeLayout(size.width / dpr, size.height / dpr, dpr, drawerOpen);
+  return computeLayout(
+    size.width / dpr,
+    size.height / dpr,
+    dpr,
+    drawerOpen,
+    safeAreaInsets(),
+  );
 }
 
 /**

@@ -21,6 +21,12 @@ export interface Button {
   setLabel(text: string): void;
   setSub(text: string): void;
   setRect(x: number, y: number, w: number, h: number): void;
+  /**
+   * Restrict the tappable area to the intersection with `clip`, in device px.
+   * Null clears it. For a row scrolling under a strip: the mask hides the part
+   * that has left, and this stops it taking the press.
+   */
+  setHitClip(clip: { x: number; y: number; w: number; h: number } | null): void;
   setFont(size: number): void;
   /** Wrap the label to this width in device px; null leaves it on one line. */
   setWrap(width: number | null): void;
@@ -71,10 +77,13 @@ export interface ButtonOptions {
 export interface ButtonProbe {
   label: string;
   sub: string;
+  /** The area a finger can actually land on: the drawn box, clipped. */
   x: number;
   y: number;
   w: number;
   h: number;
+  /** The box as laid out, before any clip — what the design intended. */
+  full: { x: number; y: number; w: number; h: number };
   enabled: boolean;
 }
 
@@ -195,6 +204,46 @@ export function makeButton(
     sub?.setPosition(rect.x + rect.w - pad, top);
   };
   place();
+
+  /**
+   * The tappable area, which is NOT always the drawn area.
+   *
+   * `setSize` on a Rectangle does not resize the hit area Phaser built at
+   * `setInteractive` time, and a row scrolling past the end of its list is
+   * masked but still live. Both are the same fix: recompute the hit rectangle
+   * in LOCAL coordinates — origin is top-left, so local (0,0) is rect (x,y) —
+   * and intersect it with the clip when there is one. An empty intersection
+   * disables input rather than leaving a zero-sized rectangle, which Phaser
+   * still counts as a hit along its edges.
+   *
+   * This owns `input.enabled` on GEOMETRY alone. A greyed-out button keeps a
+   * live hit area — the handlers test `enabled` themselves — so folding the
+   * two together here would quietly make every unaffordable row untappable.
+   */
+  let clip: { x: number; y: number; w: number; h: number } | null = null;
+  const applyClip = (): void => {
+    const input = bg.input;
+    if (!input) return;
+    const area = input.hitArea as Phaser.Geom.Rectangle | undefined;
+    if (!area || typeof area.setTo !== 'function') return;
+    if (!clip) {
+      area.setTo(0, 0, rect.w, rect.h);
+      input.enabled = true;
+      return;
+    }
+    const left = Math.max(rect.x, clip.x);
+    const top = Math.max(rect.y, clip.y);
+    const right = Math.min(rect.x + rect.w, clip.x + clip.w);
+    const bottom = Math.min(rect.y + rect.h, clip.y + clip.h);
+    if (right <= left || bottom <= top) {
+      area.setTo(0, 0, 0, 0);
+      input.enabled = false;
+      return;
+    }
+    area.setTo(left - rect.x, top - rect.y, right - left, bottom - top);
+    input.enabled = true;
+  };
+
   if (opts.container) {
     opts.container.add(bg);
     opts.container.add(label);
@@ -308,15 +357,40 @@ export function makeButton(
     // World-space bounds: scrolling containers move buttons without touching
     // their local x/y, and the harness taps where the finger would land.
     const box = bg.getBounds();
+    // Reported CLIPPED, because the question a harness asks of this is "where
+    // can a finger land", and for a row scrolled half out of its list the drawn
+    // box and the live box are different rectangles. Reporting the drawn one
+    // made `e2e-mobile` measure overlaps that no longer exist and miss ones
+    // that do.
+    let { x, y } = box;
+    let w = box.width;
+    let h = box.height;
+    if (clip) {
+      const left = Math.max(x, clip.x);
+      const top = Math.max(y, clip.y);
+      const right = Math.min(x + w, clip.x + clip.w);
+      const bottom = Math.min(y + h, clip.y + clip.h);
+      x = left;
+      y = top;
+      w = Math.max(0, right - left);
+      h = Math.max(0, bottom - top);
+    }
     return {
       label: label.text,
       sub: sub?.text ?? '',
-      x: box.x,
-      y: box.y,
-      w: box.width,
-      h: box.height,
+      x,
+      y,
+      w,
+      h,
+      // The DRAWN box as well as the live one. They answer different
+      // questions and an audit that conflates them is wrong twice: "is this
+      // target big enough" is about the design and must read the full box,
+      // while "do two targets overlap" is about the finger and must read the
+      // clipped one. A row half-scrolled out of a list is a legitimate sliver
+      // to tap, not an undersized button.
+      full: { x: box.x, y: box.y, w: box.width, h: box.height },
       enabled,
-      visible: bg.visible && bg.active,
+      visible: bg.visible && bg.active && w > 0 && h > 0,
       dead: bg.scene === undefined,
     };
   };
@@ -359,6 +433,11 @@ export function makeButton(
       // Pad comes from the FONT, not the row's own height: a three-line row
       // gets the same inset as a one-line one.
       place();
+      applyClip();
+    },
+    setHitClip(next) {
+      clip = next;
+      applyClip();
     },
     setFont(size: number) {
       if (fontSize === size) return;
@@ -724,13 +803,17 @@ export class Panel {
         button.setRect(x, y, colW, lineH);
         // The mask hides scrolled-away rows but does not un-tap them: a row
         // parked under the status strip would still take a press. Rows leave
-        // the display when clear of the list, and stop taking input as soon
-        // as their middle does.
+        // the display when clear of the list, and their hit area is clipped
+        // to the list so the part that has scrolled out cannot be pressed.
+        //
+        // Clipped, not toggled on the midpoint (v1.26). The midpoint test kept
+        // a row live until half of it had left, so up to half a row of hit area
+        // sat OUTSIDE the list, over the tab strip below it — `e2e-mobile`
+        // measured the last row and a navigation tab overlapping by 0.0px. A
+        // thumb aimed at the row changed tab instead, which is a mis-tap across
+        // a mode boundary and the worst kind there is.
         button.setVisible(y + lineH > list.y && y < list.y + list.h);
-        const middle = y + lineH / 2;
-        if (button.bg.input) {
-          button.bg.input.enabled = middle >= list.y && middle <= list.y + list.h;
-        }
+        button.setHitClip(list);
       });
 
       y += lineH + gap;

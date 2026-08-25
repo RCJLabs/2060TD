@@ -7,7 +7,7 @@ import { ReplayScene } from './game/scenes/ReplayScene';
 import { SiegeScene } from './game/scenes/SiegeScene';
 import { TownScene } from './game/scenes/TownScene';
 import { dismissBootCard } from './game/boot';
-import { devicePixelRatioCapped } from './game/layout';
+import { devicePixelRatioCapped, layoutOf } from './game/layout';
 import { initMobileShell } from './game/mobile';
 import { COLORS, css } from './game/palette';
 import { applySettings, loadSettings } from './game/settings';
@@ -94,6 +94,10 @@ dismissBootCard(game);
   wet: (col: number, row: number) => boardWetAt(col, row),
   camera: () => boardCamera(),
   scroll: () => panelScroll(),
+  layout: () => {
+    const active = game.scene.getScenes(true)[0];
+    return active ? layoutOf(active) : null;
+  },
   get dpr() {
     return dpr;
   },
