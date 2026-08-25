@@ -95,6 +95,27 @@ try {
   check('the planner opens on a target', (await copy(/TARGET GRID/i)) !== '', await copy(/TARGET GRID/i));
   check('nothing is committed yet', (await mustered()) === 0, `${await mustered()} units`);
 
+  // The mission is the first decision (v1.24), and it has to be a real one:
+  // the row has to cycle, and the quota has to be read off the post rather
+  // than being a fixed number — a base with five emplacements and one with
+  // three cannot be asked for the same count.
+  const mission = () => copy(/TAKE THE POST|SPIKE THE GUNS|RAID THE STORES/i);
+  const opening = await mission();
+  check('the planner names what the raid is for', opening !== '', opening);
+  await tap(opening.split('\n')[0] || 'TAKE THE POST', 300);
+  const second = await mission();
+  check('and the mission can be changed', second !== opening, `${opening} → ${second}`);
+  const quota = /(\d+)\s*of\s*(\d+)/i.exec(await copy(/\d+ of \d+/));
+  check(
+    'and a lesser mission asks for a share of what the post holds',
+    quota !== null && Number(quota[1]) > 0 && Number(quota[1]) < Number(quota[2]),
+    quota ? `${quota[1]} of ${quota[2]}` : 'no quota shown',
+  );
+  // Back to taking the post, so the rest of the run measures what it always did.
+  for (let i = 0; i < 3 && !/TAKE THE POST/i.test(await mission()); i++) {
+    await tap((await mission()).split('\n')[0], 300);
+  }
+
   await tap('SQUADS', 600);
   for (let i = 0; i < 3; i++) await tap('+ RANGER SQUAD', 200);
   await tap('+ M1 ABRAMS', 200);

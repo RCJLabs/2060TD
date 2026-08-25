@@ -68,6 +68,14 @@ import {
   type SectorId,
   type SquadPlan,
 } from '../../meta/warfare';
+import {
+  OBJECTIVES,
+  OBJECTIVE_IDS,
+  baseClassCounts,
+  objectiveAvailable,
+  quotaFor,
+  type ObjectiveId,
+} from '../../meta/objectives';
 import { researchEffects } from '../../meta/town';
 import type { AutoPowerRule } from '../../sim/types';
 import { drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
@@ -140,6 +148,13 @@ export class RaidScene extends Phaser.Scene {
   private overlay: Overlay | null = null;
   /** A duel against a pasted snapshot instead of a rung on the ladder. */
   private challenge: Challenge | null = null;
+  /**
+   * What this raid is going out for (v1.24). Kept across target changes,
+   * because "I am hunting emplacements today" is a posture rather than a
+   * property of one post — but forced back to the post when the current
+   * target cannot offer the alternative.
+   */
+  private objective: ObjectiveId = 'post';
 
   constructor() {
     super('raid');
@@ -314,6 +329,11 @@ export class RaidScene extends Phaser.Scene {
     if (this.challenge) return; // one code, one base
     this.variant = (this.variant + 1) % TARGETS_PER_TIER;
     this.base = targetFor(this.town, this.variant);
+    // A posture survives a change of target, but only where the new post can
+    // answer it: a camp with one emplacement cannot be asked for two.
+    if (!objectiveAvailable(this.objective, this.objectiveStanding(this.objective))) {
+      this.objective = 'post';
+    }
     // Galleries are surveyed per target: a new base voids every mouth.
     for (const squad of this.squads) delete squad.tunnel;
     this.siting = false;
@@ -542,6 +562,9 @@ export class RaidScene extends Phaser.Scene {
       ...(this.challenge
         ? { combatSeed: parseInt(this.challenge.fingerprint, 36) >>> 0 }
         : {}),
+      // A duel is always for the post: beating a shared snapshot has to mean
+      // the same thing for everyone who fights it.
+      objective: this.challenge ? 'post' : this.objective,
       ...(fx.unitHp !== 1 || fx.unitDamage !== 1
         ? { mods: { hp: fx.unitHp, damage: fx.unitDamage } }
         : {}),
@@ -593,9 +616,10 @@ export class RaidScene extends Phaser.Scene {
     this.overlay = ov;
     const { font } = this.layout;
     ov.paragraph(
-      'TARGET — pick a post and buy its layout with Intel. Recon is the one\n' +
-        'advantage you can purchase; going in blind is a real choice, not a\n' +
-        'mistake.\n\n' +
+      'TARGET — pick a post, choose what you are going out FOR, and buy the\n' +
+        'layout with Intel. Only TAKE THE POST moves the Front Line; spiking\n' +
+        'the guns or raiding the stores ends the raid the moment the job is\n' +
+        'done, and the men you did not spend walk home.\n\n' +
         'MUSTER — put trained units into squads. What you send can be lost,\n' +
         'permanently, so send what the picture justifies.\n\n' +
         'SQUADS — give each squad an entry sector and a doctrine: ASLT drives\n' +
@@ -612,6 +636,42 @@ export class RaidScene extends Phaser.Scene {
       ov.close();
       this.overlay = null;
     });
+  }
+
+  /** What the target is holding of each class, for the quota preview. */
+  private classCounts(): { defense: number; economy: number } {
+    // The raid catalog, not the defence one: a base on the front line is built
+    // from the kit this faction RAIDS, and only the raid catalog carries those
+    // structure profiles. With the wrong catalog every kind misses, the counts
+    // come back zero, and every alternative objective looks unavailable.
+    return baseClassCounts(this.base.structures, raidCatalogFor(this.town.faction));
+  }
+
+  /** Standing count the current objective is measured against. */
+  private objectiveStanding(id: ObjectiveId): number {
+    const cls = OBJECTIVES[id].cls;
+    if (cls === null) return 0;
+    const counts = this.classCounts();
+    return cls === 'defense' ? counts.defense : counts.economy;
+  }
+
+  /**
+   * Next objective this target can actually offer.
+   *
+   * A duel is excluded on purpose: `town.duels` records the codes you have
+   * BEATEN, and beating a shared snapshot has to mean the same thing for
+   * everyone who fights it.
+   */
+  private cycleObjective(): void {
+    if (this.challenge) return;
+    const at = OBJECTIVE_IDS.indexOf(this.objective);
+    for (let step = 1; step <= OBJECTIVE_IDS.length; step++) {
+      const next = OBJECTIVE_IDS[(at + step) % OBJECTIVE_IDS.length]!;
+      if (objectiveAvailable(next, this.objectiveStanding(next))) {
+        this.objective = next;
+        return;
+      }
+    }
   }
 
   private clearResult(): void {
@@ -685,7 +745,14 @@ export class RaidScene extends Phaser.Scene {
         : res.ccHpFraction > 0.9
           ? 'One-sided: the post was barely scratched.'
           : null;
+    const mission = OBJECTIVES[res.objective];
     const lines = [
+      ...(res.objective === 'post'
+        ? []
+        : [
+            `${mission.name}: ${res.progress}/${res.quota}` +
+              (res.withdrew ? ' — withdrew on the objective' : ' — did not fill'),
+          ]),
       `Destruction: ${Math.round(res.destructionPct * 100)}%   Duration: ${Math.floor(res.ticks / 20)}s`,
       ...(res.cleared ? [] : [`Post integrity: ${Math.round(res.ccHpFraction * 100)}%`]),
       `Loot: +${res.loot.supplies} SUP  +${res.loot.fuel} FUEL`,
@@ -702,7 +769,9 @@ export class RaidScene extends Phaser.Scene {
       res.cleared
         ? `Front Line: ${this.town.frontline.wins}/3 to next tier` +
           (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')
-        : 'The post stands. Rebuild and go again.',
+        : res.withdrew
+          ? 'The post stands, but you did what you came to do.'
+          : 'The post stands. Rebuild and go again.',
     ];
     // Duels are off the board, so there is no standing line to print.
     if (!this.challenge) {
@@ -714,7 +783,11 @@ export class RaidScene extends Phaser.Scene {
     }
 
     const ov = new Overlay(this, this.layout, {
-      title: res.cleared ? 'COMMAND POST DESTROYED' : 'RAID REPELLED',
+      title: res.cleared
+        ? 'COMMAND POST DESTROYED'
+        : res.withdrew
+          ? `${mission.short} TAKEN — WITHDRAWN`
+          : 'RAID REPELLED',
       subtitle: this.base.name,
       scrim: 0.82,
       container: this.board.ui,
@@ -723,7 +796,7 @@ export class RaidScene extends Phaser.Scene {
     const { font } = this.layout;
     // Measured, not estimated: on a phone every one of these lines wraps, and
     // a line-count guess would put the report through the footer.
-    ov.paragraph(lines.join('\n'), font.body, res.cleared ? COLORS.olive : COLORS.ink, {
+    ov.paragraph(lines.join('\n'), font.body, res.objectiveMet ? COLORS.olive : COLORS.ink, {
       center: true,
     });
     ov.footer(
@@ -791,6 +864,19 @@ export class RaidScene extends Phaser.Scene {
           // One statement, one row. These were two rows because a row was one
           // unwrapped line and the pair would not fit; rows wrap now (v1.13).
           { id: 'shape', label: `${shape.name} — ${shape.tag}`, heading: true },
+          // What you are going out for, above the muster — because it is what
+          // the force should be built for, not a note you add afterwards.
+          {
+            id: 'objective',
+            label: OBJECTIVES[this.objective].name,
+            sub:
+              this.objective === 'post'
+                ? 'POST ▸'
+                : `${quotaFor(this.objective, this.objectiveStanding(this.objective))}` +
+                  ` of ${this.objectiveStanding(this.objective)} ▸`,
+            onTap: () => this.cycleObjective(),
+          },
+          { id: 'objnote', label: OBJECTIVES[this.objective].brief, heading: true },
           {
             id: 'scout',
             label: blacked

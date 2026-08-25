@@ -373,6 +373,8 @@ export interface RaidSupport {
    * its code's fingerprint and the ladder leaves it alone.
    */
   combatSeed?: number;
+  /** What the raid is going out for (v1.24). Defaults to taking the post. */
+  objective?: ObjectiveId;
   /** Research multipliers for the raiding units. */
   mods?: AttackerMods;
   /** Pre-planned fire missions, evaluated in-sim. */
@@ -434,6 +436,9 @@ export function raidConfig(
     // that carries the same seed re-fights the one that happened.
     combatVersion: COMBAT_CURRENT,
     ...(support.combatSeed !== undefined ? { combatSeed: support.combatSeed >>> 0 } : {}),
+    ...(support.objective !== undefined && support.objective !== 'post'
+      ? { objective: support.objective }
+      : {}),
     playerSide: 'attacker',
     // The watch on the wire (v1.20). Derived from the base's own shape and
     // rung, both of which a share code and a replay already carry, so a

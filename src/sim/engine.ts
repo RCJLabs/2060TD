@@ -110,6 +110,25 @@ export interface Attacker {
   weaponCooldown: number;
 }
 
+/**
+ * Which side of a base a structure is: something that shoots, something that
+ * stores, or neither.
+ *
+ * Exported because the war layer asks the same question of a base it has not
+ * built yet — the raid planner previews an objective's quota before a shot is
+ * fired. Two hand-kept lists of kinds is exactly how a content addition ends
+ * up classified one way in the sim and the other way in the UI, so there is
+ * one predicate and everything reads it.
+ *
+ * A structure under construction is still economy or defense by profile; the
+ * engine adds `!inert` on top where a gun that cannot fire yet should not
+ * count as one.
+ */
+export function structureClass(profile: StructureProfile): 'defense' | 'economy' | null {
+  if (!profile.targetable || profile.kind === 'cc') return null;
+  return profile.weapon !== undefined ? 'defense' : 'economy';
+}
+
 export interface Structure {
   id: number;
   profile: StructureProfile;
@@ -1526,11 +1545,11 @@ export class Engine {
   }
 
   private isDefenseStructure(s: Structure): boolean {
-    return s.profile.targetable && s.profile.weapon !== undefined && !s.inert;
+    return structureClass(s.profile) === 'defense' && !s.inert;
   }
 
   private isEconomyStructure(s: Structure): boolean {
-    return s.profile.targetable && s.profile.weapon === undefined && s.profile.kind !== 'cc';
+    return structureClass(s.profile) === 'economy';
   }
 
   private structureById(id: number): Structure | undefined {

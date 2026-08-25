@@ -40,6 +40,9 @@
  * the raid stopped, and both readers reach the same tick from the same data.
  */
 
+import { structureClass } from '../sim/engine';
+import type { Catalog } from '../sim/types';
+
 export type ObjectiveId = 'post' | 'guns' | 'stores';
 
 /**
@@ -155,4 +158,27 @@ export function watchObjective(
     // and the engine's own phase says so.
     met: () => cls !== null && quota > 0 && progress() >= quota,
   };
+}
+
+/**
+ * What a base is holding of each class, before a shot is fired.
+ *
+ * The planner needs this to show a quota and to grey out an objective the
+ * post cannot offer. It reads the sim's own `structureClass` rather than
+ * keeping a list of kinds, so a new emplacement is classified once.
+ */
+export function baseClassCounts(
+  structures: readonly { kind: string }[],
+  catalog: Catalog,
+): { defense: number; economy: number } {
+  let defense = 0;
+  let economy = 0;
+  for (const s of structures) {
+    const profile = catalog.structures[s.kind];
+    if (!profile) continue;
+    const cls = structureClass(profile);
+    if (cls === 'defense') defense++;
+    else if (cls === 'economy') economy++;
+  }
+  return { defense, economy };
 }
