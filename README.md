@@ -1055,7 +1055,9 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --carry for how much of a raid is one unit, or
                    # -- --seed [ver] for how much of a raid the seed decides, or
                    # -- --sweep [vers] to price combat-variance candidates, or
-                   # -- --objective [share] for what a raid could come for)
+                   # -- --objective [share] for what a raid could come for, or
+                   # -- --derive [n] to search for a plan that beats the reference, or
+                   # -- --derive-air [n] for the same search, forced to fly)
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)

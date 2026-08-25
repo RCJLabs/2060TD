@@ -292,13 +292,37 @@ try {
     // that throw plus coast stays inside the range: a flick that reaches the
     // far stop is zeroed there, and then this check passes with or without
     // anything catching it.
-    await ftouch('touchStart', lMid.x, lMid.y + L.h * 0.18);
-    for (let i = 1; i <= 5; i++) {
-      await ftouch('touchMove', lMid.x, lMid.y + L.h * 0.18 - (L.h * 0.36 * i) / 5);
-      await wait(16);
+    //
+    // Retried, because synthesized touch is a race the page can lose. The
+    // flick speed is a smoothed `velocity * 0.6 + dy * 0.4` over the moves
+    // that actually arrive, so a single dropped touchmove near the lift both
+    // shortens the travel and drops the speed under the threshold — measured
+    // one throw in three landing at 102px and no fling where the other two
+    // landed 121px and 33.2. That is the harness missing its own precondition,
+    // not the drawer refusing to coast, and a check that fails a third of the
+    // time teaches people to ignore it. Three independent throws, and a real
+    // regression still fails all three: the revert this exists to catch zeroes
+    // the fling on every one.
+    const throwOnce = async () => {
+      await ftouch('touchStart', lMid.x, lMid.y + L.h * 0.18);
+      for (let i = 1; i <= 5; i++) {
+        await ftouch('touchMove', lMid.x, lMid.y + L.h * 0.18 - (L.h * 0.36 * i) / 5);
+        await wait(16);
+      }
+      await ftouch('touchEnd', lMid.x, lMid.y - L.h * 0.18);
+      return fstate();
+    };
+    let thrown = await throwOnce();
+    for (let attempt = 1; attempt < 3 && !(thrown && Math.abs(thrown.fling) > 1); attempt++) {
+      // Back to the top stop so the next throw has the same room to run. A
+      // reload rather than a scroll call: the list has no seam to set its
+      // position, and the page must stay touch-only — one `page.mouse` call
+      // anywhere here makes the browser synthesize compat mouse events off
+      // every touch release, which kill the flick this is trying to measure.
+      await fresh.goto(`http://localhost:${PORT}/?demo=town`, { waitUntil: 'networkidle' });
+      await wait(2500);
+      thrown = await throwOnce();
     }
-    await ftouch('touchEnd', lMid.x, lMid.y - L.h * 0.18);
-    const thrown = await fstate();
     check(
       `${run.name}: the throw leaves the drawer coasting`,
       thrown !== null && Math.abs(thrown.fling) > 1,
