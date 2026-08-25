@@ -397,6 +397,129 @@ try {
     check('and it closes again', !(await cardOpen()), '');
   }
 
+  // ---- a finger on a coasting list stops it, and spends itself doing so ----
+  //
+  // Two halves, and the check is worthless without both. The list has to
+  // stop — `stopFling` used to run only on the first MOVE of a press, so a
+  // thumb put down on a flick never caught it and the rows kept sliding. And
+  // the press has to be SPENT: stopping the scroll while still letting the
+  // release through would be worse than not stopping it, because the row
+  // that slid under the thumb is not the row anybody was reaching for.
+  //
+  // Disarmed first so "did a row fire" is readable: with a build tool already
+  // armed, a row firing toggles it OFF and looks like nothing happened.
+  const armedNow = await page.evaluate(() => {
+    const a = window.lastline;
+    const L = a.layout();
+    const b = a
+      .buttons()
+      .find((x) => x.active && x.y >= L.list.y && x.y + x.h <= L.list.y + L.list.h);
+    return b ? { x: (b.x + b.w / 2) / a.dpr, y: (b.y + b.h / 2) / a.dpr, label: b.label } : null;
+  });
+  if (armedNow) {
+    await touch('touchStart', armedNow.x, armedNow.y);
+    await touch('touchEnd', armedNow.x, armedNow.y);
+    await wait(500);
+  }
+  const anyArmedRow = () =>
+    page.evaluate(() => {
+      const a = window.lastline;
+      const L = a.layout();
+      return a
+        .buttons()
+        .filter((b) => b.active && b.y >= L.list.y && b.y + b.h <= L.list.y + L.list.h)
+        .map((b) => b.label);
+    });
+  check('no row is armed before the flick', (await anyArmedRow()).length === 0, '');
+
+  // Back to the top, so the coast passes through rows the town can afford.
+  // A press on a DISABLED row is not a press at all — it returns before the
+  // button takes ownership — so a check that lands on one proves nothing, and
+  // this one landed on an unaffordable AIRFIELD until it was pinned down.
+  const topBox = await shape();
+  for (let n = 0; n < 6; n++) {
+    const ty = topBox.list.y + topBox.list.h * 0.3;
+    const tx = topBox.list.x + topBox.list.w / 2;
+    await touch('touchStart', tx, ty);
+    for (let i = 1; i <= 6; i++) {
+      await touch('touchMove', tx, ty + (180 * i) / 6);
+      await wait(16);
+    }
+    await touch('touchEnd', tx, ty + 180);
+    await wait(200);
+  }
+  await wait(700);
+
+  // A flick: fast, so the list is still coasting when the finger returns.
+  const flickBox = await shape();
+  const fx = flickBox.list.x + flickBox.list.w / 2;
+  const fy = flickBox.list.y + flickBox.list.h * 0.75;
+  await touch('touchStart', fx, fy);
+  for (let i = 1; i <= 5; i++) {
+    await touch('touchMove', fx, fy - (150 * i) / 5);
+    await wait(8);
+  }
+  await touch('touchEnd', fx, fy - 150);
+  // POLLED, not sampled at a fixed delay. A single read 60ms after the lift
+  // caught a slow frame about one run in three and reported no coast at all —
+  // the same shape as the `e2e-gates` flake, where a harness waited a flat
+  // 800ms and hoped. The finger has to land WHILE the list is moving, so wait
+  // for the coast to exist and then go straight in.
+  let coasting = 0;
+  for (let n = 0; n < 40 && coasting <= 0.5; n++) {
+    coasting = await page.evaluate(() => Math.abs(window.lastline.scroll()?.fling ?? 0));
+    if (coasting <= 0.5) await wait(16);
+  }
+  check('the flick leaves the list coasting', coasting > 0.5, `fling ${coasting.toFixed(1)}`);
+
+  // Now put a finger down on a row and hold it still, the way a thumb does.
+  // The point is computed from the box measured BEFORE the flick, so there is
+  // no round-trip between seeing the coast and landing on it.
+  const cx = flickBox.list.x + flickBox.list.w / 2;
+  const cy = flickBox.list.y + flickBox.list.h * 0.4;
+  await touch('touchStart', cx, cy);
+  await wait(250);
+  const landed = await page.evaluate(
+    (pt) => {
+      const a = window.lastline;
+      const d = a.dpr;
+      const b = a
+        .buttons()
+        .find(
+          (x) =>
+            pt.x * d >= x.x && pt.x * d <= x.x + x.w && pt.y * d >= x.y && pt.y * d <= x.y + x.h,
+        );
+      return b ? { label: b.label, enabled: b.enabled, active: b.active } : null;
+    },
+    { x: cx, y: cy },
+  );
+  const stoppedAt = await page.evaluate(() => ({
+    fling: Math.abs(window.lastline.scroll()?.fling ?? 0),
+    scrollY: window.lastline.scroll()?.scrollY ?? -1,
+  }));
+  check(
+    'the finger landed on a row that can actually be pressed',
+    landed !== null && landed.enabled && !landed.active,
+    landed ? `${landed.label} enabled=${landed.enabled} active=${landed.active}` : 'nothing',
+  );
+  await touch('touchEnd', cx, cy);
+  await wait(600);
+  const after = await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1);
+  check(
+    'a finger on a coasting list stops it dead',
+    stoppedAt.fling === 0 && Math.abs(after - stoppedAt.scrollY) < 2,
+    `fling ${stoppedAt.fling.toFixed(1)}, scrollY ${Math.round(stoppedAt.scrollY)} → ${Math.round(after)}`,
+  );
+  const firedIt = await page.evaluate(
+    (want) => window.lastline.buttons().some((b) => b.label === want && b.active),
+    landed?.label ?? '',
+  );
+  check(
+    'and that finger does not also fire the row it landed on',
+    landed !== null && !firedIt,
+    landed ? `${landed.label} armed=${firedIt}` : 'no row',
+  );
+
   check('no page errors', errors.length === 0, errors[0] ?? '');
   await browser.close();
 } finally {

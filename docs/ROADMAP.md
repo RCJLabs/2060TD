@@ -1773,12 +1773,33 @@ and the bottom third is what a thumb reaches without the hand shifting grip.
       Buttons match the release to the press that claimed it by `downTime`
       now, so a stale flag is inert rather than dangerous.
 
-- [ ] **A finger on a coasting list should stop it.** `stopFling` runs on the
-      first pointer MOVE of a new press, so a press that never moves never
-      stops the coast: rows keep sliding under a thumb put down to stop them.
-      The obvious fix is the one the code already warns against — a touch
-      release synthesises a compatibility mouse-down, and stopping on the press
-      killed every flick at the moment of the lift.
+- [x] **A finger on a coasting list stops it (v1.29).** `stopFling` ran on the
+      first pointer MOVE of a new press, so a press that never moved never
+      caught the coast: rows kept sliding under the thumb put down to stop
+      them, and the release fired whatever had slid into place.
+
+      The obvious fix is the one the code already warned against — a touch
+      release synthesises a compatibility mouse-down, so stopping on the press
+      killed every flick at the moment of the lift. Two things make it safe
+      now. It is checked per FRAME rather than from a handler, because a press
+      landing on a row never reaches a scene-level down at all (`makeButton`
+      calls `stopPropagation`, which aborts Phaser's down pass) and that is
+      where nearly every press in a list lands. And `wasTouch` tells the two
+      apart: touch events set it, mouse events clear it. A mouse-only machine
+      has no synthetic events and is let through; a hybrid gives up only
+      "click without moving stops the coast", and a mouse that moves takes the
+      MOVE path anyway.
+
+      The press is also SPENT. Stopping the scroll while letting the release
+      through would be worse than not stopping it, because the row that slid
+      under the thumb is not the row anybody was reaching for — every phone
+      works this way, and the second half needed its own revert probe to prove
+      it, since removing it leaves the first half passing.
+
+      One check in the pair was flaky before it was trusted: it read the coast
+      once, 60ms after the lift, and missed a slow frame about one run in
+      three — the same shape as the `e2e-gates` flake. It polls for the coast
+      now and lands the finger the moment it exists.
 - [ ] **Muster rows are still text.** `drawAttackerBody` is a private method on
       BattleRenderer taking a live sim entity; extracting it into a shared
       glyph the way structures have one is its own change.

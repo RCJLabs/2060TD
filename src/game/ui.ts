@@ -37,6 +37,16 @@ export interface Button {
   labelHeight(): number;
   /** Measured width of the sub, so a label can be wrapped clear of it. */
   subWidth(): number;
+  /**
+   * Give up the press this button is holding, without firing anything.
+   *
+   * For the tap that catches a coasting list: on every phone, the finger you
+   * put down to stop a flick stops it and does NOT activate what it landed
+   * on. Stopping the scroll and letting the release through would be worse
+   * than not stopping it, because the row the player was reaching for is not
+   * the row that slid under their thumb.
+   */
+  cancelPress(): void;
   destroy(): void;
 }
 
@@ -591,6 +601,9 @@ export function makeButton(
     subWidth() {
       return sub && sub.text.length > 0 ? sub.width : 0;
     },
+    cancelPress() {
+      sceneCancel();
+    },
     destroy() {
       disarm();
       liveProbes.delete(probe);
@@ -765,6 +778,8 @@ export class Panel {
   /** Smoothed finger speed, and the decaying flick it becomes on release. */
   private velocity = 0;
   private fling = 0;
+  /** `downTime` of the last press `catchFling` has already judged; -1 idle. */
+  private seenPress = -1;
   private onTabChange?: (id: string) => void;
 
   constructor(
@@ -1375,7 +1390,48 @@ export class Panel {
     this.velocity = 0;
   }
 
+  /**
+   * A finger put down on a coasting list stops it — and spends itself doing so.
+   *
+   * Every phone works this way and this one did not: `stopFling` ran on the
+   * first pointer MOVE of a new press, so a press that never moved never
+   * caught the flick. Rows kept sliding under the thumb put down to stop
+   * them, and the release fired whatever had slid into place.
+   *
+   * Checked per frame rather than from a POINTER_DOWN handler, for two
+   * reasons. A press that lands on a row never reaches a scene-level down at
+   * all — `makeButton` calls `stopPropagation`, which aborts Phaser's down
+   * pass — and that is where nearly every press in a list lands. And a
+   * handler is what the first attempt at this used, years of comment ago: a
+   * touch release synthesises a compatibility mouse-down, so stopping on the
+   * press killed every flick at the moment of the lift.
+   *
+   * `wasTouch` is what makes it safe now. Touch events set it, mouse events
+   * clear it, so the synthetic mouse-down that follows a lift is
+   * distinguishable from a finger. A mouse-only machine has no synthetic
+   * events and is let through unconditionally; a hybrid gives up only
+   * "click without moving stops the coast", and a mouse that moves at all
+   * takes the MOVE path anyway.
+   */
+  private catchFling(): void {
+    // Nothing coasting, nothing to catch — and this early-out is also what
+    // keeps the rest from running during a drag, where zeroing anything
+    // would eat the flick the drag is busy building.
+    if (this.fling === 0) return;
+    const p = this.scene.input.activePointer;
+    if (!p.isDown || p.downTime === this.seenPress) return;
+    this.seenPress = p.downTime;
+    if (!p.wasTouch && this.scene.sys.game.device.input.touch) return;
+    if (!this.inListAt(p.downX, p.downY)) return;
+    this.stopFling();
+    // The press is spent. Rows only — the tab strip is not what the finger
+    // came down on, and a tab that stopped responding after a flick would be
+    // a worse bug than the one this fixes.
+    for (const button of this.pool) button.cancelPress();
+  }
+
   private stepScroll(): void {
+    this.catchFling();
     if (this.dragPress >= 0) {
       if (this.scene.input.activePointer.isDown) return;
       this.releaseDrag();

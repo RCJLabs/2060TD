@@ -816,6 +816,7 @@ different input:
 | **drag sideways in the list** | previous/next tab *(portrait only)* |
 | drag the handle | resize the drawer; release snaps to shut/half/full |
 | tap the handle | collapse or restore |
+| **a finger on a coasting list** | stops it, and activates nothing |
 
 The lock decides **once**, early, from travel since the press began — a per-frame
 comparison flips axis on any wobble — and vertical wins ties and near-ties 1.4:1, because
