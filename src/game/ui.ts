@@ -55,6 +55,16 @@ export function mono(
 /** Travel (device px) past which a press counts as a drag, not a tap. */
 export const DRAG_SLOP = 16;
 
+/**
+ * How long a press has to last to become a hold, in ms.
+ *
+ * 480 rather than the 500 most platforms use: this fires while the finger is
+ * still down and is confirmed by a buzz, so the cost of being slightly eager
+ * is a haptic the player did not want, while the cost of being slow is a
+ * gesture that feels broken. Well clear of the ~150ms a deliberate tap takes.
+ */
+const HOLD_MS = 480;
+
 export interface ButtonOptions {
   /** Font size in device px; defaults to a size derived from the height. */
   font?: number;
@@ -74,12 +84,30 @@ export interface ButtonOptions {
    * it started from.
    */
   edgeGrace?: boolean;
+  /**
+   * The row's SECOND action, on a long press (v1.27).
+   *
+   * A phone has one button and no right mouse button, so anything a control
+   * can do beyond its main action has to come from the press itself. A hold
+   * is the one gesture available that costs no screen: no chevron, no "…"
+   * affordance, no second row.
+   *
+   * It is deliberately reserved for things that do not change state. A hold
+   * that spent resources would be a trap, because the gesture is discovered
+   * by accident — a thumb resting on a row while the player reads it is a
+   * long press, and the only safe thing to find there is information.
+   *
+   * Firing this CANCELS the tap: a press is one thing or the other.
+   */
+  onHold?: () => void;
 }
 
 /** A button as the headless harness sees it: label + rect in device px. */
 export interface ButtonProbe {
   label: string;
   sub: string;
+  /** Painted as the current choice: the armed tool, the open tab. */
+  active: boolean;
   /** The area a finger can actually land on: the drawn box, clipped. */
   x: number;
   y: number;
@@ -273,6 +301,23 @@ export function makeButton(
    * vanished. Every button keeps the highlight and the ownership separate now.
    */
   let holding = false;
+  /**
+   * `downTime` of the press `holding` refers to; -1 when idle.
+   *
+   * Ownership is not enough on its own, because the release that would clear
+   * it is not guaranteed to arrive. Phaser emits a plugin-level up only when
+   * its pass over the objects under the finger runs to the end, and a drag
+   * that starts on a list row frequently ends without one — so that row keeps
+   * `holding` set. The next plugin-level up ANYWHERE then found a button that
+   * still believed it was held, measured the NEW pointer's travel (zero, it
+   * was a tap somewhere else), and fired the old row's action: scroll the
+   * drawer starting on a row, tap the board, and the row you pushed off from
+   * activates. Measured at ~5 seconds and two gestures apart.
+   *
+   * Matching the press by identity makes a stale flag inert rather than
+   * dangerous — the press it names is over, and no later pointer can claim it.
+   */
+  let heldPress = -1;
   const alive = () => bg.active && label.active;
   const refresh = () => {
     // Pointer events can trail in after a click handler destroyed the button.
@@ -282,6 +327,48 @@ export function makeButton(
     bg.setStrokeStyle(1, active ? COLORS.olive : COLORS.gridLine);
     label.setColor(css(enabled ? COLORS.ink : COLORS.inkDim));
     sub?.setColor(css(enabled ? COLORS.inkDim : COLORS.gridLine));
+  };
+
+  /**
+   * The long press.
+   *
+   * Armed on the down and read back once, at the threshold, rather than
+   * tracked through a move handler: `getDistance()` already carries the whole
+   * travel since the press began, so one look at it answers "was this finger
+   * still?" without this button subscribing to every pointer move in the
+   * scene — of which a drawer full of rows would otherwise have sixty.
+   *
+   * A press that has travelled past the drag slop by then was a scroll or a
+   * swipe passing over the row, and gets nothing.
+   */
+  let hold: Phaser.Time.TimerEvent | undefined;
+  const disarm = (): void => {
+    hold?.remove();
+    hold = undefined;
+  };
+  const arm = (p: Phaser.Input.Pointer): void => {
+    disarm();
+    if (!opts.onHold) return;
+    hold = scene.time.delayedCall(HOLD_MS, () => {
+      hold = undefined;
+      if (!holding || !alive() || !p.isDown) return;
+      if (p.getDistance() > DRAG_SLOP) return;
+      // The tap is spent: a press is one thing or the other, and a release
+      // that also fired the row's main action would build the thing the
+      // player asked to read about.
+      holding = false;
+      heldPress = -1;
+      if (pressed) {
+        pressed = false;
+        refresh();
+      }
+      // `land` rather than `tap`: the tap already buzzed on the down, and a
+      // hold that answers with the same pulse is indistinguishable from it.
+      // What arrives here arrived without being asked for by a tap, which is
+      // what that pattern is for.
+      haptic('land');
+      opts.onHold?.();
+    });
   };
 
   bg.on('pointerover', () => {
@@ -311,12 +398,16 @@ export function makeButton(
     // is — anything heavier becomes noise at the rate a drawer gets tapped.
     haptic('tap');
     holding = true;
+    heldPress = _p.downTime;
     pressed = true; // visible press state matters more without a hover cursor
     refresh();
+    arm(_p);
   });
   const release = (p: Phaser.Input.Pointer, outside: boolean): void => {
-    if (!enabled || !holding) return;
+    disarm();
+    if (!enabled || !holding || p.downTime !== heldPress) return;
     holding = false;
+    heldPress = -1;
     if (pressed) {
       pressed = false;
       refresh();
@@ -360,10 +451,12 @@ export function makeButton(
    * cannot double-fire.
    */
   const sceneRelease = (p: Phaser.Input.Pointer): void => {
-    if (holding && alive()) release(p, true);
+    if (holding && p.downTime === heldPress && alive()) release(p, true);
   };
   const sceneCancel = (): void => {
+    disarm();
     holding = false;
+    heldPress = -1;
     if (!pressed) return;
     pressed = false;
     if (alive()) refresh();
@@ -411,6 +504,12 @@ export function makeButton(
       // to tap, not an undersized button.
       full: { x: box.x, y: box.y, w: box.width, h: box.height },
       enabled,
+      // Selected state, as the player sees it: the armed build tool, the tab
+      // the drawer is showing. A harness that could only read labels and
+      // rectangles had to infer "which one is chosen" from what changed
+      // elsewhere on screen, and `e2e-drawer` had a helper that read this
+      // field before it existed — silently matching nothing.
+      active,
       visible: bg.visible && bg.active && w > 0 && h > 0,
       dead: bg.scene === undefined,
     };
@@ -493,6 +592,7 @@ export function makeButton(
       return sub && sub.text.length > 0 ? sub.width : 0;
     },
     destroy() {
+      disarm();
       liveProbes.delete(probe);
       scene.input.off('pointerup', sceneRelease);
       scene.input.off('pointerupoutside', sceneCancel);
@@ -514,6 +614,13 @@ export interface PanelRow {
   enabled?: boolean;
   active?: boolean;
   onTap?: () => void;
+  /**
+   * The row's second action, on a long press (v1.27) — see
+   * `ButtonOptions.onHold`. Rows are pooled, so this is looked up by slot at
+   * fire time rather than bound into the button: the row a slot carries
+   * changes on every rebuild.
+   */
+  onHold?: () => void;
   /** A full-width heading instead of a button. */
   heading?: boolean;
   /**
@@ -567,6 +674,14 @@ export function panelLayout(): Layout | null {
   return null;
 }
 
+/** Test seam: which tab a live panel is showing. */
+export function panelTab(): string | null {
+  for (const panel of livePanels) {
+    if (panel.liveLayout()) return panel.tab;
+  }
+  return null;
+}
+
 export function panelScroll(): {
   scrollY: number;
   max: number;
@@ -610,6 +725,7 @@ export class Panel {
   private pool: Button[] = [];
   /** What each pooled row slot currently does. */
   private taps: Array<(() => void) | undefined> = [];
+  private holds: Array<(() => void) | undefined> = [];
   private headings: Phaser.GameObjects.Text[] = [];
   /**
    * One Graphics per row slot, pooled alongside the buttons and parented into
@@ -625,6 +741,27 @@ export class Panel {
   private dragPress = -1;
   private dragMoved = 0;
   private lastPointerY = 0;
+  /**
+   * Which way this press turned out to be going.
+   *
+   * A list that scrolls vertically and swipes horizontally has to decide, once
+   * and early, which of the two a finger meant — and then ignore the other axis
+   * for the rest of that press. Without the lock a diagonal drag scrolls AND
+   * changes tab, which is the one-finger-two-things failure this file keeps
+   * coming back to.
+   */
+  private dragAxis: 'none' | 'x' | 'y' = 'none';
+  /**
+   * How far a horizontal press has travelled, kept for the release to read.
+   *
+   * Recorded during the MOVE rather than measured at the up, because the
+   * release cannot be trusted to still own the press: a final move arrives
+   * with `isDown` already false, which calls `releaseDrag` and clears
+   * `dragPress` before POINTER_UP ever runs. Reading the swipe from the
+   * pointer at that point found a press that no longer matched, and every
+   * swipe was silently dropped.
+   */
+  private swipeDX = 0;
   /** Smoothed finger speed, and the decaying flick it becomes on release. */
   private velocity = 0;
   private fling = 0;
@@ -927,6 +1064,7 @@ export class Panel {
           font: font.body,
           sub: '',
           container: this.rowRoot,
+          onHold: () => this.holdRow(slot),
         });
         this.pool[poolIndex] = button;
       }
@@ -948,6 +1086,7 @@ export class Panel {
       button.setEnabled(row.enabled !== false);
       button.setActive(row.active === true);
       this.taps[poolIndex] = row.onTap;
+      this.holds[poolIndex] = row.onHold;
       placed.push({
         row,
         slot: poolIndex,
@@ -1076,6 +1215,10 @@ export class Panel {
     return g;
   }
 
+  private holdRow(slot: number): void {
+    this.holds[slot]?.();
+  }
+
   private tapRow(slot: number): void {
     this.taps[slot]?.();
   }
@@ -1092,7 +1235,15 @@ export class Panel {
     const input = this.scene.input;
 
     input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.isDown || modalOpen()) {
+      const modal = modalOpen();
+      if (modal) {
+        // A modal that opens mid-gesture ENDS the gesture, it does not
+        // complete it: a swipe interrupted by a dialog must not also change
+        // tab underneath the dialog.
+        this.dragAxis = 'none';
+        this.swipeDX = 0;
+      }
+      if (!pointer.isDown || modal) {
         this.releaseDrag();
         return;
       }
@@ -1111,14 +1262,39 @@ export class Panel {
         if (!this.inListAt(pointer.downX, pointer.downY)) return;
         this.dragPress = pointer.downTime;
         this.dragMoved = 0;
+        this.dragAxis = 'none';
+        this.swipeDX = 0;
         this.lastPointerY = pointer.downY;
       }
       const dy = pointer.y - this.lastPointerY;
       this.lastPointerY = pointer.y;
       this.dragMoved += Math.abs(dy);
+      const slop = Math.max(DRAG_SLOP, this.layout?.px(6) ?? 6);
+      // Which way is this going? Decided once, from the travel since the press
+      // began rather than since the last frame — a per-frame comparison flips
+      // axis on any wobble. Vertical wins ties and near-ties: scrolling is what
+      // a list is for, and a swipe that has to be deliberate is better than a
+      // scroll that keeps changing tab.
+      if (this.dragAxis === 'none') {
+        const totalX = Math.abs(pointer.x - pointer.downX);
+        const totalY = Math.abs(pointer.y - pointer.downY);
+        if (Math.max(totalX, totalY) <= slop) return;
+        // Sideways only means "next tab" in PORTRAIT. In landscape the panel
+        // is a vertical rail down the right edge with its tabs stacked at the
+        // bottom, and a horizontal drag across it is a drag OFF the rail and
+        // onto the map — which is what `e2e-gesture` drives, and what this
+        // stole the first time it shipped: dragging out of the rail changed
+        // tab and emptied the list under the finger.
+        const sideways = this.layout?.mode === 'portrait' && totalX > totalY * 1.4;
+        this.dragAxis = sideways ? 'x' : 'y';
+      }
+      if (this.dragAxis === 'x') {
+        this.swipeDX = pointer.x - pointer.downX;
+        return;
+      }
       // Hold off until the travel also cancels the row's tap, so a gesture is
       // unambiguously one or the other.
-      if (this.dragMoved <= Math.max(DRAG_SLOP, this.layout?.px(6) ?? 6)) return;
+      if (this.dragMoved <= slop) return;
       this.velocity = this.velocity * 0.6 + dy * 0.4;
       this.scrollBy(-dy);
     });
@@ -1145,16 +1321,56 @@ export class Panel {
     this.scene.events.once(Phaser.Scenes.Events.DESTROY, stop);
   }
 
+  /**
+   * Move `by` tabs along the strip, clamped at the ends.
+   *
+   * Clamped rather than wrapped: the strip is a row of five in a visible
+   * order, and a swipe that jumps from the last to the first contradicts what
+   * the strip shows. `setTab` is not used because re-selecting the ACTIVE tab
+   * is the drawer toggle — a swipe into the end of the strip would collapse
+   * the drawer instead of doing nothing.
+   */
+  private stepTab(by: number): void {
+    const at = this.tabs.findIndex((t) => t.id === this.activeTab);
+    if (at < 0) return;
+    const next = Math.min(this.tabs.length - 1, Math.max(0, at + by));
+    if (next === at) return;
+    this.setTab(this.tabs[next]!.id);
+    haptic('tap');
+  }
+
   /** Stop the list dead, wherever it is: a new gesture owns the screen now. */
   private stopFling(): void {
     this.velocity = 0;
     this.fling = 0;
   }
 
-  /** End the drag, handing whatever speed it had to the flick. */
+  /**
+   * End the drag: hand whatever speed it had to the flick, and commit the
+   * swipe if that is what the press turned out to be.
+   *
+   * The swipe is settled HERE rather than in the POINTER_UP handler, which
+   * was where it went first and where it was silently dropped every time.
+   * Phaser only emits a plugin-level up once its pass over the objects under
+   * the finger runs to the end, and a list whose rows recycle mid-gesture
+   * aborts that pass — measured, the up arrived for some releases on this
+   * panel and not others. `releaseDrag` is the one path all three routes
+   * converge on: the up when it comes, the move that arrives with `isDown`
+   * already false, and the UPDATE sweep that catches the rest.
+   */
   private releaseDrag(): void {
     if (this.dragPress < 0) return;
     this.dragPress = -1;
+    // Read from the distance recorded during the drag, so a swipe can still
+    // be abandoned by bringing the finger back the way a page swipe anywhere
+    // else can. The threshold is a thumb-width or a seventh of the list,
+    // whichever is larger, so it means the same gesture on any screen.
+    if (this.dragAxis === 'x') {
+      const far = Math.max(this.layout?.px(48) ?? 48, (this.layout?.list.w ?? 0) * 0.14);
+      if (Math.abs(this.swipeDX) >= far) this.stepTab(this.swipeDX < 0 ? 1 : -1);
+    }
+    this.dragAxis = 'none';
+    this.swipeDX = 0;
     this.fling = Math.abs(this.velocity) > 1 ? -this.velocity : 0;
     this.velocity = 0;
   }

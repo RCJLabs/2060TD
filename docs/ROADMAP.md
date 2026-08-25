@@ -1725,8 +1725,60 @@ and the bottom third is what a thumb reaches without the hand shifting grip.
       different starting heights land on different detents. The honest property
       is that a nudge too small to reach the next detent springs back exactly.
 
-- [ ] **Swipe between tabs, and a row's secondary action.** The rest of #4:
-      the five-tab strip is still the only way to change tab.
+- [x] **Swipe between tabs, and a row's secondary action (v1.28).** The rest
+      of #4. A horizontal swipe across the drawer steps the tab strip, and a
+      long press on a build row opens a spec card.
+
+      The swipe needed an axis lock, because the same finger scrolls the list
+      vertically: the direction is decided ONCE, early, from travel since the
+      press began rather than since the last frame, and vertical wins ties and
+      near-ties 1.4:1 — a scroll that keeps changing tab is worse than a swipe
+      that has to be deliberate. It is portrait-only. In landscape the panel is
+      a vertical rail with its tabs stacked at the bottom, and a horizontal
+      drag across it is a drag OFF the rail onto the map; shipping it in both
+      orientations changed tab whenever anyone dragged out of the rail, which
+      `e2e-gesture` caught.
+
+      The spec card is the larger half, and it closes a gap that had been open
+      since M2: **nothing in the game showed what a structure does.** The build
+      list gave a name, a price and a count, and range, rate of fire, what a
+      weapon shreds and what it bounces off lived in the content files and on
+      no screen anywhere. Four emplacements at four prices, and the only way to
+      compare them was to buy one. Every number on the card is derived from the
+      catalog the engine fights with, so a balance pass moves the card too.
+
+      Two things it got wrong first:
+
+      - It read the price off the sim profile alone, so it announced **NOT
+        BUILDABLE** over a supply depot — a structure's cost is in two places
+        and neither is a superset of the other. Field defences carry
+        `supplyCost`/`cpCost` on the profile; everything the yard builds is
+        priced per level in the town meta. Reading both also got the card the
+        only answer to what an economy building is FOR, which was likewise on
+        no screen: what it produces per minute.
+      - It used the default 0.86 scrim. This is the densest card in the game,
+        and the drawer rows behind it drew boxes straight through the stat
+        block. Opaque now, like the first-run card: something you READ has
+        nothing behind it worth seeing.
+
+- [x] **A press that ended somewhere else stays ended (v1.28).** Found while
+      pinning the long press, and older than it: Phaser emits a scene-level
+      pointer-up only once its pass over the objects under the finger runs to
+      the end, and a button's own up handler calls `stopPropagation`, which
+      aborts that pass. So a drag that started on a row and ended over a
+      DIFFERENT row left the first one believing it was still held — and the
+      next scene-level up anywhere measured the NEW pointer's travel (a tap:
+      zero) and fired the stale row. Measured firing a row's action two
+      gestures and five seconds after the finger that started it had gone.
+      Buttons match the release to the press that claimed it by `downTime`
+      now, so a stale flag is inert rather than dangerous.
+
+- [ ] **A finger on a coasting list should stop it.** `stopFling` runs on the
+      first pointer MOVE of a new press, so a press that never moves never
+      stops the coast: rows keep sliding under a thumb put down to stop them.
+      The obvious fix is the one the code already warns against — a touch
+      release synthesises a compatibility mouse-down, and stopping on the press
+      killed every flick at the moment of the lift.
 - [ ] **Muster rows are still text.** `drawAttackerBody` is a private method on
       BattleRenderer taking a live sim entity; extracting it into a shared
       glyph the way structures have one is its own change.

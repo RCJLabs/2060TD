@@ -1058,8 +1058,10 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --objective [share] for what a raid could come for, or
                    # -- --derive [n] to search for a plan that beats the reference, or
                    # -- --derive-air [n] for the same search, forced to fly)
-node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, and
-                   # that a row drag still scrolls instead of resizing
+node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, that a
+                   # row drag still scrolls instead of resizing, the tab swipe
+                   # and its axis lock, and the long press that opens a spec card
+                   # without also firing the row's tap
 node scripts/e2e-pwa.mjs     # installable + offline, against a real dist/
                    # build served over http (run `npm run build` first)
 node scripts/e2e-mobile.mjs  # the mobile audit: target sizes, mis-tap gaps,

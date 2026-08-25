@@ -802,6 +802,55 @@ The caps that remain are **editorial**: a row the commander has to read twice is
 written row, whatever the drawer's width. Abbreviation fields (`short`) stay tight for the
 same reason — an abbreviation that takes two lines is not one.
 
+## 5.13 What a row can do *(v1.26–v1.28)*
+
+A phone has one button. Every gesture the drawer answers has to be told apart from every
+other one by the same finger, so each is separated by an axis or by time rather than by a
+different input:
+
+| gesture | what it does |
+| --- | --- |
+| tap a row | the row's main action — arm a tool, open a card, spend |
+| **hold a row** | its spec card: what the thing is, costs and does |
+| drag up/down in the list | scroll |
+| **drag sideways in the list** | previous/next tab *(portrait only)* |
+| drag the handle | resize the drawer; release snaps to shut/half/full |
+| tap the handle | collapse or restore |
+
+The lock decides **once**, early, from travel since the press began — a per-frame
+comparison flips axis on any wobble — and vertical wins ties and near-ties 1.4:1, because
+scrolling is what a list is for and a scroll that keeps changing tab is worse than a swipe
+that has to be deliberate. Sideways only means "next tab" in portrait; in landscape the
+panel is a vertical rail and a horizontal drag across it is a drag onto the map.
+
+The hold is reserved for things that **do not change state**. It is discovered by accident
+— a thumb resting on a row while the player reads it is a long press — so the only safe
+thing to find there is information. It fires while the finger is still down, confirmed by
+a buzz: a long press that only resolves on the lift gives no way to tell it worked, and
+the player lifts. Firing it spends the tap; a press is one thing or the other.
+
+### The spec card
+
+Until v1.28 nothing in the game said what a structure does. The build list gave a name, a
+price and a count; range, rate of fire, splash, minimum range, and what a weapon shreds or
+bounces off lived in the content files and appeared on no screen. Four emplacements at
+four prices, and the only way to compare them was to buy one.
+
+The card shows the silhouette (the same `drawStructureGlyph` the board draws, so the card
+teaches the shape it will have), the price and build time, HP and footprint, what it
+produces per minute if it produces anything, its weapon as **effective DPS against each
+armour class it can actually reach**, and the upgrade ladder with prices.
+
+Effective DPS rather than the raw multiplier on purpose: a multiplier is a number about
+the damage table, and effective DPS is a number about the fight — it is the one that makes
+two guns comparable at a glance. Classes a weapon may never engage are omitted rather than
+printed at their table value, because "×0.3 vs AIRCRAFT" for a rifle pit that cannot
+elevate is a lie about a shot it will never take.
+
+Nothing on the card is authored prose about a structure. Every number is read out of the
+catalog the engine fights with, so a balance pass moves the card with it and a card can
+never describe a gun that no longer exists.
+
 ---
 
 ## 6. Presentation

@@ -88,6 +88,7 @@ import { haptic } from '../haptics';
 import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
+import { buildStructureSpec, buildWallSpec } from '../spec';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
 import {
   baseFromShare,
@@ -1246,6 +1247,39 @@ export class TownScene extends Phaser.Scene {
   }
 
   /** The shared settings screen, opened from the SYS tab. */
+  /**
+   * The card behind a long press on a build row.
+   *
+   * Routed through `openOverlay` like every other card so an orientation flip
+   * rebuilds it rather than leaving a portrait card on a landscape screen.
+   * Refuses while something else is open: a hold that landed on a row showing
+   * THROUGH a card is a mis-press, and stacking two overlays leaves the modal
+   * count unbalanced.
+   */
+  private showSpec(kind: string, wall: boolean): void {
+    // No `demoMode` guard, unlike every other card here. Those are gated
+    // because they change state or start a battle; this one only reads the
+    // catalog, and the demo board is exactly where somebody poking at the
+    // game for the first time would want to ask what a thing does.
+    if (this.overlay) return;
+    const close = (): void => {
+      this.overlay?.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    const meta = this.meta(kind);
+    const opts = {
+      layout: this.layout,
+      catalog: defenseCatalogFor(this.town.faction),
+      ...(meta ? { meta } : {}),
+      container: this.board.ui,
+      onClose: close,
+    };
+    this.overlay = wall
+      ? buildWallSpec(this, kind, opts)
+      : buildStructureSpec(this, kind, opts);
+  }
+
   private showSettings(): void {
     if (this.overlay || this.demoMode) return;
     const close = (): void => {
@@ -1654,7 +1688,13 @@ export class TownScene extends Phaser.Scene {
   private buildRows(): PanelRow[] {
     const town = this.town;
     const g = gating(town);
-    const rows: PanelRow[] = [{ id: 'h1', label: 'CONSTRUCTION', heading: true }];
+    // The heading carries the gesture, the way the wall heading already
+    // carries "drag to paint". A long press is invisible by nature — nothing
+    // on a row can suggest it — so the only place it can be advertised is
+    // the line above the rows it applies to.
+    const rows: PanelRow[] = [
+      { id: 'h1', label: 'CONSTRUCTION — hold a row for its specs', heading: true },
+    ];
 
     for (const kind of BUILDABLE_KINDS) {
       const meta = this.meta(kind)!;
@@ -1686,6 +1726,10 @@ export class TownScene extends Phaser.Scene {
           sub: `LOCKED${at !== undefined ? ` M${at + 1}` : ''}`,
           enabled: false,
           icon,
+          // A locked row still answers what it is. Reading the card for
+          // something you cannot build yet is how a player decides what to
+          // research toward, and it is the one thing a greyed-out row can do.
+          onHold: () => this.openOverlay(() => this.showSpec(kind, false)),
         });
         continue;
       }
@@ -1697,6 +1741,10 @@ export class TownScene extends Phaser.Scene {
         enabled: max > 0 && have < max && town.supplies >= cost.supplies && town.fuel >= cost.fuel,
         active: this.tool.type === 'build' && this.tool.kind === kind,
         onTap: () => this.setTool({ type: 'build', kind }),
+        // The other half of the build decision: what this thing shoots, how
+        // far, and what it bounces off. None of it was on screen anywhere
+        // before v1.27 — see `spec.ts`.
+        onHold: () => this.openOverlay(() => this.showSpec(kind, false)),
         icon,
       });
     }
@@ -1723,6 +1771,7 @@ export class TownScene extends Phaser.Scene {
               town.supplies >= cost,
             active: this.tool.type === 'wall' && this.tool.kind === kind,
             onTap: () => this.setTool({ type: 'wall', kind }),
+            onHold: () => this.openOverlay(() => this.showSpec(kind, true)),
           },
         ];
       }),

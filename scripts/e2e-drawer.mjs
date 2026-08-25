@@ -1,5 +1,5 @@
 /**
- * The drawer's grab handle (v1.27).
+ * The drawer's grab handle and the tab swipe (v1.27-8).
  *
  * Through v1.26 the only way to collapse the portrait drawer was to re-tap the
  * ACTIVE tab — a real gesture with nothing on screen to suggest it, which is
@@ -198,6 +198,204 @@ try {
     Math.abs(afterScroll.list.h - settled.list.h) < 2,
     `list ${settled.list.h.toFixed(0)} → ${afterScroll.list.h.toFixed(0)}px`,
   );
+
+  // ---- swiping across the list changes tab -------------------------------
+  //
+  // The axis lock is the whole feature. A list that scrolls one way and swipes
+  // the other has to decide once, early, which a finger meant — so these check
+  // both directions AND that each leaves the other alone.
+  const swipe = async (dx) => {
+    const at = await shape();
+    const y = at.list.y + at.list.h * 0.5;
+    const x = at.list.x + at.list.w * (dx < 0 ? 0.75 : 0.25);
+    await touch('touchStart', x, y);
+    for (let i = 1; i <= 8; i++) {
+      await touch('touchMove', x + (dx * i) / 8, y);
+      await wait(16);
+    }
+    await touch('touchEnd', x + dx, y);
+    await wait(500);
+  };
+
+  const firstTab = await page.evaluate(() => window.lastline.tab?.() ?? null);
+  check('the panel reports its tab', firstTab !== null, firstTab ?? 'no seam');
+  await swipe(-160);
+  const afterLeft = await page.evaluate(() => window.lastline.tab?.() ?? null);
+  check(
+    'a swipe left moves to the next tab',
+    afterLeft !== null && afterLeft !== firstTab,
+    `${firstTab} → ${afterLeft}`,
+  );
+  await swipe(160);
+  const afterRight = await page.evaluate(() => window.lastline.tab?.() ?? null);
+  check(
+    'and a swipe right comes back',
+    // Paired with the outward leg on purpose: `afterRight === firstTab` is
+    // satisfied by nothing having happened at all, which is how this passed
+    // while the swipe was being dropped.
+    afterLeft !== firstTab && afterRight === firstTab,
+    `${afterLeft} → ${afterRight}`,
+  );
+
+  // The lock, from the other side: a scroll must scroll and must NOT change
+  // tab.
+  //
+  // Deliberately DIAGONAL, and that is the whole value of this check. A
+  // perfectly vertical drag has dx = 0, so it cannot change tab whether the
+  // axis lock exists or not — the check passed against a build with no lock
+  // at all, which makes it worth nothing. A thumb dragging down a phone
+  // drifts sideways, and 70px of drift is past the swipe threshold: this
+  // fails the moment the tie-break stops favouring the scroll.
+  const beforeScroll = await page.evaluate(() => window.lastline.tab?.() ?? null);
+  const scrollWas = await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1);
+  const box = await shape();
+  const vy = box.list.y + box.list.h * 0.6;
+  const vx = box.list.x + box.list.w * 0.7;
+  await touch('touchStart', vx, vy);
+  for (let i = 1; i <= 8; i++) {
+    // Drifting LEFT, so a build that loses the lock lands on a tab that
+    // exists: drifting right off the FIRST tab clamps, and the check would
+    // then only fail on its scroll half.
+    await touch('touchMove', vx - (70 * i) / 8, vy - (140 * i) / 8);
+    await wait(16);
+  }
+  await touch('touchEnd', vx - 70, vy - 140);
+  await wait(600);
+  const tabAfter = await page.evaluate(() => window.lastline.tab?.() ?? null);
+  const scrollNow = await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1);
+  check(
+    'a drag that drifts sideways still scrolls and keeps its tab',
+    tabAfter === beforeScroll && scrollNow !== scrollWas,
+    `${beforeScroll} → ${tabAfter}, scrollY ${Math.round(scrollWas)} → ${Math.round(scrollNow)}`,
+  );
+
+  // ---- a row's second action -----------------------------------------------
+  //
+  // A build row's tap picks the tool; its HOLD says what the thing does. Both
+  // are driven here because the interesting failure is the pair: a hold that
+  // also fires the tap would select a tool the player only asked to read
+  // about, and a tap that waits for the hold timer would make the whole list
+  // feel slow.
+  const cardOpen = () =>
+    page.evaluate(() => window.lastline.buttons().some((b) => b.label === 'CLOSE'));
+
+  const at = await shape();
+  // The first BUILD row, found by its rect rather than by counting: rows
+  // scroll, and an index is wrong the moment the list has moved.
+  const rowOf = async (label) => {
+    const b = await page.evaluate((want) => {
+      const hit = window.lastline
+        .buttons()
+        .find((x) => x.label === want && x.w > 0 && x.h > 0);
+      return hit ? { x: hit.x, y: hit.y, w: hit.w, h: hit.h, dpr: window.lastline.dpr } : null;
+    }, label);
+    return b ? { x: (b.x + b.w / 2) / b.dpr, y: (b.y + b.h / 2) / b.dpr } : null;
+  };
+
+  // Back to the top of the list, so the row under the finger is a BUILD row
+  // and not whatever the earlier checks scrolled to. Dragged rather than set
+  // through a seam: there is no seam that moves the scroll, and inventing one
+  // for a harness would test a path the player never takes.
+  for (let n = 0; n < 4; n++) {
+    const topY = at.list.y + at.list.h * 0.3;
+    const topX = at.list.x + at.list.w / 2;
+    await touch('touchStart', topX, topY);
+    for (let i = 1; i <= 6; i++) {
+      await touch('touchMove', topX, topY + (160 * i) / 6);
+      await wait(16);
+    }
+    await touch('touchEnd', topX, topY + 160);
+    await wait(200);
+  }
+  await wait(600);
+
+  const firstRow = await page.evaluate(() => {
+    const dpr = window.lastline.dpr;
+    const l = window.lastline.layout();
+    // Topmost row INSIDE the list, by geometry. The button pool is a Set in
+    // creation order, which is not the order they are drawn in once rows have
+    // been recycled — reading [0] would pick whichever slot happened to be
+    // built first.
+    const rows = window.lastline
+      .buttons()
+      .filter((b) => b.y >= l.list.y && b.y + b.h <= l.list.y + l.list.h && b.label !== '')
+      .sort((a, b) => a.y - b.y);
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return { x: (r.x + r.w / 2) / dpr, y: (r.y + r.h / 2) / dpr, label: r.label };
+  });
+  check('there is a build row to press', firstRow !== null, firstRow?.label ?? 'none');
+
+  if (firstRow) {
+    // A tap: down, up, no waiting. Must NOT open the card.
+    await touch('touchStart', firstRow.x, firstRow.y);
+    await touch('touchEnd', firstRow.x, firstRow.y);
+    await wait(400);
+    check('a tap on a row does not open its card', !(await cardOpen()), firstRow.label);
+
+    // A hold: down, stay still past the threshold, then up.
+    const armedBefore = await page.evaluate(
+      (want) => window.lastline.buttons().some((b) => b.label === want && b.active),
+      firstRow.label,
+    );
+    await touch('touchStart', firstRow.x, firstRow.y);
+    await wait(900);
+    const openedWhileDown = await cardOpen();
+    await touch('touchEnd', firstRow.x, firstRow.y);
+    await wait(400);
+    check(
+      'holding a row opens its card',
+      openedWhileDown && (await cardOpen()),
+      `${firstRow.label} — ${openedWhileDown ? 'opened under the finger' : 'nothing while held'}`,
+    );
+    // Fired under the finger, not on the lift: a long press that only resolves
+    // when you let go gives no way to tell it worked, and the player lifts.
+    check('and it opens while the finger is still down', openedWhileDown, '');
+
+    // The card carries the numbers that were nowhere on screen before: HP, a
+    // price, and — for anything that shoots or produces — what it actually
+    // does. `NOT BUILDABLE` is called out by name because that is what the
+    // card said over a supply depot when it read only the sim profile, and a
+    // card that lies about a price is worse than no card.
+    const spec = await page.evaluate(() => window.lastline.texts().join(' | '));
+    check(
+      'and the card prices the thing and says what it does',
+      /\d+ HP/.test(spec) && /\d+S/.test(spec) && !/NOT BUILDABLE/.test(spec),
+      spec.slice(spec.indexOf('BUILD | BASE') + 30, spec.indexOf('BUILD | BASE') + 260),
+    );
+
+    // The other half of "a press is one thing or the other": the hold must not
+    // ALSO have fired the tap. Compared against the state BEFORE the hold
+    // rather than asserted false, because the tap check above already armed
+    // this row — and comparing catches the failure in both directions, since
+    // selecting an armed tool a second time toggles it back off.
+    const armedAfter = await page.evaluate(
+      (want) => window.lastline.buttons().some((b) => b.label === want && b.active),
+      firstRow.label,
+    );
+    // This is also what pins the press-identity fix in `makeButton`: a button
+    // whose press ended without a scene-level up used to keep believing it was
+    // held, and the next up ANYWHERE fired it — measured two gestures and five
+    // seconds later, on a row the finger had long left. The hold is the
+    // reliable way to reach that state, because opening a card puts a scrim
+    // under the finger and the release over it is the one that completes
+    // Phaser's up pass. Reverting the fix fails this line every time; a check
+    // driven through a board tap did not, because the board swallows its own
+    // release.
+    check(
+      'and the hold does not also fire the tap',
+      armedAfter === armedBefore,
+      `armed ${armedBefore} → ${armedAfter}`,
+    );
+
+    const close = await rowOf('CLOSE');
+    if (close) {
+      await touch('touchStart', close.x, close.y);
+      await touch('touchEnd', close.x, close.y);
+      await wait(500);
+    }
+    check('and it closes again', !(await cardOpen()), '');
+  }
 
   check('no page errors', errors.length === 0, errors[0] ?? '');
   await browser.close();

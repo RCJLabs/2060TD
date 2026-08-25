@@ -242,6 +242,28 @@ export class Overlay {
     return rect;
   }
 
+  /**
+   * A band of the card the caller draws into directly.
+   *
+   * Every other method here spells something out; this one exists because a
+   * card about a THING should show the thing. The Graphics is parented into
+   * the scrolling body, so a silhouette scrolls and dies with the card, and
+   * the callback gets the same (x, y, size) contract `PanelRow.icon` does —
+   * one drawing function serves the row, the board and the card, which is
+   * what keeps them from drifting into three different shapes.
+   */
+  sketch(
+    size: number,
+    draw: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void,
+    opts: { gapAfter?: number } = {},
+  ): Rect {
+    const rect = this.flow(size, opts.gapAfter);
+    const g = this.scene.add.graphics().setDepth(this.depth + 1);
+    this.body.add(g);
+    draw(g, rect.x + Math.round((rect.w - size) / 2), rect.y, size);
+    return rect;
+  }
+
   /** Button inside the scrolling body. */
   button(
     rect: Rect,
