@@ -1631,6 +1631,102 @@ also has `wallDps` 0, so none of them can open a line.
 
 ---
 
+## M16 — v1.26 "Thumb": it stops being a page
+
+The read that started this was "it feels like it was ported to mobile", and the
+first job was to find out what that meant. The layout has been mobile-first
+since v0.9 — portrait drawer, landscape rail, 44px rows — so the answer was
+never the layout. It was the INTERACTION, and most of it turned out to be
+measurable.
+
+`scripts/e2e-mobile.mjs` measures four things across three phone viewports,
+using the button and text probes earlier harnesses already exposed: a target
+smaller than a fingertip, two targets close enough that the wrong one fires,
+a primary action outside the thumb arc, and text cut off by the strip drawn
+over it. The thresholds are platform guidelines rather than inventions — 44×44
+is Apple's minimum, 8px is where adjacent targets start sharing a fingertip,
+and the bottom third is what a thumb reaches without the hand shifting grip.
+
+### What it found
+
+| | before | after |
+| --- | --- | --- |
+| last row ↔ navigation tab | **0.0px** | hit area clipped to the list |
+| every tab strip's gap | 6px | 8px |
+| safe-area insets | never read | plumbed through every rect |
+| `LAUNCH RAID` | 52% up | 9% |
+| `CONFIRM` | 54% up | 9% |
+| landscape tab strip | 76% up | 7% |
+
+- [x] **A mis-tap across a mode boundary.** Row hit areas were clipped on their
+      MIDPOINT, so up to half a row stayed live after scrolling out of the list,
+      sitting over the tab strip below. A thumb aimed at the last row changed
+      tab instead. Buttons take a hit clip now, and the probe reports the
+      CLIPPED rect — "is this big enough" reads the drawn box, "do these
+      overlap" reads the live one, and an audit that conflates them is wrong
+      twice.
+- [x] **`viewport-fit=cover` with nothing inset.** Asked for edge-to-edge since
+      v0.9 and never read `env(safe-area-inset-*)`, so status text drew behind
+      the notch and the tab strip behind the home indicator. They are CSS
+      environment variables rather than properties, so the only way to read
+      them is to put them on an element and measure it.
+- [x] **Nothing was in reach.** The launch button was pinned to the bottom of
+      the BOARD — the middle of a portrait phone — and CONFIRM had the same
+      defect, hidden because it only exists mid-placement. The audit now drives
+      a screen into a state before measuring it; the controls that matter most
+      are usually the ones that appear mid-interaction.
+- [x] **The phone never answered the finger.** No `navigator.vibrate` anywhere.
+      Five patterns chosen by meaning, fired on the DOWN, and `deny` is two
+      pulses because a single pulse of any length reads as success. Disabled
+      buttons fire it — the first feedback they have ever given, and a dead
+      control was previously indistinguishable from a missed tap.
+- [x] **Rows carried no silhouette.** The game has drawn one for every structure
+      since v1.19 and showed them only on the board, so the drawer stayed a
+      spreadsheet. Rows read `drawStructureGlyph`, the same function the board
+      uses, rather than a second set of shapes that would drift from it.
+- [x] **It could not go on a home screen.** No manifest, no worker. Both now,
+      with the worker discovering its own assets out of `index.html` at install
+      — caching only the shell looks right and leaves the FIRST visit with an
+      offline-capable page and no engine to run, because a worker registers
+      after the page has already fetched its chunks.
+
+### What was deliberately not done
+
+- [ ] **Drag a row from the drawer onto the map.** Slide-to-aim already works:
+      arming a row puts the board in `placeMode` and `onPlace` parks the ghost
+      where the finger lifted. The only missing step is a drag that STARTS in
+      the drawer, which needs a press hand-off through BoardView's gesture
+      arbitration — the module the double-scroll bug lived in, three fixes deep
+      — to save one tap. Worth doing; not worth doing hastily, and not why the
+      game read as ported.
+- [ ] **A drawer that behaves like one.** Grab handle, snap points, swipe
+      between tabs, swipe a row for its secondary action.
+- [ ] **Muster rows are still text.** `drawAttackerBody` is a private method on
+      BattleRenderer taking a live sim entity; extracting it into a shared
+      glyph the way structures have one is its own change.
+
+### Two things this milestone taught about its own instrument
+
+**An audit that only looks at idle screens is blind to the controls that
+matter.** CONFIRM was 54% up the screen for five releases and no measurement
+could see it, because it only exists while something is aimed.
+
+**Three of the audit's checks were lying when first written**, and were fixed
+before any result was trusted: it flagged normal mid-scroll rows as clipped,
+counted masked-away text as text running off the screen, and judged "the last
+row clears the strip" from 1120 of 1309 because a fixed number of wheel ticks
+never reached the stop. A harness that reports the list working as a defect is
+worse than no harness. Every fix in the table above was verified to fail the
+audit when reverted.
+
+**And one about a flaky test.** `e2e-gates` had a tap that fired about half the
+time, which looked like a dropped board tap and would have undermined every
+direct-manipulation plan resting on board taps. The harness's own comment had
+the answer: a swing is priced in CP, CP accrues while the shooting goes on, and
+the check waited a flat 800ms and hoped. The game was never dropping anything.
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
