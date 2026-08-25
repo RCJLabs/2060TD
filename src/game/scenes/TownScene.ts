@@ -1654,6 +1654,23 @@ export class TownScene extends Phaser.Scene {
       const cost = meta.levels[0]!;
       const max = g.counts[kind] ?? 0;
       const have = countOf(town, kind);
+      // The same silhouette the thing will have once it is standing on the
+      // board — `drawStructureGlyph`, not a second set of shapes that would
+      // drift from it. A locked row still draws one: the point of the list is
+      // to show what the base could become, and a blank is not an answer.
+      const icon = (
+        g: Phaser.GameObjects.Graphics,
+        x: number,
+        y: number,
+        size: number,
+      ): void => {
+        // `drawStructureGlyph` takes the glyph's CENTRE, not its top-left, and
+        // sizes its box as `cell * footprint * 0.9`. Both have to be undone
+        // here or a two-cell kind draws at twice a one-cell kind and every
+        // icon straddles its row's top border.
+        const span = footprintOfKind(kind) === 2 ? 2 : 1;
+        drawStructureGlyph(g, kind, x + size / 2, y + size / 2, size / (span * 0.9));
+      };
       if (!isUnlocked(town, kind)) {
         const at = this.unlockAt(kind);
         rows.push({
@@ -1661,6 +1678,7 @@ export class TownScene extends Phaser.Scene {
           label: meta.name.toUpperCase(),
           sub: `LOCKED${at !== undefined ? ` M${at + 1}` : ''}`,
           enabled: false,
+          icon,
         });
         continue;
       }
@@ -1672,6 +1690,7 @@ export class TownScene extends Phaser.Scene {
         enabled: max > 0 && have < max && town.supplies >= cost.supplies && town.fuel >= cost.fuel,
         active: this.tool.type === 'build' && this.tool.kind === kind,
         onTap: () => this.setTool({ type: 'build', kind }),
+        icon,
       });
     }
 

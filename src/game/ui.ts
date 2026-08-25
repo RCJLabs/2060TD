@@ -28,6 +28,8 @@ export interface Button {
    * that has left, and this stops it taking the press.
    */
   setHitClip(clip: { x: number; y: number; w: number; h: number } | null): void;
+  /** Extra left inset for the label, in device px — room for a row's icon. */
+  setIndent(px: number): void;
   setFont(size: number): void;
   /** Wrap the label to this width in device px; null leaves it on one line. */
   setWrap(width: number | null): void;
@@ -198,10 +200,17 @@ export function makeButton(
    * faction picker) drew its text flush against the top of its own box.
    */
   const rect = { x, y, w: width, h: height };
+  let indent = 0;
   const place = (): void => {
     const pad = Math.round(fontSize * 1.1);
     const top = rect.y + Math.max(0, Math.round((rect.h - label.height) / 2));
-    label.setPosition(align === 'center' ? rect.x + rect.w / 2 : rect.x + pad, top);
+    // The indent shifts a left-aligned label clear of whatever is drawn in the
+    // row's left edge. A centred label ignores it: a tab strip has no icon
+    // column, and offsetting the centre would just look like a mistake.
+    label.setPosition(
+      align === 'center' ? rect.x + rect.w / 2 : rect.x + pad + indent,
+      top,
+    );
     sub?.setPosition(rect.x + rect.w - pad, top);
   };
   place();
@@ -451,6 +460,11 @@ export function makeButton(
       clip = next;
       applyClip();
     },
+    setIndent(px: number) {
+      if (indent === px) return;
+      indent = px;
+      place();
+    },
     setFont(size: number) {
       if (fontSize === size) return;
       fontSize = size;
@@ -502,6 +516,20 @@ export interface PanelRow {
   onTap?: () => void;
   /** A full-width heading instead of a button. */
   heading?: boolean;
+  /**
+   * The thing this row IS, drawn into the row's left edge.
+   *
+   * The game has had a silhouette for every structure and every unit since
+   * v1.19 and drew them only on the board, so the drawer stayed a spreadsheet:
+   * `SUPPLY DEPOT .......... 150S 2/3` is a table cell, and a list of them is
+   * scanned by reading rather than by looking. The callback gets a Graphics
+   * that has already been cleared and positioned, plus the box it may draw in,
+   * so a caller reuses `drawStructureGlyph`/`drawAttackerGlyph` rather than
+   * inventing a second set of shapes that would drift from the board's.
+   *
+   * Called on every rebuild, which is every frame — keep it to drawing.
+   */
+  icon?: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void;
 }
 
 export interface PanelTab {
@@ -554,6 +582,11 @@ export class Panel {
   /** What each pooled row slot currently does. */
   private taps: Array<(() => void) | undefined> = [];
   private headings: Phaser.GameObjects.Text[] = [];
+  /**
+   * One Graphics per row slot, pooled alongside the buttons and parented into
+   * `rowRoot` so an icon scrolls, masks and dies with the row it belongs to.
+   */
+  private icons: Phaser.GameObjects.Graphics[] = [];
   private rows: PanelRow[] = [];
   private layout!: Layout;
   private activeTab: string;
@@ -778,7 +811,14 @@ export class Panel {
       // Wrapping the label under it would read as two columns that collide.
       const padX = Math.round(font.body * 1.1);
       const subW = button.subWidth();
-      button.setWrap(Math.max(font.body * 4, colW - padX * 2 - (subW > 0 ? subW + padX : 0)));
+      // A row with a silhouette gives up the width the silhouette occupies —
+      // from BOTH the label's start and its wrap width, or a long name wraps
+      // under the icon instead of beside it.
+      const iconW = row.icon ? Math.round(rowH * 0.72) + pad : 0;
+      button.setIndent(iconW);
+      button.setWrap(
+        Math.max(font.body * 4, colW - padX * 2 - iconW - (subW > 0 ? subW + padX : 0)),
+      );
       button.setLabel(row.label);
       button.setEnabled(row.enabled !== false);
       button.setActive(row.active === true);
@@ -824,8 +864,20 @@ export class Panel {
         // measured the last row and a navigation tab overlapping by 0.0px. A
         // thumb aimed at the row changed tab instead, which is a mis-tap across
         // a mode boundary and the worst kind there is.
-        button.setVisible(y + lineH > list.y && y < list.y + list.h);
+        const onScreen = y + lineH > list.y && y < list.y + list.h;
+        button.setVisible(onScreen);
         button.setHitClip(list);
+
+        // The silhouette, in a square box at the row's left edge. Drawn AFTER
+        // the button so it lands on top of the row's own fill, and cleared
+        // every rebuild because a pooled slot shows a different row each frame.
+        const icon = this.iconFor(entry.slot);
+        icon.clear();
+        icon.setVisible(onScreen && entry.row.icon !== undefined);
+        if (onScreen && entry.row.icon) {
+          const box = Math.round(Math.min(lineH, rowH) * 0.72);
+          entry.row.icon(icon, x + pad, y + Math.round((lineH - box) / 2), box);
+        }
       });
 
       y += lineH + gap;
@@ -834,6 +886,7 @@ export class Panel {
 
     for (let i = poolIndex; i < this.pool.length; i++) this.pool[i]!.setVisible(false);
     for (let i = headingIndex; i < this.headings.length; i++) this.headings[i]!.setVisible(false);
+    for (let i = poolIndex; i < this.icons.length; i++) this.icons[i]!.setVisible(false);
 
     this.contentH = y - (list.y - this.scrollY) + pad - gap;
     this.clampScroll();
@@ -881,6 +934,23 @@ export class Panel {
   }
 
   /** Run the action currently bound to a pooled row slot. */
+  /**
+   * The Graphics for a row slot, made on demand.
+   *
+   * Parented into `rowRoot` so it inherits the list's mask and scroll offset —
+   * an icon drawn straight onto the scene would sit still while its row moved
+   * and would paint over the tab strip on the way past.
+   */
+  private iconFor(slot: number): Phaser.GameObjects.Graphics {
+    let g = this.icons[slot];
+    if (!g) {
+      g = this.scene.add.graphics();
+      this.rowRoot.add(g);
+      this.icons[slot] = g;
+    }
+    return g;
+  }
+
   private tapRow(slot: number): void {
     this.taps[slot]?.();
   }
