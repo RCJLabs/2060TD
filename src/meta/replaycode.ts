@@ -3,6 +3,7 @@ import { garrisonById, isGarrisonId } from '../content/garrison';
 import { standingOrdersFor, isStandingOrdersId } from '../content/standingOrders';
 import { TERRAIN_VERSION } from '../sim/terrain';
 import { COMBAT_CURRENT, COMBAT_NONE } from '../sim/combat';
+import { OBJECTIVE_IDS, isObjectiveId } from './objectives';
 import type {
   AutoPowerRule,
   CellIndex,
@@ -279,8 +280,11 @@ export function encodeReplay(replay: Replay): string {
   // The rolls (v1.23) go on last, and each optional block forces the ones
   // before it: a code that skipped the garrison block but wrote combat bytes
   // would have those bytes read as a garrison id.
+  // Index into OBJECTIVE_IDS; 0 is 'post', the ending every code already had,
+  // so it is also the "no block" value and costs nothing to omit.
+  const objectiveIndex = isObjectiveId(c.objective) ? OBJECTIVE_IDS.indexOf(c.objective) : 0;
   const combatVersion = c.combatVersion ?? COMBAT_NONE;
-  const needCombat = combatVersion > COMBAT_NONE;
+  const needCombat = combatVersion > COMBAT_NONE || objectiveIndex > 0;
   const garrisonId = c.garrison?.id ?? '';
   const needGarrison = garrisonId !== '' || needCombat;
   if ((c.terrainVersion ?? 0) > 0 || needGarrison) {
@@ -309,6 +313,12 @@ export function encodeReplay(replay: Replay): string {
     body.push(c.combatSeed === undefined ? 0 : 1);
     if (c.combatSeed !== undefined) writeVarint(body, c.combatSeed >>> 0);
   }
+
+  // The mission (v1.24). A raid that came for the guns STOPPED when it had
+  // them, so a replay that fought on would be showing a battle that did not
+  // happen. Written only for the two objectives that end a raid early — a
+  // code with no block re-fights to the ending it always had.
+  if (objectiveIndex > 0) writeVarint(body, objectiveIndex);
 
   // Header, dictionary, then the body — the reader needs the names first.
   const head: number[] = [FORMAT, REPLAY_KINDS.indexOf(replay.kind)];
@@ -629,6 +639,16 @@ export function decodeReplay(raw: string): ReplayDecode {
       config.combatSeed = combatSeed;
     }
     if (version > COMBAT_NONE) config.combatVersion = version;
+  }
+
+  // The mission, if this code was written after v1.24. Older codes end here
+  // and re-fight to the ending they recorded, which is taking the post.
+  if (cur.at < body.length) {
+    const index = readVarint(cur);
+    if (index === null) return bad('truncated');
+    const objective = OBJECTIVE_IDS[index];
+    if (objective === undefined) return bad('content');
+    if (index > 0) config.objective = objective;
   }
 
   return {

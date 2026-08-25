@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { yardTown } from './helpers';
+import { yardTown, makeResolution } from './helpers';
 import { generateBase, lootFor, MAP_H, MAP_W } from '../src/content/bases';
 import { deserialize, serialize } from '../src/meta/save';
 import {
@@ -351,6 +351,11 @@ describe('raid planning and resolution', () => {
         reserves: 0,
         squads: [{ slot: 0, deployed: 7, returned: 4 }],
         ccHpFraction: 0,
+        objective: 'post',
+        objectiveMet: true,
+        quota: 0,
+        progress: 0,
+        withdrew: false,
       },
       config,
       T0 + 1000,
@@ -371,10 +376,7 @@ describe('raid planning and resolution', () => {
     const base = generateBase(1, 0);
     const plan: SquadPlan[] = [{ units: { ranger: 1 }, sector: 'W1', doctrine: 'assault' }];
     const config = raidConfig(base, plan, 1);
-    const win = {
-      cleared: true, ticks: 1, deployed: {}, survivors: {}, losses: {},
-      destroyed: {}, loot: { supplies: 0, fuel: 0 }, destructionPct: 1, powersUsed: {}, reserves: 0, squads: [], ccHpFraction: 0,
-    };
+    const win = makeResolution();
     applyRaidResult(town, base, win, config, T0);
     applyRaidResult(town, base, win, config, T0);
     expect(town.frontline.pendingCounterattack).toBe(true);

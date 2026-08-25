@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { music } from '../music';
 import { defenseCatalogFor, raidCatalogFor, type FactionId } from '../../content/factions';
 import { DT, Engine } from '../../sim/engine';
+import { OBJECTIVES, isObjectiveId, watchObjective } from '../../meta/objectives';
 import type { SimConfig } from '../../sim/types';
 import { BattleRenderer } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
@@ -28,6 +29,7 @@ export interface ReplayData {
 export class ReplayScene extends Phaser.Scene {
   private replay!: ReplayData;
   private engine!: Engine;
+  private watch: ReturnType<typeof watchObjective> | null = null;
   private battle!: BattleRenderer;
   private accumulator = 0;
   private speedMult = 2;
@@ -55,6 +57,10 @@ export class ReplayScene extends Phaser.Scene {
     const catalog =
       this.replay.kind === 'raid' ? raidCatalogFor(faction) : defenseCatalogFor(faction);
     this.engine = new Engine(this.replay.config, catalog);
+    const objective = this.replay.config.objective;
+    this.watch = isObjectiveId(objective)
+      ? watchObjective(objective, (cls) => this.engine.countStanding(cls))
+      : null;
     this.engine.enqueue({ tick: 0, type: 'startAssault' });
     this.board = new BoardView(this, {
       cols: this.replay.config.width,
@@ -114,8 +120,15 @@ export class ReplayScene extends Phaser.Scene {
     this.speedMult = this.speedMult >= 8 ? 1 : this.speedMult * 2;
   }
 
+  /**
+   * A raid that came for the guns STOPPED when it had them (v1.24), so the
+   * replay has to stop there too — running on would show a battle that did
+   * not happen. The watch comes from the same helper the resolver uses, built
+   * from the same config, so the two cannot drift to different ticks.
+   */
   private ended(): boolean {
-    return this.engine.phase === 'victory' || this.engine.phase === 'defeat';
+    if (this.engine.phase === 'victory' || this.engine.phase === 'defeat') return true;
+    return this.watch?.met() === true;
   }
 
   private skipToEnd(): void {
@@ -141,16 +154,25 @@ export class ReplayScene extends Phaser.Scene {
     } else if (!this.endShown) {
       this.endShown = true;
       const raid = this.replay.kind === 'raid';
-      const attackersWon = this.engine.phase === 'defeat'; // the base's CC fell
+      // A force that pulled out on its objective was not repelled — it left
+      // with what it came for, which is a different ending and has to read as
+      // one.
+      const withdrew = this.watch?.met() === true;
+      const attackersWon = this.engine.phase === 'defeat' || withdrew;
+      const objective = isObjectiveId(this.replay.config.objective)
+        ? OBJECTIVES[this.replay.config.objective]
+        : null;
       const text = raid
-        ? attackersWon
-          ? 'COMMAND POST DESTROYED'
-          : 'RAID REPELLED'
+        ? withdrew
+          ? `${objective?.name ?? 'OBJECTIVE'} — WITHDRAWN`
+          : attackersWon
+            ? 'COMMAND POST DESTROYED'
+            : 'RAID REPELLED'
         : attackersWon
           ? 'PERIMETER BREACHED'
           : 'PROBE REPELLED';
       const killer = this.engine.stats.ccKillerKind;
-      const cause = attackersWon && killer ? `\nKILLING BLOW: ${killer.toUpperCase()}` : '';
+      const cause = attackersWon && !withdrew && killer ? `\nKILLING BLOW: ${killer.toUpperCase()}` : '';
       const { board, font } = this.layout;
       const stamp = this.add
         .text(board.x + board.w / 2, board.y + board.h / 2, text + cause, {

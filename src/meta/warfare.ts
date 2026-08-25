@@ -15,6 +15,7 @@ import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
 import { TERRAIN_NONE, TERRAIN_VERSION } from '../sim/terrain';
 import { COMBAT_CURRENT } from '../sim/combat';
+import { isObjectiveId, watchObjective, type ObjectiveId } from './objectives';
 import type {
   AttackerMods,
   AutoPowerRule,
@@ -506,6 +507,16 @@ export interface RaidResolution {
   powersUsed: Record<string, number>;
   /** Reserves the base's garrison stood up while you were getting there (v1.20). */
   reserves: number;
+  /** What the raid was sent to do (v1.24). Absent from a config means 'post'. */
+  objective: ObjectiveId;
+  /** Did it do it? For 'post' this is the same as `cleared`. */
+  objectiveMet: boolean;
+  /** How many of the objective's class had to fall; 0 for the command post. */
+  quota: number;
+  /** How many actually fell. */
+  progress: number;
+  /** True when the force pulled out on filling its quota rather than fighting on. */
+  withdrew: boolean;
   /**
    * How much of the command post was still standing when the raid ended,
    * 0..1 (v1.23).
@@ -547,8 +558,26 @@ export function resolveRaid(
     initial.set(s.profile.kind, (initial.get(s.profile.kind) ?? 0) + 1);
   }
 
+  // What the raid came for, and what it takes (v1.24). Read once, from what
+  // the base is actually holding — a quota fixed against the starting count
+  // cannot be moved by the raid that is trying to fill it.
+  const objective = isObjectiveId(config.objective) ? config.objective : 'post';
+  /**
+   * A lesser objective ends the raid the moment it is filled, and that is the
+   * whole trade: you come home with the men you have left instead of feeding
+   * them to a post you were never going to take. Checked between steps rather
+   * than inside the engine, so no `Phase` is added and nothing in the sim has
+   * to know what a mission is.
+   */
+  const watch = watchObjective(objective, (cls) => engine.countStanding(cls));
+
+  let withdrew = false;
   while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < RAID_MAX_TICKS) {
     engine.step();
+    if (watch.met()) {
+      withdrew = true;
+      break;
+    }
   }
 
   const survivors: Record<string, number> = {};
@@ -618,6 +647,12 @@ export function resolveRaid(
     powersUsed,
     reserves: engine.ordersExecuted,
     ccHpFraction: Math.max(0, engine.cc.hp / engine.cc.profile.maxHp),
+    objective,
+    objectiveMet: objective === 'post' ? engine.phase === 'defeat' : withdrew,
+    quota: watch.quota,
+    // The post is not a quota; for the other two this is how far they got.
+    progress: watch.progress(),
+    withdrew,
   };
 }
 

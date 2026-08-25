@@ -367,6 +367,18 @@ export interface SimConfig {
    */
   combatSeed?: number;
   /**
+   * What the raid came for (v1.24), and the tick it stops on.
+   *
+   * The sim does not read this — it knows what a structure IS and the war
+   * layer decides what that means for a raid — but it rides the config so
+   * that `resolveRaid` and the replay stop at the same tick from the same
+   * data. Absent means the pre-v1.24 ending: fight until the command post
+   * falls, the force is spent, or the clock runs out.
+   *
+   * See `src/meta/objectives.ts`.
+   */
+  objective?: string;
+  /**
    * Which side the player commands. Defaults to 'defender' (town sieges):
    * powers strike the attacking wave. As 'attacker' (raids): powers strike
    * structures and walls instead, and cost no CP — charges are the budget.

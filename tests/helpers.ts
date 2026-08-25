@@ -3,6 +3,7 @@ import { DAMAGE_MULT } from '../src/content/damage';
 import { USA_POWERS, USA_STRUCTURES, USA_WALLS } from '../src/content/usa';
 import { Engine } from '../src/sim/engine';
 import { newTown, type TownState } from '../src/meta/town';
+import type { RaidResolution } from '../src/meta/warfare';
 import type { FactionId } from '../src/content/factions';
 import type { AttackerProfile, Catalog, SimConfig } from '../src/sim/types';
 
@@ -181,4 +182,36 @@ export function yardTown(now: number, faction?: FactionId): TownState {
   const town = newTown(now, faction);
   town.terrainSeed = CLEAR_YARD_SEED;
   return town;
+}
+
+/**
+ * A RaidResolution with everything filled in, so a test can state only the
+ * two or three fields it actually cares about.
+ *
+ * `applyRaidResult` takes a whole resolution and several tests hand it one by
+ * hand. Every field the shape gains — `ccHpFraction` in v1.23, the objective
+ * block in v1.24 — broke each of those literals in a way that had nothing to
+ * do with what the test was checking. This absorbs that.
+ */
+export function makeResolution(over: Partial<RaidResolution> = {}): RaidResolution {
+  return {
+    cleared: true,
+    ticks: 1,
+    deployed: {},
+    survivors: {},
+    losses: {},
+    destroyed: {},
+    loot: { supplies: 0, fuel: 0 },
+    destructionPct: 1,
+    powersUsed: {},
+    reserves: 0,
+    squads: [],
+    ccHpFraction: 0,
+    objective: 'post',
+    objectiveMet: true,
+    quota: 0,
+    progress: 0,
+    withdrew: false,
+    ...over,
+  };
 }

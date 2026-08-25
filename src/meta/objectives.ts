@@ -101,8 +101,14 @@ export const OBJECTIVES: Record<ObjectiveId, ObjectiveDef> = {
 
 export const OBJECTIVE_IDS: ObjectiveId[] = ['post', 'guns', 'stores'];
 
+/**
+ * Checked against the list rather than with `in`, which is true for anything
+ * on Object's prototype: `'constructor' in OBJECTIVES` passes, and the lookup
+ * that follows hands back a function whose `cls` is undefined. A save or a
+ * pasted code is untrusted input and this is the gate it comes through.
+ */
 export function isObjectiveId(value: unknown): value is ObjectiveId {
-  return typeof value === 'string' && value in OBJECTIVES;
+  return typeof value === 'string' && (OBJECTIVE_IDS as string[]).includes(value);
 }
 
 /** How many of the class have to fall, given what was standing at the start. */
@@ -120,4 +126,33 @@ export function quotaFor(objective: ObjectiveId, standingAtStart: number): numbe
  */
 export function objectiveAvailable(objective: ObjectiveId, standingAtStart: number): boolean {
   return OBJECTIVES[objective].cls === null || standingAtStart >= OBJECTIVE_FLOOR;
+}
+
+/**
+ * A live watch on whether a raid has what it came for.
+ *
+ * Built once, at tick zero, so the quota is fixed against what the base was
+ * holding before a shot was fired — a quota the raid could move by filling it
+ * would be a moving target. Both readers of an objective use this: the
+ * resolver, which decides the outcome, and the replay, which has to stop on
+ * the same tick or it shows a battle that did not happen.
+ *
+ * Takes a counter rather than an engine so this module stays free of the sim.
+ */
+export function watchObjective(
+  objective: ObjectiveId,
+  standingNow: (cls: 'defense' | 'economy') => number,
+): { readonly quota: number; readonly startedWith: number; met(): boolean; progress(): number } {
+  const cls = OBJECTIVES[objective].cls;
+  const startedWith = cls === null ? 0 : standingNow(cls);
+  const quota = quotaFor(objective, startedWith);
+  const progress = (): number => (cls === null ? 0 : startedWith - standingNow(cls));
+  return {
+    quota,
+    startedWith,
+    progress,
+    // The command post is not a quota: taking it ends the battle on its own,
+    // and the engine's own phase says so.
+    met: () => cls !== null && quota > 0 && progress() >= quota,
+  };
 }
