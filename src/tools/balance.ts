@@ -78,32 +78,64 @@ const seedOf = (a: number, b: number, c: number): number =>
 
 // ---- raid side: a fixed ~27-manpower expedition per faction ---------------------
 
-/** Squads mirror a sane player plan: armor front, tower hunters, economy razers. */
+/**
+ * The standard expedition each faction is measured with: ~27 manpower, three
+ * sectors, one per slot.
+ *
+ * **Derived, not written (v1.25.)** These were hand-authored through v1.24 to
+ * "mirror a sane player plan" — armour front, tower hunters, economy razers —
+ * and every defensive table in this file was measured against them. `--derive`
+ * searched the composition space instead and beat all five by 20.0 to 36.7
+ * points on held-out battles, which is more than the 25.6-point parity spread
+ * those same tables were being read for. A faction row that moves that far on
+ * a change of plan is measuring the plan and not the kit, so the yardstick had
+ * to be replaced before parity could be read at all.
+ *
+ * Two things the search found that the hand-written plans had backwards:
+ *
+ * - **Concentration beats spread.** Clear rate falls with headcount for every
+ *   faction holding a real heavy — China 100% at 3-5 bodies against 25.6% at
+ *   18+ — because a raid is a race to kill the post, not an attrition contest.
+ *   Three Abrams beat one Abrams and eight supporting bodies by 21.7 points.
+ * - **One doctrine beats three.** Every winner runs a single doctrine across
+ *   all three sectors. The reference plans split assault/hunt/raze for
+ *   thematic reasons and paid for it: a raid that sends a third of its force
+ *   to the depots is a raid that arrives at the post a third under strength.
+ *
+ * The cost of a derived reference is that it is a monoculture in three cases,
+ * so a defensive table now reads "how does this hold against nine APCs" rather
+ * than against combined arms. `--kits` and `--shapes` vary force composition
+ * and are the guard against tuning content to one attacker shape.
+ *
+ * Regenerate with `npm run balance -- --derive 60`, which emits these as
+ * source. The sector split follows roster iteration order, so transcribe from
+ * that output rather than by hand.
+ */
 const RAID_PLANS: Record<FactionId, SquadPlan[]> = {
   usa: [
-    { units: { abrams: 1, ranger: 1 }, sector: 'W1', doctrine: 'assault' },
-    { units: { javelin: 2, engineer: 1 }, sector: 'N1', doctrine: 'hunt' },
-    { units: { ranger: 2, engineer: 1, humvee: 1 }, sector: 'S1', doctrine: 'raze' },
+    { units: { javelin: 1, abrams: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { abrams: 1 }, sector: 'N1', doctrine: 'assault' },
+    { units: { abrams: 1 }, sector: 'S1', doctrine: 'assault' },
   ],
   china: [
-    { units: { type99: 1, zbd: 1, rifle: 1 }, sector: 'W1', doctrine: 'assault' },
-    { units: { grenadier: 2, sapper: 1 }, sector: 'N1', doctrine: 'hunt' },
-    { units: { militia: 4, rifle: 2, sapper: 1 }, sector: 'S1', doctrine: 'raze' },
+    { units: { militia: 1, type99: 1 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { sapper: 1, type99: 1 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { sapper: 1, type99: 1 }, sector: 'S1', doctrine: 'hunt' },
   ],
   russia: [
-    { units: { t72: 1, btr: 1 }, sector: 'W1', doctrine: 'assault' },
-    { units: { rpg: 2, demoteam: 1 }, sector: 'N1', doctrine: 'hunt' },
-    { units: { conscript: 3, motorrifle: 2, demoteam: 1 }, sector: 'S1', doctrine: 'raze' },
+    { units: { btr: 3 }, sector: 'W1', doctrine: 'assault' },
+    { units: { btr: 3 }, sector: 'N1', doctrine: 'assault' },
+    { units: { btr: 3 }, sector: 'S1', doctrine: 'assault' },
   ],
   nk: [
-    { units: { chonma: 1, nkrifle: 3 }, sector: 'W1', doctrine: 'assault' },
-    { units: { rpg7: 2, tunneler: 2 }, sector: 'N1', doctrine: 'hunt' },
-    { units: { infiltrator: 4, nkrifle: 5, tunneler: 1 }, sector: 'S1', doctrine: 'raze' },
+    { units: { nkrifle: 2, infiltrator: 1, tunneler: 3 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { nkrifle: 2, infiltrator: 1, tunneler: 3 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { nkrifle: 1, infiltrator: 1, tunneler: 3 }, sector: 'S1', doctrine: 'hunt' },
   ],
   un: [
-    { units: { leo1: 1, peacekeeper: 1, unmedic: 1 }, sector: 'W1', doctrine: 'assault' },
-    { units: { nlaw: 2, unmedic: 1 }, sector: 'N1', doctrine: 'hunt' },
-    { units: { peacekeeper: 2, unsapper: 1, vab: 1 }, sector: 'S1', doctrine: 'raze' },
+    { units: { vab: 3 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { vab: 3 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { vab: 3 }, sector: 'S1', doctrine: 'hunt' },
   ],
 };
 
