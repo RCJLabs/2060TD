@@ -1016,12 +1016,23 @@ v1.20 with a note saying the balance pass would decide. It has.
       idea, and the reference plans differ mainly in how much manpower they
       waste before finding it.*
 
-- [ ] **Decide whether a raid should be one unit.** This is a design question
-      before it is a balance one, and it is the biggest thing M11 turned up.
-      As it stands the raid planner — squads, sectors, doctrines, launch
-      delays, veterancy, the whole offence half of the game — is decoration
-      around "did you bring the tank". Three directions, and they are not
-      exclusive:
+---
+
+## M12 — v1.22 "The Escort": a raid stops being one unit *(shipped)*
+
+M11 ended by measuring that a raid was 46-87% one tank, with 11-18 of every 27
+manpower delivering nothing at all — which meant the raid planner, with its
+squads, sectors, doctrines, launch delays and veterancy, was decoration around
+whether the heavy was brought. This milestone is that finding acted on.
+
+It is a short one and most of it is measurement, again: four candidate levers
+priced before one was chosen, and then four more priced before an item was
+closed *without* a change. The single content edit is ten numbers.
+
+- [x] **Decide whether a raid should be one unit** *(v1.22)* — *the design
+      question, put to the owner with the options measured rather than
+      described. Answer: ship the trade.*
+      *The three directions that were on the table:*
 
       - **Make infantry able to hurt a command post.** The discount on ranged
         fire vs structures (smallArms 0.15) is what makes escorts inert. A

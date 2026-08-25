@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.21, in the browser. No install, no account, works on a phone.
+v1.22, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -18,6 +18,37 @@ v1.21, in the browser. No install, no account, works on a phone.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.22: a raid stops being one unit
+
+v1.21 ended by measuring something nobody had looked at: **a raid was 46-87% one
+tank.** Silencing each unit kind in turn — everything else held — showed the
+Abrams was 86% of a USA raid, three Ranger squads moved the outcome by *zero*,
+and between a third and two thirds of every force was manpower that did not
+change whether the raid succeeded. The planner was decoration around "did you
+bring the heavy".
+
+- **Power moved out of the tank and into the missile teams.** Heavy
+  anti-structure ×0.8 on both its channels, ranged infantry weapon damage ×1.5.
+  Ten numbers, five rosters. The clear rate went 40.3 → **40.2** and the parity
+  spread 26.4 → 27.0 — a trade, not a spike — while the heavy's share of a raid
+  fell from **67% to 50%**.
+- **Three factions now have a real second carry.** The AT arm's share of a
+  raid: **Russia 55%, the KPA 62%, the UN 36%**, up from bit parts.
+- **Two do not, and that is the design working.** The USA sits at 8% and China
+  at 9% — not because their infantry cannot contribute, but because their raids
+  succeed on the tank alone, so removing the escort changes nothing. Measuring
+  each force *without* its heavy: the USA's escorts have the second-highest
+  anti-structure output in the game and the fewest bodies and the least hit
+  points. They fail on survival, not output. GDD §4.1 gives the USA "low unit
+  counts, **every loss hurts**" and §4.2 gives China "**individually fragile
+  units**" — eight escort bodies dying before the objective is that sentence,
+  running. Fixing it would have raised the strongest faction and deleted a
+  weakness the design names twice.
+
+Eight levers were priced across this milestone and one was pulled. The rest are
+written down in `docs/ROADMAP.md` with what they cost, so the next person does
+not have to buy them again.
 
 ## Current state — v1.21: what the numbers were actually measuring
 
