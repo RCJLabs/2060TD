@@ -1258,6 +1258,111 @@ function kitTable(): string {
 }
 
 /**
+ * How much of a raid the seed actually decides.
+ *
+ * `clearPct` everywhere else in this file is a COUNT of matchups tipped, not
+ * a probability — which is only a problem if the seed changes nothing, and
+ * for twelve releases nobody had asked. This table asks. It fights the same
+ * matchup under many seeds and reports how often they all agree.
+ *
+ * Three measures, because they fail differently and only the first one is the
+ * headline:
+ *
+ * - **decided** — matchups where every seed reached the same verdict. High is
+ *   bad: it means the matchup, not the battle, is the outcome.
+ * - **same men home** — matchups where the identical force came back every
+ *   time. This is the harsher one: a raid can tip and still be the same
+ *   battle either side of the line.
+ * - **length** — spread in ticks. This one moves today, because the ±3-8%
+ *   spawn jitter perturbs arrival times without perturbing who wins.
+ */
+function seedTable(): string {
+  const SEED_COUNT = 12;
+  const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
+
+  const rows: string[] = [];
+  let allMatchups = 0;
+  let allDecided = 0;
+  let allSameHome = 0;
+  const allClear: number[] = [];
+  const allTickSpread: number[] = [];
+
+  for (const faction of FACTION_IDS) {
+    const cat = raidCatalogFor(faction);
+    const plan = RAID_PLANS[faction];
+    let matchups = 0;
+    let decided = 0;
+    let sameHome = 0;
+    const clears: number[] = [];
+    const tickSpreads: number[] = [];
+
+    for (const tier of RAID_TIERS) {
+      for (const arch of ARCHETYPES) {
+        const base = generateBase(tier, 0, baseKitFor(faction), arch.id, faction);
+        const squads = (faction === 'nk' ? tunnelPlanFor('nk', base, tier) : plan).map(
+          (sq, at) => ({ ...sq, slot: at }),
+        );
+        let won = 0;
+        const home: number[] = [];
+        const ticks: number[] = [];
+        for (let i = 0; i < SEED_COUNT; i++) {
+          const res = resolveRaid(
+            raidConfig(base, squads, seedFor(i), trainableFor(faction)),
+            squads,
+            tier,
+            cat,
+          );
+          if (res.cleared) won++;
+          home.push(res.squads.reduce((a, sq) => a + sq.returned, 0));
+          ticks.push(res.ticks);
+        }
+        matchups++;
+        if (won === 0 || won === SEED_COUNT) decided++;
+        if (Math.max(...home) === Math.min(...home)) sameHome++;
+        clears.push((won / SEED_COUNT) * 100);
+        tickSpreads.push(Math.max(...ticks) - Math.min(...ticks));
+      }
+    }
+
+    allMatchups += matchups;
+    allDecided += decided;
+    allSameHome += sameHome;
+    allClear.push(...clears);
+    allTickSpread.push(...tickSpreads);
+
+    const mean = clears.reduce((a, b) => a + b, 0) / clears.length;
+    const tickMean = tickSpreads.reduce((a, b) => a + b, 0) / tickSpreads.length;
+    rows.push(
+      `${pad(faction.toUpperCase(), 7)} | ${pad(String(matchups), 8)} | ` +
+        `${pad(`${decided} (${((decided / matchups) * 100).toFixed(0)}%)`, 11)} | ` +
+        `${pad(`${sameHome} (${((sameHome / matchups) * 100).toFixed(0)}%)`, 13)} | ` +
+        `${pad(tickMean.toFixed(0), 6)} | ${pad(mean.toFixed(1), 5)}`,
+    );
+  }
+
+  const mean = allClear.reduce((a, b) => a + b, 0) / allClear.length;
+  const tickMean = allTickSpread.reduce((a, b) => a + b, 0) / allTickSpread.length;
+  const lines = [
+    `WHAT THE SEED DECIDES — the same matchup fought ${SEED_COUNT} times`,
+    'FORCE   | MATCHUPS | DECIDED     | SAME MEN HOME | LENGTH | CLEAR',
+    '--------+----------+-------------+---------------+--------+------',
+    ...rows,
+    '--------+----------+-------------+---------------+--------+------',
+    `${pad('ALL', 7)} | ${pad(String(allMatchups), 8)} | ` +
+      `${pad(`${allDecided} (${((allDecided / allMatchups) * 100).toFixed(0)}%)`, 11)} | ` +
+      `${pad(`${allSameHome} (${((allSameHome / allMatchups) * 100).toFixed(0)}%)`, 13)} | ` +
+      `${pad(tickMean.toFixed(0), 6)} | ${pad(mean.toFixed(1), 5)}`,
+    '',
+    'DECIDED is the headline and high is bad: those are matchups where every',
+    'seed agreed, so the pairing is the result and the battle is a formality.',
+    'SAME MEN HOME is harsher still — the identical force walked back every',
+    'time. LENGTH is what does move: the spawn jitter changes when units',
+    'arrive without changing who wins, which is why nothing looked wrong.',
+  ];
+  return lines.join('\n');
+}
+
+/**
  * The per-faction deal ordering, printed as the literal `bases.ts` holds.
  *
  * Exists because the numbers below have to live in content and hand-copying
@@ -1620,6 +1725,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--seed')) {
+    console.log(seedTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--carry')) {
     console.log(carryTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -1759,6 +1869,9 @@ function main(): void {
   sections.push(structureTable());
   // …and the bottom line under all of it: a raid is very nearly one unit.
   sections.push(carryTable());
+  // …and the caveat that belongs on every percentage above it: CLEAR% is a
+  // count of matchups tipped, and this is how few of them the seed can tip.
+  sections.push(seedTable());
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));
