@@ -1223,18 +1223,41 @@ export class Engine {
   /**
    * Sustainment auras (v0.7, UN doctrine). Engineer structures repair
    * friendly structures and walls in radius; medic attackers heal OTHER
-   * attackers in radius. Runs through prep and combat — the line is
-   * rebuilt while it bleeds. Healing is additive and capped per target,
-   * so iteration order cannot change the outcome; sources iterate in
-   * stable id/insertion order regardless.
+   * attackers in radius. Runs through prep and combat — the line is rebuilt
+   * while it bleeds.
+   *
+   * **Auras do not stack (v1.25).** A target takes the BEST rate in range, not
+   * the sum of every source that can see it. Summing made healing quadratic in
+   * the number of sources, and `--derive` found what that is worth by
+   * searching the plan space instead of trusting a hand-written one: at the
+   * same 26 manpower, thirteen UN medics cleared posts 79.2% of the time with
+   * 78% walking home, while thirteen PEACEKEEPERS — three times the melee each
+   * — cleared 4.2%. A ball of thirteen medics heals itself 3,432 hp/sec, which
+   * is orders of magnitude past anything shooting at it, so the unit that
+   * barely fights was the best army in the game by a factor of nineteen.
+   *
+   * Best-source rather than a flat cap keeps what the medic is FOR: one medic
+   * with a force still heals it at full rate, and the UN's whole identity
+   * (GDD §4.5, support and versatility) is untouched. What dies is stacking
+   * them, which was never a plan — it was an exploit nobody had searched for.
+   *
+   * Only the rate survives the gather, so two equal sources are not
+   * distinguishable and iteration order cannot change the outcome.
    */
   private applyAuras(): void {
     if (this.phase !== 'combat' && this.phase !== 'prep' && this.phase !== 'sandbox') return;
 
+    // Best rate in range per target, gathered before anything is applied.
+    const structureHeal = new Map<number, number>();
+    const wallHeal = new Map<CellIndex, number>();
+    const best = <K>(into: Map<K, number>, key: K, rate: number): void => {
+      const at = into.get(key);
+      if (at === undefined || rate > at) into.set(key, rate);
+    };
+
     for (const source of this.structures) {
       const aura = source.profile.aura;
       if (!aura || source.hp <= 0 || source.inert) continue;
-      const amount = aura.healPerSecond * DT;
       const r2 = aura.radius * aura.radius;
       for (const target of this.structures) {
         if (target.id === source.id || target.hp <= 0 || target.inert) continue;
@@ -1242,29 +1265,41 @@ export class Engine {
         const dx = target.center.x - source.center.x;
         const dy = target.center.y - source.center.y;
         if (dx * dx + dy * dy > r2) continue;
-        target.hp = Math.min(target.profile.maxHp, target.hp + amount);
+        best(structureHeal, target.id, aura.healPerSecond);
       }
       for (const [cell, wall] of this.grid.walls) {
         if (wall.hp <= 0 || wall.hp >= wall.maxHp) continue;
         const dx = this.grid.xOf(cell) + 0.5 - source.center.x;
         const dy = this.grid.yOf(cell) + 0.5 - source.center.y;
         if (dx * dx + dy * dy > r2) continue;
-        wall.hp = Math.min(wall.maxHp, wall.hp + amount);
+        best(wallHeal, cell, aura.healPerSecond);
       }
     }
+    for (const target of this.structures) {
+      const rate = structureHeal.get(target.id);
+      if (rate !== undefined) target.hp = Math.min(target.profile.maxHp, target.hp + rate * DT);
+    }
+    for (const [cell, rate] of wallHeal) {
+      const wall = this.grid.walls.get(cell);
+      if (wall) wall.hp = Math.min(wall.maxHp, wall.hp + rate * DT);
+    }
 
+    const attackerHeal = new Map<number, number>();
     for (const medic of this.attackers) {
       const heal = medic.profile.heal;
       if (!heal || medic.hp <= 0) continue;
-      const amount = heal.perSecond * DT;
       const r2 = heal.radius * heal.radius;
       for (const other of this.attackers) {
         if (other.id === medic.id || other.hp <= 0 || other.hp >= other.maxHp) continue;
         const dx = other.pos.x - medic.pos.x;
         const dy = other.pos.y - medic.pos.y;
         if (dx * dx + dy * dy > r2) continue;
-        other.hp = Math.min(other.maxHp, other.hp + amount);
+        best(attackerHeal, other.id, heal.perSecond);
       }
+    }
+    for (const other of this.attackers) {
+      const rate = attackerHeal.get(other.id);
+      if (rate !== undefined) other.hp = Math.min(other.maxHp, other.hp + rate * DT);
     }
   }
 

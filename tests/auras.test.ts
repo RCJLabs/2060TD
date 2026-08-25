@@ -118,6 +118,39 @@ describe('medic healing', () => {
     expect(walker.hp).toBeLessThanOrEqual(walker.maxHp);
     expect(medic.hp).toBe(30); // nobody heals the medic
   });
+
+  it('and a second medic adds nothing — auras take the best rate, not the sum', () => {
+    // Summing every source in range made healing quadratic in the number of
+    // medics, and `--derive` found what that was worth by searching the plan
+    // space rather than trusting a hand-written plan: at the same 26 manpower,
+    // thirteen UN medics cleared posts 79.2% of the time with 78% walking
+    // home, while thirteen PEACEKEEPERS — three times the melee each — cleared
+    // 4.2%. The unit that barely fights was the best army in the game by a
+    // factor of nineteen.
+    const heal = (medics: number): number => {
+      const e = makeEngine();
+      e.enqueue({ tick: 0, type: 'spawnAttacker', cell: e.grid.idx(0, 6), kind: 'walker' });
+      for (let i = 0; i < medics; i++) {
+        e.enqueue({ tick: 0, type: 'spawnAttacker', cell: e.grid.idx(0, 5), kind: 'medic' });
+      }
+      e.run(1);
+      const walker = e.attackers.find((a) => a.profile.kind === 'walker')!;
+      for (const a of e.attackers) a.hp = a.profile.kind === 'walker' ? 1 : a.maxHp;
+      const before = walker.hp;
+      e.run(10);
+      return walker.hp - before;
+    };
+    const one = heal(1);
+    // Liveness: a walker that healed for nothing would make every ratio below
+    // trivially true.
+    expect(one, 'one medic healed nothing').toBeGreaterThan(1);
+    for (const medics of [2, 4, 8]) {
+      expect(
+        heal(medics),
+        `${medics} medics out-healed one (${heal(medics).toFixed(1)} vs ${one.toFixed(1)})`,
+      ).toBeCloseTo(one, 5);
+    }
+  });
 });
 
 describe('aura determinism', () => {

@@ -48,6 +48,7 @@ import { CONDITIONS } from '../content/conditions';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
+import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
 import {
   OBJECTIVES,
@@ -1391,6 +1392,174 @@ function seedTable(combatVersion = COMBAT_CURRENT): string {
 }
 
 /**
+ * Is the shipped reference plan anywhere near the best one available?
+ *
+ * `--parity` reads every faction "at its own best line", and those lines are
+ * hand-written. `--plans` says a plan is worth up to 13.7 points against a
+ * parity spread of 25.6 — so more than half of what the faction table measures
+ * could be the PLAN rather than the KIT. The plans also predate the combat
+ * rolls (v1.23) and the objective layer (v1.24), which is two changes to the
+ * rules they were written under.
+ *
+ * This does not look for the optimum. It asks the question that actually
+ * matters before any faction row is read as a verdict on a kit: **is the
+ * shipped plan materially worse than what a search turns up?** If a sample of
+ * the space cannot beat it, the reference is fine and parity can be read as
+ * it stands.
+ *
+ * Sampled rather than exhaustive, and it says so. There are 472-2621
+ * compositions per faction inside the manpower band at three unit kinds, and
+ * screening all of them against three doctrines is half an hour of sim. The
+ * sample is drawn from a fixed seed, so this is repeatable rather than a
+ * one-off.
+ */
+function deriveTable(sampleSize = 200): string {
+  const SCREEN_TIERS = [3];
+  const SCREEN_ARCH: ArchetypeId[] = ['compound', 'keep', 'star', 'corridor'];
+  const SCREEN_SEEDS = 2;
+  const FINALISTS = 8;
+  const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
+
+  /** Every multiset of units inside the manpower band, at most three kinds. */
+  const compositions = (faction: FactionId): Record<string, number>[] => {
+    const pool = trainableFor(faction)
+      .filter((t) => t.facility !== 'airfield')
+      .map((t) => ({ kind: t.kind, manpower: t.manpower }));
+    const out: Record<string, number>[] = [];
+    const walk = (at: number, left: number, kinds: number, acc: Record<string, number>): void => {
+      if (at === pool.length) {
+        if (27 - left >= 24 && kinds > 0) out.push({ ...acc });
+        return;
+      }
+      const meta = pool[at]!;
+      for (let n = 0; n * meta.manpower <= left; n++) {
+        if (n > 0 && kinds + 1 > 3) break;
+        if (n > 0) acc[meta.kind] = n;
+        walk(at + 1, left - n * meta.manpower, kinds + (n > 0 ? 1 : 0), acc);
+        if (n > 0) delete acc[meta.kind];
+      }
+    };
+    walk(0, 27, 0, {});
+    return out;
+  };
+
+  const spread = (units: Record<string, number>, doctrine: Doctrine): SquadPlan[] => {
+    const sectors: SectorId[] = ['W1', 'N1', 'S1'];
+    const squads: SquadPlan[] = sectors.map((sector, slot) => ({ units: {}, sector, doctrine, slot }));
+    let at = 0;
+    for (const [kind, n] of Object.entries(units)) {
+      for (let i = 0; i < n; i++) {
+        const sq = squads[at % 3]!;
+        sq.units[kind] = (sq.units[kind] ?? 0) + 1;
+        at++;
+      }
+    }
+    return squads.filter((sq) => Object.keys(sq.units).length > 0);
+  };
+
+  /** Clear rate on TAKE THE POST, which is what the parity table reads. */
+  const score = (
+    faction: FactionId,
+    squads: SquadPlan[],
+    tiers: number[],
+    archetypes: ArchetypeId[],
+    seeds: number,
+  ): number => {
+    const cat = raidCatalogFor(faction);
+    let cleared = 0;
+    let runs = 0;
+    for (const tier of tiers) {
+      for (const arch of archetypes) {
+        const base = generateBase(tier, 0, baseKitFor(faction), arch, faction);
+        for (let i = 0; i < seeds; i++) {
+          const config = raidConfig(base, squads, seedFor(i), trainableFor(faction));
+          if (resolveRaid(config, squads, tier, cat).cleared) cleared++;
+          runs++;
+        }
+      }
+    }
+    return runs > 0 ? (cleared / runs) * 100 : 0;
+  };
+
+  const asUnits = (plan: SquadPlan[]): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const sq of plan) for (const [k, n] of Object.entries(sq.units)) out[k] = (out[k] ?? 0) + n;
+    return out;
+  };
+  const describe = (units: Record<string, number>): string =>
+    Object.entries(units)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([k, n]) => `${n}x${k}`)
+      .join(' ');
+
+  const lines = [
+    `IS THE REFERENCE PLAN ANY GOOD? — ${sampleSize} sampled compositions x 3 doctrines`,
+    'FACTION | REFERENCE | BEST FOUND | GAIN | THE PLAN THAT BEAT IT',
+    '--------+-----------+------------+------+----------------------',
+  ];
+  const FULL_ARCH = ARCHETYPES.map((a) => a.id);
+  let worst = 0;
+
+  for (const faction of FACTION_IDS) {
+    const all = compositions(faction);
+    // A fixed stream per faction, so the sample is the same every run.
+    const rng = createRng(((FACTION_IDS.indexOf(faction) + 1) * 2654435761) >>> 0);
+    const picked: Record<string, number>[] = [];
+    const seen = new Set<number>();
+    while (picked.length < Math.min(sampleSize, all.length)) {
+      const at = Math.floor(rng() * all.length);
+      if (seen.has(at)) continue;
+      seen.add(at);
+      picked.push(all[at]!);
+    }
+
+    // Screen wide and shallow, then run the finalists properly — a single
+    // shallow score is too noisy to rank on and a deep score of every
+    // candidate is half an hour of sim.
+    const screened: { units: Record<string, number>; doctrine: Doctrine; at: number }[] = [];
+    for (const units of picked) {
+      for (const doctrine of DOCTRINE_IDS) {
+        const squads = spread(units, doctrine);
+        if (squads.length === 0) continue;
+        screened.push({
+          units,
+          doctrine,
+          at: score(faction, squads, SCREEN_TIERS, SCREEN_ARCH, SCREEN_SEEDS),
+        });
+      }
+    }
+    screened.sort((a, b) => b.at - a.at);
+
+    const reference = spread(asUnits(RAID_PLANS[faction]), 'assault');
+    const refScore = score(faction, RAID_PLANS[faction], RAID_TIERS, FULL_ARCH, 3);
+    let best = { at: refScore, label: 'the reference' };
+    for (const candidate of screened.slice(0, FINALISTS)) {
+      const squads = spread(candidate.units, candidate.doctrine);
+      const at = score(faction, squads, RAID_TIERS, FULL_ARCH, 3);
+      if (at > best.at) {
+        best = { at, label: `${describe(candidate.units)} ${candidate.doctrine.toUpperCase()}` };
+      }
+    }
+    void reference;
+    const gain = best.at - refScore;
+    worst = Math.max(worst, gain);
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} | ${pad(refScore.toFixed(1), 9)} | ${pad(best.at.toFixed(1), 10)} | ` +
+        `${pad((gain >= 0 ? '+' : '') + gain.toFixed(1), 4)} | ${best.label}`,
+    );
+  }
+
+  lines.push('');
+  lines.push(
+    `WORST GAIN ${worst.toFixed(1)} POINTS. The parity spread is what this has to be read ` +
+      'against: a gain of that size means a faction row is measuring the PLAN and not the ' +
+      'kit, and no amount of tuning content will fix a row that is really a stale plan. ' +
+      'A gain near zero means the references are current and parity can be read as it stands.',
+  );
+  return lines.join('\n');
+}
+
+/**
  * Would an objective layer select for different forces, or is it decoration?
  *
  * This is the measurement that had a veto. A raid has always had exactly one
@@ -1985,6 +2154,12 @@ function main(): void {
   if (process.argv.includes('--terrain')) {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(terrainTable(pick));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--derive')) {
+    const arg = process.argv[process.argv.indexOf('--derive') + 1];
+    console.log(deriveTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 200));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
