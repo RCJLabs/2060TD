@@ -10,7 +10,7 @@
  * defense side measures the PERMANENT layer only (like offline probes — no
  * live CP play), which is the floor a base must clear.
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { buildAssault } from '../content/assaults';
 import { GARRISON_GUN_TRADE } from '../content/garrison';
 import { DAMAGE_MULT } from '../content/damage';
@@ -273,7 +273,11 @@ function planManpower(faction: FactionId, plans: SquadPlan[] = RAID_PLANS[factio
  * The composition is held at the reference plan's proportions and only the
  * SIZE moves, so this measures the rung and not a change of doctrine.
  */
-const RUNG_BUDGETS = [4, 6, 8, 11, 14, 18, 22, 27, 33, 40, 48] as const;
+// Roughly 20% apart at the bottom and 10% at the top. The coarse original
+// jumped 27 -> 33, so any rung needing 28 to 32 reported as one or the other
+// and four of five factions read "flat at the top" when their clear rates were
+// plainly separating. A grid that cannot resolve a step will invent one.
+const RUNG_BUDGETS = [4, 6, 8, 11, 14, 18, 22, 25, 28, 31, 34, 38, 42, 48] as const;
 const RUNG_SEEDS = 12;
 
 /**
@@ -2504,6 +2508,12 @@ function main(): void {
     // flips landed on 83 is overfitting to the seeds, not measuring a target.
     const SELECT_SEEDS = 12;
     /** What a rung should clear at, at the reference force. Same for all. */
+    // Measured, not chosen. A steeper top (100/93/80/62/42) separates the last
+    // two rungs on the budget grid — and costs parity, 5.8 to 8.6 on seeds the
+    // selection never saw. Down at a 40% clear rate the same seed noise is a
+    // much larger share of the number, and the five factions spread out under
+    // it. The gentler curve keeps every rung in the band where the measurement
+    // is steady.
     const CURVE: Record<number, number> = { 1: 100, 2: 95, 3: 85, 4: 70, 5: 55 };
     /** How far the three targets at a rung spread around its mean. */
     const SPREAD = 15;
@@ -2541,28 +2551,51 @@ function main(): void {
             measured.push({ shape: arch.id, layout, clear: clearOf(faction, tier, arch.id, layout) });
           }
         }
-        const taken = new Set<string>();
-        const picks = wants.map((target) => {
-          // Closest to the target, with a nudge toward shapes this faction has
-          // not met yet. Selecting on difficulty alone collapses the roster:
-          // `compound`, `camp` and `corridor` have the widest layout ranges,
-          // so they can hit any target and the other five shapes stop being
-          // dealt at all. The penalty is under half a quantum, so it breaks
-          // ties and near-ties and never overrides a real difference.
-          const best = measured
-            .filter((m) => !taken.has(m.shape))
-            .sort(
-              (a, b) =>
-                Math.abs(a.clear - target) +
-                (seen.has(a.shape) ? COVERAGE_NUDGE : 0) -
-                (Math.abs(b.clear - target) + (seen.has(b.shape) ? COVERAGE_NUDGE : 0)),
-            )[0];
-          if (best) {
-            taken.add(best.shape);
-            seen.add(best.shape);
+        // Search the TRIPLE, not each slot in turn.
+        //
+        // Picking slot 0's best pair, then slot 1 from what is left, then slot
+        // 2, leaves a rung far off its curve whenever nothing sits near an
+        // early target — greedy selection put China's T3 at 58/92/100 against
+        // a want of 70/85/100, because the pair it spent on slot 0 was the one
+        // slot 1 needed. About ninety candidate pairs per rung makes an
+        // exhaustive search over distinct-shape triples a few hundred thousand
+        // combinations, which is instant, and it cannot make that mistake.
+        //
+        // The coverage penalty rides along in the same score: selecting on
+        // difficulty alone collapses the roster, because `compound`, `camp`
+        // and `corridor` have the widest layout ranges and can hit any target
+        // while the other five stop being dealt at all. It is under half a
+        // quantum, so it decides ties and never overrides a real difference.
+        //
+        // Only the best pair per (shape, target) can ever be in the winning
+        // triple, so the candidate set is trimmed to those first — same answer,
+        // an order of magnitude less work.
+        const shapes = [...new Set(measured.map((m) => m.shape))];
+        const bestFor = (shape: string, target: number) =>
+          measured
+            .filter((m) => m.shape === shape)
+            .sort((a, b) => Math.abs(a.clear - target) - Math.abs(b.clear - target))[0]!;
+        const cost = (m: { shape: ArchetypeId; clear: number }, target: number) =>
+          (m.clear - target) ** 2 + (seen.has(m.shape) ? COVERAGE_NUDGE ** 2 : 0);
+        let picks: { shape: ArchetypeId; layout: number; clear: number }[] = [];
+        let bestCost = Infinity;
+        for (const a of shapes) {
+          const pa = bestFor(a, wants[0]!);
+          for (const b of shapes) {
+            if (b === a) continue;
+            const pb = bestFor(b, wants[1]!);
+            for (const c of shapes) {
+              if (c === a || c === b) continue;
+              const pc = bestFor(c, wants[2]!);
+              const total = cost(pa, wants[0]!) + cost(pb, wants[1]!) + cost(pc, wants[2]!);
+              if (total < bestCost) {
+                bestCost = total;
+                picks = [pa, pb, pc];
+              }
+            }
           }
-          return best;
-        });
+        }
+        for (const p of picks) seen.add(p.shape);
         rows.push(
           `      [${picks
             .map((p) => (p ? `['${p.shape}', ${p.layout}]` : `['camp', 0]`))
@@ -2842,8 +2875,13 @@ function main(): void {
   );
 
   if (process.argv.includes('--md')) {
+    // Read the version rather than typing it. It was a literal, and a literal
+    // in a generator only tells the truth on the day it is edited: this file
+    // said v1.25 for six releases of tables measured on other builds.
+    const pkgVersion = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string })
+      .version;
     const md = [
-      '# Balance snapshot (v1.25)',
+      `# Balance snapshot (v${pkgVersion})`,
       '',
       'Deterministic headless matrices from `npm run balance -- --md`.',
       `${SEEDS} seeds × ${VARIANTS} base variants per raid cell; ${SEEDS} seeds per defense cell.`,
@@ -2871,6 +2909,12 @@ function main(): void {
       '```',
       '',
       '## Reading the tables (v0.8 pass)',
+      '',
+      '> These bullets are a LOG, not a caption. Each records what was learned when it was',
+      "> learned, and the tables above are re-measured on every `--md` run — so where a bullet",
+      '> cites a figure, read it as the number that produced the conclusion, and the table as',
+      '> the number today. A conclusion that stops holding gets rewritten here; a figure that',
+      '> merely moved does not.',
       '',
       '- **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.',
       '  USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;',
@@ -2958,10 +3002,13 @@ function main(): void {
       '  and at the ceiling, so it has to be measured where the units were already living.',
       '- **The ground (v1.19) is a trade, and the reading is the SPREAD.** Terrain has to change',
       '  WHICH bases are hard rather than making all of them harder — the same bar field',
-      '  conditions clear. It does: GROUND lands 6.6 points under FLAT on the mean, inside the',
-      '  ±9 band, while the three sheets disagree with each other by forty points. Two of them',
-      '  are walkovers for the reference force and one stops it dead at T3 and T5. That is the',
-      '  whole point of putting a base somewhere rather than nowhere.',
+      '  conditions clear. Read the KITS table two ways: GROUND against FLAT on the mean, which',
+      '  has to land inside the ±9 band field conditions are held to, and the three SHEET rows',
+      '  against each other, which has to be much wider than that. It has held at every',
+      '  measurement since — a couple of points on the mean against roughly twenty across the',
+      '  sheets at v1.32 — and the second number is the whole point of putting a base somewhere',
+      '  rather than nowhere. Both move when the deal moves, because the sheets are measured on',
+      '  the bases the deal names.',
       '- **The first cut of terrain was a difficulty spike, and the harness said which term did',
       '  it.** GROUND opened at 33 points under FLAT. Switching the elevation multiplier off',
       '  put it at 93.0 against 93.4 — meaning water, cover and movement cost together',
@@ -3014,6 +3061,17 @@ function main(): void {
       '  CADRE bring home exactly the same men, because a 15% HP bump cannot save a unit that',
       '  was never going to survive the volley. It measures on flat ground now — the same',
       '  correction the first veterancy table needed, for the same reason.',
+      '- **The air thesis holds; the air ROSTER does not, and v1.32 is where that stopped',
+      '  being deniable.** AA is still the answer to air in all five factions — putting AA on',
+      '  the board costs every air force between 5 and 18 clear-rate points, which is the one',
+      '  thing the air layer was built to be true. What the same table says next is a defect:',
+      '  measured against each faction\'s own ground force, air ranges from +6.4 (the USA, with',
+      '  no AA present) to -26.2 (Russia). China\'s WZ-10 line is at parity with its own ground',
+      '  force even under AA (-0.2), and Russia\'s is 34 points behind. A specialist tool is',
+      '  allowed to be worse than the general one; it is not allowed to be worth five times as',
+      '  much to one player as to another. Ground parity is at 4.2 points and air is at 32 —',
+      '  the air roster has never been priced the way `--parity` prices the ground rosters, and',
+      '  that is the next content question, not a tuning one.',
       '- **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before',
       '  anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+',
       '  (everything kills sentry nests).',

@@ -1,4 +1,4 @@
-# Balance snapshot (v1.25)
+# Balance snapshot (v1.32.0)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -212,22 +212,22 @@ ATTRITION    |  100 |  100 |   90 |  100 |   20 |  82.0 |     -4.0
 TERRAIN — the UNITED STATES reference force vs PLA posts, flat ground vs real
 GROUND      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-       FLAT |   100 |   100 |    98 |    75 |    65 |  87.6 |       42
-     GROUND |   100 |   100 |    98 |    98 |    62 |  91.6 |       35
-    SHEET 1 |   100 |   100 |    95 |    95 |     0 |  78.0 |       40
-    SHEET 2 |   100 |   100 |   100 |   100 |   100 | 100.0 |       32
-    SHEET 3 |   100 |   100 |   100 |   100 |    85 |  97.0 |       32
+       FLAT |   100 |   100 |    98 |    72 |    43 |  82.6 |       46
+     GROUND |   100 |   100 |    85 |    65 |    53 |  80.6 |       47
+    SHEET 1 |   100 |   100 |    65 |    40 |    45 |  70.0 |       54
+    SHEET 2 |   100 |   100 |    90 |    60 |    55 |  81.0 |       49
+    SHEET 3 |   100 |   100 |   100 |    95 |    60 |  91.0 |       39
 
 PARITY — every faction at its own best line, same manpower, same ladder
 FACTION     |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST% | LINE
 ------------+-------+-------+-------+-------+-------+-------+----------+------
-UNITED STAT |   100 |   100 |    98 |    98 |    62 |  91.6 |       35 | GROUND
-PLA EXPEDIT |   100 |   100 |    72 |    57 |    88 |  83.4 |       69 | GROUND
-RUSSIAN GRO |   100 |   100 |   100 |   100 |    37 |  87.4 |       30 | GROUND
-KOREAN PEOP |    95 |    93 |    87 |    78 |    30 |  76.6 |       63 | TUNNEL
-UN COALITIO |   100 |   100 |   100 |    77 |    45 |  84.4 |       29 | GROUND
+UNITED STAT |   100 |   100 |    85 |    65 |    53 |  80.6 |       47 | GROUND
+PLA EXPEDIT |   100 |    98 |    82 |    60 |    53 |  78.6 |       69 | GROUND
+RUSSIAN GRO |   100 |    98 |    80 |    78 |    57 |  82.6 |       43 | GROUND
+KOREAN PEOP |    98 |    93 |    88 |    53 |    60 |  78.4 |       63 | TUNNEL
+UN COALITIO |   100 |    97 |    83 |    77 |    52 |  81.8 |       39 | GROUND
 
-SPREAD — 15.0 points between USA and NK. Five kits differing in STYLE (GDD §4) should not differ this much in ODDS.
+SPREAD — 4.2 points between RUSSIA and NK. Five kits differing in STYLE (GDD §4) should not differ this much in ODDS.
 
 THE DEAL — the three targets a rung offers vs the eight it could offer
 SHAPE        |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN
@@ -244,11 +244,11 @@ camp         |   100 |   100 |    96 |    92 |    89 |  95.5
 WHAT EACH FACTION IS DEALT — its three targets vs its own pool at that rung
 FACTION |          T1 |          T2 |          T3 |          T4 |          T5 |   MEAN GAP
 --------+-------------+-------------+-------------+-------------+-------------+-----------
-    USA |  100/100 +0 |  100/100 +0 |   100/98 +2 |   98/87 +11 |    69/67 +2 |       +3.1
-  CHINA |  100/100 +0 |  100/100 +0 |    89/94 -6 |   51/71 -20 |    84/75 +9 |       -3.3
- RUSSIA |  100/100 +0 |  100/100 +0 |    93/97 -3 |   89/68 +21 |    51/48 +3 |       +4.1
-     NK |    96/96 +0 |    98/97 +1 |    93/91 +2 |    69/67 +2 |   18/39 -21 |       -3.2
-     UN |  100/100 +0 |    98/98 -1 |   80/90 -10 |    82/75 +7 |    40/37 +3 |       -0.0
+    USA |  100/100 +0 |  100/100 +0 |   100/98 +2 |   71/87 -16 |   47/67 -20 |       -6.7
+  CHINA |  100/100 +0 |  100/100 +0 |   100/94 +6 |    67/71 -5 |    76/75 +1 |       +0.3
+ RUSSIA |  100/100 +0 |  100/100 +0 |    93/97 -3 |    60/68 -8 |   80/48 +32 |       +4.1
+     NK |    96/96 +0 |    96/97 -1 |    89/91 -2 |    62/67 -4 |    42/39 +3 |       -0.9
+     UN |  100/100 +0 |    98/98 -1 |    82/90 -8 |   62/75 -13 |    40/37 +3 |       -3.6
 
   dealt/pool and the gap. A deal that tracks its pool is offering that faction
   a fair read of the rung; a big negative gap is a rung of walls.
@@ -256,19 +256,23 @@ FACTION |          T1 |          T2 |          T3 |          T4 |          T5 | 
 SHAPE COVERAGE — the rungs each faction is dealt each shape on
 SHAPE        |         USA |       CHINA |      RUSSIA |          NK |          UN
 -------------+-------------+-------------+-------------+-------------+-------------
-compound     |       T1,T4 | T1,T2,T3,T4 |       T1,T5 | T1,T2,T3,T4 |       T1,T5
-camp         | T1,T2,T3,T4,T5 |       T1,T5 |    T1,T2,T3 |    T1,T2,T3 |    T1,T2,T3
-corridor     | T1,T2,T3,T4 |    T1,T2,T3 | T1,T2,T3,T4 |       T1,T5 | T1,T2,T3,T4
-star         |          T2 | T2,T3,T4,T5 |       T2,T3 |       T2,T3 |       T2,T3
-depot        |          T5 |   — never — |          T4 |          T4 |          T4
-strongpoints |          T3 |   — never — |          T4 |       T4,T5 |       T4,T5
-keep         |   — never — |          T4 |          T5 |   — never — |   — never —
+compound     |       T1,T2 | T1,T2,T4,T5 | T1,T2,T4,T5 | T1,T2,T3,T4,T5 | T1,T3,T4,T5
+camp         |    T1,T2,T3 |       T1,T2 | T1,T2,T3,T5 |       T1,T4 |       T1,T2
+corridor     |    T1,T3,T5 |          T1 |       T1,T3 |    T1,T2,T5 |       T1,T2
+star         |    T2,T4,T5 |       T2,T3 |          T2 |          T2 |       T2,T3
+depot        |          T3 |          T3 |          T3 |          T3 |          T3
+strongpoints |          T4 |    T3,T4,T5 |          T4 |          T3 |       T4,T5
+keep         |          T4 |          T4 |          T4 |          T4 |          T4
 bunker       |          T5 |          T5 |          T5 |          T5 |          T5
 
   8 of 8 shapes reach a player somewhere.
 
 THE LADDER, pool mean per rung: T1 99  ->  T2 99  ->  T3 94  ->  T4 74  ->  T5 53
-STEP SIZE: T1->T2 -0  T2->T3 -5  T3->T4 -20  T4->T5 -20 — a ladder should not have a flat rung or a rung that goes back up.
+STEP SIZE: T1->T2 -0  T2->T3 -5  T3->T4 -20  T4->T5 -20 — POOL mean, at a fixed reference force.
+  This is the whole pool, not the deal, and the force is a mature army: the early
+  rungs saturate near 100 and no step between them can show. It is here to price
+  the SHAPES, not to judge the ladder — `--rungs` does that, by asking how much
+  force each rung demands rather than what one army does to all of them.
 
 THE TWO KITS — every force against both sets of fortifications
 FORCE   | vs PLA post | vs US firebase |   GAP | normally raids
@@ -404,101 +408,101 @@ DISTINCT WINNERS 13 of 15. One force topping every column would mean the objecti
 GARRISON — the UNITED STATES reference force vs PLA posts
 CONFIG      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-    v1.19 W |   100 |   100 |    85 |    95 |    45 |  85.0 |       40
-    v1.19 — |   100 |   100 |    90 |   100 |    75 |  93.0 |       34
- GUNS 0.8 W |   100 |   100 |   100 |    98 |    60 |  91.6 |       33
- GUNS 0.8 — |   100 |   100 |   100 |   100 |    90 |  98.0 |       28
-    WATCH W |   100 |   100 |    93 |    95 |    53 |  88.2 |       44
-    WATCH — |   100 |   100 |    78 |   100 |    73 |  90.2 |       39
-  SHIPPED W |   100 |   100 |    98 |    98 |    62 |  91.6 |       35
-  SHIPPED — |   100 |   100 |   100 |   100 |    88 |  97.6 |       33
+    v1.19 W |   100 |   100 |    67 |    38 |    13 |  63.6 |       55
+    v1.19 — |   100 |   100 |    85 |    78 |    50 |  82.6 |       47
+ GUNS 0.8 W |   100 |   100 |    88 |    75 |    68 |  86.2 |       45
+ GUNS 0.8 — |   100 |   100 |   100 |   100 |    67 |  93.4 |       38
+    WATCH W |   100 |   100 |    58 |    20 |    12 |  58.0 |       59
+    WATCH — |   100 |   100 |    70 |    77 |    48 |  79.0 |       51
+  SHIPPED W |   100 |   100 |    85 |    65 |    53 |  80.6 |       47
+  SHIPPED — |   100 |   100 |    97 |   100 |    65 |  92.4 |       42
 
-WALL LINE IS WORTH — v1.19 +8.0  |  GUNS 0.8 +6.4  |  WATCH +2.0  |  SHIPPED +6.0  (clear-rate points to the defender)
+WALL LINE IS WORTH — v1.19 +19.0  |  GUNS 0.8 +7.2  |  WATCH +21.0  |  SHIPPED +11.8  (clear-rate points to the defender)
 
 AIR — the UNITED STATES reference force vs PLA posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |   100 |    98 |    98 |    62 |  91.6 |       35
-  AIR no AA |   100 |    83 |    45 |    38 |    85 |  70.2 |       62
-    AIR +AA |   100 |    52 |    30 |    20 |    70 |  54.4 |       67
+     GROUND |   100 |   100 |    85 |    65 |    53 |  80.6 |       47
+  AIR no AA |   100 |   100 |    65 |   100 |    70 |  87.0 |       58
+    AIR +AA |   100 |    80 |    48 |    88 |    30 |  69.2 |       65
 
-AIR'S EDGE OVER GROUND — without AA -21.4  |  with AA -37.2  (clear-rate points)
+AIR'S EDGE OVER GROUND — without AA +6.4  |  with AA -11.4  (clear-rate points)
 
 AIR — the PLA EXPEDITIONARY FORCE reference force vs US ARMY posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |   100 |    72 |    57 |    88 |  83.4 |       69
-  AIR no AA |   100 |   100 |    85 |    85 |    57 |  85.4 |       54
-    AIR +AA |   100 |    93 |    80 |    83 |    42 |  79.6 |       55
+     GROUND |   100 |    98 |    82 |    60 |    53 |  78.6 |       69
+  AIR no AA |   100 |    93 |   100 |    58 |    67 |  83.6 |       57
+    AIR +AA |   100 |    73 |   100 |    52 |    67 |  78.4 |       59
 
-AIR'S EDGE OVER GROUND — without AA +2.0  |  with AA -3.8  (clear-rate points)
+AIR'S EDGE OVER GROUND — without AA +5.0  |  with AA -0.2  (clear-rate points)
 
 AIR — the RUSSIAN GROUND FORCES reference force vs US ARMY posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |   100 |   100 |   100 |    37 |  87.4 |       30
-  AIR no AA |   100 |    47 |    97 |    92 |    72 |  81.6 |       57
-    AIR +AA |   100 |    42 |    83 |    75 |    67 |  73.4 |       60
+     GROUND |   100 |    98 |    80 |    78 |    57 |  82.6 |       43
+  AIR no AA |   100 |    80 |    32 |    65 |     5 |  56.4 |       72
+    AIR +AA |   100 |    73 |    32 |    37 |     0 |  48.4 |       75
 
-AIR'S EDGE OVER GROUND — without AA -5.8  |  with AA -14.0  (clear-rate points)
+AIR'S EDGE OVER GROUND — without AA -26.2  |  with AA -34.2  (clear-rate points)
 
 AIR — the KOREAN PEOPLE'S ARMY reference force vs US ARMY posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |    97 |    88 |    93 |    35 |    17 |  66.0 |       67
-  AIR no AA |   100 |    75 |   100 |    42 |    12 |  65.8 |       58
-    AIR +AA |   100 |    73 |    80 |    33 |     3 |  57.8 |       62
+     GROUND |    97 |    72 |    80 |    48 |    43 |  68.0 |       65
+  AIR no AA |   100 |    50 |    67 |    35 |    32 |  56.8 |       68
+    AIR +AA |   100 |    43 |    38 |    13 |    20 |  42.8 |       74
 
-AIR'S EDGE OVER GROUND — without AA -0.2  |  with AA -8.2  (clear-rate points)
+AIR'S EDGE OVER GROUND — without AA -11.2  |  with AA -25.2  (clear-rate points)
 
 AIR — the UN COALITION reference force vs PLA posts, with and without AA
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |   100 |   100 |    77 |    45 |  84.4 |       29
-  AIR no AA |   100 |    52 |    82 |    67 |    97 |  79.6 |       59
-    AIR +AA |   100 |    52 |    70 |    67 |    72 |  72.2 |       62
+     GROUND |   100 |    97 |    83 |    77 |    52 |  81.8 |       39
+  AIR no AA |   100 |    67 |   100 |    70 |    63 |  80.0 |       64
+    AIR +AA |   100 |    53 |    97 |    63 |    22 |  67.0 |       70
 
-AIR'S EDGE OVER GROUND — without AA -4.8  |  with AA -12.2  (clear-rate points)
+AIR'S EDGE OVER GROUND — without AA -1.8  |  with AA -14.8  (clear-rate points)
 
 VETERANCY — UNITED STATES strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   83 |   75 |   63 |   71 |   33 |  65.0 |     92
-LINE    | 1.04 |   83 |   75 |   65 |   71 |   34 |  65.6 |     91
-VETERAN | 1.09 |   83 |   75 |   67 |   73 |   36 |  66.8 |     92
-CADRE   | 1.15 |   83 |   76 |   72 |   74 |   42 |  69.4 |     93
+GREEN   | 1.00 |   86 |   75 |   47 |   39 |   16 |  52.6 |     81
+LINE    | 1.04 |   86 |   75 |   50 |   48 |   19 |  55.6 |     88
+VETERAN | 1.09 |   87 |   75 |   53 |   45 |   23 |  56.6 |     92
+CADRE   | 1.15 |   87 |   75 |   61 |   45 |   30 |  59.6 |     93
 
 VETERANCY — PLA EXPEDITIONARY FORCE strike force (26 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   50 |   34 |   23 |   22 |   24 |  30.6 |     83
-LINE    | 1.04 |   50 |   35 |   29 |   28 |   28 |  34.0 |     89
-VETERAN | 1.09 |   51 |   38 |   31 |   36 |   33 |  37.8 |     94
-CADRE   | 1.15 |   51 |   40 |   33 |   39 |   36 |  39.8 |     96
+GREEN   | 1.00 |   50 |   49 |   32 |   15 |   11 |  31.4 |     79
+LINE    | 1.04 |   50 |   50 |   40 |   17 |   14 |  34.2 |     89
+VETERAN | 1.09 |   50 |   50 |   40 |   20 |   23 |  36.6 |     93
+CADRE   | 1.15 |   50 |   50 |   44 |   26 |   32 |  40.4 |     96
 
 VETERANCY — RUSSIAN GROUND FORCES strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   99 |   89 |   90 |   49 |   24 |  70.2 |     87
-LINE    | 1.04 |   99 |   92 |   87 |   60 |   26 |  72.8 |     88
-VETERAN | 1.09 |   99 |   93 |   91 |   66 |   34 |  76.6 |     91
-CADRE   | 1.15 |  100 |   95 |   92 |   77 |   38 |  80.4 |     92
+GREEN   | 1.00 |   99 |   76 |   59 |   32 |   21 |  57.4 |     83
+LINE    | 1.04 |  100 |   82 |   72 |   46 |   30 |  66.0 |     92
+VETERAN | 1.09 |  100 |   86 |   79 |   52 |   37 |  70.8 |     94
+CADRE   | 1.15 |  100 |   90 |   84 |   64 |   51 |  77.8 |     97
 
 VETERANCY — KOREAN PEOPLE'S ARMY strike force (26 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |   65 |   40 |   48 |    7 |    6 |  33.2 |     66
-LINE    | 1.04 |   63 |   43 |   52 |   12 |    7 |  35.4 |     73
-VETERAN | 1.09 |   61 |   47 |   55 |   18 |    8 |  37.8 |     73
-CADRE   | 1.15 |   65 |   49 |   55 |   25 |   17 |  42.2 |     81
+GREEN   | 1.00 |   63 |   38 |   43 |   15 |   16 |  35.0 |     68
+LINE    | 1.04 |   66 |   41 |   48 |   13 |   21 |  37.8 |     73
+VETERAN | 1.09 |   70 |   45 |   53 |   16 |   23 |  41.4 |     78
+CADRE   | 1.15 |   72 |   50 |   58 |   27 |   28 |  47.0 |     85
 
 VETERANCY — UN COALITION strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
 --------+------+------+------+------+------+------+-------+-------
-GREEN   | 1.00 |  100 |   91 |   76 |   53 |   36 |  71.2 |     84
-LINE    | 1.04 |  100 |   95 |   82 |   59 |   36 |  74.4 |     87
-VETERAN | 1.09 |  100 |   97 |   87 |   64 |   47 |  79.0 |     91
-CADRE   | 1.15 |  100 |   99 |   93 |   73 |   55 |  84.0 |     96
+GREEN   | 1.00 |  100 |   82 |   61 |   45 |   16 |  60.8 |     82
+LINE    | 1.04 |  100 |   85 |   69 |   61 |   25 |  68.0 |     87
+VETERAN | 1.09 |  100 |   85 |   72 |   67 |   36 |  72.0 |     93
+CADRE   | 1.15 |  100 |   92 |   85 |   79 |   45 |  80.2 |     98
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
@@ -664,6 +668,12 @@ LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
 
 ## Reading the tables (v0.8 pass)
 
+> These bullets are a LOG, not a caption. Each records what was learned when it was
+> learned, and the tables above are re-measured on every `--md` run — so where a bullet
+> cites a figure, read it as the number that produced the conclusion, and the table as
+> the number today. A conclusion that stops holding gets rewritten here; a figure that
+> merely moved does not.
+
 - **The raid rows use a FIXED mid-game force**, so the ladder is supposed to outgrow it.
   USA (quality) stays potent deep into the ladder but pays 70%+ of the force at tier 4–5;
   China (mass) grinds tiers 2–3 with cheap replacements, then needs the late-game army:
@@ -750,10 +760,13 @@ LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
   and at the ceiling, so it has to be measured where the units were already living.
 - **The ground (v1.19) is a trade, and the reading is the SPREAD.** Terrain has to change
   WHICH bases are hard rather than making all of them harder — the same bar field
-  conditions clear. It does: GROUND lands 6.6 points under FLAT on the mean, inside the
-  ±9 band, while the three sheets disagree with each other by forty points. Two of them
-  are walkovers for the reference force and one stops it dead at T3 and T5. That is the
-  whole point of putting a base somewhere rather than nowhere.
+  conditions clear. Read the KITS table two ways: GROUND against FLAT on the mean, which
+  has to land inside the ±9 band field conditions are held to, and the three SHEET rows
+  against each other, which has to be much wider than that. It has held at every
+  measurement since — a couple of points on the mean against roughly twenty across the
+  sheets at v1.32 — and the second number is the whole point of putting a base somewhere
+  rather than nowhere. Both move when the deal moves, because the sheets are measured on
+  the bases the deal names.
 - **The first cut of terrain was a difficulty spike, and the harness said which term did
   it.** GROUND opened at 33 points under FLAT. Switching the elevation multiplier off
   put it at 93.0 against 93.4 — meaning water, cover and movement cost together
@@ -806,6 +819,17 @@ LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
   CADRE bring home exactly the same men, because a 15% HP bump cannot save a unit that
   was never going to survive the volley. It measures on flat ground now — the same
   correction the first veterancy table needed, for the same reason.
+- **The air thesis holds; the air ROSTER does not, and v1.32 is where that stopped
+  being deniable.** AA is still the answer to air in all five factions — putting AA on
+  the board costs every air force between 5 and 18 clear-rate points, which is the one
+  thing the air layer was built to be true. What the same table says next is a defect:
+  measured against each faction's own ground force, air ranges from +6.4 (the USA, with
+  no AA present) to -26.2 (Russia). China's WZ-10 line is at parity with its own ground
+  force even under AA (-0.2), and Russia's is 34 points behind. A specialist tool is
+  allowed to be worse than the general one; it is not allowed to be worth five times as
+  much to one player as to another. Ground parity is at 4.2 points and air is at 32 —
+  the air roster has never been priced the way `--parity` prices the ground rosters, and
+  that is the next content question, not a tuning one.
 - **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before
   anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+
   (everything kills sentry nests).

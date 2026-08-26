@@ -372,7 +372,7 @@ const DEAL_ORDER_NEUTRAL: ArchetypeId[] = [
 export type DealPair = readonly [ArchetypeId, number];
 
 /**
- * The three targets a rung offers, chosen by MEASUREMENT (v1.31).
+ * The three targets a rung offers, chosen by MEASUREMENT (v1.32).
  *
  * Regenerate with `npm run balance -- --layouts`, which emits this as source.
  *
@@ -396,13 +396,27 @@ export type DealPair = readonly [ArchetypeId, number];
  *
  * Clear rate at the faction's own reference plan — the force parity is
  * measured with — falling 100 / 95 / 85 / 70 / 55 across the rungs, with the
- * three targets at a rung spread ±15 around it. Slot 0 is the heavy fight,
- * slot 2 the one you can take today, slot 1 the reason to think about it.
+ * three targets at a rung spread ±15 around it. A steeper top was tried and
+ * measured: it separates the last two rungs on the budget grid and costs
+ * parity, 5.8 to 8.6 on seeds the selection never saw, because down at a 40%
+ * clear rate the same seed noise is a much larger share of the number and the
+ * factions spread out under it. Slot 0 is the heavy fight, slot 2 the one you
+ * can take today, slot 1 the reason to think about it.
  *
  * The early rungs saturate near 100 for everyone. That is not a defect here:
  * everyone at 100 is a spread of zero, and a starter rung should be beatable.
  *
- * Selection also carries a small penalty for a shape the faction has already
+ * ## How the three are chosen
+ *
+ * All at once, not one after another. Filling slot 0 with the closest pair and
+ * then slot 1 from what is left does not merely miss a target — it SPENDS the
+ * pair another slot needed. China's T3 wanted 70 / 85 / 100 and greedy gave it
+ * 58 / 92 / 100 for exactly that reason. Only the best pair per (shape, target)
+ * can be in a winning triple, so the search is eight candidates per slot and
+ * exhaustive over distinct-shape triples: instant, and it cannot make that
+ * mistake. It moved parity from 5.8 to 4.2.
+ *
+ * The score also carries a small penalty for a shape the faction has already
  * met, because difficulty alone collapses the roster — `compound`, `camp` and
  * `corridor` have the widest layout ranges, so they can hit any target and the
  * other five stop being dealt at all. With the nudge, all eight reach every
@@ -411,41 +425,41 @@ export type DealPair = readonly [ArchetypeId, number];
  * The numbers after each row are the clear rates the row was selected for.
  */
 export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
-    usa: [
-      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-      [['star', 0], ['compound', 0], ['camp', 0]], // T2 100/100/100
-      [['corridor', 11], ['camp', 11], ['depot', 0]], // T3 75/83/100
-      [['keep', 5], ['corridor', 6], ['strongpoints', 10]], // T4 50/67/83
-      [['bunker', 5], ['corridor', 0], ['star', 5]], // T5 42/58/67
-    ],
-    china: [
-      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-      [['compound', 3], ['star', 0], ['camp', 0]], // T2 92/100/100
-      [['star', 7], ['depot', 5], ['strongpoints', 0]], // T3 58/92/100
-      [['keep', 2], ['strongpoints', 1], ['star', 6]], // T4 50/67/83
-      [['bunker', 10], ['compound', 2], ['corridor', 7]], // T5 33/58/67
-    ],
-    russia: [
-      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-      [['compound', 5], ['star', 0], ['camp', 0]], // T2 92/100/100
-      [['camp', 1], ['strongpoints', 3], ['depot', 0]], // T3 67/92/100
-      [['strongpoints', 7], ['keep', 10], ['compound', 6]], // T4 50/75/83
-      [['camp', 4], ['bunker', 2], ['compound', 11]], // T5 42/50/67
-    ],
-    nk: [
-      [['compound', 0], ['camp', 0], ['corridor', 2]], // T1 92/100/100
-      [['star', 2], ['compound', 4], ['camp', 0]], // T2 83/92/100
-      [['depot', 3], ['strongpoints', 7], ['compound', 0]], // T3 67/83/100
-      [['compound', 0], ['keep', 10], ['camp', 2]], // T4 58/75/83
-      [['bunker', 9], ['corridor', 1], ['compound', 4]], // T5 33/58/67
-    ],
-    un: [
-      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-      [['star', 4], ['camp', 7], ['compound', 0]], // T2 92/92/100
-      [['star', 10], ['strongpoints', 10], ['depot', 0]], // T3 67/92/100
-      [['compound', 1], ['keep', 6], ['star', 5]], // T4 58/67/83
-      [['bunker', 0], ['compound', 7], ['strongpoints', 5]], // T5 42/58/67
-    ],
+  usa: [
+    [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+    [['compound', 0], ['camp', 0], ['star', 0]], // T2 100/100/100
+    [['corridor', 11], ['camp', 11], ['depot', 0]], // T3 75/83/100
+    [['star', 7], ['keep', 1], ['strongpoints', 10]], // T4 50/67/83
+    [['bunker', 5], ['corridor', 0], ['star', 5]], // T5 42/58/67
+  ],
+  china: [
+    [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+    [['compound', 3], ['camp', 0], ['star', 0]], // T2 92/100/100
+    [['star', 7], ['depot', 5], ['strongpoints', 0]], // T3 58/92/100
+    [['compound', 2], ['strongpoints', 1], ['keep', 11]], // T4 58/67/83
+    [['compound', 8], ['strongpoints', 2], ['bunker', 2]], // T5 42/58/67
+  ],
+  russia: [
+    [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+    [['compound', 5], ['camp', 0], ['star', 0]], // T2 92/100/100
+    [['camp', 1], ['corridor', 2], ['depot', 0]], // T3 67/83/100
+    [['strongpoints', 7], ['keep', 10], ['compound', 6]], // T4 50/75/83
+    [['camp', 4], ['bunker', 2], ['compound', 11]], // T5 42/50/67
+  ],
+  nk: [
+    [['compound', 0], ['camp', 0], ['corridor', 2]], // T1 92/100/100
+    [['compound', 2], ['corridor', 1], ['star', 0]], // T2 83/92/100
+    [['depot', 3], ['compound', 2], ['strongpoints', 0]], // T3 67/83/100
+    [['compound', 0], ['keep', 10], ['camp', 2]], // T4 58/75/83
+    [['compound', 7], ['corridor', 1], ['bunker', 6]], // T5 42/58/75
+  ],
+  un: [
+    [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+    [['camp', 7], ['corridor', 0], ['star', 0]], // T2 92/92/100
+    [['star', 10], ['compound', 11], ['depot', 0]], // T3 67/83/100
+    [['compound', 1], ['keep', 6], ['strongpoints', 9]], // T4 58/67/83
+    [['bunker', 0], ['compound', 7], ['strongpoints', 5]], // T5 42/58/67
+  ],
 };
 
 /**

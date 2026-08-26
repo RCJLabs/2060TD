@@ -349,3 +349,28 @@ here with the change and its date.
   that only cares about the post — and it is the best post-taker for the USA
   and China. For the other three it remains weakly dominated, and the untested
   option is removing the doctrine outright.
+- 2026-08-26 — **A measurement cannot be read finer than the axis it was taken
+  on.** `--rungs` finds the smallest force that clears a rung half the time by
+  walking a fixed budget grid, and the grid jumped 27 → 33. Every rung whose
+  true demand sat between them reported as one or the other, so four of five
+  factions read "flat at the top" and two milestones recorded that flatness as
+  a ladder defect to fix. On a grid roughly 20% apart at the bottom and 10% at
+  the top, the USA and the UN are fully monotone: there was never a defect
+  there, only a quantiser. The instrument had already earned trust by
+  overturning the fixed-force ladder tables, which is exactly what made its
+  output easy to read past its resolution. The rule the project already had —
+  check an instrument before trusting its output — needs the sharper form:
+  check what its output can and cannot resolve, because an instrument reporting
+  a step it cannot see is not obviously broken, it is confidently wrong.
+- 2026-08-26 — **Greedy selection does not just miss a target, it spends the
+  option another slot needed.** A rung deals three (shape, layout) pairs chosen
+  against a target curve. Filling each slot in turn with the closest remaining
+  pair put China's T3 at 58 / 92 / 100 against a want of 70 / 85 / 100 — the
+  pair the middle slot had no substitute for had already gone to the hard slot.
+  Only the best pair per (shape, target) can be in a winning triple, so the
+  candidate set trims to eight per slot and an exhaustive search over
+  distinct-shape triples is a few hundred thousand combinations: instant, and
+  structurally unable to make that trade. Parity 5.8 → 4.2, the best this
+  project has measured. The general shape: when a selection has interacting
+  slots and a small candidate set, search the combination — a greedy pass is
+  not an approximation of it, it is a different and worse objective.

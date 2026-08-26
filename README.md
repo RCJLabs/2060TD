@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.24, in the browser. No install, no account, works on a phone.
+v1.32, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -18,6 +18,51 @@ v1.24, in the browser. No install, no account, works on a phone.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.32: the deal names the ground
+
+The front line offers three targets a rung, and for two releases the only thing
+it chose was the SHAPE. The layout came off the slot index, which meant a rung
+was a difficulty band with a lottery on top — and since shape explains well
+under half the variance in clear rate while layout explains most of the rest,
+the lottery was the larger term. Two rungs could swap places. The USA's rung 4
+measured easier than its rung 3.
+
+v1.30 had recorded that as a **negative result**: the deal could not fix the
+ladder without costing parity, because both were steered by the same lever.
+That was true of a deal that is only a shape. Making a target a `(shape,
+layout)` PAIR turns it into a real tuning surface — the layout pool is wide, so
+a pair can be chosen to land on a NUMBER instead of in a band, and every
+faction can be given the same target curve. Parity and the ladder stop
+competing.
+
+| faction spread, clear rate across the ladder | |
+| --- | --- |
+| v1.30, deal = shape only | 15.0 |
+| v1.31, deal = (shape, layout), chosen greedily | 5.8 |
+| **v1.32, chosen as a triple** | **4.2** |
+
+Greedy was the interesting part. Filling slot 0 with the closest pair and slot 1
+from what is left does not merely miss a target — it *spends the pair another
+slot needed*: China's T3 wanted 70 / 85 / 100 and got 58 / 92 / 100 for exactly
+that reason. Only the best pair per (shape, target) can be in a winning triple,
+so the candidate set trims to eight per slot and an exhaustive search is
+instant. All eight base shapes now reach every faction, most on several rungs.
+
+Two things were measured and NOT shipped, which is the more useful half of the
+record. A steeper target curve at the top separates the last two rungs and costs
+parity — 5.8 to 8.6 — because at a 40% clear rate seed noise is a much larger
+share of the number and the factions spread out under it. And `--rungs`, the
+instrument that reports what each rung demands in manpower, was walking a budget
+grid that jumped 27 → 33: four of five factions read "flat at the top" and two
+milestones recorded that as a ladder defect. On a finer grid **the USA and the
+UN are fully monotone.** There was no defect there, only a quantiser. A
+measurement cannot be read finer than the axis it was taken on.
+
+Still open, and now correctly attributed to content rather than to selection:
+China goes backwards at T2→T3, Russia is flat at T1→T2, the KPA is flat at
+T2→T3. For China at T3 no `(shape, layout)` in the pool sits near the target at
+all, so no choice among them can put that rung where the curve wants it.
 
 ## Current state — v1.24: a raid declares what it came for
 

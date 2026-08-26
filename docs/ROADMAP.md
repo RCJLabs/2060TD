@@ -2084,6 +2084,99 @@ instead of in a band.
 
 ---
 
+## M19 — v1.32 "The Whole Triple"
+
+M18 left the selection greedy: fill slot 0 with the closest pair, then slot 1
+from what is left, then slot 2. Its own closing note said what that costs — a
+rung can be built right and still sit a step out of line — and it was worse
+than that. Greedy does not just miss a target, it *takes the pair another slot
+needed*. China's T3 wanted 70 / 85 / 100 and got 58 / 92 / 100, because the
+pair spent on the hard slot was the one the middle slot had no substitute for.
+
+- [x] **Search the triple, not the slot.** About ninety candidate pairs per
+      rung, and only the best pair per (shape, target) can ever be in a winning
+      triple, so the candidate set trims to eight per slot before the search
+      starts. Exhaustive over distinct-shape triples is then a few hundred
+      thousand combinations and runs instantly. Cost is squared error against
+      the three targets, with the coverage penalty folded into the same score
+      instead of applied as a separate sort key.
+
+      | | parity spread |
+      | --- | --- |
+      | M17 shipped (deal = shape only) | 15.0 |
+      | M18 greedy over (shape, layout) | 5.8 |
+      | **M19 exhaustive over the triple** | **4.2** |
+
+- [x] **A steeper curve was tried and rejected — measured, not argued.**
+      100 / 93 / 80 / 62 / 42 separates the last two rungs on the budget grid
+      and costs parity: 5.8 → 8.6, on seeds the selection never saw. The reason
+      is worth keeping: at a 40% clear rate the same seed noise is a much larger
+      share of the number, so the five factions spread out under it. The gentle
+      curve keeps every rung in the band where the measurement is steady. Both
+      the harness and `DEAL_TABLE`'s header carry that number now, so the next
+      person to reach for a steeper top finds out it was already priced.
+
+- [x] **The instrument was inventing steps.** `RUNG_BUDGETS` jumped 27 → 33, so
+      every rung whose true demand sat between them reported as one or the
+      other, and four of five factions read "flat at the top" while their clear
+      rates were plainly separating. On a grid that is roughly 20% apart at the
+      bottom and 10% at the top:
+
+      ```
+      USA     6  11  22  25  27     +5 +11  +3  +2   monotone
+      CHINA   8  18  11  28  28    +10  -7 +17   ·
+      RUSSIA  6   6  21  27  30      ·  +15  +6  +3
+      NK      8  14  14  22  28     +6   ·   +8  +6
+      UN      6   9  18  24  27     +3  +9   +6  +3   monotone
+      ```
+
+      **The USA and the UN are fully monotone.** M18 recorded them as flattening
+      at the top; that was the grid, not the ladder. A measurement cannot be
+      read finer than the axis it was taken on, and this one had been reported
+      to two milestones as if it could.
+
+- [x] **Still open, and now correctly attributed.** China goes backwards at
+      T2→T3 and flat at T4→T5; Russia is flat at T1→T2; the KPA is flat at
+      T2→T3. These are content limits, not selection failures — for China at T3
+      no (shape, layout) in the pool sits near the 80 target at all, so no
+      choice among them can put the rung where the curve wants it. Fixing them
+      means widening the layout pool or the shape roster, which is a content
+      milestone rather than a tuning one.
+
+- [x] **The snapshot stops lying about its own version.** `docs/BALANCE.md`'s
+      title was a string literal reading `v1.25`, so six releases of tables
+      measured on other builds were published under a version they were not
+      measured at. It reads `package.json` now. Its commentary block had the
+      same problem one level down — the terrain bullet still quoted "6.6 points
+      under FLAT" against a table now reading 2.0 — so the block says what it is
+      (a log of what was learned when, not a caption on the current numbers) and
+      the bullet names the reading rule instead of a figure that re-measures
+      every run.
+
+- [ ] **NEW, and the largest thing this milestone found: the air ROSTER has
+      never been priced.** Re-measuring `--md` on the new deal put the air
+      thesis and an air defect in the same table. The thesis holds everywhere —
+      AA on the board costs every faction's air force 5 to 18 clear-rate points,
+      which is exactly what the air layer was built to be true. The defect is
+      the spread. Air measured against each faction's OWN ground force:
+
+      | | no AA | with AA |
+      | --- | --- | --- |
+      | USA | **+6.4** | -11.4 |
+      | China | +5.0 | **-0.2** |
+      | Russia | **-26.2** | -34.2 |
+      | KPA | -11.2 | -25.2 |
+      | UN | -1.8 | -14.8 |
+
+      China's WZ-10 line is at parity with its own ground force even under AA;
+      Russia's air is 34 points behind its own. Ground parity is 4.2 points and
+      air parity is 32. A specialist is allowed to be worse than the general
+      tool — it is not allowed to be worth five times as much to one player as
+      to another. `--parity` has never been pointed at air. That is the next
+      content question and it wants its own milestone, not a knob.
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.

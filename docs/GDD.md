@@ -152,6 +152,23 @@ CAMP is everyone's breather and the USA's third-hardest target. A single orderin
 the five was tried first and graded a rung for nobody. All eight shapes now reach a player, and
 each faction's three targets sit within a few points of its own pool mean.
 
+**The deal names the ground too** *(v1.31)*. Banding by shape is a coarse lever, and for two
+releases it was the only one: the generator drew the layout from the slot index, so a rung's three
+targets were a shape band with a difficulty lottery on top. Shape explains well under half the
+variance in clear rate and layout explains most of the rest, which made the lottery the larger
+term — two rungs could swap places, and the USA's rung 4 measured easier than its rung 3. A target
+is a `(shape, layout)` PAIR now, and because the layout pool is wide, a pair can be chosen to land
+on a NUMBER rather than in a band. Every faction is given the same target curve — clear rate
+falling 100 / 95 / 85 / 70 / 55 across the rungs, three targets spread ±15 around each — so the
+ladder and faction parity stop competing: both are satisfied by construction. The table is
+regenerated from measurement by `npm run balance -- --layouts`, never hand-written, and the three
+pairs at a rung are chosen as a **triple** rather than one slot at a time, because filling slots in
+turn spends the pair a later slot needed. Faction parity across the ladder went 15.0 → 4.2 points.
+
+None of this changes what a player is told: you still see three shapes and still pay Intel to learn
+the layout. The generator stays deterministic in `(tier, variant)` — the deal is a lookup, not a
+roll.
+
 Two players of different factions therefore see different front lines at the same rung. That is
 correct — they are fighting different enemies — and nothing in the codecs depends on it, since
 share codes and replay codes both carry a layout cell by cell rather than a `(tier, variant)` to
