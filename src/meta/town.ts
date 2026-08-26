@@ -638,6 +638,27 @@ export function tick(town: TownState, now: number): LadderSettlement {
 
 // ---- the army ---------------------------------------------------------------------
 
+/**
+ * Can this town put anything in the air right now?
+ *
+ * Gates the air read (v1.34) in the target list: a commander with no airfield
+ * is being told about a decision they cannot make, and the panel's whole budget
+ * is lines that earn their place. A wrecked or still-building airfield does not
+ * count, the same test `manpowerCapOf` applies — but aircraft already trained
+ * do, because they outlive the strip that made them.
+ */
+export function canFlyFrom(town: TownState): boolean {
+  for (const s of town.structures) {
+    if (s.kind !== 'airfield') continue;
+    if (s.wrecked || (s.buildEndsAt !== undefined && s.upgradingTo === undefined)) continue;
+    return true;
+  }
+  const meta = trainMetaFor(town.faction);
+  return Object.entries(town.army).some(
+    ([kind, n]) => n > 0 && meta[kind]?.facility === 'airfield',
+  );
+}
+
 export function armyManpower(town: TownState): number {
   const meta = trainMetaFor(town.faction);
   let total = 0;

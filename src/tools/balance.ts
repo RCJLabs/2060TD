@@ -36,6 +36,7 @@ import {
   FACTION_IDS,
   type FactionId,
 } from '../content/factions';
+import { airTransit, slowestAirSpeed } from '../meta/airread';
 import {
   DOCTRINE_IDS,
   raidConfig,
@@ -1179,6 +1180,181 @@ function wingTable(): string {
     '  The AIR row is not monotone and that is not the instrument. See below.',
   );
   lines.push('', shapeAirTable());
+  return lines.join('\n');
+}
+
+/**
+ * The OVERHEAD term, kept here as the control that did NOT ship.
+ *
+ * `src/meta/airread.ts` ships TRANSIT alone. Overhead — flak covering the
+ * command post, where an aircraft has to hover while it works — sounds like it
+ * should dominate and does not: on a generated base it is very nearly binary,
+ * either a mount covers the post or one does not, and a term that cannot vary
+ * cannot predict. It is still scored below so the table keeps saying why.
+ */
+function overheadFlak(base: GeneratedBase, cat: Catalog): number {
+  const ccX = (base.ccOrigin % MAP_W) + 1;
+  const ccY = Math.floor(base.ccOrigin / MAP_W) + 1;
+  let total = 0;
+  for (const st of base.structures) {
+    const profile = cat.structures[st.kind];
+    if (!profile) continue;
+    const level = st.level ?? 1;
+    const merged =
+      level > 1 && profile.levels && profile.levels.length > 0
+        ? { ...profile, ...profile.levels[Math.min(level - 2, profile.levels.length - 1)] }
+        : profile;
+    const w = merged.weapon;
+    if (!w || (w.targets !== 'air' && w.targets !== 'both')) continue;
+    const foot = profile.footprint ?? 1;
+    const sx = (st.cell % MAP_W) + (foot === 2 ? 1 : 0.5);
+    const sy = Math.floor(st.cell / MAP_W) + (foot === 2 ? 1 : 0.5);
+    if ((ccX - sx) ** 2 + (ccY - sy) ** 2 <= w.range * w.range) total += w.damage * w.shotsPerSecond;
+  }
+  return total;
+}
+
+/**
+ * Does the read predict? (v1.34)
+ *
+ * Nothing about `airRead` is allowed to ship on the strength of the story it
+ * tells. This measures the clear rate of the air plan on every dealt target and
+ * correlates it against each term, so the decision is a number. The bar: the
+ * read has to beat what a player already has, which is the SHAPE — so the
+ * shape's own mean air clear rate is scored as a third predictor and has to
+ * lose.
+ */
+function airReadTable(): string {
+  const BUDGET = 24;
+  const SEEDS = 20;
+  const lines = [
+    `DOES THE AIR READ PREDICT? — every dealt target, air plan at ${BUDGET} MP`,
+    'FACTION     | RUNG | SHAPE        | OVERHEAD | TRANSIT | AIR CLEAR%',
+    '------------+------+--------------+----------+---------+-----------',
+  ];
+  const rows: { faction: FactionId; shape: string; overhead: number; transit: number; clear: number }[] = [];
+  for (const faction of FACTION_IDS) {
+    const flavor = flavorFor(faction);
+    const cat = raidCatalogFor(faction);
+    const air = planAtBudget(faction, BUDGET, AIR_RAID_PLANS[faction]);
+    const sectors = [...new Set(air.map((sq) => sq.sector))];
+    // The slowest airframe in the plan sets the transit clock: the force is
+    // only through an envelope when its last aircraft is.
+    const speed = slowestAirSpeed(cat, air.flatMap((sq) => Object.keys(sq.units)));
+    for (const tier of RAID_TIERS) {
+      for (let slot = 0; slot < 3; slot++) {
+        const base = generateBase(tier, slot, baseKitFor(faction), undefined, faction);
+        const read = {
+          overhead: overheadFlak(base, cat),
+          transit: airTransit(base, cat, sectors, speed),
+        };
+        const squads =
+          faction === 'nk'
+            ? tunnelPlanFor(faction, base, tier, air).map((sq, at) => ({ ...sq, slot: at }))
+            : air;
+        let cleared = 0;
+        for (let i = 0; i < SEEDS; i++) {
+          const cfg = raidConfig(base, squads, seedOf(tier, slot, i), trainableFor(faction));
+          if (resolveRaid(cfg, squads, tier, cat).cleared) cleared++;
+        }
+        const clear = (cleared / SEEDS) * 100;
+        rows.push({ faction, shape: dealtShape(tier, slot, faction), overhead: read.overhead, transit: read.transit, clear });
+        lines.push(
+          `${pad(slot === 0 && tier === RAID_TIERS[0] ? flavor.faction.slice(0, 11) : '', 11)} | ` +
+            `${pad(slot === 0 ? `T${tier}` : '', 4)} | ${dealtShape(tier, slot, faction).padEnd(12)} | ` +
+            `${pad(read.overhead.toFixed(0), 8)} | ${pad(read.transit.toFixed(0), 7)} | ${pad(clear.toFixed(0), 10)}`,
+        );
+      }
+    }
+    lines.push('');
+  }
+  const corr = (xs: number[], ys: number[]): number => {
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    let num = 0;
+    let dx = 0;
+    let dy = 0;
+    for (let i = 0; i < xs.length; i++) {
+      num += (xs[i]! - mx) * (ys[i]! - my);
+      dx += (xs[i]! - mx) ** 2;
+      dy += (ys[i]! - my) ** 2;
+    }
+    return dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : 0;
+  };
+  const clears = rows.map((r) => r.clear);
+  // The incumbent: what a player already knows for free is the SHAPE, so the
+  // read has to beat predicting from the shape's own average. Scored on the
+  // same rows it was fitted to, which flatters it — deliberately, because a
+  // predictor that cannot beat a flattered baseline is not worth shipping.
+  const byShape = new Map<string, number[]>();
+  for (const r of rows) byShape.set(r.shape, [...(byShape.get(r.shape) ?? []), r.clear]);
+  const shapeMean = rows.map((r) => {
+    const got = byShape.get(r.shape)!;
+    return got.reduce((a, b) => a + b, 0) / got.length;
+  });
+  lines.push(
+    'PREDICTOR                                   |     r |    r^2',
+    '--------------------------------------------+-------+-------',
+  );
+  const score = (name: string, xs: number[]): void => {
+    const r = corr(xs, clears);
+    lines.push(`${name.padEnd(43)} | ${pad(`${r >= 0 ? '+' : ''}${r.toFixed(2)}`, 5)} | ${pad((r * r).toFixed(2), 6)}`);
+  };
+  score('OVERHEAD flak DPS over the post', rows.map((r) => r.overhead));
+  score('TRANSIT DPS-seconds on the way in', rows.map((r) => r.transit));
+  score('OVERHEAD + TRANSIT', rows.map((r) => r.overhead + r.transit));
+  score('SHAPE alone (the incumbent, flattered)', shapeMean);
+  lines.push(
+    '',
+    '  The bar is the last row. A player is told the shape for free, so a read that',
+    '  cannot beat predicting from the shape alone has bought nothing — and the shape',
+    '  baseline is scored on the very rows it was fitted to, which flatters it.',
+    '',
+    'PER FACTION — a predictor carried by one roster is not a predictor',
+    'FACTION     | TRANSIT r | SHAPE r',
+    '------------+-----------+--------',
+  );
+  for (const faction of FACTION_IDS) {
+    const mine = rows.filter((r) => r.faction === faction);
+    const idx = rows.map((r, i) => (r.faction === faction ? i : -1)).filter((i) => i >= 0);
+    const rt = corr(mine.map((r) => r.transit), mine.map((r) => r.clear));
+    const rs = corr(idx.map((i) => shapeMean[i]!), mine.map((r) => r.clear));
+    lines.push(
+      `${pad(flavorFor(faction).faction.slice(0, 11), 11)} | ` +
+        `${pad(`${rt >= 0 ? '+' : ''}${rt.toFixed(2)}`, 9)} | ${pad(`${rs >= 0 ? '+' : ''}${rs.toFixed(2)}`, 7)}`,
+    );
+  }
+  // The player cannot read DPS-seconds. Bands are what ships, and the cuts are
+  // derived here rather than chosen: sort every dealt target by transit and cut
+  // into thirds, then report what each third actually clears at.
+  const sorted = [...rows].sort((a, b) => a.transit - b.transit);
+  const third = Math.floor(sorted.length / 3);
+  const cuts = [sorted[third]!.transit, sorted[third * 2]!.transit];
+  lines.push(
+    '',
+    'BANDS — cut at the terciles of transit, then measured',
+    'BAND  | TRANSIT       | TARGETS | MEAN AIR CLEAR%',
+    '------+---------------+---------+----------------',
+  );
+  const bands: [string, (t: number) => boolean, string][] = [
+    ['GOOD', (t) => t < cuts[0]!, `under ${cuts[0]!.toFixed(0)}`],
+    ['FAIR', (t) => t >= cuts[0]! && t < cuts[1]!, `${cuts[0]!.toFixed(0)} to ${cuts[1]!.toFixed(0)}`],
+    ['POOR', (t) => t >= cuts[1]!, `over ${cuts[1]!.toFixed(0)}`],
+  ];
+  for (const [name, test, label] of bands) {
+    const got = rows.filter((r) => test(r.transit));
+    const mean = got.length > 0 ? got.reduce((a, b) => a + b.clear, 0) / got.length : 0;
+    lines.push(
+      `${name.padEnd(5)} | ${label.padEnd(13)} | ${pad(got.length, 7)} | ${pad(mean.toFixed(1), 15)}`,
+    );
+  }
+  lines.push(
+    '',
+    '  The bands are the shippable form: a player cannot read DPS-seconds, and three',
+    '  words is the whole budget the target list has. The cuts are terciles of the',
+    '  measured population rather than round numbers, so they cannot be tuned to',
+    '  flatter the result.',
+  );
   return lines.join('\n');
 }
 
@@ -3006,6 +3182,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--airread')) {
+    console.log(airReadTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--wing')) {
     console.log(wingTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -3133,6 +3314,8 @@ function main(): void {
   // single number: air fights a different ladder from the one the deal was
   // selected against.
   sections.push(wingTable());
+  // And the read that answers it, with the score that let it ship.
+  sections.push(airReadTable());
   // Veterancy pays in survivors, not in wins, so it is measured per faction:
   // the survival column is the whole claim and the swarms have to show it too.
   for (const faction of FACTION_IDS) sections.push(veterancyTable(faction));

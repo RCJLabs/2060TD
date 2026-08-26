@@ -297,10 +297,34 @@ and the shapes with the fewest walls are exactly the ones that spread their moun
 command post over the most ground.
 
 So this is not a power problem: for four of five factions the means are close. It is an
-**information** problem. The shape is free knowledge (§5.3) and the game says nothing about
-what it means to an aircraft, which makes the decision to fly a lottery rather than the
-tactical read the air layer exists to be. `npm run balance -- --wing` is the instrument; the
-ROADMAP carries the two candidate answers and the reason the cheap one is the wrong one.
+**information** problem. The shape is free knowledge (§5.3) and the game said nothing about
+what it means to an aircraft, which made the decision to fly a lottery rather than the
+tactical read the air layer exists to be. `npm run balance -- --wing` is the instrument.
+
+**The target says it now** *(v1.34)*. Beside the shape, free and for the same reason — air
+defence is the one thing a post cannot hide, and a read that cost Intel would leave flying
+the lottery it was:
+
+    COMPOUND — RING WITH GATES
+    AIR — HEAVY FLAK · 153 ON THE APPROACH
+    The run in crosses heavy anti-air. Walk this one.
+
+It is a RULE, not a table, so a pasted share code reads exactly like a ladder rung. From
+`Engine.updateAirAttacker`: an aircraft ignores the grid, flies a straight line, and hovers.
+Walls, gates and the maze do not exist for it, so what is left is the flight in — for every
+gun that can elevate, the length of the run in that falls inside its envelope, over the
+speed of the slowest airframe, times its damage per second.
+
+It ships because it BEAT what a player already had. `npm run balance -- --airread` scores it
+against the measured air clear rate on all 75 dealt targets, with the shape's own mean as
+the incumbent — flattered, being scored on the rows it was fitted to. Transit takes r² 0.50
+against the shape's 0.21, and wins for each faction separately. The obvious term did not
+ship: flak covering the post, where the aircraft has to hover, scores 0.17 and makes the
+combination WORSE, because on a generated base it is nearly binary. The three bands are cut
+at the terciles of the measured population, and what each third clears at, flown, is
+**91.0 / 76.8 / 18.4** — the information is the bottom band, and it is a cliff. The raw
+figure rides along because a band cannot rank two posts that both read CONTESTED, and
+ranking the three on offer is the decision the front line presents.
 
 ### A raid is a roll *(v1.23)*
 

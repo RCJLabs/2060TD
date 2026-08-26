@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.33, in the browser. No install, no account, works on a phone.
+v1.34, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -18,6 +18,55 @@ v1.33, in the browser. No install, no account, works on a phone.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.34: the approach
+
+v1.33 ended on an information problem. Half the targets the front line deals are
+a materially different proposition flown, the shape is free knowledge, and the
+game said nothing about what that shape means to an aircraft. Now it does:
+
+```
+COMPOUND — RING WITH GATES
+AIR — HEAVY FLAK · 153 ON THE APPROACH
+The run in crosses heavy anti-air. Walk this one.
+```
+
+**It is a rule, not a table.** A lookup keyed on the rung would be worthless the
+moment a share code or a duel puts a base in front of you that no table has seen.
+This computes from the layout, so a pasted base reads exactly like a ladder rung.
+The mechanic it models is the one the engine implements: an aircraft ignores the
+grid, flies a straight line, and hovers. Walls, gates and the maze do not exist
+for it, so what is left is the flight in — for every gun that can elevate, how
+much of the run in falls inside its envelope, over the speed of the slowest
+airframe, times its damage per second.
+
+**It shipped because it beat what the player already had.** The shape is free
+information, so the shape's own mean was scored as the incumbent — and scored on
+the very rows it was fitted to, which flatters it:
+
+| predictor | r | r² |
+| --- | --- | --- |
+| **the approach** | **−0.71** | **0.50** |
+| flak over the post | −0.41 | 0.17 |
+| both together | −0.68 | 0.46 |
+| the shape alone (flattered) | +0.46 | 0.21 |
+
+The term that sounds like it should dominate — flak covering the command post,
+where the aircraft has to hover while it works — is the one that did **not**
+ship. On a generated base it is nearly binary, either a mount covers the post or
+one does not, and a term that cannot vary cannot predict. Adding it makes the
+answer worse. It stays in the harness so the table keeps saying why it is absent.
+
+The three bands are cut at the **terciles of the measured population** rather
+than at round numbers, so the boundaries cannot be nudged to flatter the result.
+What each third actually clears at, flown: **91% / 77% / 18%**. The information
+is the bottom band, and it is a cliff.
+
+Two things turned up on the way. The demo raid town called itself "a mustered
+mid-game town" and had never owned an aircraft — which is why four releases of
+air-layer work had nothing in the harness that flew. And `PanelRow.sub` was
+being dropped on the floor by heading rows without a word: the target tab's
+league row has carried its loot multiplier since v1.3 and never once shown it.
 
 ## Current state — v1.33: air fights a different ladder
 
@@ -1165,7 +1214,10 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    #    reason that is not one number: the deal is selected
                    #    against ground difficulty and air fights a different
                    #    ladder, so half the dealt targets are a materially
-                   #    different problem depending on whether you flew)
+                   #    different problem depending on whether you flew, or
+                   # -- --airread to score the shipped air read against the
+                   #    measured clear rate, and against the shape, which is
+                   #    what a player already gets for free)
 node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, that a
                    # row drag still scrolls instead of resizing, the tab swipe
                    # and its axis lock, the long press that opens a spec card

@@ -1,4 +1,4 @@
-# Balance snapshot (v1.33.0)
+# Balance snapshot (v1.34.0)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -597,6 +597,121 @@ UN COALITIO |   T1 | compound     |    100 | 100 | +
   UNPREDICTABLE. A player is told the shape for free (GDD §5) and told nothing
   about what it means to an aircraft, so the choice to fly is a lottery over a
   ladder that was selected — correctly, by `--layouts` — against ground.
+
+DOES THE AIR READ PREDICT? — every dealt target, air plan at 24 MP
+FACTION     | RUNG | SHAPE        | OVERHEAD | TRANSIT | AIR CLEAR%
+------------+------+--------------+----------+---------+-----------
+UNITED STAT |   T1 | compound     |        0 |       0 |        100
+            |      | camp         |        0 |       0 |        100
+            |      | corridor     |        0 |       0 |        100
+            |   T2 | compound     |       48 |      95 |         30
+            |      | camp         |       48 |      53 |        100
+            |      | star         |       48 |      34 |        100
+            |   T3 | corridor     |        0 |     131 |         50
+            |      | camp         |       48 |     179 |          0
+            |      | depot        |       48 |     155 |          5
+            |   T4 | star         |       48 |      27 |        100
+            |      | keep         |       48 |      47 |        100
+            |      | strongpoints |        0 |       0 |         75
+            |   T5 | bunker       |       48 |     162 |         40
+            |      | corridor     |       48 |     169 |          0
+            |      | star         |       48 |     214 |         70
+
+PLA EXPEDIT |   T1 | compound     |        0 |       0 |        100
+            |      | camp         |        0 |       0 |        100
+            |      | corridor     |        0 |       0 |        100
+            |   T2 | compound     |        0 |      60 |         20
+            |      | camp         |       47 |      44 |        100
+            |      | star         |       47 |      32 |        100
+            |   T3 | star         |       47 |      15 |        100
+            |      | depot        |        0 |      70 |        100
+            |      | strongpoints |        0 |       0 |         95
+            |   T4 | compound     |       47 |      64 |         30
+            |      | strongpoints |        0 |      41 |         10
+            |      | keep         |        0 |       0 |         90
+            |   T5 | compound     |       47 |      64 |        100
+            |      | strongpoints |        0 |       0 |         95
+            |      | bunker       |       47 |     141 |          0
+
+RUSSIAN GRO |   T1 | compound     |        0 |       0 |        100
+            |      | camp         |        0 |       0 |        100
+            |      | corridor     |        0 |       0 |        100
+            |   T2 | compound     |       47 |     144 |          5
+            |      | camp         |       47 |      67 |        100
+            |      | star         |       47 |      86 |        100
+            |   T3 | camp         |       47 |     152 |          5
+            |      | corridor     |       47 |     152 |          5
+            |      | depot        |       47 |     144 |         40
+            |   T4 | strongpoints |        0 |      46 |         65
+            |      | keep         |        0 |      93 |         45
+            |      | compound     |       47 |     143 |          0
+            |   T5 | camp         |       47 |     157 |          0
+            |      | bunker       |       47 |     155 |          0
+            |      | compound     |       47 |     136 |          0
+
+KOREAN PEOP |   T1 | compound     |        0 |       0 |        100
+            |      | camp         |        0 |       0 |        100
+            |      | corridor     |        0 |       0 |        100
+            |   T2 | compound     |       47 |      91 |          0
+            |      | corridor     |       47 |     125 |         25
+            |      | star         |       47 |      27 |        100
+            |   T3 | depot        |       47 |      53 |          0
+            |      | compound     |        0 |       0 |         55
+            |      | strongpoints |        0 |       0 |        100
+            |   T4 | compound     |       47 |      73 |        100
+            |      | keep         |        0 |      30 |        100
+            |      | camp         |       47 |     125 |          5
+            |   T5 | compound     |       47 |      91 |        100
+            |      | corridor     |       47 |     132 |         60
+            |      | bunker       |       47 |     122 |          0
+
+UN COALITIO |   T1 | compound     |        0 |       0 |        100
+            |      | camp         |        0 |       0 |        100
+            |      | corridor     |        0 |       0 |        100
+            |   T2 | camp         |       48 |     168 |          0
+            |      | corridor     |        0 |     184 |         55
+            |      | star         |       48 |      27 |        100
+            |   T3 | star         |       48 |      29 |        100
+            |      | compound     |       48 |      59 |         75
+            |      | depot        |       48 |     122 |          5
+            |   T4 | compound     |        0 |      77 |         95
+            |      | keep         |        0 |      63 |         80
+            |      | strongpoints |        0 |       0 |         10
+            |   T5 | bunker       |       48 |     138 |         60
+            |      | compound     |       48 |     110 |          0
+            |      | strongpoints |        0 |       9 |         55
+
+PREDICTOR                                   |     r |    r^2
+--------------------------------------------+-------+-------
+OVERHEAD flak DPS over the post             | -0.41 |   0.17
+TRANSIT DPS-seconds on the way in           | -0.71 |   0.50
+OVERHEAD + TRANSIT                          | -0.68 |   0.46
+SHAPE alone (the incumbent, flattered)      | +0.46 |   0.21
+
+  The bar is the last row. A player is told the shape for free, so a read that
+  cannot beat predicting from the shape alone has bought nothing — and the shape
+  baseline is scored on the very rows it was fitted to, which flatters it.
+
+PER FACTION — a predictor carried by one roster is not a predictor
+FACTION     | TRANSIT r | SHAPE r
+------------+-----------+--------
+UNITED STAT |     -0.78 |   +0.51
+PLA EXPEDIT |     -0.66 |   +0.42
+RUSSIAN GRO |     -0.90 |   +0.38
+KOREAN PEOP |     -0.63 |   +0.60
+UN COALITIO |     -0.54 |   +0.42
+
+BANDS — cut at the terciles of transit, then measured
+BAND  | TRANSIT       | TARGETS | MEAN AIR CLEAR%
+------+---------------+---------+----------------
+GOOD  | under 27      |      25 |            91.0
+FAIR  | 27 to 95      |      25 |            76.8
+POOR  | over 95       |      25 |            18.4
+
+  The bands are the shippable form: a player cannot read DPS-seconds, and three
+  words is the whole budget the target list has. The cuts are terciles of the
+  measured population rather than round numbers, so they cannot be tuned to
+  flatter the result.
 
 VETERANCY — UNITED STATES strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%

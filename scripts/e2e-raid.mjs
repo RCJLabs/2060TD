@@ -95,6 +95,38 @@ try {
   check('the planner opens on a target', (await copy(/TARGET GRID/i)) !== '', await copy(/TARGET GRID/i));
   check('nothing is committed yet', (await mustered()) === 0, `${await mustered()} units`);
 
+  // The air read (v1.34). The deal picks a rung's three targets against GROUND
+  // difficulty, so what the same target is worth FLOWN is the thing the panel
+  // never said. Two things have to hold: it says one of the three bands, and it
+  // is a read of THIS target rather than a constant — so cycling the three has
+  // to move the flak figure at least once. A constant passes the first check
+  // and fails the second, which is the point of having both.
+  const airLine = async () => ((await texts()).find((t) => /^AIR — /.test(t)) ?? '').split(' · ')[0];
+  const flak = async () => {
+    // Read the figure off the AIR heading itself rather than the whole panel:
+    // "AIR — HEAVY FLAK · 153 ON THE APPROACH". Scanning every text for a
+    // number next to a word made this check depend on wording it does not own.
+    const hit = /·\s*(\d+)\s/.exec((await texts()).find((t) => /^AIR — /.test(t)) ?? '');
+    return hit ? Number(hit[1]) : null;
+  };
+  const firstAir = await airLine();
+  check(
+    'the target says what it is worth flying at',
+    /^AIR — (CLEAR RUN|CONTESTED|HEAVY FLAK)$/.test(firstAir),
+    firstAir || '(no air read)',
+  );
+  const flaks = [await flak()];
+  for (let i = 0; i < 2; i++) {
+    await tap('TARGET ');
+    flaks.push(await flak());
+  }
+  await tap('TARGET '); // back to the first
+  check(
+    'the read is of the target, not a constant',
+    new Set(flaks.filter((f) => f !== null)).size > 1,
+    `flak across the three targets: ${flaks.join('/')}`,
+  );
+
   // The mission is the first decision (v1.24), and it has to be a real one:
   // the row has to cycle, and the quota has to be read off the post rather
   // than being a fixed number — a base with five emplacements and one with

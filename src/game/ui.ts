@@ -1114,7 +1114,13 @@ export class Panel {
         }
         text.setFontSize(font.tiny);
         text.setWordWrapWidth(headingW);
-        if (text.text !== row.label) text.setText(row.label);
+        // A heading has one text object, so its `sub` used to be dropped on the
+        // floor without a word — and it was being passed: the target tab's
+        // league row has carried `LOOT ×1.15` since v1.3 and never shown it.
+        // Appending is the whole fix; a heading is a sentence, not a two-column
+        // row, so the second field reads as the tail of the first.
+        const label = row.sub ? `${row.label} · ${row.sub}` : row.label;
+        if (text.text !== label) text.setText(label);
         placed.push({
           row,
           slot: headingIndex,

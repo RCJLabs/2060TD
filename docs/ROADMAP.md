@@ -2281,7 +2281,7 @@ not about the roster.
       game tells them the shape for free (GDD §5) while telling them nothing
       about what it means to an aircraft.
 
-- [ ] **NEXT, and specified rather than started.** Two candidate answers, and
+- [x] **NEXT, and specified rather than started.** Two candidate answers, and
       they are not the same game:
 
       1. **Select the deal against both ladders.** `--layouts` gains a second
@@ -2294,7 +2294,96 @@ not about the roster.
          supposed to be. More work, better game, and it does not touch a number
          that is currently right.
 
-      The second is the one to try. Measure before committing either way.
+      The second is the one to try. Measure before committing either way. Done
+      in M21 below — and it measured, and it shipped.
+
+---
+
+## M21 — v1.34 "The Approach"
+
+M20 ended on an information problem: half the targets a player is dealt are a
+materially different proposition flown, the shape is free knowledge, and the
+game said nothing about what that shape means to an aircraft. This is the
+missing sentence.
+
+- [x] **A rule, not a table.** The cheap version is a lookup on (tier, slot,
+      faction), and it would be worthless the moment a share code or a duel puts
+      a base in front of you no table has seen. `src/meta/airread.ts` computes
+      from a layout and a catalog, so a pasted base reads exactly like a ladder
+      rung.
+
+      The mechanic it models is the one `updateAirAttacker` implements: an
+      aircraft ignores the grid, flies a straight line, and hovers. Walls, gates
+      and the maze — everything that makes a rung hard on foot — do not exist
+      for it. What is left is the flight in. So for every gun that can elevate,
+      take the length of the run in that falls inside its envelope, divide by
+      the speed of the slowest airframe, multiply by its damage per second.
+      DPS-seconds absorbed getting there.
+
+- [x] **It had to beat what the player already has, and the bar was the shape.**
+      `--airread` scores it against the measured air clear rate on all 75 dealt
+      targets. The shape's own mean is the incumbent — scored on the very rows
+      it was fitted to, which flatters it — and the read wins anyway:
+
+      | predictor | r | r² |
+      | --- | --- | --- |
+      | **TRANSIT DPS-seconds** | **−0.71** | **0.50** |
+      | OVERHEAD flak over the post | −0.41 | 0.17 |
+      | OVERHEAD + TRANSIT | −0.68 | 0.46 |
+      | SHAPE alone (flattered) | +0.46 | 0.21 |
+
+      And it wins for every faction separately (−0.78 / −0.66 / −0.90 / −0.63 /
+      −0.54 against the shape's +0.51 / +0.42 / +0.38 / +0.60 / +0.42), which is
+      what rules out a predictor carried by one roster.
+
+- [x] **The term that sounded right and did not ship.** OVERHEAD — flak covering
+      the command post, where an aircraft has to hover while it works — is the
+      obvious dominant term and it is not. On a generated base it is very nearly
+      binary: either a mount covers the post or one does not. It scores −0.41
+      alone and makes the combination WORSE than transit by itself. A term that
+      cannot vary cannot predict. It is still measured in `--airread` so the
+      table keeps saying why it is absent.
+
+- [x] **Bands derived, not chosen.** A player cannot read DPS-seconds and three
+      words is the target list's whole budget, so the cuts are the TERCILES of
+      the measured population — they cannot be nudged to flatter the result.
+      What each third then clears at, flown, at 24 MP:
+
+      | | transit | targets | mean air clear% |
+      | --- | --- | --- | --- |
+      | CLEAR RUN | under 27 | 25 | 91.0 |
+      | CONTESTED | 27 to 95 | 25 | 76.8 |
+      | HEAVY FLAK | over 95 | 25 | **18.4** |
+
+      The information is concentrated at the bottom. CLEAR and CONTESTED are 14
+      points apart and both mean "this will probably work"; HEAVY is a cliff,
+      and it is the thing a player needed telling. The raw figure ships beside
+      the band because the band alone cannot rank two posts that both read
+      CONTESTED — and ranking the three on offer is the decision the front line
+      actually presents.
+
+- [x] **Free, like the shape.** Air defence is the one thing a post cannot hide,
+      and a read that cost Intel would leave flying the lottery it was. Gated
+      only on the commander having an airfield or an airframe: a panel line that
+      describes a decision you cannot make is a line that has not earned its
+      place.
+
+- [x] **Two things this turned up on the way.** The demo raid town called itself
+      "a mustered mid-game town" and had never owned an aircraft, which is why
+      nothing in the harness had ever exercised the air layer — it has a strip
+      and an airframe now. And `PanelRow.sub` was being dropped on the floor by
+      heading rows without a word: the target tab's league row has carried
+      `LOOT ×1.15` since v1.3 and never once shown it. Headings render their sub
+      now, which is how it appears in this release's screenshots.
+
+- [ ] **What is still not answered.** The read is validated as a property of a
+      TARGET, over the three sectors the reference air plans launch from. Air
+      transit is strongly directional — the same post is cheap from one edge and
+      dear from another — so the natural next step is a per-sector read on the
+      squad's own entry point, which would make the sector picker matter for air
+      in a way it never has. It is not shipped because it is not measured: the
+      formula would be the same one on a narrower input, and this project does
+      not ship the untested half of a validated instrument.
 
 ---
 

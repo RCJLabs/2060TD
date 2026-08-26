@@ -27,8 +27,10 @@ import {
 import type { TrainMeta } from '../../content/usaUnits';
 import { ladderPayout, leagueOf } from '../../meta/ladder';
 import { saveTown } from '../../meta/save';
+import { airReadOf, slowestAirSpeed, AIR_READ_SECTORS } from '../../meta/airread';
 import {
   armyManpower,
+  canFlyFrom,
   canTrain,
   manpowerCapOf,
   newTown,
@@ -358,6 +360,47 @@ export class RaidScene extends Phaser.Scene {
 
   private get trainMeta(): Record<string, TrainMeta> {
     return trainMetaFor(this.town.faction);
+  }
+
+  /**
+   * What this target is worth flying at (v1.34).
+   *
+   * Two rows, mirroring how the objective states itself and then explains
+   * itself: the read, then one sentence of why. Both are headings — this is
+   * information, not a control.
+   *
+   * The `FLAK` figure is the raw index, and it is here on purpose. Three words
+   * band the target; the number lets a commander RANK the three on offer, which
+   * is the decision the front line actually presents.
+   */
+  private airReadRows(): PanelRow[] {
+    if (!canFlyFrom(this.town)) return [];
+    const cat = raidCatalogFor(this.town.faction);
+    const speed = slowestAirSpeed(
+      cat,
+      this.trainable.filter((t) => t.facility === 'airfield').map((t) => t.kind),
+    );
+    if (speed === undefined) return [];
+    const read = airReadOf(this.base, cat, AIR_READ_SECTORS, speed);
+    const note =
+      read.band === 'clear'
+        ? 'Little covers the run in. Rotors get to the post.'
+        : read.band === 'contested'
+          ? 'Mounts cover part of the approach. Flying costs, and works.'
+          : 'The run in crosses heavy anti-air. Walk this one.';
+    // The figure is comparable between the three targets on offer, which is the
+    // decision the front line actually presents — the band alone cannot rank
+    // two posts that both read CONTESTED.
+    const flak = `${Math.round(read.transit)} ON THE APPROACH`;
+    return [
+      {
+        id: 'airread',
+        label: `AIR — ${read.label}`,
+        sub: flak,
+        heading: true,
+      },
+      { id: 'airnote', label: note, heading: true },
+    ];
   }
 
   // ---- target handling ---------------------------------------------------------
@@ -935,6 +978,11 @@ export class RaidScene extends Phaser.Scene {
           // One statement, one row. These were two rows because a row was one
           // unwrapped line and the pair would not fit; rows wrap now (v1.13).
           { id: 'shape', label: `${shape.name} — ${shape.tag}`, heading: true },
+          // What the shape means to an AIRCRAFT (v1.34), which the deal cannot
+          // say because it is selected against ground difficulty. Free, like
+          // the shape: air defence is the one thing a post cannot hide, and a
+          // read that costs Intel would leave flying the lottery it was.
+          ...this.airReadRows(),
           // What you are going out for, above the muster — because it is what
           // the force should be built for, not a note you add afterwards.
           {
@@ -1234,12 +1282,30 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
           : faction === 'un'
             ? { peacekeeper: 4, unmedic: 2, unsapper: 2, nlaw: 2, vab: 1, leo1: 1 }
             : { ranger: 4, engineer: 2, javelin: 2, humvee: 1, abrams: 1 };
+  // One airframe, so the planner has something to fly and the air read has a
+  // reason to be on the panel.
+  const flier =
+    faction === 'china'
+      ? 'wz10'
+      : faction === 'russia'
+        ? 'ka52'
+        : faction === 'nk'
+          ? 'an2'
+          : faction === 'un'
+            ? 'nh90'
+            : 'reaper';
+  town.army[flier] = 1;
   const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
   place(town, 'barracks', idx(20, 5), now - 600_000);
   town.structures.find((s) => s.kind === 'cc')!.level = 2;
   place(town, 'motorpool', idx(20, 17), now - 600_000);
+  // A strip, and something on it (v1.34). The showcase called itself a mustered
+  // mid-game town and had never owned an aircraft, which is why nothing here
+  // exercised the air layer — including the read that says whether a target is
+  // worth flying at. Sited clear of the wall line and the two training halls.
+  place(town, 'airfield', idx(14, 11), now - 600_000);
   tick(town, now - 500_000);
-  structureAt(town, idx(20, 5))!.level = 3; // veteran garrison: cap 6+15+12 = 33
+  structureAt(town, idx(20, 5))!.level = 3; // veteran garrison
   structureAt(town, idx(20, 17))!.level = 2;
   const barracks = structureAt(town, idx(20, 5));
   if (barracks) {

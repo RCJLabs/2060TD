@@ -411,3 +411,32 @@ here with the change and its date.
   lottery. Selecting the deal against both ladders is the cheap answer and costs
   ground parity that took three milestones to earn; saying which targets suit an
   aircraft is the better one and touches no number that is currently right.
+- 2026-08-26 — **A read has to beat what the player already gets for free.**
+  v1.33 left air as an information problem: half the dealt targets are a
+  materially different proposition flown, and the game never said which. The
+  fix could have been a lookup table keyed on (tier, slot, faction) — cheap, and
+  worthless the moment a share code or a duel puts a base in front of you that
+  no table has seen. It is a RULE instead, computed from the layout: for every
+  gun that can elevate, how much of the straight run in falls inside its
+  envelope, over the speed of the slowest airframe, times its damage per second.
+  What makes that a decision rather than a story is the bar it had to clear. A
+  player is already told the shape, so the shape's own mean was scored as the
+  incumbent — and scored on the very rows it was fitted to, which flatters it.
+  Transit wins 0.50 r² against 0.21, and wins for all five factions separately,
+  which is what rules out a predictor carried by one roster. The obvious
+  dominant term did NOT ship: flak covering the post, where the aircraft has to
+  hover, scores 0.17 and makes the combination worse, because on a generated
+  base it is nearly binary and a term that cannot vary cannot predict. The
+  presentation went the same way — three bands, cut at the TERCILES of the
+  measured population rather than at round numbers, so the boundaries could not
+  be nudged to make the separation look better than it is (91.0 / 76.8 / 18.4).
+- 2026-08-26 — **A fixture that has never owned the feature cannot test it.**
+  The demo raid town describes itself as "a mustered mid-game town" and had a
+  barracks, a motorpool, five kinds of infantry and armour, a fire plan, and no
+  airfield — so in four releases of air-layer work nothing in the harness had
+  ever flown. The air read shipped invisible in the first E2E run for exactly
+  that reason, and the gate was working correctly: no strip, no row. The lesson
+  generalises past this fixture. A showcase drifts into being a snapshot of
+  whatever existed when it was written, and every feature added after it is
+  untested by everything that uses it. Worth asking of any fixture: which
+  shipped systems does this thing not contain?
