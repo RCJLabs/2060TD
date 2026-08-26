@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.32, in the browser. No install, no account, works on a phone.
+v1.33, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -18,6 +18,59 @@ v1.32, in the browser. No install, no account, works on a phone.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Current state — v1.33: air fights a different ladder
+
+The last release ended by filing the biggest thing it found: air looked badly
+priced, with what flying is worth ranging 32 clear-rate points across the five
+factions. Going to fix it meant reading the air table closely for the first
+time, and **the table was wrong about itself in three separate places.**
+
+- Its edge column compared forces of **different sizes**. The air plans are
+  documented as "roughly the same manpower, flown"; four of the five fly 3–4 MP
+  more than the ground reference, and the only matched one is the faction that
+  measured worst. Both apparent air *wins* were the surplus: the USA's +6.4 is
+  +0.6 against a matched control, China's +5.0 is −2.0.
+- Its loss column said `MP LOST%` and counted **heads**, so a 7-MP gunship and a
+  1-MP conscript weighed the same and a three-airframe force read as annihilated
+  for losses a nine-body force shrugs off.
+- Its control row said **"no AA"** and never removed any AA. Every generated base
+  builds its flak mounts and no row took them off; what the control removed was
+  the garrison's reactive `manpads` order.
+
+Each had been read as a finding for four or more releases. The habit worth
+keeping is mechanical: a comparison table must print the budget of both sides,
+and a column heading is a claim the code has to keep.
+
+**Then the real finding.** Replacing the fixed-force air table with a demand
+table — the same correction `--rungs` made to the ladder — produced an air row
+that was not monotone, and probing it directly showed that was not noise. A
+12-MP air force clears the USA's rung 4 sixty-two percent of the time and its
+rung 3 zero percent.
+
+| USA, 24 MP | ground | air |
+| --- | --- | --- |
+| T3 OPEN CAMP | 60 | **0** |
+| T3 DISPERSED DEPOT | **100** | **5** |
+| T4 STAR FORT | 45 | **100** |
+| T4 KEEP | 35 | **100** |
+
+The two targets an air force cannot take at all are the two the ground force
+finds easiest. **39 of the 75 targets the five factions are dealt move by 30 or
+more clear-rate points depending on whether you walked or flew** — while for
+four of five the means are close.
+
+The mechanism is plain once stated: walls and overlapping arcs are what make a
+rung hard on the ground, and neither exists for an aircraft. What is left is the
+flight in, and the shapes with the fewest walls are exactly the ones that spread
+their mounts and their command post over the most ground.
+
+So air is not weaker. It is a **different ladder**, and the game does not say so
+— you are told the shape for free and told nothing about what it means to an
+aircraft. That makes flying a lottery instead of a read. The fix is the next
+milestone, and the cheap answer (select the deal against both ladders) is the
+wrong one: it would spend ground parity that took three milestones to earn, to
+solve what is really an information problem.
 
 ## Current state — v1.32: the deal names the ground
 
@@ -1107,7 +1160,12 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --dealorder to re-rank the shapes at a force that
                    #    does not saturate, or
                    # -- --layouts to re-select the deal against a target
-                   #    difficulty curve and emit DEAL_TABLE as source)
+                   #    difficulty curve and emit DEAL_TABLE as source, or
+                   # -- --wing for what AIR costs in manpower, and for the
+                   #    reason that is not one number: the deal is selected
+                   #    against ground difficulty and air fights a different
+                   #    ladder, so half the dealt targets are a materially
+                   #    different problem depending on whether you flew)
 node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, that a
                    # row drag still scrolls instead of resizing, the tab swipe
                    # and its axis lock, the long press that opens a spec card

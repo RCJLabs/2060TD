@@ -1,4 +1,4 @@
-# Balance snapshot (v1.32.0)
+# Balance snapshot (v1.33.0)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -212,19 +212,19 @@ ATTRITION    |  100 |  100 |   90 |  100 |   20 |  82.0 |     -4.0
 TERRAIN — the UNITED STATES reference force vs PLA posts, flat ground vs real
 GROUND      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-       FLAT |   100 |   100 |    98 |    72 |    43 |  82.6 |       46
-     GROUND |   100 |   100 |    85 |    65 |    53 |  80.6 |       47
-    SHEET 1 |   100 |   100 |    65 |    40 |    45 |  70.0 |       54
-    SHEET 2 |   100 |   100 |    90 |    60 |    55 |  81.0 |       49
-    SHEET 3 |   100 |   100 |   100 |    95 |    60 |  91.0 |       39
+       FLAT |   100 |   100 |    98 |    72 |    43 |  82.6 |       38
+     GROUND |   100 |   100 |    85 |    65 |    53 |  80.6 |       39
+    SHEET 1 |   100 |   100 |    65 |    40 |    45 |  70.0 |       47
+    SHEET 2 |   100 |   100 |    90 |    60 |    55 |  81.0 |       43
+    SHEET 3 |   100 |   100 |   100 |    95 |    60 |  91.0 |       28
 
 PARITY — every faction at its own best line, same manpower, same ladder
 FACTION     |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST% | LINE
 ------------+-------+-------+-------+-------+-------+-------+----------+------
-UNITED STAT |   100 |   100 |    85 |    65 |    53 |  80.6 |       47 | GROUND
-PLA EXPEDIT |   100 |    98 |    82 |    60 |    53 |  78.6 |       69 | GROUND
+UNITED STAT |   100 |   100 |    85 |    65 |    53 |  80.6 |       39 | GROUND
+PLA EXPEDIT |   100 |    98 |    82 |    60 |    53 |  78.6 |       50 | GROUND
 RUSSIAN GRO |   100 |    98 |    80 |    78 |    57 |  82.6 |       43 | GROUND
-KOREAN PEOP |    98 |    93 |    88 |    53 |    60 |  78.4 |       63 | TUNNEL
+KOREAN PEOP |    98 |    93 |    88 |    53 |    60 |  78.4 |       59 | TUNNEL
 UN COALITIO |   100 |    97 |    83 |    77 |    52 |  81.8 |       39 | GROUND
 
 SPREAD — 4.2 points between RUSSIA and NK. Five kits differing in STYLE (GDD §4) should not differ this much in ODDS.
@@ -408,61 +408,195 @@ DISTINCT WINNERS 13 of 15. One force topping every column would mean the objecti
 GARRISON — the UNITED STATES reference force vs PLA posts
 CONFIG      |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-    v1.19 W |   100 |   100 |    67 |    38 |    13 |  63.6 |       55
-    v1.19 — |   100 |   100 |    85 |    78 |    50 |  82.6 |       47
- GUNS 0.8 W |   100 |   100 |    88 |    75 |    68 |  86.2 |       45
- GUNS 0.8 — |   100 |   100 |   100 |   100 |    67 |  93.4 |       38
-    WATCH W |   100 |   100 |    58 |    20 |    12 |  58.0 |       59
-    WATCH — |   100 |   100 |    70 |    77 |    48 |  79.0 |       51
-  SHIPPED W |   100 |   100 |    85 |    65 |    53 |  80.6 |       47
-  SHIPPED — |   100 |   100 |    97 |   100 |    65 |  92.4 |       42
+    v1.19 W |   100 |   100 |    67 |    38 |    13 |  63.6 |       49
+    v1.19 — |   100 |   100 |    85 |    78 |    50 |  82.6 |       39
+ GUNS 0.8 W |   100 |   100 |    88 |    75 |    68 |  86.2 |       37
+ GUNS 0.8 — |   100 |   100 |   100 |   100 |    67 |  93.4 |       30
+    WATCH W |   100 |   100 |    58 |    20 |    12 |  58.0 |       53
+    WATCH — |   100 |   100 |    70 |    77 |    48 |  79.0 |       43
+  SHIPPED W |   100 |   100 |    85 |    65 |    53 |  80.6 |       39
+  SHIPPED — |   100 |   100 |    97 |   100 |    65 |  92.4 |       32
 
 WALL LINE IS WORTH — v1.19 +19.0  |  GUNS 0.8 +7.2  |  WATCH +21.0  |  SHIPPED +11.8  (clear-rate points to the defender)
 
 AIR — the UNITED STATES reference force vs PLA posts, with and without AA
+      GROUND reference 27 MP, AIR plan 30 MP, so the edge is read against GROUND =30
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |   100 |    85 |    65 |    53 |  80.6 |       47
-  AIR no AA |   100 |   100 |    65 |   100 |    70 |  87.0 |       58
-    AIR +AA |   100 |    80 |    48 |    88 |    30 |  69.2 |       65
+     GROUND |   100 |   100 |    85 |    65 |    53 |  80.6 |       39
+ GROUND =30 |   100 |   100 |    92 |    75 |    65 |  86.4 |       42
+ AIR mounts |   100 |   100 |    65 |   100 |    70 |  87.0 |       45
+AIR +manpads |   100 |    80 |    48 |    88 |    30 |  69.2 |       55
 
-AIR'S EDGE OVER GROUND — without AA +6.4  |  with AA -11.4  (clear-rate points)
+AIR'S EDGE OVER MATCHED GROUND — vs mounts +0.6  |  vs mounts+manpads -17.2  (clear-rate points, both forces at 30 MP)
 
 AIR — the PLA EXPEDITIONARY FORCE reference force vs US ARMY posts, with and without AA
+      GROUND reference 26 MP, AIR plan 30 MP, so the edge is read against GROUND =30
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |   100 |    98 |    82 |    60 |    53 |  78.6 |       69
-  AIR no AA |   100 |    93 |   100 |    58 |    67 |  83.6 |       57
-    AIR +AA |   100 |    73 |   100 |    52 |    67 |  78.4 |       59
+     GROUND |   100 |    98 |    82 |    60 |    53 |  78.6 |       50
+ GROUND =30 |   100 |   100 |    72 |    73 |    83 |  85.6 |       52
+ AIR mounts |   100 |    93 |   100 |    58 |    67 |  83.6 |       46
+AIR +manpads |   100 |    73 |   100 |    52 |    67 |  78.4 |       48
 
-AIR'S EDGE OVER GROUND — without AA +5.0  |  with AA -0.2  (clear-rate points)
+AIR'S EDGE OVER MATCHED GROUND — vs mounts -2.0  |  vs mounts+manpads -7.2  (clear-rate points, both forces at 30 MP)
 
 AIR — the RUSSIAN GROUND FORCES reference force vs US ARMY posts, with and without AA
+      GROUND reference 27 MP, AIR plan 27 MP — already matched, so GROUND =N must repeat GROUND exactly
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
      GROUND |   100 |    98 |    80 |    78 |    57 |  82.6 |       43
-  AIR no AA |   100 |    80 |    32 |    65 |     5 |  56.4 |       72
-    AIR +AA |   100 |    73 |    32 |    37 |     0 |  48.4 |       75
+ GROUND =27 |   100 |    98 |    80 |    78 |    57 |  82.6 |       43
+ AIR mounts |   100 |    80 |    32 |    65 |     5 |  56.4 |       62
+AIR +manpads |   100 |    73 |    32 |    37 |     0 |  48.4 |       66
 
-AIR'S EDGE OVER GROUND — without AA -26.2  |  with AA -34.2  (clear-rate points)
+AIR'S EDGE OVER MATCHED GROUND — vs mounts -26.2  |  vs mounts+manpads -34.2  (clear-rate points, both forces at 27 MP)
 
 AIR — the KOREAN PEOPLE'S ARMY reference force vs US ARMY posts, with and without AA
+      GROUND reference 26 MP, AIR plan 29 MP, so the edge is read against GROUND =29
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
-     GROUND |    97 |    72 |    80 |    48 |    43 |  68.0 |       65
-  AIR no AA |   100 |    50 |    67 |    35 |    32 |  56.8 |       68
-    AIR +AA |   100 |    43 |    38 |    13 |    20 |  42.8 |       74
+     GROUND |    97 |    72 |    80 |    48 |    43 |  68.0 |       62
+ GROUND =29 |    92 |    87 |    95 |    57 |    55 |  77.2 |       57
+ AIR mounts |   100 |    50 |    67 |    35 |    32 |  56.8 |       66
+AIR +manpads |   100 |    43 |    38 |    13 |    20 |  42.8 |       72
 
-AIR'S EDGE OVER GROUND — without AA -11.2  |  with AA -25.2  (clear-rate points)
+AIR'S EDGE OVER MATCHED GROUND — vs mounts -20.4  |  vs mounts+manpads -34.4  (clear-rate points, both forces at 29 MP)
 
 AIR — the UN COALITION reference force vs PLA posts, with and without AA
+      GROUND reference 27 MP, AIR plan 30 MP, so the edge is read against GROUND =30
 FORCE       |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN | MP LOST%
 ------------+-------+-------+-------+-------+-------+-------+---------
      GROUND |   100 |    97 |    83 |    77 |    52 |  81.8 |       39
-  AIR no AA |   100 |    67 |   100 |    70 |    63 |  80.0 |       64
-    AIR +AA |   100 |    53 |    97 |    63 |    22 |  67.0 |       70
+ GROUND =30 |   100 |   100 |    98 |    83 |    88 |  93.8 |       28
+ AIR mounts |   100 |    67 |   100 |    70 |    63 |  80.0 |       54
+AIR +manpads |   100 |    53 |    97 |    63 |    22 |  67.0 |       62
 
-AIR'S EDGE OVER GROUND — without AA -1.8  |  with AA -14.8  (clear-rate points)
+AIR'S EDGE OVER MATCHED GROUND — vs mounts -13.8  |  vs mounts+manpads -26.8  (clear-rate points, both forces at 30 MP)
+
+WHAT AIR CHARGES — smallest manpower that clears half the time, by plan shape
+FACTION     | SHAPE  |    T1 |    T2 |    T3 |    T4 |    T5 |  MEAN
+------------+--------+-------+-------+-------+-------+-------+-------
+UNITED STAT | GROUND |     6 |    11 |    19 |    27 |    27 |  18.0
+            | AIR    |    12 |    12 |    38 |    12 |    38 |  22.4
+            | x      |  2.0x |  1.1x |  2.0x |  0.4x |  1.4x |  1.2x
+PLA EXPEDIT | GROUND |     9 |    20 |    20 |    24 |    28 |  20.2
+            | AIR    |     8 |    12 |    20 |    38 |    24 |  20.4
+            | x      |  0.9x |  0.6x |  1.0x |  1.6x |  0.9x |  1.0x
+RUSSIAN GRO | GROUND |     6 |     6 |    24 |    27 |    27 |  18.0
+            | AIR    |     9 |    16 |    33 |    38 |    45 |  28.2
+            | x      |  1.5x |  2.7x |  1.4x |  1.4x |  1.7x |  1.6x
+KOREAN PEOP | GROUND |     9 |    16 |    20 |    24 |    28 |  19.4
+            | AIR    |     6 |    33 |    33 |    24 |    24 |  24.0
+            | x      |  0.7x |  2.1x |  1.6x |  1.0x |  0.9x |  1.2x
+UN COALITIO | GROUND |     6 |     9 |    18 |    24 |    27 |  16.8
+            | AIR    |    12 |    24 |    20 |    24 |    38 |  23.6
+            | x      |  2.0x |  2.7x |  1.1x |  1.0x |  1.4x |  1.4x
+
+  A rung a shape never clears at any budget on the grid reads —, and its mean
+  is withheld rather than averaged over the rungs it did reach: a force that
+  cannot take the top rung has not earned a better mean for stopping early.
+
+  The AIR row is not monotone and that is not the instrument. See below.
+
+THE SAME TARGETS, FLOWN — clear% at a fixed 24 MP, ground shape vs air shape
+FACTION     | RUNG | SHAPE        | GROUND | AIR | AIR MINUS GROUND
+------------+------+--------------+--------+-----+-----------------
+UNITED STAT |   T1 | compound     |    100 | 100 | +
+            |      | camp         |    100 | 100 | +
+            |      | corridor     |    100 | 100 | +
+            |   T2 | compound     |    100 |  30 | -#######
+            |      | camp         |    100 | 100 | +
+            |      | star         |    100 | 100 | +
+            |   T3 | corridor     |     45 |  50 | +#
+            |      | camp         |     60 |   0 | -######
+            |      | depot        |    100 |   5 | -##########
+            |   T4 | star         |     45 | 100 | +######
+            |      | keep         |     35 | 100 | +#######
+            |      | strongpoints |     45 |  75 | +###
+            |   T5 | bunker       |      0 |  40 | +####
+            |      | corridor     |      0 |   0 | +
+            |      | star         |      5 |  70 | +#######
+            |      | MEAN / SPLIT |     62 |  65 | r=+0.31  30+ easier 5, harder 3
+
+PLA EXPEDIT |   T1 | compound     |    100 | 100 | +
+            |      | camp         |    100 | 100 | +
+            |      | corridor     |    100 | 100 | +
+            |   T2 | compound     |     55 |  20 | -####
+            |      | camp         |    100 | 100 | +
+            |      | star         |    100 | 100 | +
+            |   T3 | star         |     50 | 100 | +#####
+            |      | depot        |     95 | 100 | +#
+            |      | strongpoints |    100 |  95 | -#
+            |   T4 | compound     |    100 |  30 | -#######
+            |      | strongpoints |     45 |  10 | -####
+            |      | keep         |      5 |  90 | +#########
+            |   T5 | compound     |    100 | 100 | +
+            |      | strongpoints |      0 |  95 | +##########
+            |      | bunker       |     10 |   0 | -#
+            |      | MEAN / SPLIT |     71 |  76 | r=+0.40  30+ easier 3, harder 3
+
+RUSSIAN GRO |   T1 | compound     |    100 | 100 | +
+            |      | camp         |    100 | 100 | +
+            |      | corridor     |    100 | 100 | +
+            |   T2 | compound     |     85 |   5 | -########
+            |      | camp         |    100 | 100 | +
+            |      | star         |    100 | 100 | +
+            |   T3 | camp         |     70 |   5 | -#######
+            |      | corridor     |     50 |   5 | -#####
+            |      | depot        |    100 |  40 | -######
+            |   T4 | strongpoints |     30 |  65 | +####
+            |      | keep         |      0 |  45 | +#####
+            |      | compound     |     65 |   0 | -#######
+            |   T5 | camp         |      5 |   0 | -#
+            |      | bunker       |      0 |   0 | +
+            |      | compound     |     65 |   0 | -#######
+            |      | MEAN / SPLIT |     65 |  44 | r=+0.57  30+ easier 2, harder 6
+
+KOREAN PEOP |   T1 | compound     |     90 | 100 | +#
+            |      | camp         |    100 | 100 | +
+            |      | corridor     |     95 | 100 | +#
+            |   T2 | compound     |     95 |   0 | -##########
+            |      | corridor     |     95 |  25 | -#######
+            |      | star         |     80 | 100 | +##
+            |   T3 | depot        |     55 |   0 | -######
+            |      | compound     |     90 |  55 | -###
+            |      | strongpoints |    100 | 100 | +
+            |   T4 | compound     |     60 | 100 | +####
+            |      | keep         |     70 | 100 | +###
+            |      | camp         |     70 |   5 | -#######
+            |   T5 | compound     |     25 | 100 | +########
+            |      | corridor     |     55 |  60 | +
+            |      | bunker       |     20 |   0 | -##
+            |      | MEAN / SPLIT |     73 |  63 | r=+0.23  30+ easier 3, harder 5
+
+UN COALITIO |   T1 | compound     |    100 | 100 | +
+            |      | camp         |    100 | 100 | +
+            |      | corridor     |    100 | 100 | +
+            |   T2 | camp         |     85 |   0 | -#########
+            |      | corridor     |     95 |  55 | -####
+            |      | star         |    100 | 100 | +
+            |   T3 | star         |     30 | 100 | +#######
+            |      | compound     |     80 |  75 | -#
+            |      | depot        |    100 |   5 | -##########
+            |   T4 | compound     |     50 |  95 | +#####
+            |      | keep         |     15 |  80 | +#######
+            |      | strongpoints |     95 |  10 | -#########
+            |   T5 | bunker       |      5 |  60 | +######
+            |      | compound     |     20 |   0 | -##
+            |      | strongpoints |      0 |  55 | +######
+            |      | MEAN / SPLIT |     65 |  62 | r=+0.05  30+ easier 5, harder 4
+
+  r is over the fifteen targets the faction is actually dealt, and it reads
+  higher than it should: every T1 cell is 100/100 for both shapes, which is no
+  information and still pulls the coefficient toward +1. Read the COUNTS, which
+  cannot be inflated that way — they say how many of the fifteen targets are a
+  materially different problem depending on whether you walked or flew.
+
+  The MEANS are the other half of it: air is not WEAKER at a fixed budget, it is
+  UNPREDICTABLE. A player is told the shape for free (GDD §5) and told nothing
+  about what it means to an aircraft, so the choice to fly is a lottery over a
+  ladder that was selected — correctly, by `--layouts` — against ground.
 
 VETERANCY — UNITED STATES strike force (27 MP), men returned% by tier
 RANK    |  ×   |   T1 |   T2 |   T3 |   T4 |   T5 |  MEAN | CLEAR%
@@ -819,17 +953,28 @@ LATE (CC3)  |  100 |  100 |  100 |    0 |    0 |    0
   CADRE bring home exactly the same men, because a 15% HP bump cannot save a unit that
   was never going to survive the volley. It measures on flat ground now — the same
   correction the first veterancy table needed, for the same reason.
-- **The air thesis holds; the air ROSTER does not, and v1.32 is where that stopped
-  being deniable.** AA is still the answer to air in all five factions — putting AA on
-  the board costs every air force between 5 and 18 clear-rate points, which is the one
-  thing the air layer was built to be true. What the same table says next is a defect:
-  measured against each faction's own ground force, air ranges from +6.4 (the USA, with
-  no AA present) to -26.2 (Russia). China's WZ-10 line is at parity with its own ground
-  force even under AA (-0.2), and Russia's is 34 points behind. A specialist tool is
-  allowed to be worse than the general one; it is not allowed to be worth five times as
-  much to one player as to another. Ground parity is at 4.2 points and air is at 32 —
-  the air roster has never been priced the way `--parity` prices the ground rosters, and
-  that is the next content question, not a tuning one.
+- **Air is not weaker. It is a different LADDER (v1.33), and three labels had to be
+  fixed before that was visible.** The v1.32 reading of this section said the air
+  ROSTER was mispriced, off a spread of 32 clear-rate points. That spread was measured
+  against a control of the wrong size: four of the five air plans fly 3-4 MP more than
+  the ground reference, and the only matched one is the faction that measured worst.
+  Against `GROUND =N` no air force beats its own ground, and the USA's +6.4 is +0.6.
+  The loss column was counting heads rather than manpower, and the row labelled `no AA`
+  never removed any AA — the mounts are built into every base and only the garrison's
+  reactive order came off. All three are fixed above; each had been read as a finding
+  for four or more releases.
+- **What is left is the real one.** `--wing` prices air the way `--rungs` prices the
+  ladder, and the air demand row comes out non-monotone: the USA needs 38 MP at T3 and
+  12 at T4. Probed directly that is not noise — a 12-MP air force clears T4 62% of the
+  time and T3 0%. Measured per dealt target, the two hardest shapes for the USA's
+  aircraft (`camp` 0%, `depot` 5%) are the two its ground force finds EASIEST (60%,
+  100%), and `star` and `keep` invert the other way. Walls and overlapping arcs make a
+  rung hard on the ground and neither exists for an aircraft; what is left is the flight
+  in, and the shapes with the fewest walls spread their mounts and their post over the
+  most ground. 39 of the 75 dealt targets move by 30+ points depending on whether the
+  force walked or flew, while four of five factions have MEANS within a few points. It
+  is not a power problem, it is an information one: the shape is free knowledge and the
+  game says nothing about what it means to an aircraft.
 - **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before
   anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+
   (everything kills sentry nests).

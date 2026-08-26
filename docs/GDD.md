@@ -262,6 +262,46 @@ up killing the command post has not failed, and pays like a post raid whatever i
 A duel is always for the post — `town.duels` records the codes you have *beaten*, and that
 has to mean the same thing for everyone who fights one.
 
+### What flying is worth *(v1.33)*
+
+Air was shipped at v1.0 on a thesis: **an aircraft buys speed and survival, not odds.** It
+should not clear more often than a ground push of the same size, it should lose fewer men
+doing it, and anti-air should be the answer to it. Three releases of tables appeared to
+confirm that, and all three were reading instruments that described themselves wrongly.
+
+The air plans are documented as "roughly the same manpower, flown", and `roughly` had never
+been checked — four of the five fly 3–4 MP more than the ground reference they were being
+compared against, and the only matched one is the one that measured worst. The loss column
+said `MP LOST%` and counted **heads**, so a 7-MP gunship weighed the same as a 1-MP
+conscript and a three-airframe force read as annihilated for losses a nine-body force
+shrugs off. And the control row labelled "no AA" never removed any AA: every generated base
+builds its flak mounts and no row took them off — what the control removed was the
+garrison's reactive `manpads` order. Read against a manpower-matched control, no faction's
+air beats its own ground, and air still loses **more** manpower than matched ground for four
+of five factions. Half the thesis is not true yet.
+
+The more useful finding is what `--wing` turned up when the fixed-force table was replaced
+with a demand table — the same correction `--rungs` made to the ladder. **Air does not climb
+a harder ladder. It climbs a different one.** The deal picks each rung's three targets
+against measured GROUND difficulty (§5.3), correctly, because almost every raid is a ground
+raid. Measured per dealt target at a fixed budget, the two orderings barely relate: **39 of
+the 75 targets the five factions are dealt move by 30 or more clear-rate points depending on
+whether the force walked or flew.** For the USA the two targets an air force cannot take at
+all — OPEN CAMP at 0% and DISPERSED DEPOT at 5% — are the two its ground force finds
+easiest, at 60% and 100%; STAR FORT and KEEP invert the other way, 100% flown against 45%
+and 35% on foot.
+
+The mechanism is plain once it is stated. Walls and overlapping arcs are what make a rung
+hard on the ground, and **neither exists for an aircraft**. What is left is the flight in —
+and the shapes with the fewest walls are exactly the ones that spread their mounts and their
+command post over the most ground.
+
+So this is not a power problem: for four of five factions the means are close. It is an
+**information** problem. The shape is free knowledge (§5.3) and the game says nothing about
+what it means to an aircraft, which makes the decision to fly a lottery rather than the
+tactical read the air layer exists to be. `npm run balance -- --wing` is the instrument; the
+ROADMAP carries the two candidate answers and the reason the cheap one is the wrong one.
+
 ### A raid is a roll *(v1.23)*
 
 For twelve releases the sim never rolled in combat. The engine's one shared stream had

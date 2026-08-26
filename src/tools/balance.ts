@@ -41,6 +41,7 @@ import {
   raidConfig,
   resolveRaid,
   tunnelSiteValid,
+  type RaidResolution,
   type RaidSupport,
   type SectorId,
   type SquadPlan,
@@ -250,6 +251,34 @@ function planManpower(faction: FactionId, plans: SquadPlan[] = RAID_PLANS[factio
 }
 
 /**
+ * Manpower sent and manpower home, from one resolution.
+ *
+ * The column has read MP LOST% since v0.3 and was counting HEADS. `deployed`
+ * and `returned` on a `SquadReturn` are unit counts, so a 7-MP Ka-52 and a
+ * 1-MP conscript weighed the same. Ground rosters field similar mixes and the
+ * proxy held there; air does not, and `--air` is where it broke — a
+ * three-airframe force reads as catastrophic for losing what a nine-body force
+ * shrugs off, which is the opposite of what "air buys survival" wants to test.
+ *
+ * `raidRows` at the top of this file always did it correctly, off `res.deployed`
+ * and `res.losses` weighted by kind; five later tables each re-implemented it
+ * by hand and each got heads. This is that computation, extracted.
+ *
+ * `--delay` and `--vet` are deliberately NOT converted: both headers say "men
+ * returned%" and mean it, and `--delay`'s per-seat column could not be
+ * converted anyway — the resolution carries survivors per KIND and returns per
+ * SQUAD, never per kind per squad.
+ */
+function manpowerFlow(faction: FactionId, res: RaidResolution): { sent: number; home: number } {
+  const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
+  let sent = 0;
+  let home = 0;
+  for (const [kind, n] of Object.entries<number>(res.deployed)) sent += (meta[kind] ?? 0) * n;
+  for (const [kind, n] of Object.entries<number>(res.survivors)) home += (meta[kind] ?? 0) * n;
+  return { sent, home };
+}
+
+/**
  * How much FORCE each rung demands (v1.30) — the ladder, measured honestly.
  *
  * Every other ladder table in this file fights all five rungs with the same
@@ -294,9 +323,13 @@ const RUNG_SEEDS = 12;
  * Dealing round-robin keeps the proportions — the reference's own order is the
  * cycle — while letting the force grow one man at a time.
  */
-function planAtBudget(faction: FactionId, budget: number): SquadPlan[] {
+function planAtBudget(
+  faction: FactionId,
+  budget: number,
+  shape: SquadPlan[] = RAID_PLANS[faction],
+): SquadPlan[] {
   const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
-  const base = RAID_PLANS[faction];
+  const base = shape;
   /** Every unit the reference fields, in its order: (squad index, kind). */
   const slots: { squad: number; kind: string }[] = [];
   base.forEach((squad, i) => {
@@ -333,8 +366,14 @@ function planAtBudget(faction: FactionId, budget: number): SquadPlan[] {
 }
 
 /** Clear rate of a budgeted force against a whole rung's dealt pool. */
-function rungClear(faction: FactionId, tier: number, budget: number): number {
-  const plans = planAtBudget(faction, budget);
+function rungClear(
+  faction: FactionId,
+  tier: number,
+  budget: number,
+  shape: SquadPlan[] = RAID_PLANS[faction],
+  seeds: number = RUNG_SEEDS,
+): number {
+  const plans = planAtBudget(faction, budget, shape);
   let cleared = 0;
   let runs = 0;
   for (let variant = 0; variant < VARIANTS; variant++) {
@@ -343,7 +382,7 @@ function rungClear(faction: FactionId, tier: number, budget: number): number {
       faction === 'nk'
         ? tunnelPlanFor(faction, base, tier, plans).map((squad, at) => ({ ...squad, slot: at }))
         : plans;
-    for (let i = 0; i < RUNG_SEEDS; i++) {
+    for (let i = 0; i < seeds; i++) {
       const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
       if (resolveRaid(config, squads, tier, raidCatalogFor(faction)).cleared) cleared++;
       runs++;
@@ -357,13 +396,39 @@ function rungClear(faction: FactionId, tier: number, budget: number): number {
  * as the manpower it actually FIELDS rather than the budget it was given —
  * the budget grid is coarse and two budgets often deal the same men.
  */
-function budgetToClear(faction: FactionId, tier: number): number | null {
+function budgetToClear(
+  faction: FactionId,
+  tier: number,
+  shape: SquadPlan[] = RAID_PLANS[faction],
+  budgets: readonly number[] = RUNG_BUDGETS,
+  seeds: number = RUNG_SEEDS,
+  confirm = false,
+): number | null {
+  /** Distinct forces on this grid, in order, with their fielded manpower. */
+  const steps: { budget: number; fielded: number }[] = [];
   let last = -1;
-  for (const budget of RUNG_BUDGETS) {
-    const fielded = planManpower(faction, planAtBudget(faction, budget));
+  for (const budget of budgets) {
+    const fielded = planManpower(faction, planAtBudget(faction, budget, shape));
     if (fielded === last) continue; // same force, already measured
     last = fielded;
-    if (rungClear(faction, tier, budget) >= 50) return fielded;
+    steps.push({ budget, fielded });
+  }
+  const clears = new Map<number, number>();
+  const at = (i: number): number => {
+    const cached = clears.get(i);
+    if (cached !== undefined) return cached;
+    const got = rungClear(faction, tier, steps[i]!.budget, shape, seeds);
+    clears.set(i, got);
+    return got;
+  };
+  for (let i = 0; i < steps.length; i++) {
+    if (at(i) < 50) continue;
+    // A crossing that immediately un-crosses was noise. Demand is monotone in
+    // budget, so requiring the next force up to clear too costs one probe and
+    // removes the single-probe flukes that made the first air table read
+    // 12/12/28/12/38 — a shape no real demand curve has.
+    if (confirm && i + 1 < steps.length && at(i + 1) < 50) continue;
+    return steps[i]!.fielded;
   }
   return null;
 }
@@ -744,10 +809,9 @@ function gateTable(faction: FactionId): string {
           const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
           const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
           const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
-          for (const ret of res.squads) {
-            home += ret.returned;
-            sent += ret.deployed;
-          }
+          const flow = manpowerFlow(faction, res);
+          home += flow.home;
+          sent += flow.sent;
           if (res.cleared) cleared++;
           runs++;
         }
@@ -802,10 +866,9 @@ function terrainTable(faction: FactionId): string {
           const squads = RAID_PLANS[faction].map((squad, at) => ({ ...squad, slot: at }));
           const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
           const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
-          for (const ret of res.squads) {
-            home += ret.returned;
-            sent += ret.deployed;
-          }
+          const flow = manpowerFlow(faction, res);
+          home += flow.home;
+          sent += flow.sent;
           if (res.cleared) cleared++;
           runs++;
         }
@@ -875,10 +938,9 @@ function garrisonTable(faction: FactionId): string {
             ...(walls ? {} : { layout: { ...built.layout!, walls: [] } }),
           };
           const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
-          for (const ret of res.squads) {
-            home += ret.returned;
-            sent += ret.deployed;
-          }
+          const flow = manpowerFlow(faction, res);
+          home += flow.home;
+          sent += flow.sent;
           if (res.cleared) cleared++;
           runs++;
         }
@@ -923,13 +985,44 @@ function garrisonTable(faction: FactionId): string {
  *
  * The row to read is the EDGE: air's clear rate minus ground's. It should not
  * be a large positive number, and it should not swing to a large negative one
- * either — air is meant to buy speed and survival (fewer men lost) rather
+ * either — air is meant to buy speed and survival (less manpower lost) rather
  * than better odds against a post that expects it.
+ *
+ * **The two air rows are not "AA" versus "no AA".** Every generated ladder base
+ * BUILDS `aaSite` mounts — `aaCount` of them, sited mid-line so a standoff run
+ * has to enter their envelope — and no row here removes those. What the control
+ * removes is the GARRISON'S reactive air-defence order, the rule that stands up
+ * `manpads` when it sees something flying, which is what every garrison looked
+ * like before v1.11. The rows say MOUNTS and +MANPADS now; they said `no AA`
+ * and `+AA` for four releases and that read as a claim the table never made.
  */
 function airTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
+  // The air plans are described as "roughly the same manpower, flown", and
+  // `roughly` was never checked. It is not true: four of the five fly a force
+  // 3-4 MP larger than the ground reference they were being compared against,
+  // and the one that is matched — Russia — is the one that measured worst. An
+  // edge column that compares two forces of different sizes is reporting
+  // budget as well as doctrine.
+  //
+  // Rather than re-cut five hand-written plans (unit costs quantise, so an
+  // exact match is not always reachable while keeping the shape), the control
+  // moves: GROUND =N is the ground reference dealt to the air plan's budget by
+  // `planAtBudget`, the same routine `--rungs` sizes forces with. The edge is
+  // read against THAT. The unmatched GROUND row stays for continuity with
+  // `--parity`, which is measured on the reference at its own size.
+  //
+  // When the two budgets already agree, `planAtBudget` at the reference's own
+  // manpower re-deals exactly the reference, so the two GROUND rows must be
+  // identical — Russia is a free check on the sizer every time this runs.
+  const groundMp = planManpower(faction, RAID_PLANS[faction]);
+  const airMp = planManpower(faction, AIR_RAID_PLANS[faction]);
   const lines = [
     `AIR — the ${flavor.faction} reference force vs ${flavor.enemy} posts, with and without AA`,
+    `      GROUND reference ${groundMp} MP, AIR plan ${airMp} MP` +
+      `${groundMp === airMp
+        ? ' — already matched, so GROUND =N must repeat GROUND exactly'
+        : `, so the edge is read against GROUND =${airMp}`}`,
     `FORCE       | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN | MP LOST%`,
     `------------+${RAID_TIERS.map(() => '-------').join('+')}+-------+---------`,
   ];
@@ -946,17 +1039,18 @@ function airTable(faction: FactionId): string {
         for (let i = 0; i < SEEDS; i++) {
           const squads = plans.map((squad, at) => ({ ...squad, slot: at }));
           const built = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
-          // The control strips the AA order back out, which is what every
-          // garrison looked like in v1.20.
+          // The control strips the garrison's AIR-DEFENCE ORDER back out,
+          // which is what every garrison looked like in v1.20. The base's
+          // built `aaSite` mounts stay in BOTH rows — this is not a
+          // no-air-defence control and never was.
           const g = built.garrison!;
           const config: SimConfig = aa
             ? built
             : { ...built, garrison: { ...g, rules: g.rules.filter((r) => r.hostiles !== 'air') } };
           const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
-          for (const ret of res.squads) {
-            home += ret.returned;
-            sent += ret.deployed;
-          }
+          const flow = manpowerFlow(faction, res);
+          home += flow.home;
+          sent += flow.sent;
           if (res.cleared) cleared++;
           runs++;
         }
@@ -971,14 +1065,222 @@ function airTable(faction: FactionId): string {
     return mean;
   };
 
-  const ground = row('GROUND', RAID_PLANS[faction], true);
-  const airBare = row('AIR no AA', AIR_RAID_PLANS[faction], false);
-  const airAA = row('AIR +AA', AIR_RAID_PLANS[faction], true);
+  row('GROUND', RAID_PLANS[faction], true);
+  const matched = row(`GROUND =${airMp}`, planAtBudget(faction, airMp), true);
+  const airBare = row('AIR mounts', AIR_RAID_PLANS[faction], false);
+  const airAA = row('AIR +manpads', AIR_RAID_PLANS[faction], true);
   lines.push('');
   lines.push(
-    `AIR'S EDGE OVER GROUND — without AA ${(airBare - ground >= 0 ? '+' : '')}` +
-      `${(airBare - ground).toFixed(1)}  |  with AA ${(airAA - ground >= 0 ? '+' : '')}` +
-      `${(airAA - ground).toFixed(1)}  (clear-rate points)`,
+    `AIR'S EDGE OVER MATCHED GROUND — vs mounts ${(airBare - matched >= 0 ? '+' : '')}` +
+      `${(airBare - matched).toFixed(1)}  |  vs mounts+manpads ${(airAA - matched >= 0 ? '+' : '')}` +
+      `${(airAA - matched).toFixed(1)}  (clear-rate points, both forces at ${airMp} MP)`,
+  );
+  return lines.join('\n');
+}
+
+/**
+ * What air CHARGES (v1.33) — the air roster priced in the only honest unit.
+ *
+ * `--air` reads a fixed force against the ladder, so it saturates: four of five
+ * factions clear T1-T2 at 100 whatever they send, and no comparison between
+ * them can show through a ceiling. The same defect broke the ladder tables
+ * until `--rungs` replaced "what does one army do to every rung" with "how much
+ * force does each rung DEMAND". This asks that question of the wing.
+ *
+ * For each faction and rung: the smallest manpower that clears half the time,
+ * once dealt in the GROUND reference's shape and once in the AIR plan's shape.
+ * The ratio is what flying costs. A ratio near 1 means the air layer is a real
+ * alternative; a large one means it is a flourish you pay for.
+ *
+ * Two things this had to get right to mean anything:
+ *
+ * - A budget too small to buy one airframe deals a plan of pure ground tail,
+ *   which would report the tail's price as air's. Russia is where that bites —
+ *   the Ka-52 costs 7 and the cheapest rung is 6 — so any dealt plan with
+ *   nothing flown in it is skipped rather than measured.
+ * - The ladder runs far past `RUNG_BUDGETS`. Air does not merely cost more, it
+ *   costs multiples, and a grid that stopped at 48 would report the top rungs
+ *   as unreachable for four factions and hide the size of the gap.
+ */
+const WING_BUDGETS = [6, 9, 12, 16, 20, 24, 28, 33, 39, 46, 54, 64, 76, 90] as const;
+/**
+ * Twenty seeds and three variants: 60 battles a probe.
+ *
+ * Eight was tried first and the table came out with air demand reading
+ * 12/12/28/12/38 across one faction's five rungs. A 50% threshold read off 24
+ * battles is a coin flip at the boundary, and `budgetToClear` STOPS at the
+ * first crossing, so a fluke low is never corrected by the probes above it.
+ * More seeds plus the confirm rule (below) is what makes the number a demand
+ * rather than a draw.
+ */
+const WING_SEEDS = 20;
+
+function wingTable(): string {
+  const lines = [
+    'WHAT AIR CHARGES — smallest manpower that clears half the time, by plan shape',
+    `FACTION     | SHAPE  | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} |  MEAN`,
+    `------------+--------+${RAID_TIERS.map(() => '-------').join('+')}+-------`,
+  ];
+  for (const faction of FACTION_IDS) {
+    const flavor = flavorFor(faction);
+    const airKinds = new Set(
+      trainableFor(faction)
+        .filter((t) => t.facility === 'airfield')
+        .map((t) => t.kind),
+    );
+    /** Budgets whose dealt plan actually flies. */
+    const flies = (shape: SquadPlan[], budget: number): boolean =>
+      shape !== AIR_RAID_PLANS[faction] ||
+      planAtBudget(faction, budget, shape).some((sq) =>
+        Object.keys(sq.units).some((k) => airKinds.has(k)),
+      );
+    const rowFor = (shape: SquadPlan[]): (number | null)[] =>
+      RAID_TIERS.map((tier) =>
+        budgetToClear(
+          faction,
+          tier,
+          shape,
+          WING_BUDGETS.filter((b) => flies(shape, b)),
+          WING_SEEDS,
+          true,
+        ),
+      );
+    const ground = rowFor(RAID_PLANS[faction]);
+    const wing = rowFor(AIR_RAID_PLANS[faction]);
+    const cell = (v: number | null): string => pad(v ?? '—', 5);
+    const meanOf = (row: (number | null)[]): number | null => {
+      const got = row.filter((v): v is number => v !== null);
+      return got.length === RAID_TIERS.length ? got.reduce((a, b) => a + b, 0) / got.length : null;
+    };
+    const gm = meanOf(ground);
+    const wm = meanOf(wing);
+    lines.push(
+      `${pad(flavor.faction.slice(0, 11), 11)} | GROUND | ${ground.map(cell).join(' | ')} | ` +
+        `${pad(gm === null ? '—' : gm.toFixed(1), 5)}`,
+    );
+    lines.push(
+      `            | AIR    | ${wing.map(cell).join(' | ')} | ` +
+        `${pad(wm === null ? '—' : wm.toFixed(1), 5)}`,
+    );
+    lines.push(
+      `            | x      | ${RAID_TIERS.map((_, i) => {
+        const g = ground[i];
+        const w = wing[i];
+        return pad(g && w ? `${(w / g).toFixed(1)}x` : '—', 5);
+      }).join(' | ')} | ` + `${pad(gm && wm ? `${(wm / gm).toFixed(1)}x` : '—', 5)}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    '  A rung a shape never clears at any budget on the grid reads —, and its mean',
+    '  is withheld rather than averaged over the rungs it did reach: a force that',
+    '  cannot take the top rung has not earned a better mean for stopping early.',
+    '',
+    '  The AIR row is not monotone and that is not the instrument. See below.',
+  );
+  lines.push('', shapeAirTable());
+  return lines.join('\n');
+}
+
+/**
+ * WHY the air row is not monotone: air fights a different ladder (v1.33).
+ *
+ * The deal is selected against GROUND difficulty — that is what `--layouts`
+ * does and it is the right thing for it to do, since almost every raid is a
+ * ground raid. This asks what the SAME dealt targets are worth to a force that
+ * flies, at one fixed budget so the two are directly comparable.
+ *
+ * The answer is that the two orderings are not merely different. For the USA at
+ * 24 MP the two shapes air cannot take at all — `camp` at 0% and `depot` at 5%
+ * — are the two the ground force finds EASIEST, at 60% and 100%; and the two
+ * air walks (`star` and `keep`, both 100%) are among the hardest on foot. Walls
+ * and overlapping arcs are what make a rung hard on the ground and neither
+ * exists for an aircraft, so what is left is the flight in: the shapes with the
+ * fewest walls are the ones that spread their mounts and their command post
+ * over the most ground, and that is the thing air pays for.
+ *
+ * So an air player does not climb a harder ladder. They climb a SCRAMBLED one.
+ */
+function shapeAirTable(): string {
+  const BUDGET = 24;
+  const SHAPE_SEEDS = 20;
+  const lines = [
+    `THE SAME TARGETS, FLOWN — clear% at a fixed ${BUDGET} MP, ground shape vs air shape`,
+    'FACTION     | RUNG | SHAPE        | GROUND | AIR | AIR MINUS GROUND',
+    '------------+------+--------------+--------+-----+-----------------',
+  ];
+  const bar = (d: number): string =>
+    d >= 0 ? '+'.padEnd(1) + '#'.repeat(Math.round(d / 10)) : '-' + '#'.repeat(Math.round(-d / 10));
+  for (const faction of FACTION_IDS) {
+    const flavor = flavorFor(faction);
+    const ground = planAtBudget(faction, BUDGET, RAID_PLANS[faction]);
+    const air = planAtBudget(faction, BUDGET, AIR_RAID_PLANS[faction]);
+    const gs: number[] = [];
+    const as: number[] = [];
+    for (const tier of RAID_TIERS) {
+      for (let slot = 0; slot < 3; slot++) {
+        const base = generateBase(tier, slot, baseKitFor(faction), undefined, faction);
+        const run = (plans: SquadPlan[]): number => {
+          const squads =
+            faction === 'nk'
+              ? tunnelPlanFor(faction, base, tier, plans).map((sq, at) => ({ ...sq, slot: at }))
+              : plans;
+          let cleared = 0;
+          for (let i = 0; i < SHAPE_SEEDS; i++) {
+            const cfg = raidConfig(base, squads, seedOf(tier, slot, i), trainableFor(faction));
+            if (resolveRaid(cfg, squads, tier, raidCatalogFor(faction)).cleared) cleared++;
+          }
+          return (cleared / SHAPE_SEEDS) * 100;
+        };
+        const g = run(ground);
+        const a = run(air);
+        gs.push(g);
+        as.push(a);
+        lines.push(
+          `${pad(slot === 0 && tier === RAID_TIERS[0] ? flavor.faction.slice(0, 11) : '', 11)} | ` +
+            `${pad(slot === 0 ? `T${tier}` : '', 4)} | ${dealtShape(tier, slot, faction).padEnd(12)} | ` +
+            `${pad(g.toFixed(0), 6)} | ${pad(a.toFixed(0), 3)} | ${bar(a - g)}`,
+        );
+      }
+    }
+    // Pearson r over the fifteen dealt targets. Near zero means the ground
+    // ladder carries no information about the air one; negative means it
+    // carries the wrong information.
+    const mean = (xs: number[]): number => xs.reduce((p, q) => p + q, 0) / xs.length;
+    const mg = mean(gs);
+    const ma = mean(as);
+    let num = 0;
+    let dg = 0;
+    let da = 0;
+    for (let i = 0; i < gs.length; i++) {
+      num += (gs[i]! - mg) * (as[i]! - ma);
+      dg += (gs[i]! - mg) ** 2;
+      da += (as[i]! - ma) ** 2;
+    }
+    const r = dg > 0 && da > 0 ? num / Math.sqrt(dg * da) : 0;
+    // r is inflated by the saturated T1 row, where every cell is 100/100 and
+    // carries no information while pulling the coefficient toward +1. The
+    // counts do not have that problem: they say, plainly, on how many of the
+    // fifteen dealt targets a player who flies is facing a different question.
+    const easier = gs.filter((g, i) => as[i]! - g >= 30).length;
+    const harder = gs.filter((g, i) => g - as[i]! >= 30).length;
+    lines.push(
+      `            |      | MEAN / SPLIT | ${pad(mg.toFixed(0), 6)} | ${pad(ma.toFixed(0), 3)} | ` +
+        `r=${r >= 0 ? '+' : ''}${r.toFixed(2)}  30+ easier ${easier}, harder ${harder}`,
+      '',
+    );
+  }
+  lines.push(
+    '  r is over the fifteen targets the faction is actually dealt, and it reads',
+    '  higher than it should: every T1 cell is 100/100 for both shapes, which is no',
+    '  information and still pulls the coefficient toward +1. Read the COUNTS, which',
+    '  cannot be inflated that way — they say how many of the fifteen targets are a',
+    '  materially different problem depending on whether you walked or flew.',
+    '',
+    '  The MEANS are the other half of it: air is not WEAKER at a fixed budget, it is',
+    '  UNPREDICTABLE. A player is told the shape for free (GDD §5) and told nothing',
+    '  about what it means to an aircraft, so the choice to fly is a lottery over a',
+    '  ladder that was selected — correctly, by `--layouts` — against ground.',
   );
   return lines.join('\n');
 }
@@ -2267,10 +2569,9 @@ function parityTable(): string {
         for (let i = 0; i < SEEDS; i++) {
           const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
           const res = resolveRaid(config, squads, tier, raidCatalogFor(faction));
-          for (const ret of res.squads) {
-            home += ret.returned;
-            sent += ret.deployed;
-          }
+          const flow = manpowerFlow(faction, res);
+          home += flow.home;
+          sent += flow.sent;
           if (res.cleared) cleared++;
           runs++;
         }
@@ -2705,6 +3006,11 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--wing')) {
+    console.log(wingTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--air')) {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(airTable(pick));
@@ -2818,9 +3124,15 @@ function main(): void {
   // Fortifying has to be worth something, and the 2x2 says which change made
   // it so — a single-column read of this table is what got it wrong once.
   sections.push(garrisonTable('usa'));
-  // Air against ground, per faction: the EDGE is the reading, and it is a
-  // shadow of the ground-game spread rather than a fault of its own.
+  // Air against ground, per faction. The EDGE is the reading, and it is read
+  // against a MANPOWER-MATCHED control — the air plans fly 3-4 MP more than the
+  // ground reference for four of five factions, so the raw comparison was
+  // reporting budget as well as doctrine.
   for (const faction of FACTION_IDS) sections.push(airTable(faction));
+  // And what air actually costs, ceiling-free, plus why the answer is not a
+  // single number: air fights a different ladder from the one the deal was
+  // selected against.
+  sections.push(wingTable());
   // Veterancy pays in survivors, not in wins, so it is measured per faction:
   // the survival column is the whole claim and the swarms have to show it too.
   for (const faction of FACTION_IDS) sections.push(veterancyTable(faction));
@@ -3061,17 +3373,28 @@ function main(): void {
       '  CADRE bring home exactly the same men, because a 15% HP bump cannot save a unit that',
       '  was never going to survive the volley. It measures on flat ground now — the same',
       '  correction the first veterancy table needed, for the same reason.',
-      '- **The air thesis holds; the air ROSTER does not, and v1.32 is where that stopped',
-      '  being deniable.** AA is still the answer to air in all five factions — putting AA on',
-      '  the board costs every air force between 5 and 18 clear-rate points, which is the one',
-      '  thing the air layer was built to be true. What the same table says next is a defect:',
-      '  measured against each faction\'s own ground force, air ranges from +6.4 (the USA, with',
-      '  no AA present) to -26.2 (Russia). China\'s WZ-10 line is at parity with its own ground',
-      '  force even under AA (-0.2), and Russia\'s is 34 points behind. A specialist tool is',
-      '  allowed to be worse than the general one; it is not allowed to be worth five times as',
-      '  much to one player as to another. Ground parity is at 4.2 points and air is at 32 —',
-      '  the air roster has never been priced the way `--parity` prices the ground rosters, and',
-      '  that is the next content question, not a tuning one.',
+      '- **Air is not weaker. It is a different LADDER (v1.33), and three labels had to be',
+      '  fixed before that was visible.** The v1.32 reading of this section said the air',
+      '  ROSTER was mispriced, off a spread of 32 clear-rate points. That spread was measured',
+      '  against a control of the wrong size: four of the five air plans fly 3-4 MP more than',
+      '  the ground reference, and the only matched one is the faction that measured worst.',
+      '  Against `GROUND =N` no air force beats its own ground, and the USA\'s +6.4 is +0.6.',
+      '  The loss column was counting heads rather than manpower, and the row labelled `no AA`',
+      '  never removed any AA — the mounts are built into every base and only the garrison\'s',
+      '  reactive order came off. All three are fixed above; each had been read as a finding',
+      '  for four or more releases.',
+      '- **What is left is the real one.** `--wing` prices air the way `--rungs` prices the',
+      '  ladder, and the air demand row comes out non-monotone: the USA needs 38 MP at T3 and',
+      '  12 at T4. Probed directly that is not noise — a 12-MP air force clears T4 62% of the',
+      '  time and T3 0%. Measured per dealt target, the two hardest shapes for the USA\'s',
+      '  aircraft (`camp` 0%, `depot` 5%) are the two its ground force finds EASIEST (60%,',
+      '  100%), and `star` and `keep` invert the other way. Walls and overlapping arcs make a',
+      '  rung hard on the ground and neither exists for an aircraft; what is left is the flight',
+      '  in, and the shapes with the fewest walls spread their mounts and their post over the',
+      '  most ground. 39 of the 75 dealt targets move by 30+ points depending on whether the',
+      '  force walked or flew, while four of five factions have MEANS within a few points. It',
+      '  is not a power problem, it is an information one: the shape is free knowledge and the',
+      '  game says nothing about what it means to an aircraft.',
       '- **Watch items for v0.6**: the EARLY L2→L3 cliff on all sides (armor arrives before',
       '  anti-armor requisitions), China MID vs L5+ (Javelin overwatch), and NK MID vs L4+',
       '  (everything kills sentry nests).',

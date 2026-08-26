@@ -2153,27 +2153,148 @@ pair spent on the hard slot was the one the middle slot had no substitute for.
       the bullet names the reading rule instead of a figure that re-measures
       every run.
 
-- [ ] **NEW, and the largest thing this milestone found: the air ROSTER has
-      never been priced.** Re-measuring `--md` on the new deal put the air
-      thesis and an air defect in the same table. The thesis holds everywhere —
-      AA on the board costs every faction's air force 5 to 18 clear-rate points,
-      which is exactly what the air layer was built to be true. The defect is
-      the spread. Air measured against each faction's OWN ground force:
+- [ ] **NEW: air measures badly, and the table saying so cannot be trusted
+      yet.** Re-measuring `--md` on the new deal put the air thesis and an air
+      defect in the same place. The thesis holds — AA on the board costs every
+      faction's air force clear rate, which is what the air layer was built to
+      be true. The defect looked like a 32-point spread in what flying is worth,
+      from +6.4 (the USA) to -26.2 (Russia).
 
-      | | no AA | with AA |
+      **M20 below found that number was measured against an unfair control and
+      corrected it.** Four of the five air plans fly 3-4 MP MORE than the ground
+      reference they were compared with, and the one that is matched is the one
+      that measured worst. Read against a manpower-matched control the spread is
+      26.8, no faction's air beats its own ground, and the interesting question
+      turns out to be a different one entirely. The numbers in the table above
+      are superseded; keep them only as the record of what a confounded control
+      reports.
+
+---
+
+## M20 — v1.33 "Air Fights A Different Ladder"
+
+The question this milestone was filed to answer was "price the air roster the
+way `--parity` prices the ground". Three instrument defects had to be fixed
+before the table could be read at all, and once it could be read the answer was
+not about the roster.
+
+- [x] **The control was not the same size as the thing it controlled.**
+      `AIR_RAID_PLANS` is documented as "roughly the same manpower, flown", and
+      `roughly` had never been checked. It is not true:
+
+      | | ground reference | air plan | air surplus |
+      | --- | --- | --- | --- |
+      | USA | 27 | 30 | +3 |
+      | China | 26 | 30 | +4 |
+      | Russia | 27 | 27 | **0** |
+      | KPA | 26 | 29 | +3 |
+      | UN | 27 | 30 | +3 |
+
+      Russia is the only faction not flying a bigger force than its control, and
+      Russia is the one that measured worst — so the edge column was reporting
+      budget as well as doctrine, in exactly the direction that made the finding
+      look bigger. Rather than re-cut five hand-written plans (unit costs
+      quantise; an exact match is not always reachable while keeping the shape),
+      the control moves: `GROUND =N` is the reference dealt to the air plan's
+      budget by `planAtBudget`, the routine `--rungs` already sizes forces with.
+
+      The two rows where the budgets already agree are a free check on the sizer
+      every run — Russia's `GROUND` and `GROUND =27` must be identical, and they
+      are, to the digit.
+
+      Corrected, no faction's air beats its own ground: the USA's +6.4 is +0.6
+      and China's +5.0 is -2.0. Both apparent wins were the surplus.
+
+- [x] **MP LOST% was counting heads.** `deployed` and `returned` on a
+      `SquadReturn` are unit counts, so a 7-MP Ka-52 and a 1-MP conscript
+      weighed the same. Ground rosters field similar mixes and the proxy held
+      there; air does not, and a three-airframe force read as catastrophic for
+      losing what a nine-body force shrugs off — the opposite of what "air buys
+      survival" is trying to test. `raidRows` had always done it correctly off
+      `res.deployed` and `res.losses`; five later tables each re-implemented it
+      by hand and each got heads. Extracted as `manpowerFlow`.
+
+      Verified by its own negative control: Russia's ground plan is nine BTRs at
+      3 MP each, where heads and manpower must agree, and its number does not
+      move. Everything with a mixed roster does — the USA's ground row went
+      47 to 39, its air row 58/65 to 45/55.
+
+      What that fixes: the survival half of the air thesis. Air still loses more
+      manpower than matched ground for four of five factions, so the claim is
+      still false — but now it is false by a margin the table earned.
+
+- [x] **"AIR no AA" never removed the AA.** Every generated ladder base BUILDS
+      `aaSite` mounts and no row here took them off; the control removed the
+      GARRISON'S reactive air-defence order, the rule that stands up `manpads`.
+      The rows read MOUNTS and +MANPADS now. They said `no AA` and `+AA` for
+      four releases, which is a claim the table never made.
+
+- [x] **`--wing`: what air costs, ceiling-free.** `--air` reads a fixed force
+      against the ladder, so it saturates — the same defect that made the
+      fixed-force ladder tables useless until `--rungs` replaced them. This asks
+      `--rungs`' question of the wing: the smallest manpower that clears half
+      the time, dealt once in the ground reference's shape and once in the air
+      plan's.
+
+      Two things it had to get right first. A budget too small to buy one
+      airframe deals a plan of pure ground tail and would report the tail's
+      price as air's — Russia is where that bites, since the Ka-52 costs 7 and
+      the cheapest rung is 6 — so any dealt plan with nothing flown is skipped.
+      And the first run came out reading 12/12/28/12/38 across one faction's
+      five rungs, which is not a shape any demand curve has: a 50% threshold off
+      24 battles is a coin flip at the boundary and `budgetToClear` STOPS at the
+      first crossing, so a fluke low is never corrected from above. Twenty seeds
+      and a confirm rule — demand is monotone in budget, so a crossing that
+      immediately un-crosses was noise — fixed four of the five.
+
+- [x] **The fifth did not fix, because it was not noise.** The USA still read
+      T3 at 38 MP and T4 at 12. Probed directly, a 12-MP air force clears T4
+      62% of the time and T3 0%. So it was measured per dealt target, at one
+      fixed budget, and the answer is the milestone:
+
+      | USA, 24 MP | ground | air |
       | --- | --- | --- |
-      | USA | **+6.4** | -11.4 |
-      | China | +5.0 | **-0.2** |
-      | Russia | **-26.2** | -34.2 |
-      | KPA | -11.2 | -25.2 |
-      | UN | -1.8 | -14.8 |
+      | T3 corridor | 45 | 50 |
+      | T3 camp | 60 | **0** |
+      | T3 depot | **100** | **5** |
+      | T4 star | 45 | **100** |
+      | T4 keep | 35 | **100** |
+      | T5 star | 5 | **70** |
 
-      China's WZ-10 line is at parity with its own ground force even under AA;
-      Russia's air is 34 points behind its own. Ground parity is 4.2 points and
-      air parity is 32. A specialist is allowed to be worse than the general
-      tool — it is not allowed to be worth five times as much to one player as
-      to another. `--parity` has never been pointed at air. That is the next
-      content question and it wants its own milestone, not a knob.
+      The two targets air cannot take at all are the two the ground force finds
+      easiest. Walls and overlapping arcs are what make a rung hard on foot and
+      neither exists for an aircraft; what is left is the flight in, and the
+      shapes with the fewest walls are the ones that spread their mounts and
+      their command post over the most ground.
+
+      Across all five factions, **39 of the 75 dealt targets — 52% — move by 30
+      or more clear-rate points depending on whether you walked or flew**, and
+      for four of five the MEANS are close (USA 62/65, China 71/76, KPA 73/63,
+      UN 65/62). Russia is the exception at 65/44 and is the one faction whose
+      air is also simply weaker.
+
+- [x] **So the answer is not the roster.** The deal is selected against ground
+      difficulty — `--layouts` does exactly that, deliberately and by
+      measurement, and it should, because almost every raid is a ground raid.
+      Air experiences that same deal as a scrambled ladder. An air player is not
+      climbing a harder ladder; they are climbing an incoherent one, and the
+      game tells them the shape for free (GDD §5) while telling them nothing
+      about what it means to an aircraft.
+
+- [ ] **NEXT, and specified rather than started.** Two candidate answers, and
+      they are not the same game:
+
+      1. **Select the deal against both ladders.** `--layouts` gains a second
+         objective so a rung's three targets span air difficulty as well as
+         ground. Cheapest, and it costs some of the 4.2-point ground parity that
+         took three milestones to earn.
+      2. **Say which targets suit an aircraft.** The shape is already free
+         information; make its air read free too. Then choosing to fly stops
+         being a lottery and becomes the tactical read the air layer was
+         supposed to be. More work, better game, and it does not touch a number
+         that is currently right.
+
+      The second is the one to try. Measure before committing either way.
 
 ---
 

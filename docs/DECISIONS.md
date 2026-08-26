@@ -374,3 +374,40 @@ here with the change and its date.
   project has measured. The general shape: when a selection has interacting
   slots and a small candidate set, search the combination — a greedy pass is
   not an approximation of it, it is a different and worse objective.
+- 2026-08-26 — **Three labels, three false readings, one habit.** Pointing
+  `--parity`'s question at air meant reading the air table closely for the first
+  time, and its own words were wrong in three places at once. The edge column
+  compared forces of different sizes — four of five air plans fly 3-4 MP more
+  than the ground reference, documented as "roughly the same manpower" and never
+  checked — so the two factions whose air appeared to WIN were only bigger.
+  `MP LOST%` counted heads, so a 7-MP gunship and a 1-MP conscript weighed the
+  same and a three-airframe force read as catastrophic for losses a nine-body
+  force shrugs off. `AIR no AA` never removed any AA: every generated base builds
+  its mounts and no row took them off, the control only stripped the garrison's
+  reactive order. Each of the three had been read as a finding for four or more
+  releases. The habit worth keeping is narrow and mechanical: **a comparison
+  table must print the budget of both sides, and a column heading is a claim the
+  code has to keep.** Two of the three fixes are one line of arithmetic; what was
+  missing was ever asking the table to say what it was doing. The correct
+  manpower computation had existed at the top of the same file the whole time —
+  five later tables each re-implemented it by hand and each got heads, which is
+  the argument for extracting a shared helper over trusting a pattern.
+- 2026-08-26 — **Air is not weaker. It is a different ladder, and the game does
+  not say so.** The deal picks each rung's three targets against measured GROUND
+  difficulty — `--layouts` does that deliberately and should, since almost every
+  raid is a ground raid. Measured per dealt target at a fixed budget, the two
+  orderings barely relate: 39 of the 75 targets the five factions are dealt move
+  by 30 or more clear-rate points depending on whether the force walked or flew,
+  and for the USA the two targets an air force cannot take at all (`camp` 0%,
+  `depot` 5%) are the two its ground force finds EASIEST (60%, 100%), while
+  `star` and `keep` invert the other way at 100% flown against 45% and 35% on
+  foot. The mechanism is not subtle once seen: walls and overlapping arcs are
+  what make a rung hard on the ground and neither exists for an aircraft, so
+  what remains is the flight in — and the shapes with the fewest walls are the
+  ones that spread their mounts and their command post over the most ground. The
+  means are close for four of five factions, so this is not a power problem, it
+  is an INFORMATION problem: a player is told the shape for free and told
+  nothing about what it means to an aircraft, which makes the choice to fly a
+  lottery. Selecting the deal against both ladders is the cheap answer and costs
+  ground parity that took three milestones to earn; saying which targets suit an
+  aircraft is the better one and touches no number that is currently right.
