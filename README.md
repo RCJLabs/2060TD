@@ -1072,6 +1072,9 @@ node scripts/e2e-mobile.mjs  # the mobile audit: target sizes, mis-tap gaps,
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
 npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
+npm run sheet      # the contact sheet: every attacker silhouette side by side,
+                   # at the three sizes the game draws them, on both the map
+                   # ground and the drawer's panel
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA

@@ -139,6 +139,7 @@ function unitIcon(
   return (g, x, y, size) => {
     drawAttackerGlyph(g, kind, x + size / 2, y + size / 2, size / ATTACKER_GLYPH_SPAN, {
       friendly: true,
+      onDark: true,
     });
   };
 }

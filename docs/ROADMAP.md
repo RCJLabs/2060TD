@@ -1892,6 +1892,58 @@ the check waited a flat 800ms and hoped. The game was never dropping anything.
 
 ---
 
+## M17 — v1.30 "Look Like The Thing"
+
+The owner's read was "the units don't look like what they are — just circles
+and stuff", and a contact sheet of the whole roster proved it in one picture:
+**thirty-four kinds resolved to nine shapes**, and four of the nine were discs.
+Three plain circles for the mobs, five identical donuts for the riflemen, five
+identical diamonds for the sappers, five identical disc-and-stub for the
+anti-tank teams, five identical lollipops for everything that flies. A roster
+where a rifleman, an engineer and a Javelin team differ by a dot is one you
+read by hovering, not by looking.
+
+- [x] **An instrument that shows the set as a set (`npm run sheet`).** Every
+      silhouette side by side at the three sizes the game actually draws them —
+      a drawer row, a board counter, a card hero. This is the only view in
+      which "nine shapes" is visible at all; from inside a battle two kinds are
+      ever on screen at once and each one looks fine.
+
+      The glyphs are pure functions of a Phaser Graphics and call ten of its
+      methods, so the sheet stands a Canvas2D shim in its place and renders in
+      the browser Vite is already serving — same code, same numbers, no new
+      dependency to draw a picture of the drawing code.
+
+      **It lied twice before it was trusted**, and both lies flattered the
+      work. It filled the background with `COLORS.paper`, which does not
+      exist — `css(undefined)` is black, so three passes were judged against a
+      ground the game never draws, which makes a cream knockout look crisp and
+      hides a dark wing completely. And it drew at 26/44/96px, none of which
+      the game uses; a row hands the glyph ~46px, so shapes were being tuned at
+      half the size they ship at. It draws on `bgField` and `bgPanel` now, at
+      the real sizes, half the sheet on each.
+
+- [x] **Silhouettes that read as the thing.** Twelve shapes, built from
+      primitives rather than per-case pixels: a person is shoulders BEHIND a
+      helmet (put the body around the head and the outline is a domino, which
+      is what the first attempt drew); a weapon that overhangs backwards is an
+      anti-tank tube and one that does not is a rifle; wheels and tracks stand
+      PROUD of the hull, because inset they are drawn over and a tank is a
+      plain box again. A mob is three figures, because the count is the
+      identity. The Ka-52 gets its coaxial pair, the An-2 its second wing, the
+      Reaper its long thin drone wings, the infiltrator an outline instead of
+      a fill — the only hollow counter on the sheet.
+
+- [x] **The knockout follows the surface.** The paper halo lifts a counter off
+      a busy topographic sheet. On the drawer's dark panel it does the exact
+      opposite: it paints a cream chip and the silhouette becomes a hole in it,
+      which is why the muster read as a row of bright tiles. Both glyph
+      functions take `onDark` now: no knockout, and the ink inverts, so a row
+      icon is light-on-dark like everything else in the drawer while the board
+      keeps its paper.
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.

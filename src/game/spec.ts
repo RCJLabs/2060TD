@@ -202,7 +202,9 @@ export function buildStructureSpec(
   const span = profile.footprint === 2 ? 2 : 1;
   const box = layout.px(72);
   ov.sketch(box, (g, x, y, size) => {
-    drawStructureGlyph(g, kind, x + size / 2, y + size / 2, size / (span * 0.9));
+    drawStructureGlyph(g, kind, x + size / 2, y + size / 2, size / (span * 0.9), {
+      onDark: true,
+    });
   });
 
   const build = opts.meta?.levels[0];
@@ -349,6 +351,7 @@ export function buildAttackerSpec(
   ov.sketch(box, (g, x, y, size) => {
     drawAttackerGlyph(g, kind, x + size / 2, y + size / 2, size / ATTACKER_GLYPH_SPAN, {
       friendly: true,
+      onDark: true,
     });
   });
 

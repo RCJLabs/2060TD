@@ -1716,7 +1716,9 @@ export class TownScene extends Phaser.Scene {
         // here or a two-cell kind draws at twice a one-cell kind and every
         // icon straddles its row's top border.
         const span = footprintOfKind(kind) === 2 ? 2 : 1;
-        drawStructureGlyph(g, kind, x + size / 2, y + size / 2, size / (span * 0.9));
+        drawStructureGlyph(g, kind, x + size / 2, y + size / 2, size / (span * 0.9), {
+          onDark: true,
+        });
       };
       if (!isUnlocked(town, kind)) {
         const at = this.unlockAt(kind);
