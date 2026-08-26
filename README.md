@@ -1060,7 +1060,9 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --derive-air [n] for the same search, forced to fly, or
                    # -- --rungs for what each rung DEMANDS in manpower, or
                    # -- --dealorder to re-rank the shapes at a force that
-                   #    does not saturate)
+                   #    does not saturate, or
+                   # -- --layouts to re-select the deal against a target
+                   #    difficulty curve and emit DEAL_TABLE as source)
 node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, that a
                    # row drag still scrolls instead of resizing, the tab swipe
                    # and its axis lock, the long press that opens a spec card

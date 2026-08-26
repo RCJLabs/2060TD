@@ -367,6 +367,110 @@ const DEAL_ORDER_NEUTRAL: ArchetypeId[] = [
   'bunker', 'keep', 'star', 'strongpoints', 'depot', 'compound', 'corridor', 'camp',
 ];
 
+
+/** A dealt target: which shape, and which of its layouts. */
+export type DealPair = readonly [ArchetypeId, number];
+
+/**
+ * The three targets a rung offers, chosen by MEASUREMENT (v1.31).
+ *
+ * Regenerate with `npm run balance -- --layouts`, which emits this as source.
+ *
+ * ## Why a table and not a rule
+ *
+ * v1.30 recorded a negative result: the deal could not be used to fix the
+ * ladder without costing parity, because both were steered by the same lever —
+ * which shape lands in which difficulty band. That lever is too coarse. There
+ * are eight shapes and five rungs, shape explains well under half the variance
+ * in clear rate, and the LAYOUT explains most of the rest. The generator drew
+ * the layout from `variant`, the slot index, so a rung's three targets were a
+ * shape band and a difficulty lottery: two rungs could swap places, and the
+ * USA's rung 4 measured easier than its rung 3.
+ *
+ * Decoupling the shape from the layout makes the deal a real tuning surface. A
+ * target is a PAIR, the layout pool is wide, and a pair can be chosen to land
+ * on a number rather than in a band. The ladder and parity then stop competing:
+ * give every faction the same target curve and both are satisfied at once.
+ *
+ * ## The curve
+ *
+ * Clear rate at the faction's own reference plan — the force parity is
+ * measured with — falling 100 / 95 / 85 / 70 / 55 across the rungs, with the
+ * three targets at a rung spread ±15 around it. Slot 0 is the heavy fight,
+ * slot 2 the one you can take today, slot 1 the reason to think about it.
+ *
+ * The early rungs saturate near 100 for everyone. That is not a defect here:
+ * everyone at 100 is a spread of zero, and a starter rung should be beatable.
+ *
+ * Selection also carries a small penalty for a shape the faction has already
+ * met, because difficulty alone collapses the roster — `compound`, `camp` and
+ * `corridor` have the widest layout ranges, so they can hit any target and the
+ * other five stop being dealt at all. With the nudge, all eight reach every
+ * faction across the ladder.
+ *
+ * The numbers after each row are the clear rates the row was selected for.
+ */
+export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
+    usa: [
+      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+      [['star', 0], ['compound', 0], ['camp', 0]], // T2 100/100/100
+      [['corridor', 11], ['camp', 11], ['depot', 0]], // T3 75/83/100
+      [['keep', 5], ['corridor', 6], ['strongpoints', 10]], // T4 50/67/83
+      [['bunker', 5], ['corridor', 0], ['star', 5]], // T5 42/58/67
+    ],
+    china: [
+      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+      [['compound', 3], ['star', 0], ['camp', 0]], // T2 92/100/100
+      [['star', 7], ['depot', 5], ['strongpoints', 0]], // T3 58/92/100
+      [['keep', 2], ['strongpoints', 1], ['star', 6]], // T4 50/67/83
+      [['bunker', 10], ['compound', 2], ['corridor', 7]], // T5 33/58/67
+    ],
+    russia: [
+      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+      [['compound', 5], ['star', 0], ['camp', 0]], // T2 92/100/100
+      [['camp', 1], ['strongpoints', 3], ['depot', 0]], // T3 67/92/100
+      [['strongpoints', 7], ['keep', 10], ['compound', 6]], // T4 50/75/83
+      [['camp', 4], ['bunker', 2], ['compound', 11]], // T5 42/50/67
+    ],
+    nk: [
+      [['compound', 0], ['camp', 0], ['corridor', 2]], // T1 92/100/100
+      [['star', 2], ['compound', 4], ['camp', 0]], // T2 83/92/100
+      [['depot', 3], ['strongpoints', 7], ['compound', 0]], // T3 67/83/100
+      [['compound', 0], ['keep', 10], ['camp', 2]], // T4 58/75/83
+      [['bunker', 9], ['corridor', 1], ['compound', 4]], // T5 33/58/67
+    ],
+    un: [
+      [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+      [['star', 4], ['camp', 7], ['compound', 0]], // T2 92/92/100
+      [['star', 10], ['strongpoints', 10], ['depot', 0]], // T3 67/92/100
+      [['compound', 1], ['keep', 6], ['star', 5]], // T4 58/67/83
+      [['bunker', 0], ['compound', 7], ['strongpoints', 5]], // T5 42/58/67
+    ],
+};
+
+/**
+ * What a rung deals in slot `slot`, or undefined for a faction or rung the
+ * table does not cover.
+ *
+ * Above the top row the shapes stay at the hard end and only the layout moves
+ * on, so a deep rung is a new problem of the same weight rather than the exact
+ * board the player just cleared.
+ */
+export function dealPairFor(
+  tier: number,
+  slot: number,
+  faction?: string,
+): DealPair | undefined {
+  const rows = faction ? DEAL_TABLE[faction] : undefined;
+  if (!rows || rows.length === 0) return undefined;
+  const at = Math.min(Math.max(1, tier), rows.length) - 1;
+  const row = rows[at];
+  const pair = row?.[((slot % TARGETS_PER_TIER) + TARGETS_PER_TIER) % TARGETS_PER_TIER];
+  if (!pair) return undefined;
+  const deeper = Math.max(0, tier - rows.length);
+  return deeper === 0 ? pair : [pair[0], pair[1] + deeper * TARGETS_PER_TIER];
+}
+
 /**
  * Which shape a target is. Deterministic in (tier, variant, faction), so
  * scouting, raiding and replaying all agree.
@@ -654,13 +758,25 @@ export function generateBase(
   force?: ArchetypeId,
   faction?: string,
 ): GeneratedBase {
-  const seed = (tier * 7919 + variant * 104729 + 12345) >>> 0;
+  // The deal names a SHAPE and a LAYOUT (v1.31). Before, both came from
+  // `variant` — the slot index — so which board a slot showed was whatever
+  // seed that slot happened to be, and a rung's difficulty was a lottery on
+  // top of its shape band. `force` still overrides the shape and takes the
+  // layout from `variant`, which is how the harness compares all eight shapes
+  // on the same ground.
+  const dealt = force ? undefined : dealPairFor(tier, variant, faction);
+  const layout = dealt ? dealt[1] : variant;
+  const seed = (tier * 7919 + layout * 104729 + 12345) >>> 0;
   const rng = createRng(seed);
   // `faction` picks the DEAL, not the layout: two factions share a base kit
   // (`baseKitFor`), so the ground is the same and only which of the eight
   // shapes lands in which slot changes. Passing it is what makes a rung offer
   // a KPA commander a graded choice rather than the USA's graded choice.
-  const arch = force ? ARCHETYPE_BY_ID[force] : archetypeFor(tier, variant, faction);
+  const arch = force
+    ? ARCHETYPE_BY_ID[force]
+    : dealt
+      ? (ARCHETYPE_BY_ID[dealt[0]] ?? archetypeFor(tier, variant, faction))
+      : archetypeFor(tier, variant, faction);
   const level = Math.min(3, structureLevelFor(tier) + arch.levelBonus);
   const occupancy = new Occupancy();
   const walls: LayoutWall[] = [];

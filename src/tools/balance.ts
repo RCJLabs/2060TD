@@ -21,6 +21,7 @@ import {
   USA_BASE_KIT,
   TARGETS_PER_TIER,
   archetypeFor,
+  dealPairFor,
   MAP_W,
   type ArchetypeId,
   type GeneratedBase,
@@ -361,6 +362,19 @@ function budgetToClear(faction: FactionId, tier: number): number | null {
     if (rungClear(faction, tier, budget) >= 50) return fielded;
   }
   return null;
+}
+
+/**
+ * What a rung actually deals in a slot.
+ *
+ * `archetypeFor` is now only the fallback — the shipped deal is a measured
+ * table of (shape, layout) pairs (`DEAL_TABLE`). Reading the fallback here
+ * made every coverage table in this file describe a deal the game had stopped
+ * using, which is the same class of mistake as the harness that reported a
+ * flow it never drove.
+ */
+function dealtShape(tier: number, slot: number, faction: FactionId): ArchetypeId {
+  return dealPairFor(tier, slot, faction)?.[0] ?? archetypeFor(tier, slot, faction).id;
 }
 
 interface RaidRow {
@@ -2143,7 +2157,7 @@ function dealTable(): string {
     for (const tier of RAID_TIERS) {
       const dealt = Array.from(
         { length: TARGETS_PER_TIER },
-        (_, v) => archetypeFor(tier, v, faction).id,
+        (_, v) => dealtShape(tier, v, faction),
       );
       const pool = ARCHETYPES.filter((a) => a.fromTier <= tier).map((a) => a.id);
       const at = (id: ArchetypeId): number => cell.get(key(faction, id, tier))!;
@@ -2169,7 +2183,7 @@ function dealTable(): string {
   for (const arch of ARCHETYPES) {
     const cols = FACTION_IDS.map((faction) => {
       const on = RAID_TIERS.filter((tier) =>
-        Array.from({ length: TARGETS_PER_TIER }, (_, v) => archetypeFor(tier, v, faction).id).includes(
+        Array.from({ length: TARGETS_PER_TIER }, (_, v) => dealtShape(tier, v, faction)).includes(
           arch.id,
         ),
       );
@@ -2180,7 +2194,7 @@ function dealTable(): string {
   const everDealt = new Set<string>();
   for (const faction of FACTION_IDS) {
     for (const tier of RAID_TIERS) {
-      for (let v = 0; v < TARGETS_PER_TIER; v++) everDealt.add(archetypeFor(tier, v, faction).id);
+      for (let v = 0; v < TARGETS_PER_TIER; v++) everDealt.add(dealtShape(tier, v, faction));
     }
   }
   lines.push('');
@@ -2198,7 +2212,13 @@ function dealTable(): string {
   const steps = rungs.slice(1).map((r, i) => r - rungs[i]!);
   lines.push(
     `STEP SIZE: ${steps.map((s, i) => `T${RAID_TIERS[i]}->T${RAID_TIERS[i + 1]} ${s >= 0 ? '+' : ''}${s.toFixed(0)}`).join('  ')}` +
-      ' — a ladder should not have a flat rung or a rung that goes back up.',
+      ' — POOL mean, at a fixed reference force.',
+  );
+  lines.push(
+    '  This is the whole pool, not the deal, and the force is a mature army: the early\n' +
+      '  rungs saturate near 100 and no step between them can show. It is here to price\n' +
+      "  the SHAPES, not to judge the ladder — `--rungs` does that, by asking how much\n" +
+      '  force each rung demands rather than what one army does to all of them.',
   );
   return lines.join('\n');
 }
@@ -2457,6 +2477,105 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--layouts')) {
+    // Select the deal against MEASURED difficulty, not a shape ranking.
+    //
+    // v1.30 recorded a negative result: the deal could not be used to fix the
+    // ladder without costing parity, because both were being steered by the
+    // same lever — which shape lands in which band. That lever is too coarse.
+    // There are eight shapes and five rungs, and shape explains well under
+    // half the variance in clear rate; the LAYOUT explains most of the rest,
+    // and the generator picks it from `variant` — the slot index — so a rung's
+    // three targets are a shape band and a difficulty lottery.
+    //
+    // Decoupling them makes the deal a real tuning surface. A target is a
+    // (shape, layout) PAIR, the layout pool is wide, and the pair can be
+    // chosen to land on a number instead of in a band. Then the ladder and
+    // parity stop competing: give every faction the same target curve and
+    // both are satisfied by construction.
+    //
+    // Measured at each faction's REFERENCE plan, because that is the force
+    // parity is measured with. The early rungs saturate near 100 for everyone
+    // and that is not a defect here — everyone at 100 is a spread of zero, and
+    // a starter rung should be beatable.
+    const LAYOUT_POOL = 12;
+    // Twelve, not six. Six quantises clear rate to steps of 17 points and the
+    // selection then fits to that grid — picking a pair because six coin
+    // flips landed on 83 is overfitting to the seeds, not measuring a target.
+    const SELECT_SEEDS = 12;
+    /** What a rung should clear at, at the reference force. Same for all. */
+    const CURVE: Record<number, number> = { 1: 100, 2: 95, 3: 85, 4: 70, 5: 55 };
+    /** How far the three targets at a rung spread around its mean. */
+    const SPREAD = 15;
+
+    const clearOf = (faction: FactionId, tier: number, shape: ArchetypeId, layout: number) => {
+      let cleared = 0;
+      let runs = 0;
+      const base = generateBase(tier, layout, baseKitFor(faction), shape);
+      const squads = (
+        faction === 'nk' ? tunnelPlanFor(faction, base, tier) : RAID_PLANS[faction]
+      ).map((sq, at) => ({ ...sq, slot: at }));
+      for (let i = 0; i < SELECT_SEEDS; i++) {
+        const config = raidConfig(base, squads, seedOf(tier, layout, i), trainableFor(faction));
+        if (resolveRaid(config, squads, tier, raidCatalogFor(faction)).cleared) cleared++;
+        runs++;
+      }
+      return runs > 0 ? (cleared / runs) * 100 : 0;
+    };
+
+    /** How much a shape this faction has already met is penalised, in points. */
+    const COVERAGE_NUDGE = 6;
+    console.log('DEAL TABLE — three (shape, layout) pairs a rung offers, chosen by measurement\n');
+    for (const faction of FACTION_IDS) {
+      const rows: string[] = [];
+      /** Shapes this faction has already been dealt, lower rungs first. */
+      const seen = new Set<string>();
+      for (const tier of RAID_TIERS) {
+        const want = CURVE[tier] ?? 60;
+        // Slot 0 is the heavy fight, slot 2 the one you can take today.
+        const wants = [want - SPREAD, want, want + SPREAD];
+        const pool = ARCHETYPES.filter((a) => a.fromTier <= tier);
+        const measured: { shape: ArchetypeId; layout: number; clear: number }[] = [];
+        for (const arch of pool) {
+          for (let layout = 0; layout < LAYOUT_POOL; layout++) {
+            measured.push({ shape: arch.id, layout, clear: clearOf(faction, tier, arch.id, layout) });
+          }
+        }
+        const taken = new Set<string>();
+        const picks = wants.map((target) => {
+          // Closest to the target, with a nudge toward shapes this faction has
+          // not met yet. Selecting on difficulty alone collapses the roster:
+          // `compound`, `camp` and `corridor` have the widest layout ranges,
+          // so they can hit any target and the other five shapes stop being
+          // dealt at all. The penalty is under half a quantum, so it breaks
+          // ties and near-ties and never overrides a real difference.
+          const best = measured
+            .filter((m) => !taken.has(m.shape))
+            .sort(
+              (a, b) =>
+                Math.abs(a.clear - target) +
+                (seen.has(a.shape) ? COVERAGE_NUDGE : 0) -
+                (Math.abs(b.clear - target) + (seen.has(b.shape) ? COVERAGE_NUDGE : 0)),
+            )[0];
+          if (best) {
+            taken.add(best.shape);
+            seen.add(best.shape);
+          }
+          return best;
+        });
+        rows.push(
+          `      [${picks
+            .map((p) => (p ? `['${p.shape}', ${p.layout}]` : `['camp', 0]`))
+            .join(', ')}], // T${tier} ` +
+            `${picks.map((p) => Math.round(p?.clear ?? 0)).join('/')} (want ${wants.join('/')})`,
+        );
+      }
+      console.log(`    ${faction}: [\n${rows.join('\n')}\n    ],`);
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+
   if (process.argv.includes('--dealorder')) {
     // Re-derive DEAL_ORDER at a force that does NOT saturate.
     //

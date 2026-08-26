@@ -2014,13 +2014,73 @@ Two new instruments, one corrected belief, and a measured negative result.
       -12 at T5). A defect that MOVES when an unrelated knob turns is a defect
       in the shapes near Russia's band boundaries, not in the knob.
 
-      **The ladder defect is real and the deal is the wrong lever for it.**
-      Eight shapes cannot give both a wide spread of difficulty within a rung
-      and a monotone climb between rungs; the window is too narrow to do both.
-      The fix is more shapes, or per-rung selection of the LAYOUT rather than
-      only the shape — layout explains 36-62% of the variance that shape does
-      not, and the generator currently picks it from an arbitrary seed. Either
-      is a milestone, not a knob.
+      **The ladder defect is real and the deal is the wrong lever for it** —
+      as long as the deal is only a shape. Eight shapes cannot give both a wide
+      spread within a rung and a monotone climb between rungs. Done in M18
+      below, by making the deal name the ground as well.
+
+---
+
+## M18 — v1.31 "The Deal Names The Ground"
+
+The negative result above said the deal could not fix the ladder without
+costing parity, because both were steered by the same lever: which shape lands
+in which difficulty band. That was true of the deal it described. It stopped
+being true once the deal could name the LAYOUT too.
+
+The generator drew the layout from `variant` — the slot index — so a rung's
+three targets were a shape band and a difficulty lottery on top of it. Shape
+explains well under half the variance in clear rate and layout explains most of
+the rest, so the lottery was the larger term. Decoupling the two turns the deal
+from a coarse lever into a real tuning surface: a target is a (shape, layout)
+PAIR, the layout pool is wide, and a pair can be chosen to land on a NUMBER
+instead of in a band.
+
+- [x] **`--layouts`: select the deal against measurement.** Measures clear rate
+      for every (faction, tier, shape, layout) at the faction's own reference
+      plan — the force parity is measured with — and picks the three pairs per
+      rung that land closest to a target curve: 100 / 95 / 85 / 70 / 55 across
+      the rungs, three targets spread ±15 around each. The same curve for every
+      faction, which is what makes parity and the ladder stop competing: both
+      are satisfied by construction rather than traded off.
+
+      Two things it needed before the answer was trustworthy. Six seeds
+      quantises clear rate to steps of 17 points and the selection then fits to
+      that grid — picking a pair because six coin flips landed on 83 is
+      overfitting to the seeds, not measuring a target; it uses twelve. And
+      selecting on difficulty alone collapses the roster, because `compound`,
+      `camp` and `corridor` have the widest layout ranges and can hit any
+      target, so the other five shapes stop being dealt at all. A penalty under
+      half a quantum for a shape the faction has already met fixes it: all
+      eight now reach every faction, most of them on several rungs.
+
+- [x] **The result.**
+
+      | | before | after |
+      | --- | --- | --- |
+      | **parity spread** | 15.0 | **5.8** |
+      | USA rung demand | 11-11-22-**11**-22 | 6-11-22-27-27 |
+      | KPA rung demand | 8-14-14-22-33 | 8-14-18-22-27 |
+      | shapes dealt per faction | 6 of 8 | 8 of 8 |
+
+      5.8 is the best parity this project has measured — M15 brought it from
+      25.6 to 17.2 and it has sat at 15 since. The USA's backwards rung is
+      gone, the KPA's ladder is now even (+6 +4 +4 +5), and four of five
+      factions climb at every step.
+
+      Still open: China keeps one rung that goes backwards (T2→T3), and the USA
+      and UN each flatten at the top. The selection targets a rung's MEAN and
+      three targets can hit a mean from either side, so a rung can be built
+      right and still sit a step out of line. Tightening that wants the curve
+      expressed per slot rather than per rung.
+
+- [x] **And the tables that were reading the wrong deal.** Every coverage table
+      in `--deal` read `archetypeFor`, which is now only the fallback, so they
+      described a deal the game had stopped using. Same class of mistake as a
+      harness reporting a flow it never drove. The footer under the pool-mean
+      ladder also claimed a defect it could not see — it measures a fixed
+      mature force, so its early rungs saturate — and now says so and points at
+      `--rungs`.
 
 ---
 
