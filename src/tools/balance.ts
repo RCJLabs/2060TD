@@ -206,8 +206,16 @@ const TUNNEL_POLICIES: number[][] = [[1, 2], [2], [0, 1, 2]];
  * the measurement seeds) score each policy; fixed order + strict improvement
  * keeps the choice deterministic per base.
  */
-function tunnelPlanFor(faction: FactionId, base: GeneratedBase, tier: number): SquadPlan[] {
-  const plans = RAID_PLANS[faction];
+function tunnelPlanFor(
+  faction: FactionId,
+  base: GeneratedBase,
+  tier: number,
+  from?: SquadPlan[],
+): SquadPlan[] {
+  // `from` lets a caller ask where a DIFFERENT force should dig — the rung
+  // sweep resizes the plan, and a tunnel policy chosen for the reference
+  // force is not the one a quarter of it would pick.
+  const plans = from ?? RAID_PLANS[faction];
   const mouth = nkTunnelCell(base);
   if (mouth === undefined) return plans;
   const catalog = raidCatalogFor(faction);
@@ -238,6 +246,121 @@ function planManpower(faction: FactionId, plans: SquadPlan[] = RAID_PLANS[factio
       Object.entries(squad.units).reduce((s, [kind, n]) => s + (meta[kind] ?? 0) * n, 0),
     0,
   );
+}
+
+/**
+ * How much FORCE each rung demands (v1.30) — the ladder, measured honestly.
+ *
+ * Every other ladder table in this file fights all five rungs with the same
+ * reference plan, and that plan is a mature army: the USA's is three Abrams
+ * and a Javelin, 27 manpower, which needs a barracks and a motor pool most of
+ * the way up. Against a tier-1 firebase it clears 100%. So does tier 2. The
+ * "step size" between them was therefore reported as -0, and the ROADMAP has
+ * carried "the shallow rungs are free" as a balance defect since M15.
+ *
+ * It is not a defect, or at least the evidence for it was never there. **A
+ * clear rate pinned at 100 cannot show a step.** The metric saturates, and two
+ * rungs that differ by a real amount both report the ceiling.
+ *
+ * The question a ladder actually poses is not "what does one army do to every
+ * rung" — no player ever fights that way, because the tier advances on clears
+ * and the town grows alongside it. It is **how much force does this rung
+ * demand**. So this table sweeps a manpower budget per rung and reports the
+ * smallest one that clears half the time. A graded ladder makes each rung ask
+ * for meaningfully more than the last; a free rung asks for the same.
+ *
+ * The composition is held at the reference plan's proportions and only the
+ * SIZE moves, so this measures the rung and not a change of doctrine.
+ */
+const RUNG_BUDGETS = [4, 6, 8, 11, 14, 18, 22, 27, 33, 40, 48] as const;
+const RUNG_SEEDS = 12;
+
+/**
+ * The reference composition, resized to a manpower budget.
+ *
+ * Built by DEALING units out of the reference in its own order, one at a time,
+ * until the next one would break the budget. Every plan in `RAID_PLANS` is
+ * mostly counts of ONE, so the obvious resize — scale each count and round —
+ * cannot express anything between "one Abrams" and "two": `round(1 * k)` is 1
+ * for every k from 0.5 to 1.5, and a budget sweep built that way reported
+ * eleven of twenty-five rungs at exactly the same number because they were all
+ * fighting the identical force.
+ *
+ * Dealing round-robin keeps the proportions — the reference's own order is the
+ * cycle — while letting the force grow one man at a time.
+ */
+function planAtBudget(faction: FactionId, budget: number): SquadPlan[] {
+  const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
+  const base = RAID_PLANS[faction];
+  /** Every unit the reference fields, in its order: (squad index, kind). */
+  const slots: { squad: number; kind: string }[] = [];
+  base.forEach((squad, i) => {
+    for (const [kind, n] of Object.entries(squad.units)) {
+      for (let k = 0; k < n; k++) slots.push({ squad: i, kind });
+    }
+  });
+  if (slots.length === 0) return base;
+
+  const counts = base.map(() => ({}) as Record<string, number>);
+  let spent = 0;
+  let took = 0;
+  // Several laps, so a budget larger than the reference is a bigger raid of
+  // the same shape rather than a truncated one.
+  for (let lap = 0; lap < 8 && spent < budget; lap++) {
+    for (const slot of slots) {
+      const cost = meta[slot.kind] ?? 0;
+      if (spent + cost > budget) continue;
+      counts[slot.squad]![slot.kind] = (counts[slot.squad]![slot.kind] ?? 0) + 1;
+      spent += cost;
+      took++;
+    }
+  }
+  // A budget under the cheapest unit still sends somebody: a raid of nobody
+  // is not a measurement of the rung.
+  if (took === 0) {
+    const cheapest = slots.reduce((a, b) => ((meta[a.kind] ?? 99) <= (meta[b.kind] ?? 99) ? a : b));
+    counts[cheapest.squad]![cheapest.kind] = 1;
+  }
+  return base
+    .map((squad, i) => ({ ...squad, units: counts[i]! }))
+    .filter((squad) => Object.keys(squad.units).length > 0)
+    .map((squad, at) => ({ ...squad, slot: at }));
+}
+
+/** Clear rate of a budgeted force against a whole rung's dealt pool. */
+function rungClear(faction: FactionId, tier: number, budget: number): number {
+  const plans = planAtBudget(faction, budget);
+  let cleared = 0;
+  let runs = 0;
+  for (let variant = 0; variant < VARIANTS; variant++) {
+    const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
+    const squads =
+      faction === 'nk'
+        ? tunnelPlanFor(faction, base, tier, plans).map((squad, at) => ({ ...squad, slot: at }))
+        : plans;
+    for (let i = 0; i < RUNG_SEEDS; i++) {
+      const config = raidConfig(base, squads, seedOf(tier, variant, i), trainableFor(faction));
+      if (resolveRaid(config, squads, tier, raidCatalogFor(faction)).cleared) cleared++;
+      runs++;
+    }
+  }
+  return runs > 0 ? (cleared / runs) * 100 : 0;
+}
+
+/**
+ * The smallest force in the sweep that clears at least half the time, reported
+ * as the manpower it actually FIELDS rather than the budget it was given —
+ * the budget grid is coarse and two budgets often deal the same men.
+ */
+function budgetToClear(faction: FactionId, tier: number): number | null {
+  let last = -1;
+  for (const budget of RUNG_BUDGETS) {
+    const fielded = planManpower(faction, planAtBudget(faction, budget));
+    if (fielded === last) continue; // same force, already measured
+    last = fielded;
+    if (rungClear(faction, tier, budget) >= 50) return fielded;
+  }
+  return null;
 }
 
 interface RaidRow {
@@ -2334,6 +2457,92 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--dealorder')) {
+    // Re-derive DEAL_ORDER at a force that does NOT saturate.
+    //
+    // The shipped ordering was measured with each faction's reference plan,
+    // and for the USA that plan clears almost everything: four shapes tied at
+    // 100% and the ranking between them was noise. `DEAL_ORDER_NEUTRAL` says
+    // as much in its own comment. A rank drawn from a pinned metric is a
+    // coin-flip wearing a number, and it is dealt to players as "the heavy
+    // fight" for the rest of the game.
+    //
+    // With `planAtBudget` there is a force size that half-clears, so the
+    // shapes can be told apart. Ranked at the MIDDLE rung, where every shape
+    // in the pool is available and none of them is a formality.
+    const RANK_TIER = 3;
+    console.log('DEAL ORDER — re-derived at a force that half-clears T3, hardest first\n');
+    for (const faction of FACTION_IDS) {
+      const budget = RUNG_BUDGETS.find((b) => rungClear(faction, RANK_TIER, b) >= 50) ?? 27;
+      const plans = planAtBudget(faction, budget);
+      const scored = ARCHETYPES.filter((a) => a.fromTier <= RANK_TIER + 2).map((arch) => {
+        let cleared = 0;
+        let runs = 0;
+        for (let variant = 0; variant < VARIANTS; variant++) {
+          const base = generateBase(RANK_TIER, variant, baseKitFor(faction), arch.id);
+          const squads =
+            faction === 'nk'
+              ? tunnelPlanFor(faction, base, RANK_TIER, plans).map((sq, at) => ({ ...sq, slot: at }))
+              : plans;
+          for (let i = 0; i < RUNG_SEEDS; i++) {
+            const config = raidConfig(
+              base,
+              squads,
+              seedOf(RANK_TIER, variant, i),
+              trainableFor(faction),
+            );
+            if (resolveRaid(config, squads, RANK_TIER, raidCatalogFor(faction)).cleared) cleared++;
+            runs++;
+          }
+        }
+        return { id: arch.id, clear: runs > 0 ? (cleared / runs) * 100 : 0 };
+      });
+      scored.sort((a, b) => a.clear - b.clear || a.id.localeCompare(b.id));
+      const ties = new Set(scored.map((x) => Math.round(x.clear))).size;
+      console.log(
+        `  ${faction}: [${scored.map((x) => `'${x.id}'`).join(', ')}],` +
+          `\n    // at ${planManpower(faction, plans)} MP — ` +
+          `${scored.map((x) => Math.round(x.clear)).join('/')}` +
+          `${ties < 4 ? '  *** still saturated, ranking is weak ***' : ''}`,
+      );
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+
+  if (process.argv.includes('--rungs')) {
+    const lines = [
+      'WHAT EACH RUNG DEMANDS — smallest manpower that clears half the time',
+      `FACTION     | ${RAID_TIERS.map((t) => pad(`T${t}`, 5)).join(' | ')} | STEPS`,
+      `------------+${RAID_TIERS.map(() => '-------').join('+')}+-------`,
+    ];
+    const over = RUNG_BUDGETS[RUNG_BUDGETS.length - 1]!;
+    for (const faction of FACTION_IDS) {
+      const budgets = RAID_TIERS.map((t) => budgetToClear(faction, t));
+      const steps = budgets
+        .slice(1)
+        .map((b, i) => {
+          const prev = budgets[i];
+          if (b === null || prev === null || prev === undefined) return '?';
+          return b === prev ? '·' : `+${b - prev}`;
+        })
+        .join(' ');
+      lines.push(
+        `${pad(flavorFor(faction).faction.slice(0, 11), 11)} | ` +
+          `${budgets.map((b) => pad(b === null ? `>${over}` : b, 5)).join(' | ')} | ${steps}`,
+      );
+    }
+    console.log(lines.join('\n'));
+    console.log(
+      '\n  A rung that asks the same manpower as the one below it (·) added nothing.\n' +
+        '  Composition is held at the reference plan and only the SIZE moves, so this is\n' +
+        '  the rung talking, not a change of doctrine. The fixed-force ladder tables report\n' +
+        '  every early rung at 100% and cannot show a step at all — see `budgetToClear`.',
+    );
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+
   if (process.argv.includes('--deal')) {
     console.log(dealTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);

@@ -1942,6 +1942,86 @@ read by hovering, not by looking.
       icon is light-on-dark like everything else in the drawer while the board
       keeps its paper.
 
+### The balance pass, and what it overturned
+
+Two new instruments, one corrected belief, and a measured negative result.
+
+- [x] **`--rungs`: what each rung DEMANDS.** Every ladder table in the harness
+      fought all five rungs with the same reference plan — and that plan is a
+      mature army. The USA's is three Abrams and a Javelin, 27 manpower, which
+      needs a barracks and most of a motor pool. Against a tier-1 firebase it
+      clears 100%. So does tier 2. The step between them was therefore reported
+      as **-0**, and "the shallow rungs are free" has been carried as a balance
+      defect since M15.
+
+      **A clear rate pinned at 100 cannot show a step.** The metric saturates
+      and two rungs that differ by a real amount both report the ceiling. No
+      player fights that way either: the tier advances on clears and the town
+      grows alongside it. So this sweeps a manpower budget per rung and reports
+      the smallest force that clears half the time, holding the reference
+      composition and moving only the SIZE.
+
+      It lied once first. Resizing by scaling each unit count and rounding
+      cannot express anything between one Abrams and two — `round(1 * k)` is 1
+      for every k from 0.5 to 1.5 — so eleven of twenty-five cells reported the
+      same number because they were fighting the identical force. It deals
+      units out of the reference one at a time now.
+
+      **What it found, stable across 3x the seeds:**
+
+      | | T1 | T2 | T3 | T4 | T5 | |
+      | --- | --- | --- | --- | --- | --- | --- |
+      | USA | 11 | 11 | 22 | **11** | 22 | T4 asks LESS than T3 |
+      | China | 8 | 18 | 22 | 22 | 27 | one flat rung |
+      | Russia | 6 | 9 | 18 | 21 | 33 | monotone |
+      | KPA | 8 | 14 | 14 | 22 | 33 | one flat rung |
+      | UN | 9 | 9 | 18 | 18 | 27 | two flat rungs |
+
+      So the documented item was **half wrong**: T1→T2 is not free — it costs
+      +3 to +10 for three factions. The real defect is that **the USA's rung 4
+      is easier than its rung 3**, and that Russia is the only faction whose
+      ladder climbs at every step.
+
+- [x] **`--dealorder`: rank the shapes where the ranking discriminates.**
+      `DEAL_ORDER` decides which shape is dealt as "the heavy fight" at every
+      rung, and it was derived from the reference plan — which for the USA
+      clears nearly everything. Four shapes tied at 100%, and the ranking
+      between them was a coin-flip wearing a number. `DEAL_ORDER_NEUTRAL`
+      already said so in its own comment and worked around it instead of
+      re-measuring. With a force sized to half-clear, the shapes separate:
+      `corridor` is the USA's second-hardest target and was ranked 6th of 8;
+      `keep` is a formality and was ranked 4th.
+
+- [ ] **NEGATIVE RESULT: the deal cannot fix the ladder without costing
+      parity, because it is the same lever.** Both candidate changes were
+      measured and neither shipped:
+
+      | | parity spread |
+      | --- | --- |
+      | shipped ordering | **15.0** |
+      | re-derived ordering | 17.8 |
+      | re-derived + a floor that rises with the rung | 24.8 |
+
+      The floor-trim does what it was built to do — the USA's backwards rung
+      disappears (11-11-22-27-27) and the UN becomes fully monotone — and it
+      costs nearly ten points of the metric this project has led on for four
+      milestones. The re-derived ordering is *more correct* in isolation and
+      still costs 2.8, because the old ordering's noise happened to sit at a
+      better parity point.
+
+      Four floor settings were tried and every one leaves Russia with a rung
+      that goes backwards, in a different place each time (-6 at T5, -9 at T4,
+      -12 at T5). A defect that MOVES when an unrelated knob turns is a defect
+      in the shapes near Russia's band boundaries, not in the knob.
+
+      **The ladder defect is real and the deal is the wrong lever for it.**
+      Eight shapes cannot give both a wide spread of difficulty within a rung
+      and a monotone climb between rungs; the window is too narrow to do both.
+      The fix is more shapes, or per-rung selection of the LAYOUT rather than
+      only the shape — layout explains 36-62% of the variance that shape does
+      not, and the generator currently picks it from an arbitrary seed. Either
+      is a milestone, not a knob.
+
 ---
 
 ## Working agreements

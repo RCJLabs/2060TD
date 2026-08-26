@@ -1057,7 +1057,10 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --sweep [vers] to price combat-variance candidates, or
                    # -- --objective [share] for what a raid could come for, or
                    # -- --derive [n] to search for a plan that beats the reference, or
-                   # -- --derive-air [n] for the same search, forced to fly)
+                   # -- --derive-air [n] for the same search, forced to fly, or
+                   # -- --rungs for what each rung DEMANDS in manpower, or
+                   # -- --dealorder to re-rank the shapes at a force that
+                   #    does not saturate)
 node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, that a
                    # row drag still scrolls instead of resizing, the tab swipe
                    # and its axis lock, the long press that opens a spec card
