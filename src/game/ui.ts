@@ -663,6 +663,20 @@ export interface PanelRow {
    * changes on every rebuild.
    */
   onHold?: () => void;
+  /**
+   * This row can be picked up and carried onto the map (v1.29).
+   *
+   * Called when a drag starts on the row's SILHOUETTE and leaves the list.
+   * Return true to take the gesture: the panel then gives up its own drag, so
+   * the finger is moving one thing and not two.
+   *
+   * The silhouette rather than the whole row, because in portrait the drawer
+   * sits BELOW the board — dragging a row onto the map and scrolling the list
+   * are the same stroke in the same direction, and no amount of slop or
+   * velocity tells them apart. A dedicated grab area does, and the obvious
+   * one is the picture of the thing being carried.
+   */
+  onPick?: (pointer: Phaser.Input.Pointer) => boolean;
   /** A full-width heading instead of a button. */
   heading?: boolean;
   /**
@@ -768,6 +782,9 @@ export class Panel {
   /** What each pooled row slot currently does. */
   private taps: Array<(() => void) | undefined> = [];
   private holds: Array<(() => void) | undefined> = [];
+  private picks: Array<((pointer: Phaser.Input.Pointer) => boolean) | undefined> = [];
+  /** Where each slot's silhouette is drawn, in device px — the grab area. */
+  private grabs: Array<{ x: number; y: number; w: number; h: number } | undefined> = [];
   private headings: Phaser.GameObjects.Text[] = [];
   /**
    * One Graphics per row slot, pooled alongside the buttons and parented into
@@ -809,6 +826,12 @@ export class Panel {
   private fling = 0;
   /** `downTime` of the last press `catchFling` has already judged; -1 idle. */
   private seenPress = -1;
+  /**
+   * The row slot a drag was picked up from, or -1 when the press did not
+   * start on a silhouette. Decided once, at the press, from where the finger
+   * LANDED — never from where it is now, for the same reason `inListAt` is.
+   */
+  private pickSlot = -1;
   private onTabChange?: (id: string) => void;
 
   constructor(
@@ -1131,6 +1154,7 @@ export class Panel {
       button.setActive(row.active === true);
       this.taps[poolIndex] = row.onTap;
       this.holds[poolIndex] = row.onHold;
+      this.picks[poolIndex] = row.onPick;
       placed.push({
         row,
         slot: poolIndex,
@@ -1182,9 +1206,16 @@ export class Panel {
         const icon = this.iconFor(entry.slot);
         icon.clear();
         icon.setVisible(onScreen && entry.row.icon !== undefined);
+        this.grabs[entry.slot] = undefined;
         if (onScreen && entry.row.icon) {
           const box = Math.round(Math.min(lineH, rowH) * 0.72);
           entry.row.icon(icon, x + pad, y + Math.round((lineH - box) / 2), box);
+          // The grab area is the silhouette plus its padding, full row height:
+          // the drawn glyph is about 16 CSS px across, which is a picture, not
+          // a target. This is what a finger has to hit.
+          if (entry.row.onPick) {
+            this.grabs[entry.slot] = { x, y, w: box + pad * 2, h: lineH };
+          }
         }
       });
 
@@ -1239,6 +1270,31 @@ export class Panel {
     const { list } = this.layout ?? {};
     if (!list) return false;
     return x >= list.x && x <= list.x + list.w && y >= list.y && y <= list.y + list.h;
+  }
+
+  /** Which row slot's silhouette a point lands on, or -1. */
+  private grabAt(x: number, y: number): number {
+    for (let i = 0; i < this.grabs.length; i++) {
+      const g = this.grabs[i];
+      if (!g) continue;
+      if (x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h) return i;
+    }
+    return -1;
+  }
+
+  /**
+   * Has the finger left the list on the side the board is on?
+   *
+   * Portrait puts the drawer under the board, landscape puts the rail beside
+   * it, so "toward the map" is up in one and left in the other. Tested
+   * against the list rect rather than the board's, because the handle and the
+   * status strip sit between them and a finger crossing those is already on
+   * its way out.
+   */
+  private towardBoard(pointer: Phaser.Input.Pointer): boolean {
+    const l = this.layout;
+    if (!l) return false;
+    return l.mode === 'portrait' ? pointer.y < l.list.y : pointer.x < l.list.x;
   }
 
   /** Run the action currently bound to a pooled row slot. */
@@ -1308,6 +1364,7 @@ export class Panel {
         this.dragMoved = 0;
         this.dragAxis = 'none';
         this.swipeDX = 0;
+        this.pickSlot = this.grabAt(pointer.downX, pointer.downY);
         this.lastPointerY = pointer.downY;
       }
       const dy = pointer.y - this.lastPointerY;
@@ -1335,6 +1392,25 @@ export class Panel {
       if (this.dragAxis === 'x') {
         this.swipeDX = pointer.x - pointer.downX;
         return;
+      }
+      // Carried out of the drawer and onto the map. Offered only once the
+      // finger has actually LEFT the list — while it is still inside, the
+      // gesture is indistinguishable from a scroll and is treated as one, so
+      // a pick-up that changes its mind costs nothing but a few px of scroll.
+      if (this.pickSlot >= 0 && this.towardBoard(pointer)) {
+        const pick = this.picks[this.pickSlot];
+        this.pickSlot = -1;
+        if (pick?.(pointer)) {
+          // Ownership MOVES. The panel stops scrolling, gives up any flick it
+          // had built, and spends the row's press so the lift over the map
+          // cannot also fire the row it started on.
+          this.velocity = 0;
+          this.dragPress = -1;
+          this.dragAxis = 'none';
+          this.fling = 0;
+          for (const button of this.pool) button.cancelPress();
+          return;
+        }
       }
       // Hold off until the travel also cancels the row's tap, so a gesture is
       // unambiguously one or the other.

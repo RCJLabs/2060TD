@@ -1741,6 +1741,22 @@ export class TownScene extends Phaser.Scene {
         enabled: max > 0 && have < max && town.supplies >= cost.supplies && town.fuel >= cost.fuel,
         active: this.tool.type === 'build' && this.tool.kind === kind,
         onTap: () => this.setTool({ type: 'build', kind }),
+        // Drag the silhouette onto the map to arm and aim in one stroke
+        // (v1.29). Tap-then-tap still works and is still the fast path for
+        // somebody placing six of the same thing; this is for the first one,
+        // where the tool and the square are one decision.
+        onPick: (pointer) => {
+          if (this.overlay) return false;
+          // Arm, never toggle. `setTool` treats re-selecting the armed tool as
+          // "put it down", which is right for a TAP on the row and wrong for a
+          // carry: dragging the thing already in your hand is still a carry,
+          // and the toggle turned `placeMode` off so the board refused the
+          // press and the drag ended with nothing aimed.
+          if (this.tool.type !== 'build' || this.tool.kind !== kind) {
+            this.setTool({ type: 'build', kind });
+          }
+          return this.board.adopt(pointer);
+        },
         // The other half of the build decision: what this thing shoots, how
         // far, and what it bounces off. None of it was on screen anywhere
         // before v1.27 — see `spec.ts`.

@@ -817,6 +817,14 @@ different input:
 | drag the handle | resize the drawer; release snaps to shut/half/full |
 | tap the handle | collapse or restore |
 | **a finger on a coasting list** | stops it, and activates nothing |
+| **drag a row's silhouette to the map** | arms the tool and aims it, in one stroke |
+
+The carry is the one gesture that does not share a finger with the list, and
+it is the only one that could not: in portrait the drawer sits BELOW the board,
+so dragging a row onto the map and scrolling the list are the same stroke in
+the same direction. Nothing about the motion separates them, so the target
+does — the silhouette is a grab area, the rest of the row is not. Tap-then-tap
+still works, and is still the faster path for placing six of the same thing.
 
 The lock decides **once**, early, from travel since the press began — a per-frame
 comparison flips axis on any wobble — and vertical wins ties and near-ties 1.4:1, because

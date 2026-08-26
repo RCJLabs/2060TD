@@ -1062,7 +1062,8 @@ node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, that 
                    # row drag still scrolls instead of resizing, the tab swipe
                    # and its axis lock, the long press that opens a spec card
                    # without also firing the row's tap, and that a finger on a
-                   # coasting list stops it without activating what it landed on
+                   # coasting list stops it without activating what it landed on,
+                   # and that a row's silhouette can be carried onto the map
 node scripts/e2e-pwa.mjs     # installable + offline, against a real dist/
                    # build served over http (run `npm run build` first)
 node scripts/e2e-mobile.mjs  # the mobile audit: target sizes, mis-tap gaps,

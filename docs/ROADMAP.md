@@ -1692,13 +1692,34 @@ and the bottom third is what a thumb reaches without the hand shifting grip.
 
 ### What was deliberately not done
 
-- [ ] **Drag a row from the drawer onto the map.** Slide-to-aim already works:
-      arming a row puts the board in `placeMode` and `onPlace` parks the ghost
-      where the finger lifted. The only missing step is a drag that STARTS in
-      the drawer, which needs a press hand-off through BoardView's gesture
-      arbitration — the module the double-scroll bug lived in, three fixes deep
-      — to save one tap. Worth doing; not worth doing hastily, and not why the
-      game read as ported.
+- [x] **Carry a row from the drawer onto the map (v1.29).** Placing was two
+      taps: arm the tool in the drawer, then aim on the board. A drag that
+      starts on a row's SILHOUETTE and ends on the map now does both in one
+      stroke.
+
+      The silhouette, not the row, and that is the entire design. In portrait
+      the drawer sits BELOW the board, so dragging a row onto the map and
+      scrolling the list are the same stroke in the same direction — no amount
+      of slop, velocity or direction tells them apart, because they ARE the
+      same gesture. A dedicated grab area does, and the obvious one is the
+      picture of the thing being carried. It is proved by its own revert
+      probe: making the whole row draggable passes the carry check and fails
+      "the same drag from the label scrolls instead".
+
+      The press hand-off this needed is one method, `BoardView.adopt`, and it
+      is written as the single sanctioned exception to the rule that the board
+      refuses any press that did not start inside it. Ownership MOVES rather
+      than being shared: the panel gives up its drag, kills its flick, and
+      spends the row's press before the board takes it, so the lift over the
+      map cannot also fire the row it started from. It is refused outside
+      `placeMode` rather than silently starting a pan.
+
+      One thing it got wrong first, and it is a nice illustration of why a tap
+      and a carry are different verbs: `onPick` called `setTool`, and `setTool`
+      treats re-selecting the armed tool as "put it down". Right for a tap on
+      the row, wrong for a carry — dragging the thing already in your hand is
+      still a carry — and the toggle turned `placeMode` off, so the board
+      refused the press and the drag ended with nothing aimed.
 - [x] **A drawer that behaves like one (v1.27).** Through v1.26 the only way to
       collapse it was to re-tap the ACTIVE tab — a real gesture with nothing on
       screen to suggest it, which is as good as no gesture. It has a grab

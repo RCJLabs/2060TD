@@ -348,6 +348,38 @@ export class BoardView {
     this.placeHandler = handler;
   }
 
+  /**
+   * Take over a press that began somewhere else — a row dragged out of the
+   * drawer and onto the map (v1.29).
+   *
+   * The board refuses any press that did not start inside it, which is the
+   * rule that keeps one finger moving one thing and is not up for
+   * negotiation. This is the single sanctioned exception: the panel calls it
+   * only after it has given the press up itself, so ownership MOVES rather
+   * than being shared. Bound to `downTime` like every other gesture here, so
+   * the adopted press is as identifiable as one that started on the board.
+   *
+   * Only meaningful in `placeMode`: what is being carried is a ghost, and the
+   * lift is the decision. Refused otherwise rather than silently starting a
+   * pan the player did not ask for.
+   */
+  adopt(pointer: Phaser.Input.Pointer): boolean {
+    if (!this.placeMode || this.pinching) return false;
+    this.dragging = true;
+    this.dragPress = pointer.downTime;
+    this.movedBy = 0;
+    this.downAt = this.scene.time.now;
+    this.downX = pointer.x;
+    this.downY = pointer.y;
+    this.lastX = pointer.x;
+    this.lastY = pointer.y;
+    // Seed the ghost immediately: the finger is already over the board when
+    // this is called, so waiting for the next move would leave a frame with a
+    // tool armed and nothing under it.
+    this.lastPlaceCell = this.cellAt(pointer);
+    return true;
+  }
+
   private bindInput(): void {
     const input = this.scene.input;
 

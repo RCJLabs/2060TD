@@ -282,6 +282,19 @@ try {
   const at = await shape();
   // The first BUILD row, found by its rect rather than by counting: rows
   // scroll, and an index is wrong the moment the list has moved.
+  const tapLabel = async (label) => {
+    const b = await page.evaluate((want) => {
+      const a = window.lastline;
+      const hit = a.buttons().find((x) => x.label === want && x.w > 0 && x.h > 0);
+      return hit ? { x: (hit.x + hit.w / 2) / a.dpr, y: (hit.y + hit.h / 2) / a.dpr } : null;
+    }, label);
+    if (!b) return false;
+    await touch('touchStart', b.x, b.y);
+    await touch('touchEnd', b.x, b.y);
+    await wait(500);
+    return true;
+  };
+
   const rowOf = async (label) => {
     const b = await page.evaluate((want) => {
       const hit = window.lastline
@@ -518,6 +531,77 @@ try {
     'and that finger does not also fire the row it landed on',
     landed !== null && !firedIt,
     landed ? `${landed.label} armed=${firedIt}` : 'no row',
+  );
+
+  // ---- carrying a row onto the map ----------------------------------------
+  //
+  // Placing used to be two taps: arm the tool in the drawer, then aim on the
+  // board. A drag that starts on the row's SILHOUETTE and ends on the map
+  // does both in one stroke.
+  //
+  // The silhouette rather than the row, and that is the whole design: in
+  // portrait the drawer sits BELOW the board, so dragging a row onto the map
+  // and scrolling the list are the same stroke in the same direction. A
+  // dedicated grab area is the only thing that tells them apart — which is
+  // why this check drives the icon's x and the one after it drives the label's.
+  const dropTab = await page.evaluate(() => window.lastline.tab?.() ?? null);
+  check('the build tab is showing', dropTab === 'build', dropTab ?? 'none');
+
+  const confirmUp = () =>
+    page.evaluate(() => window.lastline.buttons().some((b) => b.label === 'CONFIRM'));
+  check('nothing is aimed yet', !(await confirmUp()), '');
+
+  const carry = async (fromLeftEdge) => {
+    const at = await shape();
+    const row = await page.evaluate(() => {
+      const a = window.lastline;
+      const L = a.layout();
+      const hit = a
+        .buttons()
+        .filter((b) => b.y >= L.list.y && b.y + b.h <= L.list.y + L.list.h && b.enabled)
+        .sort((p, q) => p.y - q.y)[0];
+      return hit
+        ? { x: hit.x / a.dpr, y: (hit.y + hit.h / 2) / a.dpr, w: hit.w / a.dpr, label: hit.label }
+        : null;
+    });
+    if (!row) return null;
+    // The silhouette sits at the row's left edge; the label is well clear of it.
+    const sx = fromLeftEdge ? row.x + 14 : row.x + row.w * 0.6;
+    const sy = row.y;
+    const ty = at.board.y + at.board.h * 0.45;
+    await touch('touchStart', sx, sy);
+    for (let i = 1; i <= 10; i++) {
+      await touch('touchMove', sx, sy + ((ty - sy) * i) / 10);
+      await wait(16);
+    }
+    await touch('touchEnd', sx, ty);
+    await wait(700);
+    return row.label;
+  };
+
+  const carried = await carry(true);
+  check('there is a row to carry', carried !== null, carried ?? 'none');
+  check(
+    'dragging a silhouette onto the map arms and aims in one stroke',
+    await confirmUp(),
+    `${carried} → ${(await confirmUp()) ? 'CONFIRM up' : 'nothing aimed'}`,
+  );
+  // And it did not ALSO leave the list scrolled somewhere else or fire a tap:
+  // the press moved to the board, it was not shared with the drawer.
+  await tapLabel('CANCEL');
+  check('and cancelling puts it back', !(await confirmUp()), '');
+
+  // The other half of the design: the same stroke from the row's LABEL is a
+  // scroll, not a pick-up. Without this the check above would pass on a build
+  // that made the whole row draggable, which is the version that cannot tell
+  // a scroll from a carry.
+  const scrollBefore = await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1);
+  await carry(false);
+  check(
+    'but the same drag from the label scrolls instead',
+    !(await confirmUp()) &&
+      (await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1)) !== scrollBefore,
+    `${(await confirmUp()) ? 'aimed' : 'not aimed'}, scrollY ${scrollBefore} → ${await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1)}`,
   );
 
   check('no page errors', errors.length === 0, errors[0] ?? '');
