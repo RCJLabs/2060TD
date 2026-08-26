@@ -1800,7 +1800,52 @@ and the bottom third is what a thumb reaches without the hand shifting grip.
       once, 60ms after the lift, and missed a slow frame about one run in
       three — the same shape as the `e2e-gates` flake. It polls for the coast
       now and lands the finger the moment it exists.
-- [ ] **Muster rows are still text.** `drawAttackerBody` is a private method on
+
+      And it broke a check in `e2e-touch` that turned out to be measuring the
+      bug. "A second swipe continues instead of jumping" drove a 20px second
+      swipe — under the drag slop plus rounding, so it only ever registered
+      because the FIRST swipe's flick was still coasting and compounded into
+      it. The moment a finger started stopping the coast, the compounding went
+      away and the check failed on correct behaviour. It drives a real 60px
+      swipe now. The guard it was written for — the list snapping BACK toward
+      the top on a fresh touch — is untouched and strictly more sensitive.
+
+      Worth recording separately: that failure was NOT caught by the gate run
+      before the commit, which ran `e2e-touch` and saw it pass. It reproduces
+      every time at that commit. A harness that passes once is not a harness
+      that passes.
+- [x] **Muster rows carry the counter they will be (v1.29).** Build rows have
+      had a silhouette since v1.26 and the raid planner stayed a spreadsheet,
+      for a structural reason: the drawing was a private method on
+      BattleRenderer taking a live sim entity, and there is no unit to draw
+      before the raid is launched. It is `drawAttackerGlyph` in `glyphs.ts`
+      now, beside the structures', taking a kind and a cell like its sibling.
+
+      The move was verified as a MOVE: the screenshot pass was run before and
+      after and diffed byte-for-byte. Six of 173 shots differed — and the same
+      six differ between two runs of identical code, because they carry live
+      resource counters. 167 identical is the real result.
+
+      The extraction also unblocked the attacker half of the spec card. An
+      attacker's card asks different questions from a defence's, and the
+      difference is the point: nobody wonders how far a rifleman shoots, they
+      wonder what he can get through, how long he takes to get there, and what
+      losing him costs. So it leads with the two demolition rates, the walk,
+      and `cpValue` — the number that reads backwards, because every unit you
+      send is Command Points you hand the defender when it dies.
+
+      One thing this exposed. **A disabled row refused the press before it
+      could become a hold**, which quietly made two claims false at once: the
+      build list's locked rows advertised a card that could never open, and
+      every muster row in a town without the barracks to train it was equally
+      mute. Reading about something you cannot afford or have not unlocked is
+      exactly when you want to. Disabled controls take the press for the hold
+      alone now; the release still refuses, so nothing can tap.
+
+      One change is kept without a check behind it and marked as such in the
+      code: `release` checks ownership before disarming the hold timer.
+      Reverting it changes nothing observable, but the alternative — any tap
+      anywhere cancelling a hold in progress — is only safe by accident. `drawAttackerBody` is a private method on
       BattleRenderer taking a live sim entity; extracting it into a shared
       glyph the way structures have one is its own change.
 

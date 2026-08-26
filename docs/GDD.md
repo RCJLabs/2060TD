@@ -832,6 +832,19 @@ the player lifts. Firing it spends the tap; a press is one thing or the other.
 
 ### The spec card
 
+Two cards, and they ask different questions. A **defence** is judged on what it
+shoots and what bounces off it. An **attacker** is judged on what it can get
+through, how fast it crosses the ground, and what losing it costs — nobody
+wonders how far a rifleman shoots. So the unit card leads with the demolition
+rates against walls and the Command Center, the walk in cells per second, and
+`cpValue`: the number that reads backwards, because every unit sent is Command
+Points handed to the defender when it dies.
+
+A card opens on a **disabled** row too. Reading about something you cannot
+afford yet, or have not unlocked, is exactly when you want to — so a control
+that will not act still answers. The press is taken for the hold alone; the
+release still refuses, so nothing can be bought by accident.
+
 Until v1.28 nothing in the game said what a structure does. The build list gave a name, a
 price and a count; range, rate of fire, splash, minimum range, and what a weapon shreds or
 bounces off lived in the content files and appeared on no screen. Four emplacements at

@@ -400,6 +400,20 @@ export function makeButton(
       // thumb can tell from success — two pulses, not a longer one. Fired on
       // the DOWN, because a disabled button never reaches a release.
       haptic('deny');
+      // …but it still answers "what IS this?". A hold is information, not
+      // action, and a row you cannot afford yet — or have not unlocked — is
+      // exactly when you want to read about it. Shipping the hold without
+      // this made two claims false at once: the build list's locked rows
+      // advertised a card that could never open, and every muster row in a
+      // town with no barracks was equally mute.
+      //
+      // Ownership is taken for the HOLD alone. `release` still refuses on
+      // `!enabled`, so nothing can tap.
+      if (opts.onHold) {
+        holding = true;
+        heldPress = _p.downTime;
+        arm(_p);
+      }
       return;
     }
     // On the down, not the release: an acknowledgement that arrives after the
@@ -414,10 +428,25 @@ export function makeButton(
     arm(_p);
   });
   const release = (p: Phaser.Input.Pointer, outside: boolean): void => {
+    // Ownership before teardown, on the same principle as `heldPress` itself:
+    // a release this button does not own has no business cancelling its
+    // pending long press. `disarm` ran first and unconditionally before, and
+    // a release fires on the SCENE as well as on the object, so any tap
+    // anywhere could kill a hold in progress.
+    //
+    // Stated as an invariant rather than as a fix, because no check in the
+    // suite tells the two orderings apart — reverting this line changes
+    // nothing observable today. It is here because the alternative is only
+    // safe by accident: a timer whose finger has lifted already refuses on
+    // `p.isDown`, so leaving one armed is harmless, while cancelling
+    // somebody else's is not.
+    if (!holding || p.downTime !== heldPress) return;
     disarm();
-    if (!enabled || !holding || p.downTime !== heldPress) return;
+    // Ownership is given up first and unconditionally, so a disabled button
+    // that took the press for a hold does not keep believing it is held.
     holding = false;
     heldPress = -1;
+    if (!enabled) return;
     if (pressed) {
       pressed = false;
       refresh();

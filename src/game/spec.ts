@@ -32,11 +32,19 @@
  */
 import type Phaser from 'phaser';
 import type { TownBuildingMeta } from '../content/buildings';
-import type { ArmorClass, Catalog, StructureProfile, WallDef, Weapon } from '../sim/types';
+import type { TrainMeta } from '../content/usaUnits';
+import type {
+  ArmorClass,
+  AttackerProfile,
+  Catalog,
+  StructureProfile,
+  WallDef,
+  Weapon,
+} from '../sim/types';
 import type { Layout } from './layout';
 import { COLORS } from './palette';
 import { Overlay } from './overlay';
-import { drawStructureGlyph } from './glyphs';
+import { ATTACKER_GLYPH_SPAN, drawAttackerGlyph, drawStructureGlyph } from './glyphs';
 
 /**
  * What a player calls each armour class. The sim's names are about the model
@@ -304,6 +312,105 @@ export function buildWallSpec(scene: Phaser.Scene, kind: string, opts: SpecOpts)
     COLORS.inkDim,
     { gapAfter: gap * 2 },
   );
+  ov.footer('CLOSE', opts.onClose);
+  return ov;
+}
+
+/**
+ * The card for one attacker — a unit in the muster.
+ *
+ * A different set of questions from a structure's, and the difference is the
+ * point. Nobody asks how far a rifleman shoots; they ask what he can get
+ * through, how long he takes to get there, and what losing him costs. So this
+ * leads with the two demolition rates and the walk, and prints the ranged
+ * weapon only when the unit has one.
+ *
+ * `cpValue` is on the card because it is the one number that reads backwards:
+ * every unit you send is Command Points you are handing the defender when it
+ * dies, and a raid built from cheap bodies pays for the guns that kill them.
+ * It was in the content files and nowhere on screen.
+ */
+export function buildAttackerSpec(
+  scene: Phaser.Scene,
+  kind: string,
+  opts: SpecOpts & { train?: TrainMeta },
+): Overlay | null {
+  const profile: AttackerProfile | undefined = opts.catalog.attackers[kind];
+  if (!profile) return null;
+  const { layout } = opts;
+  const ov = new Overlay(scene, layout, {
+    title: profile.name.toUpperCase(),
+    scrim: 1,
+    ...(opts.container ? { container: opts.container } : {}),
+  });
+  const { font, gap } = layout;
+
+  const box = layout.px(72);
+  ov.sketch(box, (g, x, y, size) => {
+    drawAttackerGlyph(g, kind, x + size / 2, y + size / 2, size / ATTACKER_GLYPH_SPAN, {
+      friendly: true,
+    });
+  });
+
+  const train = opts.train;
+  const cost = train
+    ? priceOf({ supplies: train.supplies, fuel: train.fuel, seconds: train.seconds })
+    : 'NOT TRAINABLE';
+  ov.paragraph(
+    [
+      train ? `${cost} · ${train.manpower} MANPOWER` : cost,
+      `${profile.maxHp} HP · ${ARMOR_NAMES[profile.armor]} ARMOUR`,
+      profile.air ? `FLIES · ${num(profile.speed)} CELLS/s` : `${num(profile.speed)} CELLS/s`,
+      // What the defender is paid for killing it. Worth stating plainly:
+      // the CP that runs their barrages comes out of your losses.
+      `WORTH ${profile.cpValue} CP TO THE DEFENDER`,
+    ].join('\n'),
+    font.body,
+    COLORS.ink,
+    { gapAfter: gap * 2 },
+  );
+
+  // What it can get through, which is the whole question for an attacker. A
+  // zero is stated rather than dropped: "cannot breach" is the fact that
+  // decides whether this unit can lead an assault at all.
+  ov.paragraph(
+    [
+      profile.wallDps > 0 ? `${num(profile.wallDps)} DPS vs WALLS` : 'CANNOT BREACH WALLS',
+      `${num(profile.hqDps)} DPS vs THE COMMAND CENTER`,
+    ].join('\n'),
+    font.tiny,
+    COLORS.inkDim,
+    { gapAfter: gap * 2 },
+  );
+
+  if (profile.weapon) {
+    // An attacker's gun is used on STRUCTURES, never on other attackers, so
+    // the soft-counter ladder a defence card prints would be four rows of
+    // numbers this unit can never apply. One row, the one it uses.
+    const w = profile.weapon;
+    const dps = w.damage * w.shotsPerSecond;
+    const vs = dps * opts.catalog.damage[w.damageType].structure;
+    ov.paragraph(
+      [
+        `${DAMAGE_NAMES[w.damageType]} · ${num(w.damage)} × ${num(w.shotsPerSecond)}/s`,
+        `RANGE ${num(w.range)} CELLS${w.splashRadius ? ` · SPLASH ${num(w.splashRadius)}` : ''}`,
+        `  vs STRUCTURES   ${num(Math.round(vs))} DPS`,
+      ].join('\n'),
+      font.tiny,
+      COLORS.inkDim,
+      { gapAfter: gap * 2 },
+    );
+  }
+
+  if (profile.heal) {
+    ov.paragraph(
+      `HEALS ${num(profile.heal.perSecond)} HP/s TO OTHER FRIENDLY\nUNITS WITHIN ${num(profile.heal.radius)} CELLS — NEVER ITSELF`,
+      font.tiny,
+      COLORS.inkDim,
+      { gapAfter: gap * 2 },
+    );
+  }
+
   ov.footer('CLOSE', opts.onClose);
   return ov;
 }

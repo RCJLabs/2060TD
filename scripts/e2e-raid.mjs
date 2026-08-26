@@ -116,6 +116,46 @@ try {
     await tap((await mission()).split('\n')[0], 300);
   }
 
+  // ---- a muster row's secondary action (v1.29) -----------------------------
+  //
+  // Until now the planner said `M1 ABRAMS ×1 · 420S+130F 60s` and nothing
+  // about what an Abrams can get through, how fast it crosses the ground, or
+  // what losing one pays the defender in Command Points. A long press opens
+  // the card.
+  //
+  // Driven on MUSTER on purpose: this harness's own comment records that its
+  // rows are INERT in the demo town, and a disabled control used to refuse
+  // the press before it could become a hold. Reading about a unit you cannot
+  // train yet is exactly when you want to — so a row that will not act must
+  // still answer.
+  //
+  // Held with the mouse rather than a touch, which is also the point: the
+  // gesture is not touch-only, and a desktop player gets the same card.
+  await tap('MUSTER', 400);
+  const abrams = await find('M1 ABRAMS');
+  check('the muster lists a unit to ask about', abrams !== null, abrams ? `enabled=${abrams.on}` : 'none');
+  if (abrams) {
+    await page.mouse.move(abrams.x, abrams.y);
+    await page.mouse.down();
+    await wait(900);
+    const cardUp = await until(async () => (await find('CLOSE')) !== null, 1500);
+    await page.mouse.up();
+    await wait(300);
+    check('holding it opens its card', cardUp, cardUp ? '' : 'no card appeared');
+    const card = (await texts()).join(' | ');
+    // The three facts that were in the content files and on no screen: what it
+    // can break, how fast it moves, and what it is worth to the enemy dead.
+    check(
+      'and the card says what it breaks, how fast it moves and what it is worth',
+      /DPS vs THE COMMAND CENTER/.test(card) &&
+        /CELLS\/s/.test(card) &&
+        /WORTH \d+ CP TO THE DEFENDER/.test(card),
+      (/WORTH \d+ CP TO THE DEFENDER/.exec(card) ?? ['not shown'])[0],
+    );
+    await tap('CLOSE', 400);
+    check('and it closes again', (await find('CLOSE')) === null, '');
+  }
+
   await tap('SQUADS', 600);
   for (let i = 0; i < 3; i++) await tap('+ RANGER SQUAD', 200);
   await tap('+ M1 ABRAMS', 200);

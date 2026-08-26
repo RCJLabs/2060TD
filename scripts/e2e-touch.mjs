@@ -111,9 +111,18 @@ try {
 
   // The gesture that used to snap the list back to the top: a fresh touch
   // after a release the row under the thumb swallowed.
-  await swipe(X, 800, 780);
+  //
+  // The second swipe is a REAL swipe (60px, like the first) and was 20px
+  // until v1.29. Twenty px is under the drag slop plus rounding, so it only
+  // ever registered because the FIRST swipe's flick was still coasting and
+  // compounded into it — this check was quietly measuring the coast, not the
+  // swipe. Once a finger on a coasting list started stopping it, the way it
+  // does on every phone, the compounding went away and the check failed on
+  // correct behaviour.
+  //
   // null means the anchor scrolled off the top, which is still forward: the
   // failure this guards against is the list snapping BACK toward the top.
+  await swipe(X, 800, 740);
   const afterSecond = await rowTop('SUPPLY DEPOT');
   check(
     'a second swipe continues instead of jumping',

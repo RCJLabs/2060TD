@@ -78,7 +78,13 @@ import {
 } from '../../meta/objectives';
 import { researchEffects } from '../../meta/town';
 import type { AutoPowerRule } from '../../sim/types';
-import { drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
+import {
+  ATTACKER_GLYPH_SPAN,
+  drawAttackerGlyph,
+  drawStructureGlyph,
+  drawWallGlyph,
+  wallJoins,
+} from '../glyphs';
 import { footprintOfKind } from '../../content/catalog';
 import { COLORS } from '../palette';
 import { makeSheet } from '../ground';
@@ -87,6 +93,7 @@ import { BoardView } from '../BoardView';
 import { haptic } from '../haptics';
 import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
+import { buildAttackerSpec } from '../spec';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
 /** A pasted base plus the fingerprint that stops it paying twice. */
@@ -113,6 +120,28 @@ function recordSub(record: SquadRecord | undefined): string {
 /** Fire-plan timing steps (seconds into the assault); null = hold fire. */
 const FIRE_TIMES = [null, 15, 40, 70] as const;
 const FIRE_TARGETS = ['guns', 'cc'] as const;
+
+/**
+ * A unit's silhouette for a drawer row — the same counter it will be on the
+ * board (v1.29).
+ *
+ * Build rows have carried one since v1.26 and the muster stayed a spreadsheet,
+ * because the drawing lived as a private method on BattleRenderer taking a
+ * live sim entity: there is no unit to draw before the raid is launched. It is
+ * a plain function in `glyphs.ts` now, like the structures'.
+ *
+ * `friendly` because these are the player's own army. Every unit in the muster
+ * is one the player trained; the crimson dress is for what comes at them.
+ */
+function unitIcon(
+  kind: string,
+): (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void {
+  return (g, x, y, size) => {
+    drawAttackerGlyph(g, kind, x + size / 2, y + size / 2, size / ATTACKER_GLYPH_SPAN, {
+      friendly: true,
+    });
+  };
+}
 
 /**
  * The Front Line (M4): pick a target, scout it, muster the army, split it
@@ -701,6 +730,30 @@ export class RaidScene extends Phaser.Scene {
    * The formation's file. Rank is the only thing here that touches the sim;
    * the rest is the reason the player cares which squad takes the losses.
    */
+  /**
+   * The card behind a long press on a muster row (v1.29).
+   *
+   * The raid planner's half of the gap the build list had: the muster said
+   * `M1 ABRAMS ×1 · 420S+130F 60s` and nothing about what an Abrams can get
+   * through, how fast it crosses the ground, or what losing one pays the
+   * defender in Command Points.
+   */
+  private showUnitSpec(kind: string): void {
+    if (this.overlay) return;
+    const close = (): void => {
+      this.overlay?.close();
+      this.overlay = null;
+    };
+    const train = this.trainable.find((m) => m.kind === kind);
+    this.overlay = buildAttackerSpec(this, kind, {
+      layout: this.layout,
+      catalog: raidCatalogFor(this.town.faction),
+      ...(train ? { train } : {}),
+      container: this.board.ui,
+      onClose: close,
+    });
+  }
+
   private showRecord(slot: number): void {
     if (this.overlay) return;
     const record = squadRoster(this.town)[slot] ?? { xp: 0, raids: 0, clears: 0, lost: 0 };
@@ -922,7 +975,9 @@ export class RaidScene extends Phaser.Scene {
         const rows: PanelRow[] = [
           {
             id: 'h',
-            label: `MP ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)}`,
+            label:
+              `MP ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)}` +
+              ' — hold a row for its specs',
             heading: true,
           },
         ];
@@ -934,6 +989,8 @@ export class RaidScene extends Phaser.Scene {
             sub: `${cost} ${meta.seconds}s`,
             enabled: this.facilityFor(meta.kind) !== null && !this.result,
             onTap: () => this.train(meta.kind),
+            onHold: () => this.showUnitSpec(meta.kind),
+            icon: unitIcon(meta.kind),
           });
         }
         const queued: string[] = [];
@@ -1026,6 +1083,8 @@ export class RaidScene extends Phaser.Scene {
             sub: `${this.available(meta.kind)} FREE`,
             enabled: this.available(meta.kind) > 0 && !this.result,
             onTap: () => this.addUnit(meta.kind),
+            onHold: () => this.showUnitSpec(meta.kind),
+            icon: unitIcon(meta.kind),
           });
         }
         rows.push(
