@@ -1008,7 +1008,21 @@ export function generateBase(
     // standoff run would never have to enter their envelope.
     const wantAa = mounts < aaCount && (i === 2 || i === 5 || placed >= towerCount);
     const kind = wantAa ? kit.aa : towerKind(placed);
-    if (putStructure(kind, sx + ri(rng, -1, 1), sy + ri(rng, -1, 1), false, gunLevel(placed))) {
+    // The jitter is variety, not a rule, so a gun is not lost to it: if the
+    // jittered cell is taken, the spot itself gets one more try. There are
+    // exactly eight spots for up to eight placements, so every failure used
+    // to be a gun the rung never got — and the narrower frontage of v1.40
+    // made spots collide often enough that a tier 7 base could field fewer
+    // guns than a tier 1 one, which `warfare.test.ts` caught.
+    //
+    // Both `ri` draws happen either way, so the retry costs the stream nothing
+    // and a base that already fit is unchanged.
+    const jx = sx + ri(rng, -1, 1);
+    const jy = sy + ri(rng, -1, 1);
+    if (
+      putStructure(kind, jx, jy, false, gunLevel(placed)) ||
+      putStructure(kind, sx, sy, false, gunLevel(placed))
+    ) {
       if (wantAa) mounts++;
       else placed++;
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { yardTown, makeResolution } from './helpers';
-import { generateBase, lootFor, MAP_H, MAP_W } from '../src/content/bases';
+import { CHINA_BASE_KIT, generateBase, lootFor, MAP_H, MAP_W } from '../src/content/bases';
 import { deserialize, serialize } from '../src/meta/save';
 import {
   applyCounterResult,
@@ -81,9 +81,18 @@ describe('base generator', () => {
   it('scales with tier: more towers, higher levels, richer loot', () => {
     const t1 = generateBase(1, 0);
     const t7 = generateBase(7, 0);
+    // The gun count is compared on ONE SHAPE. Tier 1 and tier 7 are dealt
+    // different archetypes, and an archetype carries its own gun multiplier —
+    // "almost no guns and all the loot" is a whole shape in the catalog — so a
+    // gun-poor rung can legitimately field fewer guns than a gun-rich one
+    // below it. This compared two different shapes and called the difference
+    // tier: it passed for eleven releases on the deal it happened to draw, and
+    // stopped the moment v1.40's gun ladder tightened by one.
     const towers = (b: typeof t1) =>
       b.structures.filter((s) => s.kind.endsWith('Tower')).length;
-    expect(towers(t7)).toBeGreaterThan(towers(t1));
+    expect(towers(generateBase(7, 0, CHINA_BASE_KIT, 'compound'))).toBeGreaterThan(
+      towers(generateBase(1, 0, CHINA_BASE_KIT, 'compound')),
+    );
     expect(t7.ccLevel).toBeGreaterThan(t1.ccLevel);
     expect(lootFor('cc', 7).supplies).toBeGreaterThan(lootFor('cc', 1).supplies);
     expect(t7.structures.some((s) => s.kind === 'atgmTower')).toBe(true);

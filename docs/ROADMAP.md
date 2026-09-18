@@ -2703,6 +2703,24 @@ back everything the grid gave. Both, together, clear the bar on every phone.
       cannot use.
 - [x] **Re-tune.** Every raid matrix was measured on a 32-cell approach.
 
+### Open, and handed to M22
+
+**DUG IN raises destruction instead of lowering it.** A condition that thickens
+walls 45% and guns 20% now measures 0.512 against a bare 0.486 — stable across
+18, 60 and 180 runs, so not noise. Destruction counts structures rather than
+walls, so it is not the wall multiplier inflating its own denominator: the
+reading is that thicker wire buys breach time the defender can no longer
+convert into kills, and a force that gets through anyway has longer inside to
+raze. `tests/conditions.test.ts` records the number and asserts only what still
+holds.
+
+**The residual difficulty gap.** Pricing guns per cell of frontage recovers
+most of what the turn moved, but not all of it: CORRIDOR sits at 83.6 mean
+against 94.4, DISPERSED DEPOT at 85.8 against 93.4, and STAR FORT's T5 is the
+worst single cell. Closing those is per-shape work of the kind M15 spent a
+release on, and M22 re-tunes on top of the combat model anyway — doing it now
+is doing it twice.
+
 ### What it cost the harnesses
 
 Seven E2E harnesses failed, and only two of them were finding anything real. Five
