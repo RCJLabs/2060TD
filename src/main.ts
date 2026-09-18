@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import './fonts.css';
 import { BriefingScene } from './game/scenes/BriefingScene';
 import { MenuScene } from './game/scenes/MenuScene';
 import { PlaygroundScene } from './game/scenes/PlaygroundScene';

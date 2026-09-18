@@ -1,13 +1,13 @@
 {
   "name": "2060TD",
   "short_name": "2060TD",
-  "description": "A deterministic tower-defence and base-builder fought on a topographic map sheet.",
+  "description": "A deterministic tower-defence and base-builder, fought on a page of a graphic novel.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#101210",
-  "theme_color": "#101210",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "categories": ["games", "strategy"],
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

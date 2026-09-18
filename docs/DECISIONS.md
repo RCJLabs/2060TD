@@ -573,3 +573,27 @@ here with the change and its date.
   grey ramp above on its first run. The pattern generalises past this project:
   when a thing is too brief to catch on a timer, the harness should catch it
   on a PREDICATE.
+- 2026-09-18 — **A theme pass stops at the edge of the thing you are looking
+  at.** Eight phases of the ink pass repainted every pixel inside the canvas
+  and left the entire launch surface on the previous direction: a dark boot
+  card, a dark body, `theme-color: #101210` painting the notch and system bars
+  around a white game, a manifest still describing "a topographic map sheet",
+  and four PWA icons still olive on cream. None of it is reachable from the
+  code that changed, none of it is covered by a harness that drives the game,
+  and all of it is what a player sees FIRST — the load sequence was a dark
+  screen resolving into a white one, on every launch, on every device. The
+  icons now have a generator rather than being hand-made binaries, which is
+  the difference between an asset that can drift silently and one that is a
+  re-run. Worth asking at any direction change: what does this project ship
+  that is not source?
+- 2026-09-18 — **Dev and production disagreed about when a font exists, and
+  the screenshot could not see it.** The display face shipped as
+  `src/fonts.css`, imported from `main.ts`. Vite emits that as a
+  render-blocking `<link>` in a production build and injects it through the
+  module graph in dev — so the boot card, which paints before any module runs,
+  came up in Barlow for a player and in the mono fallback for every screenshot
+  this repo takes. The fix is to inline the two `@font-face` blocks in
+  `index.html`, which also costs one round trip less before first paint, which
+  is the one thing the boot card exists to win. The general form: a build tool
+  that makes dev "faster" often makes it DIFFERENT, and the difference lands
+  exactly on whatever paints earliest.

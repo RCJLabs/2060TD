@@ -105,6 +105,28 @@ try {
     }
     throw new Error(`no button matching "${needle}"`);
   };
+  // The boot card: the first thing every player sees and the last surface
+  // nothing in this repo had ever looked at. It comes down on the first
+  // rendered frame, so it cannot be caught on a timer — the module request is
+  // held instead, which keeps the card up for as long as the shot needs.
+  {
+    // JavaScript OFF rather than a delayed request. Holding the entry module
+    // is a race — two attempts at it caught the card already fading over a
+    // booted game, because the dev server does not serve the entry under the
+    // name the pattern expected. With scripting disabled the card paints, the
+    // game never starts, and the shot is the same every run. It is also
+    // honestly what the card is FOR: the state where the engine has not
+    // arrived yet.
+    const page = await browser.newPage({
+      viewport: { width: 1300, height: 800 },
+      javaScriptEnabled: false,
+    });
+    await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: 'screenshots/boot.png' });
+    await page.close();
+  }
+
   await shoot('', 2500, 'menu.png');
   // The faction picker is a FIRST-RUN screen: nobody with a save ever sees it
   // again, so nothing else in this suite has ever drawn it.

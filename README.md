@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.38, in the browser. No install, no account, works on a phone.
+v1.39, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,28 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.38: the breach is worth a panel
+## Current state — v1.39: the page starts before the game does
+
+Eight phases of the ink pass repainted every pixel inside the canvas and left
+the entire launch surface a release behind: a dark boot card, a dark body,
+`theme-color: #101210` painting the notch around a white game, a manifest still
+describing "a topographic map sheet", and four launcher icons still olive on
+cream. The load sequence was a dark screen resolving into a white one, on every
+launch, on every device — and none of it is reachable from the code that
+changed or covered by a harness that drives the game.
+
+The boot card is a masthead now: solid ink with the name knocked out of it, the
+same statement every titled surface in the game makes. The icons got a
+**generator**, because hand-made binaries are exactly what drifts and nothing
+in the repo could have told you they had.
+
+And the display face moved inline into `index.html`. As a bundled stylesheet it
+was render-blocking in production and JS-injected in dev, so the boot card —
+which paints before any module runs — showed Barlow to a player and the mono
+fallback to every screenshot this repo takes. Inline also costs one round trip
+less before first paint, which is the one thing that card exists to win.
+
+## v1.38: the breach is worth a panel
 
 A comic does not draw an explosion, it **letters** one, and that was the most
 recognisable thing the direction was still missing. Three families of sound
@@ -1371,6 +1392,7 @@ npm run catch -- "KRRAK|WHUMP|BLAM"
                    # sample a live battle, keep only the frames where the game
                    # is saying something matching. For anything too brief to
                    # catch on a timer
+npm run icons      # regenerate the four PWA icons from one drawing function
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA

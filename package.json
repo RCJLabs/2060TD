@@ -1,7 +1,7 @@
 {
   "name": "2060td",
   "private": true,
-  "version": "1.38.0",
+  "version": "1.39.0",
   "description": "2060TD \u2014 hybrid tower defense / base builder set in a modern alternate-history war",
   "type": "module",
   "scripts": {
@@ -17,7 +17,8 @@
     "build:single": "SINGLE_FILE=1 vite build --outDir dist-single --emptyOutDir && node scripts/single-file.mjs",
     "sheet": "node scripts/glyph-sheet.mjs",
     "zoom": "node scripts/zoom.mjs",
-    "catch": "node scripts/catch.mjs"
+    "catch": "node scripts/catch.mjs",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "phaser": "^3.85.0"

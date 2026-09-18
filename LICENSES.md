@@ -2,8 +2,8 @@
 
 ## Barlow Condensed (SIL Open Font License 1.1)
 
-Two weights of the latin subset of Barlow Condensed ship inside `src/fonts.css`
-as base64 data URIs, so the game carries its display face offline and the
+Two weights of the latin subset of Barlow Condensed ship inline in
+`index.html` as base64 data URIs, so the game carries its display face offline and the
 single-file build fetches nothing. The licence below travels with them, which
 is what the OFL asks for.
 

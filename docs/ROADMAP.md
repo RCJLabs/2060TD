@@ -2639,6 +2639,16 @@ paper by area and the value budget is free for the things that matter.
       palette refuses. Found in a magnified frame, which needed an instrument —
       `npm run catch` keeps only the frames where the game is saying something
       that matches a pattern.
+- [x] **Phase 9 — the page starts before the game does.** Everything outside the
+      canvas was a release behind: a dark boot card, a dark body, a dark
+      theme-colour painting the notch around a white game, a manifest still
+      describing a topographic sheet, and four launcher icons still olive on
+      cream. The icons got a generator, because hand-made binaries are exactly
+      what drifts and nothing in the repo could have told you they had. The
+      display face moved inline into `index.html`: as a bundled stylesheet it
+      was render-blocking in production and JS-injected in dev, so the boot card
+      — which paints before any module runs — showed the fallback in dev and the
+      real face in production, and no screenshot could tell the difference.
 
 ---
 
