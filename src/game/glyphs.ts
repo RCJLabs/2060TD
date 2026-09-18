@@ -110,8 +110,13 @@ export function drawWallGlyph(
   const h = b - t;
   const halo = cell * HALO;
 
+  // The keyline pass. v1.19 painted cream here to lift the run off busy
+  // contours; the ink direction paints the line itself, which separates the
+  // wall from the tone AND is the thing that makes it look drawn. Drawn for
+  // the whole run before any body, so adjacent cells share one outline
+  // instead of each boxing itself in.
   if (pass !== 'ink') {
-    g.fillStyle(COLORS.paperWarm, 0.9);
+    g.fillStyle(COLORS.oliveDark, 1);
     g.fillRect(l - halo, t - halo, w + halo * 2, h + halo * 2);
   }
   if (pass === 'halo') return;
@@ -125,24 +130,24 @@ export function drawWallGlyph(
     if (!open) {
       g.fillStyle(COLORS.sand, 0.35 + 0.65 * hpFraction);
       g.fillRect(l + post, t, w - post * 2, h);
-      g.lineStyle(Math.max(1, cell * 0.03), COLORS.paperWarm, 0.6);
+      g.lineStyle(Math.max(1, cell * 0.03), COLORS.oliveDark, 0.6);
       g.lineBetween(l + w / 2, t, l + w / 2, b);
     }
     return;
   }
 
   const hesco = kind === 'hesco';
-  g.fillStyle(hesco ? COLORS.sand : COLORS.sandDark, 1);
+  g.fillStyle(hesco ? COLORS.sand : COLORS.bgField, 1);
   g.fillRect(l, t, w, h);
   if (hesco) {
     // Gabions read as a basket: cross-braced, and lighter than plain wire.
-    g.lineStyle(Math.max(1, cell * 0.045), COLORS.paperWarm, 0.75);
+    g.lineStyle(Math.max(1, cell * 0.045), COLORS.oliveDark, 0.75);
     g.lineBetween(l + 2, t + 2, r - 2, b - 2);
     g.lineBetween(r - 2, t + 2, l + 2, b - 2);
   }
 
   // Seams, so a run stays countable.
-  g.lineStyle(Math.max(1, cell * 0.025), COLORS.paperWarm, 0.45);
+  g.lineStyle(Math.max(1, cell * 0.025), COLORS.oliveDark, 0.45);
   if (joins.right) g.lineBetween(r, t + 2, r, b - 2);
   if (joins.down) g.lineBetween(l + 2, b, r - 2, b);
 
@@ -170,32 +175,37 @@ export function drawStructureGlyph(
   /** The glyph's own box: one cell, or two for a big kind. */
   const S = cell * (big ? 2 : 1) * 0.9;
   const dark = opts.onDark ?? false;
-  const ink = dark
-    ? hostile
-      ? COLORS.crimson
-      : COLORS.ink
-    : hostile
-      ? COLORS.crimsonDark
-      : COLORS.oliveDark;
-  const trim = dark
-    ? hostile
-      ? COLORS.crimsonDark
-      : COLORS.inkDim
-    : hostile
-      ? COLORS.crimson
-      : COLORS.olive;
+  /**
+   * Theirs, drawn on the page: a filled silhouette. That one boolean is the
+   * whole allegiance channel now — v1.19 spent a hue on it, and this spends
+   * the difference between ink and paper, which survives a phone at 40%
+   * brightness in sunlight where a crimson-vs-olive pair does not.
+   */
+  const solid = hostile && !dark;
+  /**
+   * The keyline. Ink round anything of yours, paper round anything of
+   * theirs — so both sit on the tone with a 3px edge in the opposite value,
+   * and neither can be lost in a dot screen.
+   */
+  const line = solid || dark ? COLORS.bgField : COLORS.oliveDark;
+  /** The fill of a MASS: bare paper if it is yours, solid ink if it is theirs. */
+  const body = solid ? COLORS.crimson : COLORS.bgField;
+  /** A dark mark ON a mass: a barrel, a mast, a dish, a tube. Inverts too. */
+  const ink = solid ? COLORS.bgField : COLORS.oliveDark;
+  /** A secondary panel inside a mass — a roof, a mantlet. */
+  const trim = solid ? COLORS.bgField : dark ? COLORS.inkDim : COLORS.olive;
   const aim = opts.aimAngle ?? -Math.PI / 2; // resting pose: barrel up
 
   /** Paper knockout, so the silhouette sits ON the sheet, not in it. */
   const haloBox = (w: number, h: number): void => {
     if (dark) return;
     const m = cell * HALO;
-    g.fillStyle(COLORS.paperWarm, 0.92);
+    g.fillStyle(line, 1);
     g.fillRect(px - w / 2 - m, py - h / 2 - m, w + m * 2, h + m * 2);
   };
   const haloDisc = (r: number): void => {
     if (dark) return;
-    g.fillStyle(COLORS.paperWarm, 0.92);
+    g.fillStyle(line, 1);
     g.fillCircle(px, py, r + cell * HALO);
   };
   /**
@@ -203,14 +213,14 @@ export function drawStructureGlyph(
    * It is the SURFACE colour, not paper, or every cut-out becomes a cream
    * chip the moment the glyph is drawn on the panel.
    */
-  const cut = dark ? COLORS.bgPanel : COLORS.paperWarm;
+  const cut = solid ? COLORS.bgField : COLORS.oliveDark;
 
   /** A filled box centred on the glyph, in glyph units (0..1 of S). */
-  const box = (w: number, h: number, colour = ink, ox = 0, oy = 0): void => {
+  const box = (w: number, h: number, colour = body, ox = 0, oy = 0): void => {
     g.fillStyle(colour, 1);
     g.fillRect(px + ox * S - (w * S) / 2, py + oy * S - (h * S) / 2, w * S, h * S);
   };
-  const disc = (r: number, colour = ink, ox = 0, oy = 0): void => {
+  const disc = (r: number, colour = body, ox = 0, oy = 0): void => {
     g.fillStyle(colour, 1);
     g.fillCircle(px + ox * S, py + oy * S, r * S);
   };
@@ -284,7 +294,7 @@ export function drawStructureGlyph(
     case 'storageBunker': {
       // Revetted: a battered trapezoid with a hatch.
       haloBox(S * 0.84, S * 0.6);
-      g.fillStyle(ink, 1);
+      g.fillStyle(body, 1);
       g.fillPoints(
         [
           { x: px - S * 0.42, y: py + S * 0.3 },
@@ -341,7 +351,7 @@ export function drawStructureGlyph(
     case 'radar': {
       // A cabin and a dish. The only arc on the friendly side.
       haloBox(S * 0.72, S * 0.56);
-      box(0.72, 0.4, ink, 0, 0.1);
+      box(0.72, 0.4, body, 0, 0.1);
       g.fillStyle(ink, 1);
       g.fillRect(px - S * 0.02, py - S * 0.28, S * 0.04, S * 0.2);
       g.lineStyle(Math.max(1.5, S * 0.07), ink, 1);
@@ -406,7 +416,7 @@ export function drawStructureGlyph(
     case 'manpads': {
       // A team, not a mount: a man and a tube over his shoulder.
       haloDisc(S * 0.38);
-      disc(0.36, ink);
+      disc(0.36, body);
       disc(0.13, trim, 0, 0.05);
       aimed(() => barrel(0.46, 0.08, -0.14));
       break;
@@ -414,7 +424,7 @@ export function drawStructureGlyph(
     case 'depmg': {
       // A deployed gun: a pad rather than a built mount.
       haloDisc(S * 0.38);
-      g.fillStyle(ink, 0.6);
+      g.fillStyle(body, 1);
       g.fillCircle(px, py, S * 0.36);
       disc(0.15, ink);
       aimed(() => barrel(0.42, 0.09));
@@ -423,7 +433,7 @@ export function drawStructureGlyph(
     case 'foxhole': {
       // A hole with spoil in front of it.
       haloDisc(S * 0.36);
-      g.fillStyle(ink, 0.45);
+      g.fillStyle(body, 1);
       g.fillCircle(px, py, S * 0.34);
       g.lineStyle(Math.max(1.5, S * 0.09), ink, 1);
       g.beginPath();
@@ -469,7 +479,7 @@ export function drawStructureGlyph(
     // ---- anything the content adds later ---------------------------------
     default: {
       haloDisc(S * 0.34);
-      disc(0.32, ink);
+      disc(0.32, body);
       disc(0.13, cut);
       break;
     }
@@ -480,7 +490,7 @@ export function drawStructureGlyph(
   if (level > 1) {
     const pipY = py + S * 0.5 + cell * 0.1;
     const pipW = cell * 0.16;
-    g.fillStyle(cut, 0.9);
+    g.fillStyle(body, 1);
     g.fillRect(px - (level * pipW) / 2 - 2, pipY - 2, level * pipW + 4, cell * 0.1 + 4);
     g.fillStyle(ink, 1);
     for (let i = 0; i < level; i++) {
@@ -492,17 +502,19 @@ export function drawStructureGlyph(
     // Construction: a dashed outline over a paper-washed body, which reads as
     // "planned" on a sheet the way a dimmed body never could.
     const half = S * 0.55;
-    g.fillStyle(cut, 0.72);
+    g.fillStyle(COLORS.bgField, 0.8);
     g.fillRect(px - half, py - half, half * 2, half * 2);
     g.lineStyle(Math.max(1.5, cell * 0.06), COLORS.marg, 0.9);
     dashedRect(g, px - half, py - half, half * 2, half * 2, cell * 0.18);
   }
 
   if (opts.wrecked) {
+    // A hulk: the mass goes solid and the cross is knocked out of it in
+    // paper. Burnt-out kit is the one thing of yours that stops being paper.
     const half = S * 0.55;
-    g.fillStyle(cut, 0.6);
+    g.fillStyle(COLORS.oliveDark, 0.94);
     g.fillRect(px - half, py - half, half * 2, half * 2);
-    g.lineStyle(Math.max(2, cell * 0.08), COLORS.alarm, 0.9);
+    g.lineStyle(Math.max(2, cell * 0.09), COLORS.bgField, 1);
     const m = half * 0.75;
     g.lineBetween(px - m, py - m, px + m, py + m);
     g.lineBetween(px + m, py - m, px - m, py + m);
@@ -593,26 +605,39 @@ export function drawAttackerGlyph(
   // the light one and the knockout is gone.
   const friendly = opts.friendly ?? false;
   const dark = opts.onDark ?? false;
-  const body = dark
-    ? friendly
-      ? COLORS.ink
-      : COLORS.crimson
-    : friendly
-      ? COLORS.oliveDark
-      : COLORS.crimsonDark;
-  const trim = dark
-    ? friendly
-      ? COLORS.inkDim
-      : COLORS.crimsonDark
-    : friendly
-      ? COLORS.olive
-      : COLORS.crimson;
-  /** The darkest note: tracks, wheels, a gun barrel. Flips with the rest. */
-  const shade = dark ? COLORS.inkDim : COLORS.oliveDark;
-  /** The knockout colour, or nothing at all when the ground is already dark. */
-  const knockout = (alpha = 0.9): boolean => {
-    if (dark) return false;
-    g.fillStyle(COLORS.paperWarm, alpha);
+  /**
+   * A unit is a COUNTER, and a counter is a token with a device knocked out
+   * of it — which is a different object from a structure, and gets a
+   * different treatment on purpose. A building is architecture drawn on the
+   * map: bare paper inside an ink keyline. A unit is a piece placed on it.
+   *
+   * So the pad carries the allegiance and the device is knocked out of the
+   * pad, which is what keeps a 26px counter readable where a 3px keyline
+   * round a 20px figure would close up and turn the whole thing into a blot.
+   * Theirs is the ink pad — still the darkest thing on the board, still the
+   * rule the page is built on.
+   */
+  const solid = !friendly && !dark;
+  /** The mass: solid ink if it is theirs, bare paper if it is yours. */
+  let body = solid ? COLORS.crimson : COLORS.bgField;
+  /** A secondary note — a helmet, a turret, a mantlet. Merged into a hostile
+   *  on purpose: theirs is a silhouette, and a light note inside one at 26px
+   *  turns the whole counter into a ring. */
+  let trim = solid ? COLORS.crimson : dark ? COLORS.inkDim : COLORS.olive;
+  /** Tracks, wheels, a gun barrel: the note that reads against the mass, so
+   *  it knocks out of theirs in paper and marks yours in ink. */
+  let shade = solid ? COLORS.bgField : COLORS.oliveDark;
+  /**
+   * The pad: v1.19's paper knockout, kept only for THEIRS.
+   *
+   * A solid ink silhouette needs a margin or it welds itself to a heavy tone
+   * screen, and the margins here were all sized for exactly that. Yours does
+   * not get one, because the keyline below already does the separating and a
+   * pad drawn after it would paint over it.
+   */
+  const knockout = (alpha = 1): boolean => {
+    if (!solid) return false;
+    g.fillStyle(COLORS.bgField, alpha);
     return true;
   };
   const u = cell / 32; // glyph unit: everything below is authored at CELL=32
@@ -742,236 +767,266 @@ export function drawAttackerGlyph(
     );
   };
 
-  switch (kind) {
-    // ---- a mob: several bodies, no drill --------------------------------
-    // Three small figures in a wedge. The count IS the identity — what a
-    // militia brings is numbers, and a single figure would say the opposite.
-    case 'militia':
-    case 'guardsman':
-    case 'conscript': {
-      halo(8);
-      facing(() => {
-        person(1.8, 0, 0.62, body);
-        person(-1.8, -2.8, 0.62, body);
-        person(-1.8, 2.8, 0.62, body);
-        if (kind === 'guardsman') {
-          // The one with a helmet and a weapon: China's line, not a crowd.
-          g.fillStyle(trim, 1);
-          g.fillCircle(2.1 * u, 0, 1.4 * u);
-        }
-      });
-      break;
-    }
-
-    // ---- line infantry: one soldier, rifle forward ----------------------
-    case 'rifle':
-    case 'ranger':
-    case 'motorrifle':
-    case 'nkrifle':
-    case 'peacekeeper': {
-      halo(8);
-      facing(() => {
-        person(0, 0, 1.15, kind === 'peacekeeper' ? COLORS.unBlue : trim);
-        carried(1.2, -2.4, 6.2);
-      });
-      break;
-    }
-
-    // ---- engineers: the soldier who carries the charge ------------------
-    // Same body, plus the satchel — in the tracer accent, because what this
-    // unit does to your wall is the reason it is on the board.
-    case 'sapper':
-    case 'engineer':
-    case 'demoteam':
-    case 'tunneler':
-    case 'unsapper': {
-      halo(8);
-      facing(() => {
-        person(0, 0, 1.15);
-        g.fillStyle(COLORS.tracer, 1);
-        g.fillRect(-1.2 * u, 2.4 * u, 3.6 * u, 2.8 * u);
-        if (kind === 'tunneler') {
-          // The mouth of the hole it came out of, behind it.
-          g.lineStyle(Math.max(1, 1.2 * u), body, 0.9);
-          g.strokeCircle(-5.6 * u, 0, 2.4 * u);
-        }
-      });
-      break;
-    }
-
-    // ---- anti-tank: the tube overhangs BOTH ways ------------------------
-    case 'grenadier':
-    case 'javelin':
-    case 'rpg':
-    case 'rpg7':
-    case 'nlaw': {
-      halo(9);
-      facing(() => {
-        person(0, 0, 1.15);
-        carried(1.2, -2.6, 6.4, 5.2, 1.8);
-      });
-      break;
-    }
-
-    // ---- the two that are a person before they are a job ----------------
-    case 'infiltrator': {
-      // Outline, not fill: this is the unit you are not supposed to see, and
-      // a hollow counter is the only one on the sheet.
-      halo(8);
-      facing(() => {
-        g.lineStyle(Math.max(1, 1.3 * u), COLORS.nkSlate, 1);
-        g.strokeRect(-2.4 * u, -3.9 * u, 4.8 * u, 7.8 * u);
-        g.strokeCircle(0.4 * u, 0, 2.4 * u);
-        carried(1.2, -2.4, 4.4, 0, 0.9);
-      });
-      break;
-    }
-    case 'unmedic': {
-      halo(8);
-      facing(() => {
-        person(0, 0, 1.15, COLORS.unBlue);
-        // The cross on the back, where a medic wears it — punched through the
-        // body, so it takes whatever the ground is.
-        g.fillStyle(dark ? COLORS.bgPanel : COLORS.paperWarm, 1);
-        g.fillRect(-2.4 * u, -0.7 * u, 4.8 * u, 1.4 * u);
-        g.fillRect(-1.4 * u, -2.4 * u, 1.4 * u, 4.8 * u);
-      });
-      break;
-    }
-
-    // ---- wheels: a truck, and it has to look like one -------------------
-    case 'humvee':
-    case 'zbd':
-    case 'btr':
-    case 'vab': {
-      haloBox(19, 13);
-      facing(() => {
-        hull(16, 9);
-        wheels(16, 9);
-        // Cab lighter than the box behind it, so the nose reads.
-        g.fillStyle(trim, 1);
-        g.fillRect(3.2 * u, -3.4 * u, 4.2 * u, 6.8 * u);
-        // The mount on the roof: these all carry something.
-        g.fillStyle(shade, 1);
-        g.fillCircle(-1.4 * u, 0, 2.2 * u);
-      });
-      break;
-    }
-
-    // ---- tracks, turret, barrel: a tank from directly above -------------
-    case 'abrams':
-    case 'type99':
-    case 't72':
-    case 'chonma':
-    case 'leo1': {
-      haloBox(26, 17);
-      facing(() => {
-        hull(21, 12);
-        tracks(21, 12);
-        // Turret set BACK of centre and the barrel long and forward: the
-        // proportion is the whole silhouette, and the old glyph had a stub.
-        g.fillStyle(trim, 1);
-        g.fillCircle(-1.6 * u, 0, 4.4 * u);
-        g.fillStyle(shade, 1);
-        g.fillRect(-1.6 * u, -1.1 * u, 13 * u, 2.2 * u);
-      });
-      break;
-    }
-
-    // ---- rotors: fuselage, tail boom, tail rotor ------------------------
-    case 'wz10':
-    case 'ka52':
-    case 'nh90': {
-      facing(() => {
-        // The paper hugs the FUSELAGE. A knockout big enough to hold the rotor
-        // is a cream disc two cells across, and the counter reads as a
-        // lollipop — which is exactly what the old set drew. A rotor is a blur
-        // and is allowed to be one, over terrain.
-        if (knockout()) g.fillRect(-12.6 * u, -3.4 * u, 20 * u, 6.8 * u);
-        // Tail boom and rotor, drawn before the fuselage so it sits on top.
-        g.fillStyle(body, 1);
-        g.fillRect(-11 * u, -1.1 * u, 7 * u, 2.2 * u);
-        g.fillStyle(trim, 1);
-        g.fillRect(-11.8 * u, -3.4 * u, 1.8 * u, 6.8 * u);
-        hull(11, 5);
-        // Nose, so the thing has a direction at a glance.
-        g.fillStyle(trim, 1);
-        g.fillRect(3.4 * u, -1.8 * u, 2.6 * u, 3.6 * u);
-        if (kind === 'ka52') {
-          // Coaxial: two discs, the one thing about a Ka-52 anybody can pick
-          // out of a line-up.
-          rotor(7);
-          rotor(10.4);
-        } else {
-          rotor(10.4);
-        }
-      });
-      break;
-    }
-
-    // ---- fixed wing: no rotor, and the wings say which -------------------
-    case 'reaper': {
-      // A drone: very long thin wings, slim body, V-tail.
-      facing(() => {
-        // Fuselage-width paper only; the wings are solid enough to read over
-        // contours without a card behind them.
-        if (knockout()) g.fillRect(-8.6 * u, -2.6 * u, 17 * u, 5.2 * u);
-        wings(-0.5, 10.5, 2.2, 1.2);
-        hull(15, 2.6);
-        g.fillStyle(trim, 1);
-        g.fillPoints(
-          [
-            { x: -6 * u, y: 0 },
-            { x: -8.4 * u, y: -3.4 * u },
-            { x: -7 * u, y: -3.4 * u },
-          ],
-          true,
-        );
-        g.fillPoints(
-          [
-            { x: -6 * u, y: 0 },
-            { x: -8.4 * u, y: 3.4 * u },
-            { x: -7 * u, y: 3.4 * u },
-          ],
-          true,
-        );
-      });
-      break;
-    }
-    case 'an2': {
-      // A biplane, because that is exactly what it is: two stacked wings,
-      // offset, and a stubby body. Nothing else on the sheet looks like it.
-      facing(() => {
-        if (knockout()) g.fillRect(-8 * u, -3 * u, 15 * u, 6 * u);
-        wings(1.6, 8.6, 2.6);
-        wings(-2.2, 7.6, 2.4);
-        hull(13, 3.4);
-        g.fillStyle(trim, 1);
-        g.fillRect(-7.6 * u, -3.2 * u, 1.8 * u, 6.4 * u); // tailplane
-      });
-      break;
-    }
-
-    default: {
-      // Unknown kinds (test/sandbox content): breakers as diamonds, the
-      // rest as discs, so a sandbox still reads correctly.
-      halo(7);
-      if ((opts.wallDps ?? 0) > 20) {
-        g.fillStyle(body, 1);
-        g.fillPoints(
-          [
-            { x: px, y: py - 6.5 * u },
-            { x: px + 6.5 * u, y: py },
-            { x: px, y: py + 6.5 * u },
-            { x: px - 6.5 * u, y: py },
-          ],
-          true,
-        );
-      } else {
-        g.fillStyle(body, 1);
-        g.fillCircle(px, py, 5.5 * u);
+  const paint = (): void => {
+    switch (kind) {
+      // ---- a mob: several bodies, no drill --------------------------------
+      // Three small figures in a wedge. The count IS the identity — what a
+      // militia brings is numbers, and a single figure would say the opposite.
+      case 'militia':
+      case 'guardsman':
+      case 'conscript': {
+        halo(8);
+        facing(() => {
+          person(1.8, 0, 0.62, body);
+          person(-1.8, -2.8, 0.62, body);
+          person(-1.8, 2.8, 0.62, body);
+          if (kind === 'guardsman') {
+            // The one with a helmet and a weapon: China's line, not a crowd.
+            g.fillStyle(trim, 1);
+            g.fillCircle(2.1 * u, 0, 1.4 * u);
+          }
+        });
+        break;
       }
-      break;
+
+      // ---- line infantry: one soldier, rifle forward ----------------------
+      case 'rifle':
+      case 'ranger':
+      case 'motorrifle':
+      case 'nkrifle':
+      case 'peacekeeper': {
+        halo(8);
+        facing(() => {
+          person(0, 0, 1.15, kind === 'peacekeeper' ? COLORS.unBlue : trim);
+          carried(1.2, -2.4, 6.2);
+        });
+        break;
+      }
+
+      // ---- engineers: the soldier who carries the charge ------------------
+      // Same body, plus the satchel — in the tracer accent, because what this
+      // unit does to your wall is the reason it is on the board.
+      case 'sapper':
+      case 'engineer':
+      case 'demoteam':
+      case 'tunneler':
+      case 'unsapper': {
+        halo(8);
+        facing(() => {
+          person(0, 0, 1.15);
+          g.fillStyle(COLORS.tracer, 1);
+          g.fillRect(-1.2 * u, 2.4 * u, 3.6 * u, 2.8 * u);
+          if (kind === 'tunneler') {
+            // The mouth of the hole it came out of, behind it.
+            g.lineStyle(Math.max(1, 1.2 * u), body, 0.9);
+            g.strokeCircle(-5.6 * u, 0, 2.4 * u);
+          }
+        });
+        break;
+      }
+
+      // ---- anti-tank: the tube overhangs BOTH ways ------------------------
+      case 'grenadier':
+      case 'javelin':
+      case 'rpg':
+      case 'rpg7':
+      case 'nlaw': {
+        halo(9);
+        facing(() => {
+          person(0, 0, 1.15);
+          carried(1.2, -2.6, 6.4, 5.2, 1.8);
+        });
+        break;
+      }
+
+      // ---- the two that are a person before they are a job ----------------
+      case 'infiltrator': {
+        // Outline, not fill: this is the unit you are not supposed to see, and
+        // a hollow counter is the only one on the sheet.
+        halo(8);
+        facing(() => {
+          g.lineStyle(Math.max(1, 1.3 * u), COLORS.nkSlate, 1);
+          g.strokeRect(-2.4 * u, -3.9 * u, 4.8 * u, 7.8 * u);
+          g.strokeCircle(0.4 * u, 0, 2.4 * u);
+          carried(1.2, -2.4, 4.4, 0, 0.9);
+        });
+        break;
+      }
+      case 'unmedic': {
+        halo(8);
+        facing(() => {
+          person(0, 0, 1.15, COLORS.unBlue);
+          // The cross on the back, where a medic wears it — punched through the
+          // body, so it takes whatever the ground is.
+          g.fillStyle(dark ? COLORS.bgPanel : COLORS.paperWarm, 1);
+          g.fillRect(-2.4 * u, -0.7 * u, 4.8 * u, 1.4 * u);
+          g.fillRect(-1.4 * u, -2.4 * u, 1.4 * u, 4.8 * u);
+        });
+        break;
+      }
+
+      // ---- wheels: a truck, and it has to look like one -------------------
+      case 'humvee':
+      case 'zbd':
+      case 'btr':
+      case 'vab': {
+        haloBox(19, 13);
+        facing(() => {
+          hull(16, 9);
+          wheels(16, 9);
+          // Cab lighter than the box behind it, so the nose reads.
+          g.fillStyle(trim, 1);
+          g.fillRect(3.2 * u, -3.4 * u, 4.2 * u, 6.8 * u);
+          // The mount on the roof: these all carry something.
+          g.fillStyle(shade, 1);
+          g.fillCircle(-1.4 * u, 0, 2.2 * u);
+        });
+        break;
+      }
+
+      // ---- tracks, turret, barrel: a tank from directly above -------------
+      case 'abrams':
+      case 'type99':
+      case 't72':
+      case 'chonma':
+      case 'leo1': {
+        haloBox(26, 17);
+        facing(() => {
+          hull(21, 12);
+          tracks(21, 12);
+          // Turret set BACK of centre and the barrel long and forward: the
+          // proportion is the whole silhouette, and the old glyph had a stub.
+          g.fillStyle(trim, 1);
+          g.fillCircle(-1.6 * u, 0, 4.4 * u);
+          g.fillStyle(shade, 1);
+          g.fillRect(-1.6 * u, -1.1 * u, 13 * u, 2.2 * u);
+        });
+        break;
+      }
+
+      // ---- rotors: fuselage, tail boom, tail rotor ------------------------
+      case 'wz10':
+      case 'ka52':
+      case 'nh90': {
+        facing(() => {
+          // The paper hugs the FUSELAGE. A knockout big enough to hold the rotor
+          // is a cream disc two cells across, and the counter reads as a
+          // lollipop — which is exactly what the old set drew. A rotor is a blur
+          // and is allowed to be one, over terrain.
+          if (knockout()) g.fillRect(-12.6 * u, -3.4 * u, 20 * u, 6.8 * u);
+          // Tail boom and rotor, drawn before the fuselage so it sits on top.
+          g.fillStyle(body, 1);
+          g.fillRect(-11 * u, -1.1 * u, 7 * u, 2.2 * u);
+          g.fillStyle(trim, 1);
+          g.fillRect(-11.8 * u, -3.4 * u, 1.8 * u, 6.8 * u);
+          hull(11, 5);
+          // Nose, so the thing has a direction at a glance.
+          g.fillStyle(trim, 1);
+          g.fillRect(3.4 * u, -1.8 * u, 2.6 * u, 3.6 * u);
+          if (kind === 'ka52') {
+            // Coaxial: two discs, the one thing about a Ka-52 anybody can pick
+            // out of a line-up.
+            rotor(7);
+            rotor(10.4);
+          } else {
+            rotor(10.4);
+          }
+        });
+        break;
+      }
+
+      // ---- fixed wing: no rotor, and the wings say which -------------------
+      case 'reaper': {
+        // A drone: very long thin wings, slim body, V-tail.
+        facing(() => {
+          // Fuselage-width paper only; the wings are solid enough to read over
+          // contours without a card behind them.
+          if (knockout()) g.fillRect(-8.6 * u, -2.6 * u, 17 * u, 5.2 * u);
+          wings(-0.5, 10.5, 2.2, 1.2);
+          hull(15, 2.6);
+          g.fillStyle(trim, 1);
+          g.fillPoints(
+            [
+              { x: -6 * u, y: 0 },
+              { x: -8.4 * u, y: -3.4 * u },
+              { x: -7 * u, y: -3.4 * u },
+            ],
+            true,
+          );
+          g.fillPoints(
+            [
+              { x: -6 * u, y: 0 },
+              { x: -8.4 * u, y: 3.4 * u },
+              { x: -7 * u, y: 3.4 * u },
+            ],
+            true,
+          );
+        });
+        break;
+      }
+      case 'an2': {
+        // A biplane, because that is exactly what it is: two stacked wings,
+        // offset, and a stubby body. Nothing else on the sheet looks like it.
+        facing(() => {
+          if (knockout()) g.fillRect(-8 * u, -3 * u, 15 * u, 6 * u);
+          wings(1.6, 8.6, 2.6);
+          wings(-2.2, 7.6, 2.4);
+          hull(13, 3.4);
+          g.fillStyle(trim, 1);
+          g.fillRect(-7.6 * u, -3.2 * u, 1.8 * u, 6.4 * u); // tailplane
+        });
+        break;
+      }
+
+      default: {
+        // Unknown kinds (test/sandbox content): breakers as diamonds, the
+        // rest as discs, so a sandbox still reads correctly.
+        halo(7);
+        if ((opts.wallDps ?? 0) > 20) {
+          g.fillStyle(body, 1);
+          g.fillPoints(
+            [
+              { x: px, y: py - 6.5 * u },
+              { x: px + 6.5 * u, y: py },
+              { x: px, y: py + 6.5 * u },
+              { x: px - 6.5 * u, y: py },
+            ],
+            true,
+          );
+        } else {
+          g.fillStyle(body, 1);
+          g.fillCircle(px, py, 5.5 * u);
+        }
+        break;
+      }
     }
+  };
+
+  // ---- the keyline ------------------------------------------------------
+  //
+  // Yours is bare paper inside an ink line; theirs is solid ink. Drawing that
+  // line per shape would mean an outline for all thirty-four silhouettes and
+  // each of the nine primitives they share, so the whole figure is painted in
+  // ink eight times around the real one instead. For a closed silhouette the
+  // two are equivalent, and this one survives any shape added later for free.
+  if (!dark && !solid) {
+    const realBody = body;
+    const realTrim = trim;
+    const realShade = shade;
+    body = COLORS.oliveDark;
+    trim = COLORS.oliveDark;
+    shade = COLORS.oliveDark;
+    const k = Math.max(1.25, cell * 0.05);
+    for (let a = 0; a < 8; a++) {
+      const t = (a * Math.PI) / 4;
+      g.save();
+      g.translateCanvas(Math.cos(t) * k, Math.sin(t) * k);
+      paint();
+      g.restore();
+    }
+    body = realBody;
+    trim = realTrim;
+    shade = realShade;
   }
+  paint();
 }

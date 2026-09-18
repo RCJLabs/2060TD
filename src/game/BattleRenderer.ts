@@ -49,9 +49,9 @@ export class BattleRenderer {
   private readonly cell: number;
   private readonly container: Phaser.GameObjects.Container | undefined;
   private readonly hostileStructures: boolean;
-  /** The baked topographic sheet. The world container owns it, so scene
-   *  shutdown frees the texture with everything else. */
-  private sheet: Phaser.GameObjects.RenderTexture | null = null;
+  /** The baked page. The world container owns it, and `makeSheet` wires the
+   *  canvas texture's release to this object's destroy. */
+  private sheet: Phaser.GameObjects.Image | null = null;
   private readonly staticLayer: Phaser.GameObjects.Graphics;
   private readonly dynLayer: Phaser.GameObjects.Graphics;
   private effects: Effect[] = [];
@@ -94,7 +94,7 @@ export class BattleRenderer {
       terrain: this.engine.terrain,
       spawnColumn: this.engine.config.spawnColumn,
     });
-    this.container?.addAt(this.sheet, 0);
+    if (this.sheet) this.container?.addAt(this.sheet, 0);
 
     // Tunnel mouths (reserved cells): the enemy owns this ground.
     for (const cell of this.engine.config.reservedCells ?? []) {

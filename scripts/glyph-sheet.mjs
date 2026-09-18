@@ -128,38 +128,40 @@ try {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = css(COLORS.marg);
     ctx.font = 'bold 15px monospace';
-    ctx.fillText(`2060TD — ${KINDS.length} attacker silhouettes at row 46 / board 32 / card 105 px`, 12, 26);
+    ctx.fillText(
+      `2060TD — ${KINDS.length} silhouettes at row 46 / board 32 / card 105 px — TOP yours, BOTTOM theirs`,
+      12,
+      26,
+    );
 
-    // Half the sheet on the map ground, half on the drawer's dark panel: the
-    // same counter has to read on both, and a knockout tuned for one is
-    // usually wrong for the other.
-    ctx.fillStyle = css(COLORS.bgPanel);
-    ctx.fillRect(0, 44 + Math.ceil(KINDS.length / COLS / 2) * CH, canvas.width, canvas.height);
+    // The two halves used to be map-ground and drawer-panel, because the
+    // drawer was dark and a knockout tuned for paper was wrong on it. The
+    // drawer is paper now, so that comparison is gone and a more useful one
+    // takes its place: the SAME counter as yours and as theirs, on the same
+    // ground. A pad carries the allegiance in the ink direction, so the two
+    // have to be told apart at row size or the channel does not work.
 
     KINDS.forEach((kind, i) => {
       const cx = (i % COLS) * CW;
       const cy = Math.floor(i / COLS) * CH + 44;
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = 'rgba(90,83,70,0.35)';
+      ctx.strokeStyle = 'rgba(17,17,17,0.3)';
       ctx.lineWidth = 1;
       ctx.strokeRect(cx + 0.5, cy + 0.5, CW - 1, CH - 1);
-      const onPanel = cy >= 44 + Math.ceil(KINDS.length / COLS / 2) * CH;
+      const theirs = cy >= 44 + Math.ceil(KINDS.length / COLS / 2) * CH;
       let x = cx + 22;
       for (const cell of SIZES) {
         ctx.save();
         drawAttackerGlyph(shim(ctx), kind, x, cy + 66, cell, {
-          friendly: true,
+          friendly: !theirs,
           facing: 0,
           wallDps: 0,
-          onDark: onPanel,
         });
         ctx.restore();
         x += cell * 0.75 + 20;
       }
       ctx.globalAlpha = 1;
-      ctx.fillStyle = css(
-        cy >= 44 + Math.ceil(KINDS.length / COLS / 2) * CH ? COLORS.inkDim : COLORS.marg,
-      );
+      ctx.fillStyle = css(COLORS.marg);
       ctx.font = '12px monospace';
       ctx.fillText(kind, cx + 8, cy + CH - 10);
     });

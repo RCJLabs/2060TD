@@ -1,107 +1,130 @@
 /**
- * The map-table palette (GDD §6.1): a buff topographic sheet laid on a dark
- * table, with your defences drawn onto it in ink.
+ * The ink palette (GDD 6.1): a black-and-white graphic novel page, shaded
+ * with screentone, with exactly one colour on it.
  *
- * The whole direction rests on one measured rule, and it is about AREA rather
- * than value alone:
+ * This replaces the buff topographic sheet of v1.19. That direction used hue
+ * to carry meaning — green woodland, blue water, olive structures, crimson
+ * hostiles — and spent its whole value budget doing it, which is why the
+ * silhouettes needed a paper knockout to survive being drawn on top of it.
  *
- *   Ground that covers area — paper, road, water, woodland — sits between
- *   L* 63 and 83. Everything you own that covers area sits between L* 21 and
- *   35. Nothing occupies the gap, which is why a silhouette reads instantly
- *   over the busiest part of the sheet.
+ * The ink direction spends nothing on hue and gets a far bigger separation
+ * for it. There are five values and one accent:
  *
- * Ground MARKS are allowed to go darker (the index contour is L* 46), because
- * a hairline covering no area cannot compete with a filled shape. Alarm
- * accents are the deliberate exception: the tracer sits at L* 76, squarely
- * inside the ground band, and is unmissable anyway because it earns its read
- * from hue and a paper knockout rather than from lightness.
+ *   PAPER   #ffffff   the ground, and everything you own
+ *   TONE    a dot screen, four densities, laid ON the paper (see tone.ts)
+ *   GREY    #808080   disabled, and nothing else
+ *   INK     #111111   every line, and everything hostile, filled solid
+ *   ALARM   #e0243c   three or four marks a screen, never decoration
  *
- * The UI is not on the sheet. Panels, buttons and text stay dark — they are
- * the table the map is lying on, which is why `bgPanel` and `ink` did not
- * move when the board did.
+ * The rule that makes it read, and it is about AREA rather than value:
  *
- * Mutable on purpose: the colorblind-safe mode swaps the hostile family at
+ *   Ground covers area and is never darker than a tone screen, so it is
+ *   always at least 60% paper by area. Anything hostile covers area and is
+ *   SOLID INK. Anything you own covers area and is BARE PAPER inside an ink
+ *   keyline. Nothing on the board is a mid grey, so nothing on the board is
+ *   ambiguous, and a phone at 40% brightness in sunlight loses none of it.
+ *
+ * Grey is reserved. It means "you cannot do this" and appears nowhere on the
+ * board at all — which is why a disabled row is legible as disabled without
+ * reading a word of it.
+ *
+ * The UI is ON the page now, not beside it. v1.19 kept panels dark because
+ * the board was paper and the UI was "the table it was lying on"; a comic
+ * has no table, so `bgPanel` is paper and `ink` is ink, and the rail is
+ * drawn as panels at the same line weight as the board.
+ *
+ * Mutable on purpose: the colorblind-safe mode swaps the accent at
  * boot/toggle (scenes read COLORS at draw time, so a restart repaints all).
  */
 export const COLORS = {
-  // ---- the sheet ----------------------------------------------------------
-  /** Sheet ground. Everything else is measured against it. L* 83. */
-  bgField: 0xd9cdb4,
-  /** A shade up from the paper: knockout halos and the inside of a gate. */
-  paperWarm: 0xe2d8c2,
-  /** Every 10 m, hairline. L* 57. */
-  contour: 0xa88253,
-  /** Every 50 m, heavier, carries its figure. Dark, but a hairline. L* 46. */
-  contourIndex: 0x8a6538,
-  /** Watercourse. Lightened and desaturated after the first pass shouted. */
-  water: 0x93aaba,
-  /** The bank line under the water ribbon. */
-  waterDeep: 0x6e8c9e,
-  /** Woodland tint, laid at low alpha over the paper. */
-  wood: 0x8ca06a,
-  /** Canopy stipple, scattered inside the wood mask. */
-  woodEdge: 0x6f8050,
-  /** Road casing — the brightest thing on the ground, and still not an accent. */
-  roadCase: 0xf0eadb,
-  /** Road fill. */
-  roadFill: 0xc9bfa6,
+  // ---- the page -----------------------------------------------------------
+  /** The paper. Everything else is measured against it. */
+  bgField: 0xffffff,
+  /** Knockout: the inside of a gate, the halo behind a figure on tone. */
+  paperWarm: 0xffffff,
+  /** Every 10 m, hairline. Ink, but a hairline covers no area. */
+  contour: 0x111111,
+  /** Every 50 m, heavier, carries its figure. */
+  contourIndex: 0x111111,
+  /** Watercourse. Drawn as a cross-hatch screen; this is its bank line. */
+  water: 0x111111,
+  waterDeep: 0x111111,
+  /** Woodland. Drawn as a diagonal hatch screen; this is its edge. */
+  wood: 0x111111,
+  woodEdge: 0x111111,
+  /** Road casing — the line that keeps bare paper from bleeding into tone. */
+  roadCase: 0x111111,
+  /** Road fill. The fastest ground there is, and the brightest. */
+  roadFill: 0xffffff,
   /** Kilometre grid. Present, never counted. */
-  gridLine: 0x7c7a6e,
+  gridLine: 0x111111,
   /** Marginalia: sheet name, scale bar, grid references, contour figures. */
-  marg: 0x5a5346,
+  marg: 0x111111,
 
   // ---- what you own -------------------------------------------------------
-  /** Structure ink. The darkest thing on the board. L* 21. */
-  oliveDark: 0x2e3626,
-  /** Structure ink, one step up — panels and detail inside a silhouette. */
-  olive: 0x3e4a32,
+  /**
+   * Structure ink. This is the KEYLINE, not the fill: a building of yours is
+   * bare paper with this drawn round it. See `glyphs.ts`.
+   */
+  oliveDark: 0x111111,
+  /** Detail inside a silhouette — a roof panel, a hatch. Light tone. */
+  olive: 0xc9c9c9,
   /** Wall line. */
-  sandDark: 0x39422f,
-  /** Hesco: the lightest thing you own, and still darker than any ground. L* 35. */
-  sand: 0x4b563c,
+  sandDark: 0x111111,
+  /** Hesco fill. Still paper-side of the divide. */
+  sand: 0xc9c9c9,
   /** Neutral machinery. */
-  steel: 0x4a5560,
+  steel: 0xc9c9c9,
 
   // ---- the other side -----------------------------------------------------
-  crimson: 0x7a2b24,
-  crimsonDark: 0x5a1e19,
-
-  // ---- accents, and the table the sheet lies on ---------------------------
-  alarm: 0xc0392b,
-  signal: 0xd35400,
-  intel: 0x4a7fa5,
-  tracer: 0xe8b44a,
-  tracerKinetic: 0xffe28a,
-  tracerExplosive: 0xff9a5c,
-  /** UI panel ground. Not on the sheet — this is the table. */
-  bgPanel: 0x20241f,
   /**
-   * A control's resting face: buttons, panel rows, the tab bar.
-   *
-   * This used to be `bgField`, back when the board and the UI were the same
-   * dark colour. They are not any more — the board is paper and the UI is the
-   * table it lies on — so a control needs its own token, or every row in the
-   * drawer comes out paper-coloured with pale text on it.
+   * Hostile. Solid ink, filled — the darkest thing on the page and the only
+   * thing besides a keyline allowed to be. It used to be crimson, and the
+   * name survives the direction change because forty call sites read it.
    */
-  bgControl: 0x2a2f28,
-  /** UI text, on those dark panels. */
-  ink: 0xd8d5c7,
-  inkDim: 0x8a8878,
+  crimson: 0x111111,
+  crimsonDark: 0x111111,
+
+  // ---- the one colour -----------------------------------------------------
+  alarm: 0xe0243c,
+  signal: 0xe0243c,
+  intel: 0x111111,
+  tracer: 0xe0243c,
+  tracerKinetic: 0x111111,
+  tracerExplosive: 0xe0243c,
+
+  // ---- the page, again: the UI is drawn on it -----------------------------
+  /** Panel ground. Paper, because the rail is a panel on the same page. */
+  bgPanel: 0xffffff,
+  /** A control's resting face: buttons, panel rows, the tab bar. */
+  bgControl: 0xffffff,
+  /** UI text. */
+  ink: 0x111111,
+  /** Disabled, and nothing else. Never appears on the board. */
+  inkDim: 0x808080,
 
   // ---- faction cameos -----------------------------------------------------
-  nkSlate: 0x4a535c,
-  ruRust: 0x6b4520,
-  unBlue: 0x3f6bab,
+  // Five armies told apart by tone density rather than hue — see the faction
+  // strip in the approved mockup. These are the flat stand-ins the UI uses
+  // where a single fill is all there is room for.
+  nkSlate: 0x808080,
+  ruRust: 0x555555,
+  unBlue: 0xc9c9c9,
 };
 
-const HOSTILE_DEFAULT = { crimson: 0x7a2b24, crimsonDark: 0x5a1e19 };
-/** Violet separates from olive on the blue channel — readable for red-green
- * color vision deficiency, where crimson-vs-olive collapses to brown. */
-const HOSTILE_COLORBLIND = { crimson: 0x5b3d86, crimsonDark: 0x3f2a5e };
+const ACCENT_DEFAULT = { alarm: 0xe0243c, signal: 0xe0243c, tracer: 0xe0243c, tracerExplosive: 0xe0243c };
+/**
+ * The ink direction is very nearly colorblind-safe by construction: the whole
+ * board is black, white and a dot screen, and the ONE hue is a mark rather
+ * than a fill. The toggle still earns its place, because a deuteranope
+ * reading that mark against ink on paper has only luminance to go on. Blue
+ * separates from both ends of the page on a channel every deficiency keeps.
+ */
+const ACCENT_COLORBLIND = { alarm: 0x1b6ec2, signal: 0x1b6ec2, tracer: 0x1b6ec2, tracerExplosive: 0x1b6ec2 };
 
-/** Swap the hostile color family (colorblind-safe accents). */
+/** Swap the accent (colorblind-safe mode). */
 export function applyPalette(colorblind: boolean): void {
-  Object.assign(COLORS, colorblind ? HOSTILE_COLORBLIND : HOSTILE_DEFAULT);
+  Object.assign(COLORS, colorblind ? ACCENT_COLORBLIND : ACCENT_DEFAULT);
 }
 
 /** CSS hex string for a palette color (for text styles and DOM). */
