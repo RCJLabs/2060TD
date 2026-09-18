@@ -25,12 +25,21 @@
 import type Phaser from 'phaser';
 
 /**
- * Opacity over an effect's life: full ink, then a late cut.
+ * Opacity over an effect's life: full ink, then a cut.
  *
- * `t` is 0 at birth and 1 at death. Holds 1 until two thirds through.
+ * `t` is 0 at birth and 1 at death. The first version held to two thirds and
+ * then ramped over the remaining third, which sounded like a cut and was not:
+ * on a 0.9s burst that is 300ms spent between black and nothing, and ink at
+ * any alpha in between is the mid grey this palette does not have. Caught in
+ * a magnified frame — focus lines and lettering both sitting at about 30%,
+ * which is exactly the value the whole direction refuses.
+ *
+ * So the hold runs to 0.88 and the ramp is 0.12 of the life: about seven
+ * frames on the longest effect, short enough that the grey never registers,
+ * long enough that nothing pops out of existence between two frames.
  */
 export function punch(t: number): number {
-  return t < 0.66 ? 1 : Math.max(0, 1 - (t - 0.66) / 0.34);
+  return t < 0.88 ? 1 : Math.max(0, 1 - (t - 0.88) / 0.12);
 }
 
 /** A stable pseudo-phase for a point, so a burst does not boil. */

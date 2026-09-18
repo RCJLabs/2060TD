@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.37, in the browser. No install, no account, works on a phone.
+v1.38, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,33 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.37: the display face
+## Current state — v1.38: the breach is worth a panel
+
+A comic does not draw an explosion, it **letters** one, and that was the most
+recognisable thing the direction was still missing. Three families of sound
+word — a breach, a building going, a shell landing — outlined in the display
+face, tilted, popping past their size and settling back. They live in the world
+container, so they pan and zoom with the board: drawn on the page, not on the
+screen.
+
+Heavy events also lasted long enough to read now (a breach went from 0.4s to
+0.7s), and armour trails speed lines, gated on **measured movement** rather than
+on a unit kind — a rifleman and a tank differ by how far they get in a tick, so
+the threshold picks out vehicles without this layer knowing a roster.
+
+And `punch()` turned out to be a comment rather than a curve. It was written to
+hold ink at full value and then cut, because ink at any alpha in between is the
+mid grey this whole direction refuses; what it did was ramp over the last third
+of the life — 300ms of grey on a heavy impact. Obvious the moment a frame was
+magnified, invisible at page scale for two releases.
+
+Which needed an instrument. Everything here exists for under a second, and
+`npm run screenshot` fires at a fixed wall-clock time, so verifying meant
+shooting blind and hoping. **`npm run catch`** samples a running battle and
+keeps only the frames where the on-screen text matches a pattern, off the same
+seam the E2E harnesses use. It found the grey ramp on its first run.
+
+## v1.37: the display face
 
 The game read like a terminal until this landed, and now it reads like a page.
 Two faces, and the split between them is the whole type system: **Barlow
@@ -1341,6 +1367,10 @@ npm run sheet      # the contact sheet: every attacker silhouette side by side,
 npm run zoom -- screenshots/demo.png out.png 150 440 90 60 10
                    # magnify a region, nearest-neighbour. Art bugs live at
                    # counter scale and are invisible at page scale
+npm run catch -- "KRRAK|WHUMP|BLAM"
+                   # sample a live battle, keep only the frames where the game
+                   # is saying something matching. For anything too brief to
+                   # catch on a timer
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA

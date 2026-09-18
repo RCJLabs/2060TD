@@ -551,3 +551,25 @@ here with the change and its date.
   that only incidentally triggers it, the fixture is the test, and it will
   keep reporting green through the first real regression that shortens the
   input.
+- 2026-09-18 — **"It cuts rather than fades" was a comment, not a curve.**
+  `punch()` was written to keep an effect at full ink and then cut, because
+  ink at any alpha between black and nothing is the mid grey the whole
+  direction refuses. What it actually did was hold for two thirds of the life
+  and ramp over the remaining third — 300ms of grey on a heavy impact, which
+  is not a cut by any reading. It survived because at page scale a dying
+  effect is small and nobody looks at it; it was obvious the moment a frame
+  was magnified, with the focus lines and the lettering both sitting at about
+  30%. The hold runs to 0.88 now and the ramp is 0.12. The general form: a
+  constant that encodes an intention should be checked against the intention,
+  because the name in the comment will keep being true long after the number
+  stops being.
+- 2026-09-18 — **A moment that lasts half a second needs an instrument, not a
+  screenshot.** Everything the ink pass added to combat — lettering, focus
+  lines, speed lines — exists only while something is being destroyed, and
+  `npm run screenshot` fires at a fixed wall-clock time. Verifying meant
+  shooting blind and hoping. `npm run catch` samples a running battle and
+  keeps only the frames where the on-screen text matches a pattern, off the
+  same `lastline.texts()` seam the E2E harnesses already use. It found the
+  grey ramp above on its first run. The pattern generalises past this project:
+  when a thing is too brief to catch on a timer, the harness should catch it
+  on a PREDICATE.

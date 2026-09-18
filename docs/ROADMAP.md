@@ -2612,7 +2612,7 @@ paper by area and the value budget is free for the things that matter.
 - [x] **Phase 3 — the page.** The rail stops being the table the map lies on and
       becomes a panel on the same page. Three control states and no more:
       knockout, disabled, resting.
-- [ ] **Phase 4 — the kinetics.** Radial focus lines converging on a breach, speed
+- [x] **Phase 4 — the kinetics.** Radial focus lines converging on a breach, speed
       lines behind moving armour, an outlined starburst with an alarm core. What
       a particle system would do, done the way the page does it.
 - [x] **Phase 5 — verify and ship.** Screenshots read back as images at phone and
@@ -2628,6 +2628,17 @@ paper by area and the value budget is free for the things that matter.
       data URIs, so the PWA is still offline and the single file still fetches
       nothing — and the inliner grew an assertion for that, because it had just
       silently stopped being true.
+- [x] **Phase 8 — the breach is worth a panel.** A comic does not draw an
+      explosion, it LETTERS one, and that was the most recognisable thing the
+      direction was still missing. Three families of sound word — a breach, a
+      building going, a shell landing — pooled into the world container so they
+      pan and zoom with the board. Heavy events got long enough to read (0.4s to
+      0.7s), armour got speed lines gated on measured movement rather than on a
+      unit kind, and `punch()` got a real cut: it had been ramping ink to nothing
+      over a third of its life, which is 300ms spent at exactly the mid grey this
+      palette refuses. Found in a magnified frame, which needed an instrument —
+      `npm run catch` keeps only the frames where the game is saying something
+      that matches a pattern.
 
 ---
 

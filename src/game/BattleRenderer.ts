@@ -5,19 +5,50 @@ import { audio } from './audio';
 import { drawAttackerGlyph, drawStructureGlyph, drawWallGlyph, wallJoins } from './glyphs';
 import { makeSheet } from './ground';
 import { focusLines, phaseAt, punch, speedLines, starPoints } from './kinetics';
-import { COLORS } from './palette';
+import { COLORS, css } from './palette';
+import { DISPLAY_FAMILY } from './ui';
 
 interface Effect {
-  kind: 'tracer' | 'boom' | 'wallBoom' | 'structBoom' | 'aoe' | 'strafe' | 'reticle' | 'flash';
+  kind:
+    | 'tracer'
+    | 'boom'
+    | 'wallBoom'
+    | 'structBoom'
+    | 'aoe'
+    | 'strafe'
+    | 'reticle'
+    | 'flash'
+    | 'shout';
   x: number;
   y: number;
   x2?: number;
   y2?: number;
   radius?: number;
   color?: number;
+  /** Lettering: the word, and the pool slot drawing it. */
+  word?: string;
+  size?: number;
   age: number;
   life: number;
 }
+
+/**
+ * What the page shouts, and at what.
+ *
+ * A comic does not draw an explosion, it LETTERS one — and this direction was
+ * missing the single most recognisable thing it does. One word per event
+ * kind, picked deterministically from where it happened so a hit keeps the
+ * same word for as long as it is on screen.
+ *
+ * Kept to three families on purpose: a breach, a building going, and a shell
+ * landing are the three things in a siege worth interrupting the page for. A
+ * word on every rifle shot would be noise with an outline round it.
+ */
+const SHOUTS: Record<string, readonly string[]> = {
+  wallBoom: ['KRRAK', 'SHRAAK', 'KRAKK'],
+  structBoom: ['WHUMP', 'KRUMPH', 'DOOM'],
+  aoe: ['WHAM', 'BLAM', 'KRUMP'],
+};
 
 /** How high the air layer rides above its own shadow, in world px. */
 const AIR_LIFT = 15;
@@ -60,6 +91,8 @@ export class BattleRenderer {
   private readonly barrelDirs = new Map<number, number>();
   /** Last movement heading per attacker id — vehicles keep facing when halted. */
   private readonly facings = new Map<number, number>();
+  /** Pooled lettering. Lives in the world container, so it pans and zooms. */
+  private readonly shouts: Phaser.GameObjects.Text[] = [];
 
   constructor(
     scene: Phaser.Scene,
@@ -155,13 +188,18 @@ export class BattleRenderer {
           audio.sfx('shotHeavy');
           break;
         case 'wallDestroyed': {
+          // A breach is the moment the battle turns, and it used to be a ring
+          // that was gone in four tenths of a second. It gets long enough to
+          // land, and it gets lettered.
           const at = this.engine.grid.centerOf(event.cell);
-          this.effects.push({ kind: 'wallBoom', x: at.x, y: at.y, age: 0, life: 0.4 });
+          this.effects.push({ kind: 'wallBoom', x: at.x, y: at.y, age: 0, life: 0.7 });
+          this.shout('wallBoom', at.x, at.y, 0.8, 1);
           audio.sfx('wallBreak');
           break;
         }
         case 'structureDestroyed':
-          this.effects.push({ kind: 'structBoom', x: event.at.x, y: event.at.y, age: 0, life: 0.5 });
+          this.effects.push({ kind: 'structBoom', x: event.at.x, y: event.at.y, age: 0, life: 0.9 });
+          this.shout('structBoom', event.at.x, event.at.y, 1, 1.25);
           this.barrelDirs.delete(event.id);
           audio.sfx('structureDown');
           break;
@@ -174,6 +212,7 @@ export class BattleRenderer {
             age: 0,
             life: 0.45,
           });
+          this.shout('aoe', event.at.x, event.at.y, 0.65, 0.85);
           audio.sfx('explosion');
           break;
         // A reserve standing up (v1.20). A slow ring rather than a blast: the
@@ -331,6 +370,28 @@ export class BattleRenderer {
           g.lineStyle(1.2, COLORS.oliveDark, 0.8);
           g.strokeEllipse(px, py + 3, 16, 7);
         }
+        // Speed lines behind anything moving fast enough to need them.
+        //
+        // Gated on MEASURED movement rather than on a unit kind: a rifleman
+        // and a tank differ by how far they get in a tick, so the threshold
+        // selects vehicles without this layer needing to know a roster. Four
+        // lines, drawn only while the thing is actually moving, which is what
+        // keeps a board of forty counters from paying for it.
+        const moved = Math.hypot(p.x - attacker.prevPos.x, p.y - attacker.prevPos.y);
+        if (!flying && moved > 0.055) {
+          speedLines(
+            g,
+            px,
+            py,
+            this.facings.get(attacker.id) ?? 0,
+            c * 0.85,
+            c * 0.24,
+            4,
+            COLORS.oliveDark,
+            0.85,
+            Math.max(1, c * 0.045),
+          );
+        }
         const y = py - (flying ? AIR_LIFT : 0);
         drawAttackerGlyph(g, attacker.profile.kind, px, y, this.cell, {
           // In raids (hostileStructures) the attacking units are the
@@ -428,6 +489,8 @@ export class BattleRenderer {
   private drawEffects(g: Phaser.GameObjects.Graphics, dtSeconds: number): void {
     const c = this.cell;
     this.effects = this.effects.filter((fx) => (fx.age += dtSeconds) < fx.life);
+    /** Pool slots are handed out per FRAME, so a word that died frees its. */
+    let shoutSlot = 0;
     for (const fx of this.effects) {
       const t = fx.age / fx.life;
       // Ink does not fade to grey: an effect holds full value and then cuts.
@@ -526,8 +589,24 @@ export class BattleRenderer {
           g.strokePoints(pts, true, true);
           break;
         }
+        case 'shout': {
+          // Lettering pops past its size and settles back, which is how a
+          // hand-drawn word lands. It never fades to grey — `punch` holds it
+          // and then cuts, like every other mark on this page.
+          const pop = Math.min(1, t / 0.22);
+          const text = this.shoutText(shoutSlot++);
+          text
+            .setVisible(true)
+            .setText(fx.word ?? '')
+            .setPosition(x, y - c * 0.55)
+            .setScale((fx.size ?? 1) * (0.68 + 0.52 * pop - 0.1 * t))
+            .setAlpha(a)
+            .setAngle((ph - 0.5) * 18);
+          break;
+        }
       }
     }
+    for (let i = shoutSlot; i < this.shouts.length; i++) this.shouts[i]!.setVisible(false);
   }
 
   private hpBar(
@@ -575,6 +654,42 @@ export class BattleRenderer {
       g.lineTo(px + Math.cos(a) * (r + tick), py + Math.sin(a) * (r + tick));
     }
     g.strokePath();
+  }
+
+  /**
+   * Letter an event.
+   *
+   * The Text objects are POOLED and parented into the world container, which
+   * is what keeps them off the scene root — anything there is drawn twice,
+   * once by each camera, and `boardStrays()` fails the harness on exactly
+   * that. Being in the world also means the word scales and pans with the
+   * board, which is right: it is drawn on the page, not on the screen.
+   */
+  private shout(kind: string, x: number, y: number, life: number, size: number): void {
+    const words = SHOUTS[kind];
+    if (!words) return;
+    const word = words[Math.floor(phaseAt(x, y) * words.length) % words.length]!;
+    this.effects.push({ kind: 'shout', x, y, word, size, age: 0, life });
+  }
+
+  /** A pooled word, made on first use and reused for the rest of the battle. */
+  private shoutText(slot: number): Phaser.GameObjects.Text {
+    let t = this.shouts[slot];
+    if (!t) {
+      t = this.scene.add
+        .text(0, 0, '', {
+          fontFamily: DISPLAY_FAMILY,
+          fontSize: `${Math.round(this.cell * 1.15)}px`,
+          fontStyle: '800',
+          color: css(COLORS.bgField),
+          stroke: css(COLORS.oliveDark),
+          strokeThickness: Math.max(3, this.cell * 0.16),
+        })
+        .setOrigin(0.5);
+      this.container?.add(t);
+      this.shouts[slot] = t;
+    }
+    return t;
   }
 
   private lerpPos(attacker: Attacker, alpha: number): Vec2 {
