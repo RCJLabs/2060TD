@@ -2583,11 +2583,56 @@ chatter with texture.
       marks. The board should look like the battle happened on it.
 - [ ] **Phase 3 — reactive score and a positional mix.**
 
+## M32 — "Ink": the screentone graphic-novel pass
+
+**Taken first, by owner decision.** Everything M22 through M31 is about what the
+game IS; this is about what it looks like, and the owner asked for the look to
+change before the systems do. It touches no rule, no number and no table, which
+is exactly why it can jump the queue: nothing below has to be re-tuned because of
+it, and M31's impact vocabulary now has a language to be drawn in.
+
+The direction was chosen from mockups, narrowing three times — ten art
+directions, five comic families, five screentone screens — and what survived is
+a black-and-white page shaded with adhesive tone sheets, with one red on it.
+
+The substitution that makes it structural rather than decorative: v1.19 said what
+ground you were looking at with HUE and spent its whole value budget doing it,
+which is why every silhouette needed a cream knockout to survive being drawn on
+top of it. This says it with TONE DENSITY, so the ground is always at least 60%
+paper by area and the value budget is free for the things that matter.
+
+- [x] **Phase 1 — the ink palette and the page.** `tone.ts` for the screens,
+      `ground.ts` re-baked onto a Canvas2D texture so tone can be a real pattern
+      fill. The legend is the sim's own ground classes: open t20, rough t40,
+      steep t60, woodland hatched, water cross-hatched, road bare paper.
+- [x] **Phase 2 — the objects.** Structures are architecture: v1.19's paper halo
+      inverted into an ink keyline, mass filled with paper, hostile structures
+      solid. Units are counters: yours outlined, theirs a solid silhouette on a
+      paper pad.
+- [x] **Phase 3 — the page.** The rail stops being the table the map lies on and
+      becomes a panel on the same page. Three control states and no more:
+      knockout, disabled, resting.
+- [ ] **Phase 4 — the kinetics.** Radial focus lines converging on a breach, speed
+      lines behind moving armour, an outlined starburst with an alarm core. What
+      a particle system would do, done the way the page does it.
+- [ ] **Phase 5 — verify and ship.** Screenshots read back as images at phone and
+      desktop, all 22 harnesses, docs.
+
+**What it deliberately does not do.** No web font: Barlow Condensed is what the
+mockups are set in and what the style wants, and adding it would cost the offline
+build and the single-file build a network dependency. The system monospace stack
+stays until that trade is worth making, which is an M30 question — a DOM UI can
+subset and inline a face for the price of a few KB, and a Phaser canvas cannot.
+
 ---
 
 ## Sequencing — and the one rule that is not negotiable
 
-**M22 first.** The carry defect invalidates the entire planning half and every
+**M32 is done and out of the way.** It was taken first at the owner's request and
+changes no number, so nothing below inherits anything from it except a language
+to draw in.
+
+**M22 next.** The carry defect invalidates the entire planning half and every
 balance table in the repo. Then **M23**, because the action pillar is the
 least-built half of a game whose FIRST design pillar it is. Then **M30**, the
 cheapest large win, which also unblocks the UI surface that M23 and M29 both need.

@@ -12,8 +12,9 @@
  *
  *   PAPER   #ffffff   the ground, and everything you own
  *   TONE    a dot screen, four densities, laid ON the paper (see tone.ts)
- *   GREY    #808080   disabled, and nothing else
  *   INK     #111111   every line, and everything hostile, filled solid
+ *   INK 2   #4a4a4a   secondary copy; still ink, never grey
+ *   GREY    #9e9e9e   disabled, and nothing else
  *   ALARM   #e0243c   three or four marks a screen, never decoration
  *
  * The rule that makes it read, and it is about AREA rather than value:
@@ -24,9 +25,9 @@
  *   keyline. Nothing on the board is a mid grey, so nothing on the board is
  *   ambiguous, and a phone at 40% brightness in sunlight loses none of it.
  *
- * Grey is reserved. It means "you cannot do this" and appears nowhere on the
- * board at all — which is why a disabled row is legible as disabled without
- * reading a word of it.
+* One grey is reserved. `disabled` means "you cannot do this", appears
+ * nowhere on the board, and is used for nothing else — which is why a
+ * disabled row is legible as disabled without reading a word of it.
  *
  * The UI is ON the page now, not beside it. v1.19 kept panels dark because
  * the board was paper and the UI was "the table it was lying on"; a comic
@@ -100,8 +101,21 @@ export const COLORS = {
   bgControl: 0xffffff,
   /** UI text. */
   ink: 0x111111,
-  /** Disabled, and nothing else. Never appears on the board. */
-  inkDim: 0x808080,
+  /**
+   * Secondary INK — body copy, captions, marginalia. Still reads as ink, not
+   * as grey: hierarchy on a printed page comes from size and weight, and a
+   * second value this close to the first is all the help it needs.
+   */
+  inkDim: 0x4a4a4a,
+  /**
+   * "You cannot do this", and nothing else.
+   *
+   * The one value in the whole system with a single job. It is lighter than
+   * any ink and heavier than any tone, it never appears on the board, and it
+   * is why a disabled row reads as disabled before a word of it is read. Do
+   * not reach for it because something wants to be quieter — that is `inkDim`.
+   */
+  disabled: 0x9e9e9e,
 
   // ---- faction cameos -----------------------------------------------------
   // Five armies told apart by tone density rather than hue — see the faction

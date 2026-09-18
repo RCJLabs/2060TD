@@ -293,6 +293,7 @@ export class RaidScene extends Phaser.Scene {
       this.applyLayout();
     };
     this.launchButton = makeButton(this, 0, 0, 10, 10, '', () => this.launch(), {
+      emphasis: 'primary',
       align: 'center',
       container: this.board.ui,
     });

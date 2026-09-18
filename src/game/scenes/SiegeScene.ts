@@ -176,6 +176,7 @@ export class SiegeScene extends Phaser.Scene {
     };
     // The one action that must always be under a thumb.
     this.primary = makeButton(this, 0, 0, 10, 10, '', () => this.advancePhase(), {
+      emphasis: 'primary',
       align: 'center',
       container: this.board.ui,
     });

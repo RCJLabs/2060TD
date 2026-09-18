@@ -1623,6 +1623,7 @@ export class TownScene extends Phaser.Scene {
     const midX = banded ? primary.x + primary.w / 2 : board.x + board.w / 2;
     if (!this.confirmBtn) {
       this.confirmBtn = makeButton(this, 0, 0, w, h, 'CONFIRM', () => this.commitPending(), {
+        emphasis: 'primary',
         align: 'center',
         container: this.board.ui,
       });

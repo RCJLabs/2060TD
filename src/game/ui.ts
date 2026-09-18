@@ -86,6 +86,15 @@ export interface ButtonOptions {
   /** Suppress the click sound (tab strips click a lot). */
   quiet?: boolean;
   /**
+   * The one action this screen exists for: LAUNCH, CONFIRM, START ASSAULT.
+   *
+   * Drawn as a filled slab with a paper label and an alarm edge, so it is
+   * the only knocked-out thing on the page that is not a selection. A screen
+   * gets one, and a screen with no single obvious action gets none — the
+   * layout does not even reserve the band (see layout.ts `primary`).
+   */
+  emphasis?: 'primary';
+  /**
    * Accept a press that ends just off the button's edge (v1.17.2).
    *
    * Only for buttons with nothing behind them to scroll — overlay rows and
@@ -212,10 +221,12 @@ export function makeButton(
   let fontSize = opts.font ?? Math.max(11, Math.round(height * 0.42));
   const padX = Math.round(fontSize * 1.1);
 
+  /** The panel border weight. Two device px, like every rule on the page. */
+  const EDGE = 2;
   const bg = scene.add
     .rectangle(x, y, width, height, COLORS.bgControl)
     .setOrigin(0, 0)
-    .setStrokeStyle(1, COLORS.gridLine)
+    .setStrokeStyle(EDGE, COLORS.oliveDark)
     .setInteractive({ useHandCursor: true });
   // Origin is TOP-left, not middle-left: a label that wraps is a block of
   // unknown height, and a block is centred by measuring it, not by pinning
@@ -329,14 +340,29 @@ export function makeButton(
    */
   let heldPress = -1;
   const alive = () => bg.active && label.active;
+  /**
+   * Three states, three treatments, and they are the whole control language.
+   *
+   *   KNOCKOUT  chosen, pressed, or the primary action — solid ink, paper
+   *             label. Selection IS an inversion; there is no highlight, no
+   *             tint and no second accent anywhere in the UI.
+   *   DISABLED  paper inside a grey line, grey label. Spends no ink at all,
+   *             which is what makes it read as unavailable at a glance.
+   *   RESTING   paper inside an ink line. The default, and most of the page.
+   */
   const refresh = () => {
     // Pointer events can trail in after a click handler destroyed the button.
     if (!alive()) return;
-    const fill = pressed ? COLORS.olive : active ? COLORS.oliveDark : COLORS.bgControl;
-    bg.setFillStyle(fill);
-    bg.setStrokeStyle(1, active ? COLORS.olive : COLORS.gridLine);
-    label.setColor(css(enabled ? COLORS.ink : COLORS.inkDim));
-    sub?.setColor(css(enabled ? COLORS.inkDim : COLORS.gridLine));
+    const primary = opts.emphasis === 'primary' && enabled;
+    const knock = active || pressed || primary;
+    bg.setFillStyle(knock ? COLORS.oliveDark : COLORS.bgControl);
+    bg.setStrokeStyle(EDGE, knock ? COLORS.oliveDark : enabled ? COLORS.oliveDark : COLORS.disabled);
+    label.setColor(css(knock ? COLORS.bgField : enabled ? COLORS.ink : COLORS.disabled));
+    // The sub carries the price, and on a knockout it is the one place the
+    // accent is allowed to land in the rail.
+    sub?.setColor(
+      css(knock ? (primary ? COLORS.alarm : COLORS.bgField) : enabled ? COLORS.ink : COLORS.disabled),
+    );
   };
 
   /**
@@ -382,7 +408,9 @@ export function makeButton(
   };
 
   bg.on('pointerover', () => {
-    if (enabled && alive() && !pressed) bg.setFillStyle(active ? COLORS.olive : COLORS.gridLine);
+    // A hover is a hint, not a state: it borrows the knockout's fill at a
+    // tone rather than inventing a fourth treatment.
+    if (enabled && alive() && !pressed && !active) bg.setFillStyle(COLORS.olive);
   });
   bg.on('pointerout', () => {
     // Un-highlight, but stay the owner of the press: a thumb that rolls off
@@ -787,6 +815,15 @@ export class Panel {
   private grabs: Array<{ x: number; y: number; w: number; h: number } | undefined> = [];
   private headings: Phaser.GameObjects.Text[] = [];
   /**
+   * The rule that runs from a heading to the edge of the list.
+   *
+   * A section head on a printed page is a caption plus a line, and without
+   * the line a drawer of headings and rows is a wall of the same two type
+   * sizes — which is exactly how the rail read before the ink pass. One
+   * rectangle per heading, pooled alongside it.
+   */
+  private headingRules: Phaser.GameObjects.Rectangle[] = [];
+  /**
    * One Graphics per row slot, pooled alongside the buttons and parented into
    * `rowRoot` so an icon scrolls, masks and dies with the row it belongs to.
    */
@@ -849,16 +886,16 @@ export class Panel {
     // because the board was dark too; over a paper sheet, pale status text on
     // nothing at all is unreadable.
     this.statusBg = scene.add.rectangle(0, 0, 10, 10, COLORS.bgPanel).setOrigin(0, 0);
-    this.edge = scene.add.rectangle(0, 0, 10, 2, COLORS.gridLine).setOrigin(0, 0);
+    this.edge = scene.add.rectangle(0, 0, 10, 2, COLORS.oliveDark).setOrigin(0, 0);
     this.handleHit = scene.add
       .rectangle(0, 0, 10, 10, COLORS.bgPanel)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
-    this.handleGrip = scene.add.rectangle(0, 0, 10, 4, COLORS.gridLine).setOrigin(0, 0);
+    this.handleGrip = scene.add.rectangle(0, 0, 10, 4, COLORS.oliveDark).setOrigin(0, 0);
     this.bindHandle();
     this.titleText = scene.add.text(0, 0, '2060TD', mono(14, COLORS.ink, { fontStyle: 'bold' }));
-    this.statusText = scene.add.text(0, 0, '', mono(11, COLORS.inkDim, { lineSpacing: 3 }));
-    this.scrollHint = scene.add.rectangle(0, 0, 3, 30, COLORS.gridLine).setOrigin(0, 0).setAlpha(0.6);
+    this.statusText = scene.add.text(0, 0, '', mono(11, COLORS.ink, { lineSpacing: 3 }));
+    this.scrollHint = scene.add.rectangle(0, 0, 3, 30, COLORS.oliveDark).setOrigin(0, 0).setAlpha(0.6);
     this.rowRoot = scene.add.container(0, 0);
     container.add([
       this.bg,
@@ -1023,9 +1060,9 @@ export class Panel {
       .setPosition(handle.x + (handle.w - gripW) / 2, handle.y + (handle.h - gripH) / 2)
       .setSize(gripW, gripH);
     if (layout.mode === 'portrait') {
-      this.edge.setPosition(panel.x, panel.y).setSize(panel.w, Math.max(2, layout.px(1)));
+      this.edge.setPosition(panel.x, panel.y).setSize(panel.w, Math.max(3, layout.px(2.5)));
     } else {
-      this.edge.setPosition(panel.x, 0).setSize(Math.max(2, layout.px(1)), panel.h);
+      this.edge.setPosition(panel.x, 0).setSize(Math.max(3, layout.px(2.5)), panel.h);
     }
 
     this.titleText.setPosition(status.x + pad, status.y + Math.round(pad * 0.6)).setFontSize(font.label);
@@ -1108,9 +1145,13 @@ export class Panel {
       if (row.heading) {
         let text = this.headings[headingIndex];
         if (!text) {
-          text = this.scene.add.text(0, 0, '', mono(font.tiny, COLORS.inkDim));
+          text = this.scene.add.text(0, 0, '', mono(font.tiny, COLORS.ink));
+          text.setLetterSpacing(1.4);
           this.rowRoot.add(text);
           this.headings[headingIndex] = text;
+          const rule = this.scene.add.rectangle(0, 0, 10, 2, COLORS.oliveDark).setOrigin(0, 0);
+          this.rowRoot.add(rule);
+          this.headingRules[headingIndex] = rule;
         }
         text.setFontSize(font.tiny);
         text.setWordWrapWidth(headingW);
@@ -1183,9 +1224,19 @@ export class Panel {
       span.forEach((entry, col) => {
         if (entry.row.heading) {
           const text = this.headings[entry.slot]!;
-          text
-            .setPosition(list.x + pad, y + Math.round((lineH - text.height) / 2))
-            .setVisible(y + lineH > list.y && y < list.y + list.h);
+          const shown = y + lineH > list.y && y < list.y + list.h;
+          const top = y + Math.round((lineH - text.height) / 2);
+          text.setPosition(list.x + pad, top).setVisible(shown);
+          // The rule takes whatever is left of the line, and gives up when
+          // the heading wrapped or there is no room worth ruling.
+          const rule = this.headingRules[entry.slot]!;
+          const from = list.x + pad + text.width + gap;
+          const to = list.x + list.w - pad;
+          const wrapped = text.height > font.tiny * 1.6;
+          rule
+            .setPosition(from, top + Math.round(text.height / 2) - 1)
+            .setSize(Math.max(0, to - from), Math.max(2, Math.round(font.tiny * 0.14)))
+            .setVisible(shown && !wrapped && to - from > font.tiny * 1.5);
           return;
         }
         const button = this.pool[entry.slot]!;
@@ -1230,7 +1281,10 @@ export class Panel {
     }
 
     for (let i = poolIndex; i < this.pool.length; i++) this.pool[i]!.setVisible(false);
-    for (let i = headingIndex; i < this.headings.length; i++) this.headings[i]!.setVisible(false);
+    for (let i = headingIndex; i < this.headings.length; i++) {
+      this.headings[i]!.setVisible(false);
+      this.headingRules[i]?.setVisible(false);
+    }
     for (let i = poolIndex; i < this.icons.length; i++) this.icons[i]!.setVisible(false);
 
     this.contentH = y - (list.y - this.scrollY) + pad - gap;
