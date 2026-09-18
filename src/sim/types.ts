@@ -340,6 +340,14 @@ export interface StandingOrders {
  */
 export type SpawnEdge = 'west' | 'north';
 
+/**
+ * Wire order, fixed forever: a codec writes the INDEX. Appending is safe;
+ * reordering would silently re-fight every archived battle from a different
+ * side of the map. 'west' is first so that it is also the zero a code with no
+ * edge block decodes to.
+ */
+export const SPAWN_EDGES: SpawnEdge[] = ['west', 'north'];
+
 export interface SimConfig {
   width: number;
   height: number;

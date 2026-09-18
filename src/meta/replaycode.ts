@@ -14,6 +14,7 @@ import type {
   WaveDef,
   WaveEntry,
 } from '../sim/types';
+import { SPAWN_EDGES } from '../sim/types';
 import {
   checksum,
   fromBase64Url,
@@ -295,7 +296,13 @@ export function encodeReplay(replay: Replay): string {
   // so it is also the "no block" value and costs nothing to omit.
   const objectiveIndex = isObjectiveId(c.objective) ? OBJECTIVE_IDS.indexOf(c.objective) : 0;
   const combatVersion = c.combatVersion ?? COMBAT_NONE;
-  const needCombat = combatVersion > COMBAT_NONE || objectiveIndex > 0;
+  // The entry edge (v1.40). 'west' is what every code before this release
+  // means, so it is also the "no block" value — a battle fought from the west
+  // costs nothing to record and every archived code still decodes to the
+  // battle it recorded rather than a rotated one.
+  const edgeIndex = SPAWN_EDGES.indexOf(c.spawnEdge ?? 'west');
+  const needObjective = objectiveIndex > 0 || edgeIndex > 0;
+  const needCombat = combatVersion > COMBAT_NONE || needObjective;
   const garrisonId = c.garrison?.id ?? '';
   const needGarrison = garrisonId !== '' || needCombat;
   if ((c.terrainVersion ?? 0) > 0 || needGarrison) {
@@ -329,7 +336,10 @@ export function encodeReplay(replay: Replay): string {
   // them, so a replay that fought on would be showing a battle that did not
   // happen. Written only for the two objectives that end a raid early — a
   // code with no block re-fights to the ending it always had.
-  if (objectiveIndex > 0) writeVarint(body, objectiveIndex);
+  if (needObjective) writeVarint(body, objectiveIndex);
+
+  // The entry edge (v1.40), last and optional like every block above it.
+  if (edgeIndex > 0) writeVarint(body, edgeIndex);
 
   // Header, dictionary, then the body — the reader needs the names first.
   const head: number[] = [FORMAT, REPLAY_KINDS.indexOf(replay.kind)];
@@ -660,6 +670,17 @@ export function decodeReplay(raw: string): ReplayDecode {
     const objective = OBJECTIVE_IDS[index];
     if (objective === undefined) return bad('content');
     if (index > 0) config.objective = objective;
+  }
+
+  // The entry edge, if this code was written after v1.40. Older codes end
+  // here and re-fight from the west, which is the only edge that existed
+  // when they were recorded.
+  if (cur.at < body.length) {
+    const index = readVarint(cur);
+    if (index === null) return bad('truncated');
+    const edge = SPAWN_EDGES[index];
+    if (edge === undefined) return bad('content');
+    if (index > 0) config.spawnEdge = edge;
   }
 
   return {

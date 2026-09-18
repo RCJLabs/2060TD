@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { M1_CATALOG } from '../src/content/catalog';
 import { Engine } from '../src/sim/engine';
+import { HOLD_THE_LINE } from '../src/content/missions';
+import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
 import { generateTerrain, TERRAIN_VERSION } from '../src/sim/terrain';
 import type { SiegeDef, SimConfig } from '../src/sim/types';
 
@@ -144,5 +146,93 @@ describe('terrain keeps the entry lane dry', () => {
     const north = generateTerrain(5, TERRAIN_VERSION, W, H, [], 0, 'north');
     const cells = Array.from({ length: W * H }, (_, c) => c);
     expect(cells.some((c) => west.passable(c) !== north.passable(c))).toBe(true);
+  });
+});
+
+
+// ---- the archive ----------------------------------------------------------
+
+/**
+ * A replay code written by v1.39, before the entry edge existed.
+ *
+ * Verified byte-for-byte against a v1.39 build rather than regenerated here:
+ * the same battle encoded by both releases produces this identical string,
+ * which is what "a record does not change" has to mean. It is frozen because
+ * the vault drops any entry that stops decoding — a format slip would quietly
+ * empty every player's archive rather than fail loudly.
+ */
+const V139_CODE =
+  'AQAAAQZGUk9aRU4KAmNjBm0ybmVzdAR3YWxsB21pbGl0aWEFcmlmbGUGc2FwcGVyBHd6MTAJZ3JlbmFkaWVyA3piZA' +
+  'Z0eXBlOTkgGJIh-wICAAAAAQIA-wIC_wAB1AIB_wABAgLPAiABDUhPTEQgVEhFIExJTkWKBXgolgGwCRkoBQIDCAAI' +
+  'AAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6AcoDAAAAOgHBALUAgwAAADoBygMAA' +
+  'AA6AcEBQEADAAAAOgHAwo8BAAAAOgHJAgAAADoByQQAAAA6AckFAAAAOgHJAQAAADoByQIAAAA6AckEAAAAOgHJBQA' +
+  'AADoByQEAAAA6AckCAAAAOgHBASEAgwAAADoBygMAAAA6AcoDAAAAOgHKAwAAADoBwYCtAEJAAAA6AdaDwAAAOgHAw' +
+  'cCAAoAAADoBzwOAAAA6AcECGQIAAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6Aco' +
+  'DAAAAOgHBQPcAQQAAADoBzwMAAAA6Ac8FAAAAOgHAwMMAAQAAADoBwASAAAA6AcUBgAAAOgHABQAAADoBxQEAAAA6A' +
+  'cAEgAAAOgHFAYAAADoBwAUAAAA6AcUBAAAAOgHABIAAADoBxQGAAAA6AcAFAAAAOgHBwSEAgoAAADoBygOAAAA6Aco' +
+  'CgAAAOgHKA4AAADoBwgCpAMIAAAA6AcoEAAAAOgHBQgCAAgAAADoBygQAAAA6AcEBlAGAAAA6AcoDAAAAOgHKBIAAA' +
+  'DoBygGAAAA6AcoDAAAAOgHKBIAAADoBwcDrAIKAAAA6AcoDAAAAOgHKA4AAADoBwUCkAMIAAAA6AcoEAAAAOgHCQGI' +
+  'BAwAAADoBwAAAAABYwAAAQABlUk';
+
+const frozenConfig = (): SimConfig => ({
+  width: 32,
+  height: 24,
+  seed: 4242,
+  ccOrigin: 11 * 32 + 27,
+  ccLevel: 2,
+  spawnLane: 0,
+  siege: HOLD_THE_LINE,
+  terrainVersion: 1,
+  terrainSeed: 99,
+  combatVersion: 1,
+  objective: 'guns',
+  layout: {
+    structures: [
+      { cell: 11 * 32 + 27, kind: 'cc', level: 2 },
+      { cell: 10 * 32 + 20, kind: 'm2nest', level: 1 },
+    ],
+    walls: [
+      { cell: 10 * 32 + 15, kind: 'wall' },
+      { cell: 11 * 32 + 15, kind: 'wall' },
+    ],
+  },
+});
+
+describe('replay codes across the change', () => {
+  it('still writes a west battle exactly as v1.39 wrote it', () => {
+    const code = encodeReplay({
+      kind: 'raid',
+      faction: 'usa',
+      title: 'FROZEN',
+      won: true,
+      config: frozenConfig(),
+    });
+    expect(code).toBe(V139_CODE);
+  });
+
+  it('and reads the archived code back as the battle it recorded', () => {
+    const out = decodeReplay(V139_CODE);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.replay.config.spawnEdge).toBeUndefined();
+    expect(out.replay.config.spawnLane).toBe(0);
+    // Liveness: a code that decoded to an empty battle would satisfy the two
+    // assertions above just as well.
+    expect(out.replay.config.terrainSeed).toBe(99);
+    expect(out.replay.config.layout?.structures.length).toBe(2);
+    expect(out.replay.config.siege?.waves.length).toBe(HOLD_THE_LINE.waves.length);
+  });
+
+  it('round-trips a north battle, and says so in more bytes than a west one', () => {
+    const west = frozenConfig();
+    const north: SimConfig = { ...west, spawnEdge: 'north' };
+    const encode = (config: SimConfig): string =>
+      encodeReplay({ kind: 'raid', faction: 'usa', title: 'FROZEN', won: true, config });
+    const code = encode(north);
+    expect(code.length).toBeGreaterThan(encode(west).length);
+    const out = decodeReplay(code);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.replay.config.spawnEdge).toBe('north');
   });
 });
