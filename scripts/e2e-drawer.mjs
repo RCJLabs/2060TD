@@ -70,16 +70,33 @@ try {
   await page.goto(`http://localhost:${PORT}/?demo=town`, { waitUntil: 'networkidle' });
   await wait(2600);
 
-  /** The drawer as the player sees it: rects, in CSS px. */
+  /**
+   * The drawer as the player sees it: rects in CSS px, plus where the map is
+   * looking.
+   *
+   * `cell` is the size one grid square is drawn at — the number the whole
+   * portrait rework is about — and `topWorld` is the world Y at the board's
+   * top edge, which is the ground the drawer has NOT covered. Both come from
+   * the live camera rather than from anything the layout believes.
+   */
   const shape = async () => {
     const raw = await page.evaluate(() => {
       const api = window.lastline;
       const l = api.layout ? api.layout() : null;
-      return l ? { dpr: api.dpr, board: l.board, list: l.list, handle: l.handle } : null;
+      const cam = api.camera ? api.camera() : null;
+      return l ? { dpr: api.dpr, board: l.board, list: l.list, handle: l.handle, cam } : null;
     });
     if (!raw) return null;
     const to = (r) => ({ x: r.x / raw.dpr, y: r.y / raw.dpr, w: r.w / raw.dpr, h: r.h / raw.dpr });
-    return { board: to(raw.board), list: to(raw.list), handle: to(raw.handle) };
+    const cam = raw.cam;
+    return {
+      board: to(raw.board),
+      list: to(raw.list),
+      handle: to(raw.handle),
+      // 32 world px per cell, drawn at `zoom`, shown at 1/dpr CSS px per device px.
+      cell: cam ? (cam.zoom * 32) / raw.dpr : 0,
+      topWorld: cam ? cam.cy - cam.rect.h / cam.zoom / 2 : 0,
+    };
   };
 
   const start = await shape();
@@ -123,6 +140,29 @@ try {
     'and the board gives up exactly that room',
     grown.board.h < start.board.h - 20,
     `board ${start.board.h.toFixed(0)} → ${grown.board.h.toFixed(0)}px`,
+  );
+
+  // ---- but the MAP does not move (v1.40) ---------------------------------
+  //
+  // The drawer is a sheet sliding over the board, not a lever that zooms the
+  // world. Until this release the board's fit zoom was measured against the
+  // rect the drawer had left it, so every drag rescaled the map under the
+  // finger — and on a phone that is not a cosmetic wobble: at the half
+  // detent it cost a 360px screen 40% of its cell size, which is the whole
+  // difference between a silhouette that reads and one that does not.
+  //
+  // Both halves matter. Zoom alone would pass on a build that held the scale
+  // and slid the ground instead, so the world point at the board's TOP edge —
+  // the part of the map the drawer never covers — is pinned as well.
+  check(
+    'and the map keeps its scale while the drawer moves',
+    Math.abs(grown.cell - start.cell) < 0.25,
+    `cell ${start.cell.toFixed(1)} → ${grown.cell.toFixed(1)}px`,
+  );
+  check(
+    'and the ground above the drawer stays put',
+    Math.abs(grown.topWorld - start.topWorld) < 6,
+    `top of view ${start.topWorld.toFixed(0)} → ${grown.topWorld.toFixed(0)} world px`,
   );
 
   // ---- and it lands on a detent, not wherever the finger stopped ----------

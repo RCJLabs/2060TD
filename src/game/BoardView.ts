@@ -123,6 +123,11 @@ export class BoardView {
   readonly scene: Phaser.Scene;
   private readonly opts: BoardOptions;
   private rect: Rect = { x: 0, y: 0, w: 1, h: 1 };
+  /**
+   * The rect a shut drawer would leave — what the fit zoom is measured
+   * against. See `Layout.boardFull`.
+   */
+  private full: Rect = { x: 0, y: 0, w: 1, h: 1 };
   private centerX = 0;
   private centerY = 0;
   private zoom = 1;
@@ -207,23 +212,42 @@ export class BoardView {
    * what you actually want when you are aiming at a corner of the base.
    */
 
-  /** Point the board camera at the layout's board rect and refit. */
+  /**
+   * Point the board camera at the layout's board rect and refit.
+   *
+   * The VIEWPORT comes from `board` and the FIT ZOOM from `boardFull`, which
+   * are the same rect except while a portrait drawer is open. Keeping them
+   * apart is what makes the drawer a sheet sliding over the map rather than a
+   * lever that zooms the world out: a half-open drawer used to cost a 360px
+   * phone 40% of its cell size, and on a portrait world that is the whole
+   * difference between a silhouette you can read and one you cannot.
+   */
   applyLayout(layout: Layout, keepView = false): void {
     this.slop = Math.round(TAP_SLOP * layout.dpr);
+    const wasH = this.rect.h;
+    const wasZoom = this.zoom;
     this.rect = layout.board;
+    this.full = layout.boardFull;
     this.camera.setViewport(this.rect.x, this.rect.y, Math.max(1, this.rect.w), Math.max(1, this.rect.h));
     this.uiCamera.setViewport(0, 0, layout.width, layout.height);
     this.uiCamera.setSize(layout.width, layout.height);
     const previous = this.fitZoom;
-    this.fitZoom = Math.min(this.rect.w / this.worldWidth, this.rect.h / this.worldHeight);
+    this.fitZoom = Math.min(this.full.w / this.worldWidth, this.full.h / this.worldHeight);
     if (!keepView || this.zoom <= 0) {
       this.fit();
-    } else {
-      // Preserve the operator's zoom *relative* to fit across an orientation
-      // flip, so a rotated phone doesn't jump to a different magnification.
-      const ratio = previous > 0 ? this.zoom / previous : 1;
-      this.setZoom(this.fitZoom * ratio);
+      return;
     }
+    // A shorter viewport at the same zoom shows less ground, and `centerOn`
+    // would take that out of both ends — so the map appears to creep upward
+    // under a drawer that is only sliding over it. Holding the TOP edge of the
+    // view instead means the ground the drawer has not covered does not move.
+    if (wasH > 0 && wasZoom > 0 && this.rect.h !== wasH) {
+      this.centerY -= (wasH - this.rect.h) / (2 * wasZoom);
+    }
+    // Preserve the operator's zoom *relative* to fit across an orientation
+    // flip, so a rotated phone doesn't jump to a different magnification.
+    const ratio = previous > 0 ? this.zoom / previous : 1;
+    this.setZoom(this.fitZoom * ratio);
   }
 
   /**
@@ -249,7 +273,14 @@ export class BoardView {
     this.apply();
   }
 
-  /** Frame the whole grid. */
+  /**
+   * Frame the whole grid.
+   *
+   * Centred on the world, at the zoom that fits it into a SHUT drawer's rect.
+   * With the drawer open that leaves some of the map behind the sheet, which
+   * is the honest answer: a double-tap means "show me the board at board
+   * scale", and the way to see the rest is to push the drawer down.
+   */
   fit(): void {
     this.zoom = this.fitZoom;
     this.centerX = this.worldWidth / 2;

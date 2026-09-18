@@ -71,6 +71,19 @@ export interface Layout {
   compact: boolean;
   /** Battlefield viewport — the board camera renders here. */
   board: Rect;
+  /**
+   * The board rect a SHUT drawer would leave (v1.40).
+   *
+   * The board camera takes its fit zoom from this and its viewport from
+   * `board`, so dragging the drawer slides a sheet over a stationary map
+   * instead of zooming the world out from under the finger. Before this the
+   * two were the same rect, and a half-open drawer cost a 360px phone 40% of
+   * its cell size — the difference between an 18px cell and an 11px one.
+   *
+   * In landscape it IS `board`: the rail is a fixed column with nothing to
+   * drag, so there is no second state to describe.
+   */
+  boardFull: Rect;
   /** The whole panel (right rail in landscape, bottom drawer in portrait). */
   panel: Rect;
   /** Resource/status strip. */
@@ -175,6 +188,7 @@ export function computeLayout(
   };
 
   let board: Rect;
+  let boardFull: Rect;
   let panel: Rect;
   let status: Rect;
   let tabs: Rect;
@@ -222,6 +236,7 @@ export function computeLayout(
     const drawerH = drawer <= 0 ? 0 : clamp(Math.round(sh * drawer), px(140), room);
     status = { x: sx, y: sy, w: sw, h: statusH };
     board = { x: sx, y: sy + statusH, w: sw, h: available - drawerH };
+    boardFull = { x: sx, y: sy + statusH, w: sw, h: available };
     handle = { x: sx, y: board.y + board.h, w: sw, h: handleH };
     // The list stops a gutter short of the tab strip. Flush, the last row a
     // player can see is touching a navigation tab, and a thumb aimed at the row
@@ -242,6 +257,7 @@ export function computeLayout(
     const statusH = px(t.font.label + t.font.tiny * 3 + t.pad * 2.6);
     const tabsH = px(t.tabsH);
     board = { x: sx, y: sy, w: sw - railW, h: sh };
+    boardFull = board;
     panel = { x: sx + sw - railW, y: sy, w: railW, h: sh };
     // Nothing to drag in landscape: the rail is a fixed column, and a handle
     // there would be an affordance for a gesture that does nothing.
@@ -276,6 +292,7 @@ export function computeLayout(
     mode,
     compact,
     board,
+    boardFull,
     panel,
     status,
     tabs,
