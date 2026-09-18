@@ -297,6 +297,14 @@ export function canTunnel(faction: FactionId): boolean {
 export interface FactionFlavor {
   /** Player faction display name. */
   faction: string;
+  /**
+   * The name at badge width.
+   *
+   * `faction` is a phrase — PLA EXPEDITIONARY FORCE, KOREAN PEOPLE'S ARMY —
+   * which is right under a mark and wrong beside one. Anywhere five of these
+   * have to sit in a row needs the form an army calls itself.
+   */
+  short: string;
   /** Operation banner over sieges and briefings. */
   operation: string;
   /** Town panel location line. */
@@ -315,6 +323,7 @@ export interface FactionFlavor {
 const FLAVOR: Record<FactionId, FactionFlavor> = {
   usa: {
     faction: 'UNITED STATES',
+    short: 'USA',
     operation: 'OPERATION LANDFALL — COOS BAY PERIMETER',
     base: 'FORWARD BASE — COOS BAY',
     enemy: 'PLA',
@@ -326,6 +335,7 @@ const FLAVOR: Record<FactionId, FactionFlavor> = {
   },
   china: {
     faction: 'PLA EXPEDITIONARY FORCE',
+    short: 'CHINA',
     operation: 'OPERATION EASTERN TIDE — GRAYS HARBOR BEACHHEAD',
     base: 'BEACHHEAD BASE — GRAYS HARBOR',
     enemy: 'US ARMY',
@@ -337,6 +347,7 @@ const FLAVOR: Record<FactionId, FactionFlavor> = {
   },
   russia: {
     faction: 'RUSSIAN GROUND FORCES',
+    short: 'RUSSIA',
     operation: 'OPERATION IRON CORRIDOR — NOME RAILHEAD',
     base: 'CORRIDOR BASE — NOME RAILHEAD',
     enemy: 'US ARMY',
@@ -348,6 +359,7 @@ const FLAVOR: Record<FactionId, FactionFlavor> = {
   },
   nk: {
     faction: 'KOREAN PEOPLE\'S ARMY',
+    short: 'KPA',
     operation: 'OPERATION SILENT TUNNELS — HUMBOLDT ENCLAVE',
     base: 'ENCLAVE BASE — HUMBOLDT BAY',
     enemy: 'US ARMY',
@@ -359,6 +371,7 @@ const FLAVOR: Record<FactionId, FactionFlavor> = {
   },
   un: {
     faction: 'UN COALITION',
+    short: 'UN',
     operation: 'OPERATION BLUE LINE — TACOMA CORRIDOR',
     base: 'CORRIDOR BASE — PORT OF TACOMA',
     enemy: 'PLA',

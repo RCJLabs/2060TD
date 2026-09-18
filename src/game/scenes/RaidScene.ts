@@ -137,11 +137,11 @@ const FIRE_TARGETS = ['guns', 'cc'] as const;
  */
 function unitIcon(
   kind: string,
-): (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void {
-  return (g, x, y, size) => {
+): (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number, onDark: boolean) => void {
+  return (g, x, y, size, onDark) => {
     drawAttackerGlyph(g, kind, x + size / 2, y + size / 2, size / ATTACKER_GLYPH_SPAN, {
       friendly: true,
-      onDark: true,
+      onDark,
     });
   };
 }

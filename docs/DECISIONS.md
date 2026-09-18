@@ -484,3 +484,23 @@ here with the change and its date.
   a region nearest-neighbour, which is how the grey rotor ring, the grey air
   shadow and the health bar with an invisible trough were all found — every
   one of them invisible at page size and obvious at 8x.
+- 2026-09-18 — **A default that was right for one theme is a bug in the next,
+  and it fails silently.** Every `PanelRow.icon` supplier hard-coded
+  `onDark: true`, which was correct for four releases while the drawer was a
+  dark rail. Inverting the drawer to paper made all of them draw a white
+  silhouette on a white row — invisible, leaving only the grey trim, and
+  nothing anywhere reports an error. The row is the only thing that knows
+  whether it is a knockout, so the flag became a parameter the row passes in
+  rather than a constant the caller guesses. Worth asking at every theme
+  change: which callers encoded an assumption about the theme as a literal?
+- 2026-09-18 — **Hue was carrying faction identity too, and nothing replaced
+  it until now.** The ink pass took the colour out of the board and left five
+  armies looking identical everywhere but their names — which is worse than it
+  sounds, because the names are phrases (PLA EXPEDITIONARY FORCE, KOREAN
+  PEOPLE'S ARMY) and a phrase is not an identity you can see at a glance. The
+  replacement is SHAPE, one mark each, each one saying what that army is for:
+  a star, a star with four wheeling off it, a slab over a chevron, an arrow
+  going under the line, a globe in laurel. It costs nothing on the board — the
+  marks live in the UI, where identity is a choice rather than a threat — and
+  it is the same substitution the ground made, for the same reason: the page
+  has one colour and it is spent on things that just happened.

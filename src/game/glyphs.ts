@@ -1033,3 +1033,115 @@ export function drawAttackerGlyph(
   }
   paint();
 }
+
+/**
+ * A faction's mark, in the ink vocabulary.
+ *
+ * Five armies told apart by SHAPE rather than by hue, which is the same
+ * substitution the board makes and for the same reason: the ink page has one
+ * colour and it is spent on things that just happened, so identity has to be
+ * carried by something else. Each mark is one idea — what that army is for —
+ * drawn as flat ink at the size a row icon gets.
+ *
+ * Same (x, y, size) contract as `PanelRow.icon`: `x, y` is the top-left of a
+ * `size` box, so one function serves a drawer row, an overlay row and a card.
+ */
+export function drawFactionMark(
+  g: Phaser.GameObjects.Graphics,
+  faction: string,
+  x: number,
+  y: number,
+  size: number,
+  onDark = false,
+): void {
+  const ink = onDark ? COLORS.bgField : COLORS.oliveDark;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const r = size * 0.44;
+
+  /** A filled star, points up. */
+  const star = (sx: number, sy: number, outer: number): void => {
+    const pts: Phaser.Types.Math.Vector2Like[] = [];
+    for (let i = 0; i < 10; i++) {
+      const rad = i % 2 === 0 ? outer : outer * 0.42;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      pts.push({ x: sx + Math.cos(a) * rad, y: sy + Math.sin(a) * rad });
+    }
+    g.fillStyle(ink, 1);
+    g.fillPoints(pts, true);
+  };
+
+  switch (faction) {
+    case 'usa':
+      // One star. The oldest military mark there is, and the only one of the
+      // five that needs nothing next to it.
+      star(cx, cy, r);
+      break;
+    case 'china':
+      // A big star with four small ones wheeling off it — mass, which is what
+      // the roster is and how it fights.
+      star(cx - r * 0.3, cy, r * 0.72);
+      for (let i = 0; i < 4; i++) {
+        star(cx + r * 0.62, cy - r * 0.62 + (i * r * 1.24) / 3, r * 0.2);
+      }
+      break;
+    case 'russia':
+      // A slab over a chevron: overbuilt. Nothing elegant, nothing breaks.
+      g.fillStyle(ink, 1);
+      g.fillRect(cx - r, cy - r * 0.85, r * 2, r * 0.6);
+      g.fillPoints(
+        [
+          { x: cx - r, y: cy - r * 0.05 },
+          { x: cx + r, y: cy - r * 0.05 },
+          { x: cx, y: cy + r * 0.95 },
+        ],
+        true,
+      );
+      break;
+    case 'nk': {
+      // An arrow going under the line rather than over it. The wall was never
+      // the problem.
+      g.lineStyle(Math.max(1.5, size * 0.09), ink, 1);
+      g.beginPath();
+      for (let i = -2; i <= 2; i++) {
+        g.moveTo(cx + i * r * 0.42 - r * 0.22, cy + r * 0.24);
+        g.lineTo(cx + i * r * 0.42 + r * 0.22, cy + r * 0.86);
+      }
+      g.strokePath();
+      g.fillStyle(ink, 1);
+      g.fillRect(cx - r * 0.13, cy - r, r * 0.26, r * 0.9);
+      g.fillPoints(
+        [
+          { x: cx - r * 0.5, y: cy - r * 0.16 },
+          { x: cx + r * 0.5, y: cy - r * 0.16 },
+          { x: cx, y: cy + r * 0.46 },
+        ],
+        true,
+      );
+      break;
+    }
+    case 'un':
+      // A globe in laurel. Sustainment: it outlasts you rather than
+      // out-shooting you, and the mark is the only one that is not a weapon.
+      g.lineStyle(Math.max(1.5, size * 0.075), ink, 1);
+      g.strokeCircle(cx, cy - r * 0.1, r * 0.62);
+      g.beginPath();
+      g.moveTo(cx - r * 0.62, cy - r * 0.1);
+      g.lineTo(cx + r * 0.62, cy - r * 0.1);
+      g.strokePath();
+      g.beginPath();
+      g.arc(cx - r * 0.34, cy - r * 0.1, r * 0.62, -Math.PI / 2.6, Math.PI / 2.6, false);
+      g.strokePath();
+      g.beginPath();
+      g.arc(cx + r * 0.34, cy - r * 0.1, r * 0.62, Math.PI - Math.PI / 2.6, Math.PI + Math.PI / 2.6, false);
+      g.strokePath();
+      g.beginPath();
+      g.arc(cx, cy + r * 0.1, r * 0.92, Math.PI * 0.28, Math.PI * 0.72, false);
+      g.strokePath();
+      break;
+    default:
+      g.lineStyle(Math.max(1.5, size * 0.08), ink, 1);
+      g.strokeCircle(cx, cy, r * 0.7);
+      break;
+  }
+}

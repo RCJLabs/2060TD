@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { music } from '../music';
-import { campaignFor, flavorFor } from '../../content/factions';
+import { campaignFor, FACTION_IDS, flavorFor } from '../../content/factions';
+import { drawFactionMark } from '../glyphs';
 import { leagueOf } from '../../meta/ladder';
 import {
   activeSlot,
@@ -101,10 +102,20 @@ export class MenuScene extends Phaser.Scene {
 
   private buildMenu(): Overlay {
     const now = Date.now();
-    // No overlay title here: the hero flows inside the card with everything
-    // else, so the whole composition centres as one block instead of leaving
-    // a hole between a pinned title and the buttons.
-    const ov = new Overlay(this, this.layout, { scrim: 1 });
+    // The masthead is pinned now, and that reverses a v1.4 decision. It was
+    // flowed inside the card because a title floating over a dark scrim left
+    // a hole between itself and the buttons — but the masthead is a filled
+    // slab spanning the sheet since the ink pass, and a slab is an anchor
+    // rather than a hole. The front door was the last screen still reading
+    // like a text document with three buttons under it.
+    const ov = new Overlay(this, this.layout, {
+      scrim: 1,
+      title: '2060TD',
+      subtitle:
+        'An alternate history. 2027. A coordinated offensive — China, Russia, North Korea — ' +
+        'strikes the American mainland and UN forces worldwide. The fiction depicts militaries ' +
+        'and machines, not peoples.',
+    });
     const { gap, font, compact, px } = this.layout;
 
     // One column for the whole menu, not a monitor-wide stretch.
@@ -119,7 +130,11 @@ export class MenuScene extends Phaser.Scene {
     const menuButton = (
       label: string,
       onTap: () => void,
-      opts: { align?: 'left' | 'center'; sub?: string } = {},
+      opts: {
+        align?: 'left' | 'center';
+        sub?: string;
+        icon?: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void;
+      } = {},
     ) => ov.flowButton(label, onTap, { ...opts, width: menuWidth, gapAfter: menuGap });
     /**
      * Deliberate breathing room between blocks. Measuring the text also took
@@ -148,17 +163,6 @@ export class MenuScene extends Phaser.Scene {
       });
     };
 
-    prose('2060TD', font.hero, COLORS.ink, air, px(560));
-    prose(
-      'An alternate history. 2027. A coordinated offensive — China, Russia, ' +
-        'North Korea — strikes the American mainland and UN forces worldwide. ' +
-        'The fiction depicts militaries and machines, not peoples.',
-      font.tiny,
-      COLORS.inkDim,
-      Math.round(air * 1.6),
-      px(560),
-    );
-
     // Three wars side by side, so trying another faction never costs you the
     // one you have. Slot 1 is the original single-slot file.
     const wars = Array.from({ length: SLOT_COUNT }, (_, i) => ({
@@ -166,7 +170,31 @@ export class MenuScene extends Phaser.Scene {
       town: readSlot(i + 1),
     }));
     const fought = wars.filter((w) => w.town !== null);
-    if (fought.length === 0) prose('Five commands are hiring.', font.body, COLORS.ink, air);
+    if (fought.length === 0) {
+      // The five marks, in a row, on the same column the buttons use — a
+      // strip laid across the whole card floats free of everything under it.
+      // Names go in the sentence rather than under the marks: five captions
+      // at badge size is a second row of type where the point was to have
+      // fewer, and the marks are introduced properly on the picker anyway.
+      const markBox = Math.round(this.layout.rowH * 0.95);
+      ov.band(
+        markBox,
+        (g, rect) => {
+          const left = rect.x + Math.round((rect.w - menuWidth) / 2);
+          const step = menuWidth / FACTION_IDS.length;
+          FACTION_IDS.forEach((faction, i) => {
+            drawFactionMark(g, faction, left + step * (i + 0.5) - markBox / 2, rect.y, markBox);
+          });
+        },
+        gap,
+      );
+      prose(
+        `Five commands are hiring: ${FACTION_IDS.map((f) => flavorFor(f).short).join(', ')}.`,
+        font.body,
+        COLORS.ink,
+        air,
+      );
+    }
 
     for (const { slot, town } of wars) {
       if (!town) {
@@ -189,6 +217,10 @@ export class MenuScene extends Phaser.Scene {
           // The short band form: a slot row already carries a faction name,
           // and PLA EXPEDITIONARY FORCE plus IRREGULARS does not fit a phone.
           sub: this.eraseMode ? 'ERASE' : `T${town.frontline.tier} · ${leagueOf(town).short}`,
+          // Whose war this is, before the name is read. Five armies are told
+          // apart by shape here for the same reason they are on the board:
+          // the page has one colour and it is not spent on identity.
+          icon: (g, x, y, size) => drawFactionMark(g, town.faction, x, y, size),
         },
       );
     }

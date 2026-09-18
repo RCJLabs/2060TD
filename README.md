@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.35, in the browser. No install, no account, works on a phone.
+v1.36, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -19,7 +19,7 @@ v1.35, in the browser. No install, no account, works on a phone.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v1.35: the ink page
+## Current state — v1.36: the ink page, and five marks
 
 The whole game is drawn on a page of a graphic novel now — black and white,
 shaded with adhesive screentone, with exactly one colour on it. Board, rail and
@@ -62,15 +62,26 @@ in world space inside the board container, so pan and the dots stay on the
 ground. A screen-locked dot screen crawls, and that is the usual way this style
 fails in a game.
 
+**Five armies told apart by shape.** Taking the colour out of the board left
+the five factions looking identical everywhere but their names — and the names
+are phrases, not identities you can see. Each one has a mark now, each saying
+what that army is for: a star; a star with four wheeling off it; a slab over a
+chevron; an arrow going *under* the line; a globe in laurel. They sit on every
+war slot and every pick, and the front door finally takes the knockout masthead
+it had been skipping since v1.4.
+
 Two harness gaps opened up on the way and both are closed. An active tab filled
 with ink and kept an ink label, so the open tab was a black rectangle with no
 name in it. And overlays had never owned a background — they drew type straight
 onto an 86% black scrim, which worked while the type was cream — so for one
 commit every briefing, report and menu was #111 on near-black with all
 twenty-two E2E harnesses green, because label-driven checks cannot see contrast.
-`npm run screenshot` now shoots the front door and drives a real overlay open,
-and `npm run zoom` magnifies a region nearest-neighbour, which is how three more
-art bugs turned up that were invisible at page size.
+`npm run screenshot` now shoots the front door, the first-run faction picker and
+a driven-open overlay, and `npm run zoom` magnifies a region nearest-neighbour —
+which is how four more art bugs turned up that were invisible at page size. The
+last of them was the quietest: every row icon had `onDark: true` baked in from
+when the drawer was a dark rail, so inverting it drew white silhouettes on white
+rows. Only the row knows whether it is a knockout, so it passes that in now.
 
 ## v1.34: the approach
 

@@ -2615,8 +2615,11 @@ paper by area and the value budget is free for the things that matter.
 - [ ] **Phase 4 — the kinetics.** Radial focus lines converging on a breach, speed
       lines behind moving armour, an outlined starburst with an alarm core. What
       a particle system would do, done the way the page does it.
-- [ ] **Phase 5 — verify and ship.** Screenshots read back as images at phone and
+- [x] **Phase 5 — verify and ship.** Screenshots read back as images at phone and
       desktop, all 22 harnesses, docs.
+- [x] **Phase 6 — the five armies, and the front door.** A mark per faction, drawn
+      in the ink vocabulary, on every war slot and every pick. The front door takes
+      the knockout masthead it had been skipping since v1.4.
 
 **What it deliberately does not do.** No web font: Barlow Condensed is what the
 mockups are set in and what the style wants, and adding it would cost the offline

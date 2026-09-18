@@ -83,7 +83,7 @@ import {
 } from '../../meta/town';
 import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standingOrders';
 import { BoardView } from '../BoardView';
-import { drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
+import { drawFactionMark, drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
 import { haptic } from '../haptics';
 import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
 import { Overlay } from '../overlay';
@@ -1374,7 +1374,11 @@ export class TownScene extends Phaser.Scene {
       ov.flowButton(
         `${flavor.faction} — ${flavor.operation.split(' — ')[0]!.replace('OPERATION ', 'OP. ')}`,
         () => pick(faction),
-        { gapAfter: Math.round(gap / 2) },
+        {
+          gapAfter: Math.round(gap / 2),
+          align: 'left',
+          icon: (g, x, y, size) => drawFactionMark(g, faction, x, y, size),
+        },
       );
       ov.paragraph(flavor.pitch, font.tiny, COLORS.inkDim, { center: true, gapAfter: gap });
     }

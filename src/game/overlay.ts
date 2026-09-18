@@ -164,11 +164,23 @@ export class Overlay {
     scene.events.once(Phaser.Scenes.Events.POST_UPDATE, () => this.settle());
   }
 
-  /** Short content reads better centred than pinned under the subtitle. */
+  /**
+   * Short content reads better centred than pinned under the subtitle — but
+   * only up to a point.
+   *
+   * Half the slack is right on a phone, where a card is barely taller than
+   * what is in it. On a monitor the slack can be most of the screen, and half
+   * of THAT drops the content so far from the masthead that the two stop
+   * reading as one composition: the front door came out as a black bar, a
+   * field of white, and then some buttons. The cap keeps the centring where
+   * it helps and stops it where it only makes a hole.
+   */
   private settle(): void {
     if (this.closed) return;
     const slack = this.card.h - this.contentH;
-    if (slack > this.layout.gap) this.body.y += Math.round(slack / 2);
+    if (slack > this.layout.gap) {
+      this.body.y += Math.min(Math.round(slack / 2), this.layout.rowH * 2);
+    }
   }
 
   /** Adopt a loose object into the HUD container, when there is one. */
@@ -317,6 +329,22 @@ export class Overlay {
     return rect;
   }
 
+  /**
+   * A full-width band of the card the caller draws into directly.
+   *
+   * `sketch` centres a SQUARE box, which is right for showing one thing and
+   * wrong for a strip of them. This hands over the whole rect, so a caller
+   * can lay out across the card and still get the scrolling, masking and
+   * lifetime the body provides.
+   */
+  band(height: number, draw: (g: Phaser.GameObjects.Graphics, rect: Rect) => void, gapAfter?: number): Rect {
+    const rect = this.flow(height, gapAfter);
+    const g = this.scene.add.graphics().setDepth(this.depth + 1);
+    this.body.add(g);
+    draw(g, rect);
+    return rect;
+  }
+
   /** Button inside the scrolling body. */
   button(
     rect: Rect,
@@ -357,6 +385,12 @@ export class Overlay {
       width?: number;
       gapAfter?: number;
       font?: number;
+      /**
+       * The thing this row IS, drawn into its left edge — same contract as
+       * `PanelRow.icon`, so one drawing function serves the drawer, the board
+       * and an overlay without three sets of shapes drifting apart.
+       */
+      icon?: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void;
     } = {},
   ): Button {
     const size = opts.font ?? this.layout.font.body;
@@ -371,9 +405,17 @@ export class Overlay {
     // it will really draw at, then size the row around what it reported.
     const padX = Math.round(size * 1.1);
     const subW = b.subWidth();
-    b.setWrap(Math.max(size * 4, width - padX * 2 - (subW > 0 ? subW + padX : 0)));
+    const box = opts.icon ? Math.round(this.layout.rowH * 0.72) : 0;
+    const iconW = box > 0 ? box + padX : 0;
+    b.setIndent(iconW);
+    b.setWrap(Math.max(size * 4, width - padX * 2 - iconW - (subW > 0 ? subW + padX : 0)));
     const h = Math.max(this.layout.rowH, b.labelHeight() + Math.round(size * 1.1));
     b.setRect(x, y, width, h);
+    if (opts.icon) {
+      const g = this.scene.add.graphics().setDepth(this.depth + 1);
+      this.body.add(g);
+      opts.icon(g, x + padX, y + Math.round((h - box) / 2), box);
+    }
     this.cursor += h + (opts.gapAfter ?? this.layout.gap);
     this.contentH = this.cursor;
     return b;

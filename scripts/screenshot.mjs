@@ -106,6 +106,11 @@ try {
     throw new Error(`no button matching "${needle}"`);
   };
   await shoot('', 2500, 'menu.png');
+  // The faction picker is a FIRST-RUN screen: nobody with a save ever sees it
+  // again, so nothing else in this suite has ever drawn it.
+  await shoot('', 2500, 'factions.png', undefined, async (page) => {
+    await tapLabel(page, 'EMPTY');
+  });
   await shoot('demo=town', 2500, 'overlay.png', undefined, async (page) => {
     await tapLabel(page, 'WAR');
     await tapLabel(page, 'SERVICE RECORD');

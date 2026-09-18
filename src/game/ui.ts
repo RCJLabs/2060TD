@@ -720,7 +720,24 @@ export interface PanelRow {
    *
    * Called on every rebuild, which is every frame — keep it to drawing.
    */
-  icon?: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void;
+  icon?: (
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    size: number,
+    /**
+     * This row is a KNOCKOUT — solid ink with a paper label — so the icon has
+     * to invert with it.
+     *
+     * The parameter exists because inverting the drawer made the old answer
+     * wrong in silence. Every supplier hard-coded `onDark: true` back when the
+     * rail was dark, which on a paper row draws a white silhouette on white
+     * and leaves only its grey trim behind. Nothing fails; the icon is just
+     * not there. Only the row knows which state it is in, so only the row can
+     * answer this.
+     */
+    onDark: boolean,
+  ) => void;
 }
 
 export interface PanelTab {
@@ -1266,7 +1283,7 @@ export class Panel {
         this.grabs[entry.slot] = undefined;
         if (onScreen && entry.row.icon) {
           const box = Math.round(Math.min(lineH, rowH) * 0.72);
-          entry.row.icon(icon, x + pad, y + Math.round((lineH - box) / 2), box);
+          entry.row.icon(icon, x + pad, y + Math.round((lineH - box) / 2), box, entry.row.active === true);
           // The grab area is the silhouette plus its padding, full row height:
           // the drawn glyph is about 16 CSS px across, which is a picture, not
           // a target. This is what a finger has to hit.
