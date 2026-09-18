@@ -1035,10 +1035,27 @@ and lives inside the board container, so the dots are part of the ground: pan an
 put, zoom and you lean in over the paper. A screen-locked dot screen crawls and moirés, and
 that is the usual way this style fails in a game.
 
-**What it deliberately does not have.** No web font. The mockups are set in Barlow Condensed
-and the style wants it, but adding it costs the offline build and the single-file build a
-network dependency, and a Phaser canvas cannot subset and inline a face the way a DOM UI can.
-That trade is an M30 question, not an M32 one.
+**Two faces, and the split between them is the whole type system.** The DISPLAY face is
+Barlow Condensed and carries every LABEL — a row's name, a button, a tab, a heading, a
+masthead. It is what a comic sets its captions and its shouting in, and it is where the
+direction's character comes from; the game read like a terminal until it arrived. MONO
+carries every FIGURE — costs, counts, timers, hashes, share codes — and prose, because a
+column of numbers has to line up and a code is read a character at a time.
+
+Neither costs a request. Two weights of the latin subset are base64 data URIs in
+`src/fonts.css`, about 45 KB of font, so the PWA works offline and the single-file build
+still fetches nothing. Barlow is SIL OFL 1.1; the licence travels in `LICENSES.md`.
+
+Loading is not automatic and the failure is silent. Canvas text does not trigger font
+loading, and Phaser measures a string the moment a `Text` is constructed — so a game that
+starts before the face is ready measures the FALLBACK, caches those metrics, and lays every
+row, wrap and tap target out for a font it is not drawing. `main.ts` waits on
+`document.fonts.load` for both weights before it constructs the game, raced against a
+timeout so a font that fails to decode costs the look and not the game.
+
+A condensed face at the same pixel height reads noticeably smaller than a mono one, so
+`display()` multiplies the layout token by `DISPLAY_SCALE`. That is the only thing the two
+faces have to agree on: a row label and the figure beside it looking like the same size.
 
 ### 6.2 Audio
 

@@ -50,9 +50,25 @@ export interface Button {
   destroy(): void;
 }
 
-/** The terminal face. System monospace keeps the look with no web font. */
+/**
+ * The two faces, and the split between them is the whole type system.
+ *
+ * DISPLAY is a condensed grotesque and carries every LABEL: a row's name, a
+ * button, a tab, a heading, a masthead. It is what a comic sets its captions
+ * and its shouting in, and it is where the ink direction's character comes
+ * from — the mockups are set in it, and the game read like a terminal until
+ * it arrived.
+ *
+ * MONO carries every FIGURE: costs, counts, timers, hashes, share codes, and
+ * prose. A column of numbers has to line up, and a code has to be read a
+ * character at a time.
+ *
+ * Both are inlined, so neither costs a request — see fonts.css.
+ */
 export const MONO_FAMILY =
   'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace';
+export const DISPLAY_FAMILY =
+  '"Barlow Condensed", ui-sans-serif, system-ui, "Arial Narrow", sans-serif';
 
 export function mono(
   size: number,
@@ -60,6 +76,31 @@ export function mono(
   extra: Partial<Phaser.Types.GameObjects.Text.TextStyle> = {},
 ): Phaser.Types.GameObjects.Text.TextStyle {
   return { fontFamily: MONO_FAMILY, fontSize: `${Math.round(size)}px`, color: css(color), ...extra };
+}
+
+/**
+ * A label, in the display face.
+ *
+ * Sized UP against `mono` at the same token, because a condensed face at the
+ * same pixel height reads noticeably smaller — narrower letters and a shorter
+ * apparent width for the same string. The multiplier is what makes a row
+ * label and the figure beside it look like the same size, which is the only
+ * thing the two faces have to agree on.
+ */
+export const DISPLAY_SCALE = 1.22;
+
+export function display(
+  size: number,
+  color: number = COLORS.ink,
+  extra: Partial<Phaser.Types.GameObjects.Text.TextStyle> = {},
+): Phaser.Types.GameObjects.Text.TextStyle {
+  return {
+    fontFamily: DISPLAY_FAMILY,
+    fontSize: `${Math.round(size * DISPLAY_SCALE)}px`,
+    fontStyle: '600',
+    color: css(color),
+    ...extra,
+  };
 }
 
 /** Travel (device px) past which a press counts as a drag, not a tap. */
@@ -232,7 +273,7 @@ export function makeButton(
   // unknown height, and a block is centred by measuring it, not by pinning
   // its middle to the row's middle and hoping it is one line tall.
   const label = scene.add
-    .text(align === 'center' ? x + width / 2 : x + padX, y, text, mono(fontSize))
+    .text(align === 'center' ? x + width / 2 : x + padX, y, text, display(fontSize))
     .setOrigin(align === 'center' ? 0.5 : 0, 0);
   const sub =
     opts.sub !== undefined
@@ -634,7 +675,11 @@ export function makeButton(
     setFont(size: number) {
       if (fontSize === size) return;
       fontSize = size;
-      label.setFontSize(size);
+      // The label is display-faced and the sub is mono, so the two take the
+      // same token at different pixel sizes. A resize that forgot that is how
+      // a re-laid-out row ends up with a label a fifth smaller than the one
+      // beside it that never moved.
+      label.setFontSize(Math.round(size * DISPLAY_SCALE));
       sub?.setFontSize(size);
       place();
     },
@@ -910,7 +955,7 @@ export class Panel {
       .setInteractive({ useHandCursor: true });
     this.handleGrip = scene.add.rectangle(0, 0, 10, 4, COLORS.oliveDark).setOrigin(0, 0);
     this.bindHandle();
-    this.titleText = scene.add.text(0, 0, '2060TD', mono(14, COLORS.ink, { fontStyle: 'bold' }));
+    this.titleText = scene.add.text(0, 0, '2060TD', display(16, COLORS.ink, { fontStyle: '800' }));
     this.statusText = scene.add.text(0, 0, '', mono(11, COLORS.ink, { lineSpacing: 3 }));
     this.scrollHint = scene.add.rectangle(0, 0, 3, 30, COLORS.oliveDark).setOrigin(0, 0).setAlpha(0.6);
     this.rowRoot = scene.add.container(0, 0);
@@ -1082,7 +1127,9 @@ export class Panel {
       this.edge.setPosition(panel.x, 0).setSize(Math.max(3, layout.px(2.5)), panel.h);
     }
 
-    this.titleText.setPosition(status.x + pad, status.y + Math.round(pad * 0.6)).setFontSize(font.label);
+    this.titleText
+      .setPosition(status.x + pad, status.y + Math.round(pad * 0.6))
+      .setFontSize(Math.round(font.label * DISPLAY_SCALE));
     this.statusText
       .setPosition(status.x + pad, status.y + Math.round(pad * 0.6) + font.label + Math.round(pad * 0.4))
       .setFontSize(font.tiny);
@@ -1162,7 +1209,7 @@ export class Panel {
       if (row.heading) {
         let text = this.headings[headingIndex];
         if (!text) {
-          text = this.scene.add.text(0, 0, '', mono(font.tiny, COLORS.ink));
+          text = this.scene.add.text(0, 0, '', display(font.tiny, COLORS.ink));
           text.setLetterSpacing(1.4);
           this.rowRoot.add(text);
           this.headings[headingIndex] = text;
@@ -1170,7 +1217,7 @@ export class Panel {
           this.rowRoot.add(rule);
           this.headingRules[headingIndex] = rule;
         }
-        text.setFontSize(font.tiny);
+        text.setFontSize(Math.round(font.tiny * DISPLAY_SCALE));
         text.setWordWrapWidth(headingW);
         // A heading has one text object, so its `sub` used to be dropped on the
         // floor without a word — and it was being passed: the target tab's

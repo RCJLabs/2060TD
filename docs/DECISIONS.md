@@ -504,3 +504,50 @@ here with the change and its date.
   marks live in the UI, where identity is a choice rather than a threat — and
   it is the same substitution the ground made, for the same reason: the page
   has one colour and it is spent on things that just happened.
+- 2026-09-18 — **"Blocked" was a trade nobody had priced.** One release earlier
+  this project wrote down, in the GDD and the roadmap both, that the display
+  face could not ship: Barlow Condensed is what the mockups are set in, adding
+  it would cost the offline build and the single-file build a network
+  dependency, and a Phaser canvas cannot subset and inline a face the way a
+  DOM UI can. Every clause of that is true and the conclusion was still wrong,
+  because the trade was never network-versus-nothing. Google already serves a
+  latin subset: two weights are 45 KB, which as base64 data URIs in a
+  stylesheet is 60 KB against a single-file build of 1.8 MB — three per cent,
+  no request, still offline. The lesson is not about fonts. A constraint
+  written as a sentence goes unchallenged; the same constraint written as two
+  numbers answers itself. Anything filed as blocked deserves one measurement
+  before it is believed.
+- 2026-09-18 — **Canvas text does not load fonts, and Phaser measures at
+  construction.** The two together make a failure with no error in it: a game
+  that starts before the face is ready measures the FALLBACK, caches those
+  metrics, and lays every row, wrap and tap target out for a font it is not
+  drawing. `main.ts` waits on `document.fonts.load` for both weights before
+  constructing the game, raced against a timeout so a face that fails to
+  decode costs the look rather than the session. The same shape of bug then
+  turned up one layer down: `Button.setFont` resized both the label and the
+  sub by the same number, which was correct while they shared a face and wrong
+  the moment the label became condensed and took a scale multiplier.
+- 2026-09-18 — **A promise that stops being true silently needs an assertion,
+  not a comment.** `build:single` printed "one file, no requests" from the
+  moment it was written, and it was true because Vite emitted no CSS at all —
+  the page carried its handful of rules inline. Inlining the font made Vite
+  emit a stylesheet, the inliner only ever folded in the script, and the
+  build cheerfully printed the same sentence over a file that now fetched
+  something. The fix is two lines of check: no surviving stylesheet link, no
+  surviving `./assets/` reference. Any claim a build makes about its own
+  output should be enforced by that build.
+- 2026-09-18 — **A test that passes on a coincidence is a test that will lie
+  to you later.** `e2e-vet` asserted that a fully loaded squad row wraps onto
+  a second line and grows, and it passed for four releases — not because the
+  wrap machinery was verified, but because the longest label this screen can
+  produce, 36 characters, happened to overrun a desktop rail. Setting labels
+  in a condensed face bought back about a fifth of their width and the
+  assertion failed with nothing broken. Narrowing the window does not restore
+  it either: a narrower rail drops to one column and the row gets WIDER, which
+  is worth knowing on its own. The assertion is gone rather than contorted,
+  and the coverage loss is written into the harness beside the checks that
+  remain, because a fixture that fakes a condition is worse than a documented
+  gap. The general form: when a check asserts a MECHANISM through a fixture
+  that only incidentally triggers it, the fixture is the test, and it will
+  keep reporting green through the first real regression that shortens the
+  input.

@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.36, in the browser. No install, no account, works on a phone.
+v1.37, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -17,9 +17,47 @@ v1.36, in the browser. No install, no account, works on a phone.
   AI probe raids you come back to as replays.
 
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
-· the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+· the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
+· third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.36: the ink page, and five marks
+## Current state — v1.37: the display face
+
+The game read like a terminal until this landed, and now it reads like a page.
+Two faces, and the split between them is the whole type system: **Barlow
+Condensed** carries every LABEL — a row's name, a button, a tab, a heading, a
+masthead — and **mono** carries every FIGURE, because a column of numbers has to
+line up and a share code is read a character at a time.
+
+Neither costs a request. Two weights of the latin subset are base64 data URIs in
+`src/fonts.css`, so the PWA still works offline and the single-file build still
+fetches nothing.
+
+**It was filed as impossible one release earlier**, in this README and the GDD
+and the roadmap: a web font meant a network dependency, and a Phaser canvas
+cannot subset and inline a face the way a DOM UI can. Every clause of that is
+true and the conclusion was still wrong, because the trade was never
+network-versus-nothing — it is 45 KB of font against a 1.8 MB single file.
+Three per cent. A constraint written as a sentence goes unchallenged; the same
+constraint written as two numbers answers itself.
+
+It also caught a test that had been passing on a coincidence. `e2e-vet`
+asserted a fully loaded squad row wraps and grows, and it did — not because
+the wrap was verified but because the longest label this screen can produce,
+36 characters, happened to overrun a desktop rail. A condensed face bought a
+fifth of that width back and the check failed with nothing broken. It is gone
+rather than contorted, and the coverage loss is written into the harness
+beside the checks that remain.
+
+Two silent failures came with it and both are now enforced rather than hoped
+for. Canvas text does not trigger font loading and Phaser measures a string the
+moment a `Text` exists, so a game that starts first lays the whole UI out for a
+font it is not drawing — boot waits on `document.fonts.load` for both weights.
+And `build:single` had printed "one file, no requests" since the day it was
+written, which was true only because Vite emitted no CSS; inlining the font made
+it emit one, the inliner folded in the script alone, and the build kept printing
+the sentence over a file that fetched something. It asserts it now.
+
+## v1.36: the ink page, and five marks
 
 The whole game is drawn on a page of a graphic novel now — black and white,
 shaded with adhesive screentone, with exactly one colour on it. Board, rail and

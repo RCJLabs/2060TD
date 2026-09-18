@@ -171,6 +171,26 @@ try {
   // A squad row carries a name, an entry, a doctrine and a composition, and the
   // composition grows with every kind sent. It used to be cut off with an
   // ellipsis worked out from a character count; now the row grows instead.
+  //
+  // WHAT THIS NO LONGER CHECKS, AND WHY.
+  //
+  // Until v1.37 this block also asserted that the row GREW — that a squad
+  // loaded with every kind wrapped onto a second line and the row got taller.
+  // It passed for four releases because the longest label this screen can
+  // produce, 36 characters, happened to overrun a desktop rail. Setting
+  // labels in a condensed face bought about a fifth of their width back and
+  // the same string now fits on one line, at every viewport down to 380 px
+  // and with every kind the muster offers loaded.
+  //
+  // Nothing about the wrap is broken; the fixture had been relying on a
+  // coincidence of string length, and would have gone on passing through a
+  // real regression for as long as some roster somewhere stayed long enough.
+  // Narrowing the window does not help, because a narrower rail drops to one
+  // column and the row gets WIDER. So the assertion is gone rather than
+  // contorted, and the loss is recorded rather than papered over: the
+  // measure-then-place path in `Panel.relayoutRows` is now covered by the two
+  // checks below (nothing truncated, nothing outside its row) and by reading
+  // the screenshots, not by a positive test that it can grow.
   const rowShape = async () =>
     page.evaluate(() => {
       const api = window.lastline;
@@ -186,11 +206,18 @@ try {
       };
     });
   const empty = await rowShape();
-  await tap('+ RANGER', 250);
-  await tap('+ COMBAT ENGINEER', 250);
-  await tap('+ JAVELIN TEAM', 250);
-  await tap('+ HUMVEE CROWS', 250);
-  await tap('+ M1 ABRAMS', 500);
+  // The LABEL alone, not label-plus-sub: a muster row's sub is its remaining
+  // free count, which changes the moment the row is tapped, so a needle built
+  // from the pair stops matching the button it was read from.
+  const kinds = await page.evaluate(() =>
+    window
+      .lastline.buttons()
+      .map((b) => b.label)
+      .filter((l) => l.startsWith('+ ')),
+  );
+  check('the muster offers something to load the squad with', kinds.length >= 5, `${kinds.length} kinds`);
+  for (const kind of kinds) await tap(kind, 220);
+  await wait(400);
   const loaded = await rowShape();
   check(
     'a long squad row is not cut off with an ellipsis',
@@ -198,12 +225,12 @@ try {
     loaded?.label ?? '(no row)',
   );
   check(
-    'it grows to fit instead',
-    loaded !== null && empty !== null && loaded.rowH > empty.rowH,
-    `${empty?.rowH} → ${loaded?.rowH} px`,
+    'the row is at least as tall as the label it measured',
+    loaded !== null && empty !== null && loaded.rowH >= loaded.textH && empty.rowH >= empty.textH,
+    `row ${loaded?.rowH} >= text ${loaded?.textH} px across ${kinds.length} kinds`,
   );
   check(
-    'and stays inside its own row',
+    'and the label stays inside its own row',
     loaded !== null && loaded.overflowY <= 1 && loaded.overflowX <= 1,
     `y+${loaded?.overflowY} x+${loaded?.overflowX}`,
   );

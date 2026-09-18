@@ -28,7 +28,35 @@ const code = readFileSync(join(OUT_DIR, 'assets', chunks[0]), 'utf8');
 // replacement, or a hash containing `$&` would splice the whole match back in.
 const tag = /<script type="module"[^>]*src="[^"]*"[^>]*><\/script>/;
 if (!tag.test(html)) throw new Error('no module script tag found in the built index.html');
-const inlined = html.replace(tag, () => `<script type="module">\n${code}\n</script>`);
+let inlined = html.replace(tag, () => `<script type="module">\n${code}\n</script>`);
+
+/**
+ * The stylesheet, folded in the same way.
+ *
+ * There was nothing to fold until the display face arrived: the page carried
+ * its few rules inline and Vite emitted no CSS at all. It emits one now, with
+ * two woff2 weights inside it as data URIs — so a build that inlines only the
+ * script produces a file that still fetches something, and the one promise
+ * this artifact makes is that it does not. Asserted below rather than
+ * trusted, because the failure is silent: the page loads, the game runs, and
+ * every label is drawn in the fallback.
+ */
+const sheets = readdirSync(join(OUT_DIR, 'assets')).filter((f) => f.endsWith('.css'));
+for (const sheet of sheets) {
+  const css = readFileSync(join(OUT_DIR, 'assets', sheet), 'utf8');
+  // Found by scanning the tags rather than by building a regex out of the
+  // filename: a Vite hash is arbitrary text going into a pattern, and the
+  // first attempt at this shipped a mangled character class that threw.
+  const link = [...inlined.matchAll(/<link\b[^>]*>/g)].find((m) => m[0].includes(sheet));
+  if (!link) throw new Error(`no link tag found for ${sheet}`);
+  inlined = inlined.replace(link[0], () => `<style>\n${css}\n</style>`);
+}
+if (/<link[^>]*rel="stylesheet"/i.test(inlined)) {
+  throw new Error('a stylesheet link survived inlining — the single file would still fetch it');
+}
+if (/(src|href)="\.\/assets\//.test(inlined)) {
+  throw new Error('an ./assets reference survived inlining — the single file is not self-contained');
+}
 
 const out = join(OUT_DIR, '2060td.html');
 writeFileSync(out, inlined);

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Layout, Rect } from './layout';
 import { popModal, pushModal } from './modal';
 import { COLORS } from './palette';
-import { DRAG_SLOP, makeButton, mono, type Button } from './ui';
+import { display, DRAG_SLOP, makeButton, mono, type Button } from './ui';
 
 /**
  * Full-screen overlays (briefings, research, logs, the faction pick) as one
@@ -122,7 +122,7 @@ export class Overlay {
     let y = margin;
     if (opts.title) {
       const title = scene.add
-        .text(cardX + cardW / 2, y, opts.title, mono(font.title, COLORS.bgField, { fontStyle: 'bold', align: 'center' }))
+        .text(cardX + cardW / 2, y, opts.title, display(font.title, COLORS.bgField, { fontStyle: '800', align: 'center' }))
         .setOrigin(0.5, 0)
         .setDepth(this.depth + 1);
       this.objects.push(this.own(title));

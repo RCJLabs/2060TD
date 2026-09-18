@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import './fonts.css';
 import { BriefingScene } from './game/scenes/BriefingScene';
 import { MenuScene } from './game/scenes/MenuScene';
 import { PlaygroundScene } from './game/scenes/PlaygroundScene';
@@ -56,6 +57,27 @@ const start = viewportCss();
  * (crisp text on phones) while `zoom` shrinks the CSS size back to the
  * viewport. Layout math lives in device px — see game/layout.ts.
  */
+/**
+ * Wait for the display face before a single Text object exists.
+ *
+ * Canvas text does not trigger font loading, and Phaser measures a string the
+ * moment a Text is constructed — so a game that starts first measures the
+ * FALLBACK, caches those metrics, and lays every row, wrap and tap target out
+ * for a font it is not drawing. The two weights are already in the bundle as
+ * data URIs (see fonts.css); this is only the promise that they have been
+ * parsed.
+ *
+ * Raced against a timeout, because a font that somehow fails to decode should
+ * cost the look and not the game.
+ */
+await Promise.race([
+  Promise.all([
+    document.fonts.load('600 16px "Barlow Condensed"'),
+    document.fonts.load('800 16px "Barlow Condensed"'),
+  ]).catch(() => undefined),
+  new Promise((resolve) => setTimeout(resolve, 2500)),
+]);
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'app',

@@ -2621,11 +2621,13 @@ paper by area and the value budget is free for the things that matter.
       in the ink vocabulary, on every war slot and every pick. The front door takes
       the knockout masthead it had been skipping since v1.4.
 
-**What it deliberately does not do.** No web font: Barlow Condensed is what the
-mockups are set in and what the style wants, and adding it would cost the offline
-build and the single-file build a network dependency. The system monospace stack
-stays until that trade is worth making, which is an M30 question — a DOM UI can
-subset and inline a face for the price of a few KB, and a Phaser canvas cannot.
+- [x] **Phase 7 — the display face.** Barlow Condensed for every label, mono for
+      every figure. Filed as blocked on M30 one release earlier and it was not:
+      the trade was never network-versus-nothing, it was 45 KB of inlined woff2
+      against a 1.8 MB single-file build. Two weights of the latin subset ship as
+      data URIs, so the PWA is still offline and the single file still fetches
+      nothing — and the inliner grew an assertion for that, because it had just
+      silently stopped being true.
 
 ---
 
