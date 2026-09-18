@@ -2387,6 +2387,219 @@ missing sentence.
 
 ---
 
+# The overhaul programme — M22 to M31
+
+*Written 2026-09-18, from an audit of v1.34 rather than from memory of what was
+shipped. Everything below is a MULTI-PHASE overhaul, not a tuning pass. The
+sequencing warning is at the bottom and it is not optional: M22 invalidates every
+matrix in `docs/BALANCE.md`, and M24, M25 and M26 all re-tune on top of it.*
+
+**What the audit found.** 46,410 lines: `src/game` 11.7k, `tests` 9.2k, `scripts`
+6.7k, `content` 6.9k, `meta` 4.9k, `tools` 3.6k, `sim` 3.3k. 38 attacker kinds,
+20 structures, 18 campaign missions, 8 archetypes, 9 buildings, 9 research nodes,
+5 factions. The bundle is 1.48 MB of Phaser against 352 KB of game — 81% of the
+download is an engine whose textures, physics and scene graph this project does
+not use.
+
+Four findings drive the whole programme:
+
+1. **One unit is 99-100% of a raid.** `--carry` silences each unit kind in turn:
+   USA `abrams` 99%, China `type99` 100%, Russia `btr` 100%, UN `vab` 100%. Only
+   the KPA differs, at 13%, because tunnels changed the SHAPE of the problem
+   rather than the size of the numbers. It has got WORSE — v1.21 measured 46-87%
+   — because M15 re-derived the reference plans to be optimal and the optimum
+   converged on heavies. **GDD pillar 2, "your plan is your skill", is currently
+   false.**
+2. **The action pillar is the least-built half.** A live siege is five field
+   defence kinds, two commander powers and gates. There are three code paths into
+   one: a campaign mission, a counterattack, a skirmish. Every probe resolves
+   offline. "Defense is the action game" describes about a tenth of the code.
+3. **Five factions that measure the same.** Parity at 4.2 points took three
+   milestones and is a real achievement — and it means the kits now differ in
+   stats and one mechanic each. What was meant to differ in STYLE has been
+   successfully tuned into differing in almost nothing.
+4. **The ladder's bottom half is free.** `T1->T2 -0`, `T2->T3 -5`, then -20/-20.
+
+---
+
+## M22 — "The Kill Chain": rebuild what winning a battle IS
+
+**The one that has to go first.** The command post is an HP sponge that only
+adjacency meaningfully damages: `DAMAGE_MULT` discounts ranged fire hard against
+`structure` (smallArms 0.15, flak 0.1, kinetic 0.5, explosive 1.0) and `hqDps`
+only fires when a unit is adjacent. So the only thing that ends a raid is a unit
+that survives to touch the post, and everything else in the roster is escort. A
+buff to an escort buys nothing — measurably, exactly nothing.
+
+Replace the sponge with a **staged objective**: cut the wire, suppress the
+covering guns, set the charge, hold the ground while it burns. Each stage wants a
+different unit. Breachers open, suppression keeps heads down, the heavy still
+matters and can no longer solo four stages, and a force with no infantry stalls
+at stage one.
+
+- [ ] **Phase 1 — an instrument that attributes PROGRESS, not kills.** Which
+      stage each raid died at, per unit kind, per faction. `--carry` can only say
+      "silencing this changes the verdict"; this has to say "this unit is what
+      gets you through stage 2".
+- [ ] **Phase 2 — the stage model in the engine, behind `KILL_CHAIN_VERSION`.**
+      Version 0 is today's sponge, frozen forever, so every archived replay
+      re-fights the battle it recorded. Same discipline as `TERRAIN_VERSION` and
+      `COMBAT_CURRENT`.
+- [ ] **Phase 3 — re-derive all five reference plans against it.** The bar: carry
+      at or under 50%, and every roster slot delivering something measurable.
+- [ ] **Phase 4 — re-tune the ladder.** Every matrix in `BALANCE.md` was measured
+      on the sponge and none of them survives this.
+
+## M23 — "Live Fire": make defence the game the GDD claims
+
+Three times the verbs. Commander abilities on real cooldowns rather than stocked
+charges; unit-level orders (hold, fall back, focus fire); a prep phase that is a
+puzzle and not a countdown; wave modifiers a player reads and answers;
+repositioning field defences mid-wave at a cost. And change WHEN a siege happens
+— an offline probe should be offerable as "defend this live, right now, for a
+premium", which converts idle attrition into sessions.
+
+- [ ] **Phase 1 — a pressure-curve instrument.** Is a siege ever actually close?
+      Measure the margin over time, not the verdict. A defence that is decided at
+      wave 1 and watched for four more is not an action game.
+- [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
+      AND against how often the player's input changed the outcome. A verb that
+      does not move the second number is decoration.
+- [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
+      memorable.**
+
+## M24 — "The Settlement": from nine buildings to a base builder
+
+Nine building kinds and nine research nodes in three linear tracks of three is
+not a base-building game. Add **adjacency** (a fuel depot beside a motorpool cuts
+training time), **districts** with identity, **production chains** instead of flat
+accrual, **power and logistics as a constraint** so layout is an economic decision
+and not only a maze decision, and **persistent battle damage** so a bad defence
+costs a week of throughput.
+
+- [ ] **Phase 1 — an economy instrument.** Where does a player's time and supply
+      actually go? Nothing has ever pointed a harness at the town.
+- [ ] **Phase 2 — adjacency and power.** Alone, these turn layout into two
+      overlapping optimisation problems: the maze and the grid.
+- [ ] **Phase 3 — chains and districts.** The tech tree becomes a graph rather
+      than three ladders.
+
+## M25 — "The Theater": give the war a map
+
+"Front line, tier 3" is an abstraction with no geography. Replace it with a
+territorial campaign map: nodes held and lost, supply lines that can be cut, an
+enemy running its own offensives while the player is away, fronts that move. This
+is what turns "grind the ladder" into "there is a war on and I am losing the
+north", and it is where an endgame can live.
+
+- [ ] **Phase 1 — the map as pure data over the existing ladder.** Tiers become
+      distance from the front. No new sim.
+- [ ] **Phase 2 — enemy agency.** An AI that takes territory back offline, so the
+      map moves without the player.
+- [ ] **Phase 3 — supply and attrition.** Holding ground costs; overextending
+      punishes.
+- [ ] **Phase 4 — the endgame.** The front reaches their capital, or yours.
+
+## M26 — "Asymmetry": factions become different games
+
+4.2-point parity means it is now SAFE to diverge. Give each faction a different
+verb rather than a different number: asymmetric win conditions, a unique resource,
+a board rule of its own. The KPA already points the way — it is the only faction
+whose carry is 13% instead of 100%, because tunnels changed the shape of the
+problem.
+
+- [ ] **Phase 1 — one mechanic per faction, prototyped in the harness** before a
+      line of UI exists for it.
+- [ ] **Phase 2 — measure the right thing.** Not parity in odds, which is already
+      won, but DIVERGENCE in how a turn is spent.
+- [ ] **Phase 3 — re-tune to hold 4.2 while the playstyles separate.**
+
+## M27 — "The Other Commander": asynchronous PvP for real
+
+Share codes are a boast with no consequences. Make them a system: matchmaking by
+standing, revenge raids against whoever hit you, a defence log that names an
+opponent, seasonal ladders with resets, and a base genuinely fought by other
+people overnight. The sim is deterministic and already replay-coded, so the hard
+part is done.
+
+- [ ] **Phase 1 — ghost raids.** Your base, their force, resolved locally,
+      results exchanged by code.
+- [ ] **Phase 2 — a thin server (or peer exchange)** for matchmaking and standing.
+- [ ] **Phase 3 — seasons, revenge, leaderboards.**
+
+## M28 — "Command Cadre": progression with a ceiling worth climbing
+
+The campaign ends at 18 missions and then it is skirmish forever. Add named
+officers with traits who level and can die, doctrine trees that make a run
+distinct, unit upgrade paths, and a prestige reset that carries something forward.
+Veterancy already proved this project can build "pays in survivors, not in wins";
+this extends it into a reason for run #4.
+
+- [ ] **Phase 1 — officers as a save layer**, reaching the sim through the mod
+      hooks that already exist.
+- [ ] **Phase 2 — doctrine trees** replacing the 3x3 research ladder.
+- [ ] **Phase 3 — prestige and the meta-currency it feeds.**
+
+## M29 — "After Action": make the sim explain itself
+
+A raid is a replay you watch. It should be a report you read: where men were lost
+on the map, what killed them by damage type, which squad stalled and for how long,
+and a COUNTERFACTUAL re-sim — "the same raid with one more breacher" — which a
+deterministic engine can do for free. This is the cheapest way to make the
+planning half feel like skill, because it teaches.
+
+- [ ] **Phase 1 — surface what already exists.** `res.losses` carries per-kind
+      death attribution and nothing shows it.
+- [ ] **Phase 2 — a spatial heat map** over the board.
+- [ ] **Phase 3 — the counterfactual.** Re-run with one substitution, diff the
+      outcome, show both.
+
+## M30 — "Render": stop paying 1.48 MB for a Graphics list
+
+Phaser is 81% of the download and this game uses none of its texture, physics or
+scene-graph strengths — every frame re-walks and re-batches an immediate-mode
+command list, and `ui.ts` is 1,562 lines of hand-rolled hit testing because there
+is no DOM. Two coherent exits: drop Phaser for a small custom Canvas2D/WebGL
+renderer, or keep Phaser for the BOARD only and move the entire UI to DOM and CSS.
+
+**Take the second.** Lower risk, bigger immediate win, and it makes accessible
+text and real input handling free.
+
+- [ ] **Phase 1 — a DOM panel behind a flag**, one scene at a time.
+- [ ] **Phase 2 — retire `ui.ts`, `overlay.ts` and the gesture layer.**
+- [ ] **Phase 3 — revisit Phaser** once the board is the only thing using it.
+
+## M31 — "Materiel": the total art and audio pass
+
+The topographic sheet and the twelve silhouette families are good and coherent.
+What is missing is everything that sells IMPACT: no muzzle flash, no tracers with
+weight, no craters that persist, no smoke, no shake, no destruction states. Audio
+is a mixer and some music — no positional combat mix, no reactive score, no radio
+chatter with texture.
+
+- [ ] **Phase 1 — an impact vocabulary.** Hit, kill, breach, structure loss; each
+      with one visual and one sound, and nothing shipped without both.
+- [ ] **Phase 2 — persistent battlefield scarring.** Craters, wreckage, burn
+      marks. The board should look like the battle happened on it.
+- [ ] **Phase 3 — reactive score and a positional mix.**
+
+---
+
+## Sequencing — and the one rule that is not negotiable
+
+**M22 first.** The carry defect invalidates the entire planning half and every
+balance table in the repo. Then **M23**, because the action pillar is the
+least-built half of a game whose FIRST design pillar it is. Then **M30**, the
+cheapest large win, which also unblocks the UI surface that M23 and M29 both need.
+
+**Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
+combat model. Tuning them against the sponge and then again against the kill chain
+is doing the same work twice, and this project has already learned that lesson in
+a smaller costume — see the M19 entry on a grid that could not resolve the step it
+was being read for.
+
+---
+
 ## Working agreements
 
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
