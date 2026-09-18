@@ -1,6 +1,6 @@
 import { createRng, type Rng } from '../sim/rng';
 import { generateTerrain, TERRAIN_VERSION } from '../sim/terrain';
-import type { CellIndex, LayoutStructure, LayoutWall } from '../sim/types';
+import type { CellIndex, LayoutStructure, LayoutWall, SpawnEdge } from '../sim/types';
 
 /**
  * Front Line base generator (M4): handcrafted layout templates + seeded
@@ -11,6 +11,43 @@ import type { CellIndex, LayoutStructure, LayoutWall } from '../sim/types';
 export const MAP_W = 32;
 export const MAP_H = 24;
 export const TARGETS_PER_TIER = 3;
+
+/**
+ * Which edge a generated base is attacked from, and the lane the attackers
+ * walk in on. The town and the ladder share a world, so this is the town's
+ * edge — see `TOWN_GRID`.
+ */
+/**
+ * Does depth run DOWN the board or ACROSS it? The one switch the frame below
+ * turns on. Annotated rather than inferred so the compiler keeps both arms of
+ * every ternary live — narrowed to a literal it folds them and the other
+ * arm stops being typechecked at all.
+ */
+const APPROACH_NORTH: boolean = false;
+
+export const BASE_SPAWN_EDGE: SpawnEdge = APPROACH_NORTH ? 'north' : 'west';
+export const BASE_SPAWN_LANE = 0;
+
+/**
+ * APPROACH SPACE — the frame every wall plan below is authored in.
+ *
+ * `u` is depth: how far into the base you are from the edge the attack comes
+ * from. `v` runs along that edge. On the original west-entry board those were
+ * literally x and y, which is why the plans read as they do; when the world
+ * turned portrait in v1.40 the attack came from the north instead, and a plan
+ * written in x and y would have had its corridors running the wrong way.
+ *
+ * So the plans keep their coordinates and the TRANSFORM moves, at the three
+ * points where a plan emits something: `putWall`, `putStructure` and the
+ * tower and economy spot lists. Eight shapes tuned over six releases stay
+ * exactly as tuned, and the board underneath them can rotate.
+ */
+export const MAP_U = APPROACH_NORTH ? MAP_H : MAP_W;
+export const MAP_V = APPROACH_NORTH ? MAP_W : MAP_H;
+
+/** Approach space to the real board. */
+const realX = (u: number, v: number): number => (APPROACH_NORTH ? v : u);
+const realY = (u: number, v: number): number => (APPROACH_NORTH ? u : v);
 
 /** Which kinds a generated base is built from — one kit per defending faction. */
 export interface BaseKit {
@@ -171,9 +208,10 @@ export type ArchetypeId =
 export interface PlanContext {
   rng: Rng;
   tier: number;
-  ccX: number;
-  ccY: number;
-  putWall: (x: number, y: number) => void;
+  /** The command post, in APPROACH SPACE — `u` is depth, `v` is across. */
+  ccU: number;
+  ccV: number;
+  putWall: (u: number, v: number) => void;
   /** Preferred gun positions, best first. The generator takes what fits. */
   towerSpots: [number, number][];
 }
@@ -535,12 +573,12 @@ export function archetypeFor(tier: number, variant: number, faction?: string): A
 
 /** Walled rectangle with two or three gates, guns on the corners and gates. */
 function planCompound(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
   const margin = ri(rng, 6, 7);
-  const x0 = Math.max(3, ccX - margin);
-  const x1 = Math.min(MAP_W - 3, ccX + margin + 1);
-  const y0 = Math.max(2, ccY - margin + 1);
-  const y1 = Math.min(MAP_H - 3, ccY + margin);
+  const x0 = Math.max(3, ccU - margin);
+  const x1 = Math.min(MAP_U - 3, ccU + margin + 1);
+  const y0 = Math.max(2, ccV - margin + 1);
+  const y1 = Math.min(MAP_V - 3, ccV + margin);
   const gates = new Set<number>();
   const gateCount = ri(rng, 2, 3);
   for (let g = 0; g < gateCount; g++) gates.add(ri(rng, 0, 3));
@@ -567,10 +605,10 @@ function planCompound(c: PlanContext): void {
 
 /** Diamond ring with two breaches. */
 function planStar(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
   const r = ri(rng, 7, 8);
-  const cx = ccX + 1;
-  const cy = ccY + 1;
+  const cx = ccU + 1;
+  const cy = ccV + 1;
   const breachA = ri(rng, 0, 3);
   const breachB = (breachA + ri(rng, 1, 3)) % 4;
   for (let dx = -r; dx <= r; dx++) {
@@ -593,23 +631,23 @@ function planStar(c: PlanContext): void {
 
 /** Two offset wall lines west of the post: a forced serpentine. */
 function planCorridor(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
-  const lineA = ccX - 7;
-  const lineB = ccX - 3;
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
+  const lineA = ccU - 7;
+  const lineB = ccU - 3;
   const gapA = ri(rng, 3, 8);
   const gapB = ri(rng, 15, 20);
-  for (let y = 1; y <= MAP_H - 2; y++) {
+  for (let y = 1; y <= MAP_V - 2; y++) {
     if (Math.abs(y - gapA) > 1) putWall(lineA, y);
     if (Math.abs(y - gapB) > 1) putWall(lineB, y);
   }
-  for (let x = lineB; x <= Math.min(MAP_W - 3, ccX + 6); x++) {
+  for (let x = lineB; x <= Math.min(MAP_U - 3, ccU + 6); x++) {
     putWall(x, 2);
-    putWall(x, MAP_H - 3);
+    putWall(x, MAP_V - 3);
   }
   towerSpots.push(
     [lineA + 1, gapA], [lineB + 1, gapB], [lineB + 2, gapA],
-    [ccX - 1, ccY - 4], [ccX - 1, ccY + 5], [ccX + 3, ccY - 3], [ccX + 3, ccY + 4],
-    [lineA + 3, Math.floor(MAP_H / 2)],
+    [ccU - 1, ccV - 4], [ccU - 1, ccV + 5], [ccU + 3, ccV - 3], [ccU + 3, ccV + 4],
+    [lineA + 3, Math.floor(MAP_V / 2)],
   );
 }
 
@@ -619,18 +657,18 @@ function planCorridor(c: PlanContext): void {
  * not many of them.
  */
 function planCamp(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
   const r = ri(rng, 5, 7);
   const stub = ri(rng, 3, 5);
   for (let i = -stub; i <= stub; i++) {
-    putWall(ccX + i, ccY - r);
-    putWall(ccX + i, ccY + r);
-    putWall(ccX - r, ccY + i);
-    putWall(ccX + r, ccY + i);
+    putWall(ccU + i, ccV - r);
+    putWall(ccU + i, ccV + r);
+    putWall(ccU - r, ccV + i);
+    putWall(ccU + r, ccV + i);
   }
   towerSpots.push(
-    [ccX, ccY - r + 2], [ccX, ccY + r - 1], [ccX - r + 2, ccY], [ccX + r - 1, ccY],
-    [ccX - 3, ccY - 3], [ccX + 4, ccY + 4], [ccX + 4, ccY - 3], [ccX - 3, ccY + 4],
+    [ccU, ccV - r + 2], [ccU, ccV + r - 1], [ccU - r + 2, ccV], [ccU + r - 1, ccV],
+    [ccU - 3, ccV - 3], [ccU + 4, ccV + 4], [ccU + 4, ccV - 3], [ccU - 3, ccV + 4],
   );
 }
 
@@ -641,14 +679,14 @@ function planCamp(c: PlanContext): void {
  * entry sectors instead of one heavy push.
  */
 function planDepot(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
   const r = ri(rng, 3, 4);
   for (let i = -r; i <= r; i++) {
     if (Math.abs(i) > 1) {
-      putWall(ccX + i, ccY - r);
-      putWall(ccX + i, ccY + r);
-      putWall(ccX - r, ccY + i);
-      putWall(ccX + r, ccY + i);
+      putWall(ccU + i, ccV - r);
+      putWall(ccU + i, ccV + r);
+      putWall(ccU - r, ccV + i);
+      putWall(ccU + r, ccV + i);
     }
   }
   for (const [px, py] of depotSpots(c)) {
@@ -660,7 +698,7 @@ function planDepot(c: PlanContext): void {
     }
     towerSpots.push([px, py - 3]);
   }
-  towerSpots.push([ccX, ccY - r - 1], [ccX, ccY + r + 2], [ccX - r - 1, ccY], [ccX + r + 2, ccY]);
+  towerSpots.push([ccU, ccV - r - 1], [ccU, ccV + r + 2], [ccU - r - 1, ccV], [ccU + r + 2, ccV]);
 }
 
 /** The four corner pens a dispersed depot keeps its stores in. */
@@ -669,9 +707,9 @@ function depotSpots(c: PlanContext): [number, number][] {
   const inset = ri(rng, 0, 1);
   return [
     [6 + inset, 5 + inset],
-    [MAP_W - 8 - inset, 5 + inset],
-    [6 + inset, MAP_H - 6 - inset],
-    [MAP_W - 8 - inset, MAP_H - 6 - inset],
+    [MAP_U - 8 - inset, 5 + inset],
+    [6 + inset, MAP_V - 6 - inset],
+    [MAP_U - 8 - inset, MAP_V - 6 - inset],
   ];
 }
 
@@ -681,12 +719,12 @@ function depotSpots(c: PlanContext): [number, number][] {
  * gets shot at by one pen while breaking into another.
  */
 function planStrongpoints(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
   const pens: [number, number][] = [
-    [ccX, ccY],
-    [ccX - ri(rng, 8, 10), ccY - ri(rng, 4, 6)],
-    [ccX - ri(rng, 8, 10), ccY + ri(rng, 4, 6)],
-    [ccX + ri(rng, 5, 7), ccY + ri(rng, 5, 7) * (rng() < 0.5 ? -1 : 1)],
+    [ccU, ccV],
+    [ccU - ri(rng, 8, 10), ccV - ri(rng, 4, 6)],
+    [ccU - ri(rng, 8, 10), ccV + ri(rng, 4, 6)],
+    [ccU + ri(rng, 5, 7), ccV + ri(rng, 5, 7) * (rng() < 0.5 ? -1 : 1)],
   ];
   pens.forEach(([px, py], index) => {
     const r = index === 0 ? 4 : 3;
@@ -703,7 +741,7 @@ function planStrongpoints(c: PlanContext): void {
     }
     towerSpots.push([px + (index === 0 ? 2 : 0), py + (index === 0 ? -2 : 1)]);
   });
-  towerSpots.push([ccX - 4, ccY], [ccX + 5, ccY], [ccX, ccY - 5], [ccX, ccY + 6]);
+  towerSpots.push([ccU - 4, ccV], [ccU + 5, ccV], [ccU, ccV - 5], [ccU, ccV + 6]);
 }
 
 /**
@@ -712,7 +750,7 @@ function planStrongpoints(c: PlanContext): void {
  * each other. The shape that rewards spending ordnance before walking in.
  */
 function planKeep(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
   const inner = 4;
   const outer = ri(rng, 7, 8);
   const innerGate = ri(rng, 0, 3);
@@ -723,18 +761,18 @@ function planKeep(c: PlanContext): void {
       const skipBottom = gate === 1 && Math.abs(i) <= 1;
       const skipLeft = gate === 2 && Math.abs(i) <= 1;
       const skipRight = gate === 3 && Math.abs(i) <= 1;
-      if (!skipTop) putWall(ccX + i, ccY - r);
-      if (!skipBottom) putWall(ccX + i, ccY + r);
-      if (!skipLeft) putWall(ccX - r, ccY + i);
-      if (!skipRight) putWall(ccX + r, ccY + i);
+      if (!skipTop) putWall(ccU + i, ccV - r);
+      if (!skipBottom) putWall(ccU + i, ccV + r);
+      if (!skipLeft) putWall(ccU - r, ccV + i);
+      if (!skipRight) putWall(ccU + r, ccV + i);
     }
   };
   ring(inner, innerGate);
   ring(outer, outerGate);
   const mid = Math.round((inner + outer) / 2);
   towerSpots.push(
-    [ccX - mid, ccY - mid], [ccX + mid, ccY - mid], [ccX - mid, ccY + mid], [ccX + mid, ccY + mid],
-    [ccX, ccY - mid], [ccX, ccY + mid + 1], [ccX - mid, ccY], [ccX + mid + 1, ccY],
+    [ccU - mid, ccV - mid], [ccU + mid, ccV - mid], [ccU - mid, ccV + mid], [ccU + mid, ccV + mid],
+    [ccU, ccV - mid], [ccU, ccV + mid + 1], [ccU - mid, ccV], [ccU + mid + 1, ccV],
   );
 }
 
@@ -744,19 +782,19 @@ function planKeep(c: PlanContext): void {
  * so a force that walks straight in is engaged the whole way.
  */
 function planBunker(c: PlanContext): void {
-  const { rng, ccX, ccY, putWall, towerSpots } = c;
-  const face = ccX - ri(rng, 5, 6);
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
+  const face = ccU - ri(rng, 5, 6);
   const half = ri(rng, 5, 7);
-  for (let y = ccY - half; y <= ccY + half; y++) {
-    if (Math.abs(y - ccY) > 1) {
+  for (let y = ccV - half; y <= ccV + half; y++) {
+    if (Math.abs(y - ccV) > 1) {
       putWall(face, y);
       putWall(face - 1, y);
     }
   }
   towerSpots.push(
-    [face + 2, ccY - 3], [face + 2, ccY + 4], [face + 4, ccY],
-    [ccX - 2, ccY - 4], [ccX - 2, ccY + 5], [ccX + 3, ccY - 2], [ccX + 3, ccY + 3],
-    [ccX, ccY - 6], [ccX, ccY + 7], [face + 3, ccY - 6], [face + 3, ccY + 7],
+    [face + 2, ccV - 3], [face + 2, ccV + 4], [face + 4, ccV],
+    [ccU - 2, ccV - 4], [ccU - 2, ccV + 5], [ccU + 3, ccV - 2], [ccU + 3, ccV + 3],
+    [ccU, ccV - 6], [ccU, ccV + 7], [face + 3, ccV - 6], [face + 3, ccV + 7],
   );
 }
 
@@ -807,29 +845,41 @@ export function generateBase(
   // it can land in is handed to the generator as ground to keep dry.
   const terrainSeed = (Math.imul(seed, 2654435761) ^ 0x517cc1b7) >>> 0;
   const ccBox: CellIndex[] = [];
-  for (let y = 9; y <= 13; y++) for (let x = 13; x <= 18; x++) ccBox.push(idx(x, y));
-  const terrain = generateTerrain(terrainSeed, TERRAIN_VERSION, MAP_W, MAP_H, ccBox, 0);
+  for (let v = 9; v <= 13; v++) {
+    for (let u = 13; u <= 18; u++) ccBox.push(idx(realX(u, v), realY(u, v)));
+  }
+  const terrain = generateTerrain(
+    terrainSeed,
+    TERRAIN_VERSION,
+    MAP_W,
+    MAP_H,
+    ccBox,
+    BASE_SPAWN_LANE,
+    BASE_SPAWN_EDGE,
+  );
   const water: CellIndex[] = [];
   for (let cell = 0; cell < MAP_W * MAP_H; cell++) {
     if (!terrain.passable(cell)) water.push(cell);
   }
   occupancy.block(water);
 
-  const ccX = ri(rng, 13, 17);
-  const ccY = ri(rng, 9, 12);
-  const ccOrigin = idx(ccX, ccY);
+  // The post sits deep and central: `ccU` is how far in from the attack, `ccV`
+  // how far along the line.
+  const ccU = ri(rng, 13, 17);
+  const ccV = ri(rng, 9, 12);
+  const ccOrigin = idx(realX(ccU, ccV), realY(ccU, ccV));
   occupancy.block(footprint2(ccOrigin));
 
   const putStructure = (
     kind: string,
-    x: number,
-    y: number,
+    u: number,
+    v: number,
     big: boolean,
     at = level,
   ): boolean => {
-    const origin = idx(x, y);
+    const origin = idx(realX(u, v), realY(u, v));
     const cells = big ? footprint2(origin) : [origin];
-    if (y < 1 || y + (big ? 1 : 0) > MAP_H - 2 || !occupancy.free(cells)) return false;
+    if (v < 1 || v + (big ? 1 : 0) > MAP_V - 2 || !occupancy.free(cells)) return false;
     occupancy.block(cells);
     // Compound mounts stay at level 1 however deep the ladder goes. They are
     // there to answer rotors, not to be a quiet ground-defence buff on every
@@ -839,23 +889,23 @@ export function generateBase(
     return true;
   };
 
-  const putWall = (x: number, y: number): void => {
-    if (x < 2 || x > MAP_W - 2 || y < 1 || y > MAP_H - 2) return;
-    const cell = idx(x, y);
+  const putWall = (u: number, v: number): void => {
+    if (u < 2 || u > MAP_U - 2 || v < 1 || v > MAP_V - 2) return;
+    const cell = idx(realX(u, v), realY(u, v));
     if (!occupancy.free([cell])) return;
     occupancy.block([cell]);
     walls.push({ cell, kind: 'wall' });
   };
 
   const towerSpots: [number, number][] = [];
-  const plan: PlanContext = { rng, tier, ccX, ccY, putWall, towerSpots };
+  const plan: PlanContext = { rng, tier, ccU, ccV, putWall, towerSpots };
 
   // ---- economy: caches and dumps, where the shape keeps them ----
   const cacheCount = Math.max(1, Math.round(Math.min(4, 2 + Math.floor(tier / 3)) * arch.economy));
   const dumpCount = Math.max(1, Math.round(Math.min(3, 1 + Math.floor(tier / 4)) * arch.economy));
   const economySpots: [number, number][] = arch.economySpots?.(plan) ?? [
-    [ccX - 5, ccY - 4], [ccX + 4, ccY - 4], [ccX - 5, ccY + 3], [ccX + 4, ccY + 3],
-    [ccX - 6, ccY], [ccX + 5, ccY], [ccX, ccY - 5], [ccX, ccY + 4],
+    [ccU - 5, ccV - 4], [ccU + 4, ccV - 4], [ccU - 5, ccV + 3], [ccU + 4, ccV + 3],
+    [ccU - 6, ccV], [ccU + 5, ccV], [ccU, ccV - 5], [ccU, ccV + 4],
   ];
   // Seeded shuffle.
   for (let i = economySpots.length - 1; i > 0; i--) {
@@ -923,7 +973,7 @@ export function generateBase(
   }
   // Fill any shortfall with guards hugging the command post.
   const fallback: [number, number][] = [
-    [ccX - 2, ccY - 1], [ccX + 3, ccY - 1], [ccX - 2, ccY + 2], [ccX + 3, ccY + 2],
+    [ccU - 2, ccV - 1], [ccU + 3, ccV - 1], [ccU - 2, ccV + 2], [ccU + 3, ccV + 2],
   ];
   for (let i = 0; i < fallback.length && (placed < towerCount || mounts < aaCount); i++) {
     const wantAa = mounts < aaCount;
