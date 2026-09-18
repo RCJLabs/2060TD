@@ -491,6 +491,44 @@ data-driven so later factions are content drops, not engine work.
 
 ## 5. Systems
 
+### 5.0 The board *(v1.40)*
+
+**20 cells across, 30 deep, attacked from the north.** Every battle in the game is fought
+on this shape: the town when it is besieged, a generated ladder base, a pasted share code,
+a campaign mission.
+
+It was 32x24 entered from the west until v1.40, and the reason it turned is that this is a
+phone game. Thirty-two cells across the short side of a 360px phone is an **11px cell**, and
+an 11px cell cannot carry a silhouette, a level pip or a fingertip — measurable with
+`npm run fit`, which scores a candidate grid against the real board rect on six devices.
+Upright, the same phone gets **18px**, and a typical one 20-21px.
+
+What that cost is small and specific, and it is why the board turned rather than shrinking:
+
+| | v1.39 | v1.40 |
+|---|---|---|
+| Depth from the entry line | 32 | 30 |
+| Across the entry line | 24 | 20 |
+| Cells | 768 | 600 |
+| Cell on a 360px phone | 11.3px | 18.0px |
+
+**Depth is what decides a raid** — route length and gun coverage, per `docs/BALANCE.md` —
+and depth lost two cells. The axis that lost four is the one nobody walks along.
+
+Two consequences run through the whole codebase:
+
+- **Layouts are written in approach space.** `u` is depth from the line the attack comes
+  down; `v` runs across it. The eight wall plans, the balance harness's three reference
+  bases and the showcase town are all authored that way, and the transform to real cells
+  lives at the few points where a plan emits something. Eight shapes tuned over six releases
+  did not have to be re-tuned to rotate.
+- **A cell index means something different on each board**, so a save, a share code or a
+  replay has to say which one it meant. Replays name their `spawnEdge` and re-fight the
+  battle they recorded. Saves and share codes carry a grid version and are TRANSPOSED
+  forward — the map that carries the old command post to the new one, so every building
+  keeps its exact offset from the post and its exact distance from the enemy. A base that
+  funnelled attackers into a crossfire still does.
+
 ### 5.1 Resources
 
 | Resource | Source | Spent on |
@@ -540,7 +578,7 @@ A gate is a wall with a state, and the only thing in the game that lets the play
 
 Every battle is fought on a generated sheet, derived from one seed and never stored. The
 same seed rebuilds the same ground anywhere, so a replay carries two numbers rather than
-768 cells, and `TERRAIN_VERSION` names a generator rather than a revision of one — improving
+600 cells, and `TERRAIN_VERSION` names a generator rather than a revision of one — improving
 the maths means adding a version, so an archived battle keeps re-fighting the ground it was
 fought on.
 

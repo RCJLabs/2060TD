@@ -597,3 +597,43 @@ here with the change and its date.
   is the one thing the boot card exists to win. The general form: a build tool
   that makes dev "faster" often makes it DIFFERENT, and the difference lands
   exactly on whatever paints earliest.
+- 2026-09-18 — **The board turned upright, and the axis that shrank is the one
+  nobody walks along.** 32x24 entered from the west put 32 cells across the
+  short side of a phone: an 11px cell, too small for a silhouette, a level pip
+  or a fingertip. 20x30 entered from the north gets the same phone 18px. The
+  measurement is what made the choice obvious and it took an instrument to get
+  it — `npm run fit` scores a candidate grid against the real board rect on six
+  devices, and its first draft asserted that the drawer could not matter
+  because "width is what binds", which was true only of the shape being
+  replaced. **Two levers, and each alone is worthless:** the shipped grid reads
+  11.3px whatever the drawer does, and a portrait grid reads 10.9px with a
+  half-open drawer that refits the board. Neither number moves until both move.
+  The cost is four cells ACROSS the line and two of depth, and depth is what
+  decides a raid — so this is a 22% cut in area that barely touches the fight.
+- 2026-09-18 — **Author in the frame the thing is about, not in the frame the
+  screen happens to be.** Eight wall plans, three reference bases and a
+  showcase town were all written in x and y, which only ever meant anything
+  because the attack came from the west. Moving them to `u` (depth from the
+  entry line) and `v` (across it), with the transform at the few points where a
+  plan emits a cell, let the board rotate without re-tuning a single shape —
+  verified as 184 generated bases fingerprinting identically against a v1.39
+  worktree before the shape changed. The same principle caught five E2E
+  harnesses: each carried its own copy of the grid's dimensions or a box of
+  coordinates around where the base used to sit, and all five failed saying "no
+  free cell in view", which reads like a camera bug and was arithmetic. **A
+  test should not hold an opinion about the size of the thing it is testing.**
+- 2026-09-18 — **A migration that reinterprets an index fails quietly.** Every
+  other migration this project has done added a field, and a save missing one
+  is obvious. This one changes what a cell number MEANS, and left alone the
+  file still loads, the buildings are all there, and the base is simply wrong.
+  The transpose is chosen over anything cleverer precisely because it is the
+  map that carries the old command post to the new one: every building keeps
+  its offset from the post AND its distance from the enemy, so a base that
+  funnelled attackers into a crossfire still does. Two details earned
+  themselves: it runs BEFORE the terrain is fitted, because the ground is
+  fitted around whatever is standing and fitting first would put a river where
+  the base is about to move; and the rehoming walk for the 168 cells that no
+  longer exist is aimed at the CLAMPED transposed position, because the first
+  draft fell back to cell 0 and teleported a fuel dump from the deep rear
+  corner to the enemy's doorstep — still present, still counted, and a gift.
+

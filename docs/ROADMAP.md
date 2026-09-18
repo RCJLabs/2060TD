@@ -2652,6 +2652,69 @@ paper by area and the value budget is free for the things that matter.
 
 ---
 
+## M33 — v1.40 "Portrait": a board a phone can read
+
+**Shipped.** Asked for directly: *"rework the world to be a perfect fit on a phone.
+This is a phone game first and foremost."*
+
+The complaint reads as letterboxing and is not. Measured, the world already filled
+78–90% of its rect on every device. What was wrong is SCALE: **32 cells across a
+390px phone is a 12px cell**, and a 12px cell cannot carry a silhouette, a level
+pip or a fingertip.
+
+It took an instrument to see which lever moved it. `npm run fit` scores a candidate
+grid against the real board rect on six devices, and its answer was that **neither
+lever works alone**:
+
+| | drawer open | drawer shut |
+|---|---|---|
+| 32x24 (shipped) | 11.3px | 11.3px |
+| 20x30 | 10.9px | **18.0px** |
+
+The shipped grid is unfixable by layout — width binds at 360/32 whatever the drawer
+does. A portrait grid is unfixable by itself — the drawer refits the board and takes
+back everything the grid gave. Both, together, clear the bar on every phone.
+
+- [x] **The drawer slides over the map instead of zooming it.** The board took its
+      fit zoom from whatever rect the drawer had left it, so every drag rescaled the
+      world under the finger — 19.7px to 7.7px through one drag, measured against the
+      previous build. Fit zoom now comes from the rect a SHUT drawer would leave.
+- [x] **The sim learns which edge the attack comes from.** `spawnEdge`, absent
+      meaning west, so an archived battle re-fights the battle it recorded rather
+      than a rotated one.
+- [x] **Codecs carry the edge without a FORMAT bump.** Verified rather than asserted:
+      the same battle encoded by a v1.39 worktree and by this build produces one
+      identical 927-character string.
+- [x] **Base plans move into approach space** — `u` is depth, `v` is across — and 184
+      generated bases fingerprint identically across the refactor, which
+      `archetypes.test.ts` could not have caught because it pins same-input-same-output
+      and a consistent shift satisfies that perfectly well.
+- [x] **The world turns: 20x30, attacked from the north.** Depth 32 → 30, across 24 →
+      20, cells 768 → 600. Depth is what decides a raid; the axis that lost four cells
+      is the one nobody walks along.
+- [x] **A saved war rotates rather than scrambles.** Transpose plus a two-cell slide —
+      the map that carries the old command post to the new one. Anything off the
+      vanished corner walks to the nearest free legal cell rather than being destroyed.
+      Share codes get the same treatment through the same code.
+- [x] **The page follows.** The entry strip draws along the spawn edge with its arrows
+      pointing into the board; the view holds its BOTTOM edge as the drawer rises, so
+      a base at the foot of a portrait board stays on screen while its build drawer is
+      open; the landscape rail takes a little more of the width a portrait world
+      cannot use.
+- [x] **Re-tune.** Every raid matrix was measured on a 32-cell approach.
+
+### What it cost the harnesses
+
+Seven E2E harnesses failed, and only two of them were finding anything real. Five
+carried their own copy of the grid's dimensions, or a box of coordinates drawn
+around where the base used to sit, and all five reported "no free cell in view" —
+which reads like a camera bug and was arithmetic. They ask the board now, through a
+`grid()` seam. The other two were honest: a sideways drag cannot prove the board
+pans when the portrait world's width is the axis with slack, and map marginalia is
+not static text running off the screen.
+
+---
+
 ## Sequencing — and the one rule that is not negotiable
 
 **M32 is done and out of the way.** It was taken first at the owner's request and

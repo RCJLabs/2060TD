@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.39, in the browser. No install, no account, works on a phone.
+v1.40, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,47 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.39: the page starts before the game does
+## Current state — v1.40: a board a phone can read
+
+This is a phone game, and its board was 32 cells across. On a 360px phone that
+is an **11px cell** — too small for a silhouette, a level pip or a fingertip.
+The board is 20 across and 30 deep now, attacked from the north, and the same
+phone gets **18px**. A typical one gets 20–21px.
+
+The complaint reads as letterboxing and is not: measured, the world already
+filled 78–90% of its rect on every device. It took an instrument to see which
+lever actually moved the number, and the answer was that **neither lever works
+alone**:
+
+| | drawer open | drawer shut |
+|---|---|---|
+| 32x24 (what shipped) | 11.3px | 11.3px |
+| 20x30 | 10.9px | **18.0px** |
+
+The old grid is unfixable by layout — width binds at 360/32 whatever the drawer
+does. A portrait grid is unfixable by itself, because the board took its fit
+zoom from whatever rect the drawer had left it and gave straight back what the
+grid had won. Both, together, clear the bar on every phone.
+
+What the turn cost is small and specific. Depth from the entry line went 32 to
+30; the axis that lost four cells is the one nobody walks along, and **depth is
+what decides a raid**. That is why the board turned rather than shrinking.
+
+Eight wall plans, three reference bases and a showcase town rotated without
+being re-tuned, because they moved into **approach space** first — `u` is depth
+from the line the attack comes down, `v` runs across it — and 184 generated
+bases fingerprinted identically across that refactor before anything changed
+shape. A saved war is carried across by a transpose that lands the old command
+post on the new one, so every building keeps its offset from the post and its
+distance from the enemy: a base that funnelled attackers into a crossfire still
+does.
+
+Seven E2E harnesses failed and only two were finding anything real. Five
+carried their own copy of the grid's dimensions, and all five reported "no free
+cell in view" — which reads like a camera bug and was arithmetic. **A test
+should not hold an opinion about the size of the thing it is testing.**
+
+## v1.39: the page starts before the game does
 
 Eight phases of the ink pass repainted every pixel inside the canvas and left
 the entire launch surface a release behind: a dark boot card, a dark body,
@@ -519,7 +559,7 @@ The board stopped being a dark field and became a buff topographic sheet, and
 the terrain on it became mechanical rather than decorative.
 
 - **Every battle is fought on generated ground**, derived from one seed and
-  never stored — a replay carries two numbers, not 768 cells. Water is
+  never stored — a replay carries two numbers, not a cell per square. Water is
   impassable, roads are fast, rough and steep are slow, woodland is cover
   against aimed fire but not against a shell landing in the trees.
 - **All effects are flat multipliers.** There are no line-of-sight checks
@@ -1393,6 +1433,11 @@ npm run catch -- "KRRAK|WHUMP|BLAM"
                    # is saying something matching. For anything too brief to
                    # catch on a timer
 npm run icons      # regenerate the four PWA icons from one drawing function
+npm run fit -- 20x30 18x28
+                   # what size is a cell on the device this is played on? Scores
+                   # a candidate grid against the real board rect on six
+                   # devices, with the drawer open and shut, because on a
+                   # portrait world the two bind in turn
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA
