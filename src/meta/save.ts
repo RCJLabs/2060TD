@@ -4,6 +4,7 @@ import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
+import { regridTown } from './regrid';
 import { normalizePlan } from './warfare';
 import { normalizeContracts } from './contracts';
 import {
@@ -12,6 +13,7 @@ import {
   normalizeWarLog,
   unlockAll,
   type TownState,
+  TOWN_GRID,
 } from './town';
 
 /**
@@ -237,6 +239,24 @@ export function deserialize(json: string): TownState | null {
     // The stored plan arrived in v1.16. Anything unrecognizable is dropped
     // here rather than at the planner, so what reaches the scene is a plan.
     town.lastPlan = normalizePlan(town.lastPlan);
+    // The board turned upright in v1.40, and a cell index means something
+    // different on each. This runs BEFORE the terrain below, and the order is
+    // load-bearing: the ground is fitted around whatever is standing, so
+    // fitting it first would fit it to a base at the old coordinates and
+    // then move the base out from under it.
+    //
+    // Structures and walls must be real arrays before anything touches them.
+    // The shape checks further down catch a junk file, but not until after
+    // this would have thrown on it.
+    if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
+    if ((town.gridVersion ?? 0) < TOWN_GRID.version) {
+      regridTown(town);
+      town.gridVersion = TOWN_GRID.version;
+      // Whatever ground the old board had described is about ground that is
+      // no longer there. Dropping it sends the seed back through the fitting
+      // walk below, which is what puts a river clear of the moved base.
+      delete town.terrainSeed;
+    }
     // The ground arrived in v1.19. A war fought before it has none, and gets
     // one here — derived from when it began, so the same file always upgrades
     // to the same sheet. Buildings already on the board become a constraint

@@ -78,6 +78,13 @@ export const TOWN_GRID = {
   /** Reserved entry lane, measured from `spawnEdge`. Nothing builds on it. */
   spawnLane: 0,
   spawnEdge: 'north' as SpawnEdge,
+  /**
+   * Which board a cell index is against. Bumped when the board's shape
+   * changes, because an index means something different on each and a save
+   * that does not say which one it meant cannot be read. Absent on a save
+   * means 0: the 32x24 western board, everything up to v1.39.
+   */
+  version: 1,
 } as const;
 
 /**
@@ -315,6 +322,15 @@ export interface TownState {
    * the generator as a constraint, so no depot ever wakes up in a river.
    */
   terrainSeed?: number;
+  /**
+   * Which board this town's cells are indexed against (v1.40).
+   *
+   * Absent means 0 — the 32x24 board entered from the west, which is what
+   * every save written before the world turned upright means. `deserialize`
+   * carries such a town across and stamps the current version on it; see
+   * `regrid.ts` for what carrying it across involves.
+   */
+  gridVersion?: number;
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -434,6 +450,8 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
       { id: 1, kind: 'cc', cell: TOWN_GRID.ccOrigin, level: 1, wrecked: false },
     ],
     walls: [],
+    // Born on the current board, so the migration has nothing to do.
+    gridVersion: TOWN_GRID.version,
     charges: { a10: 0, arty: 0 },
     campaign: { next: 0, completed: [], difficulty: null, bonuses: [] },
     unlocked: [...BASELINE_UNLOCKS],

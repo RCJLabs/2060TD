@@ -2,7 +2,8 @@ import { MAP_H, MAP_W, type GeneratedBase } from '../content/bases';
 import { BUILDABLE_KINDS } from '../content/buildings';
 import { FACTION_IDS, type FactionId } from '../content/factions';
 import type { CellIndex, LayoutStructure, LayoutWall } from '../sim/types';
-import type { TownState } from './town';
+import { TOWN_GRID, type TownState } from './town';
+import { LEGACY_GRID, regridTown } from './regrid';
 import {
   checksum,
   fromBase64Url,
@@ -97,7 +98,7 @@ export function encodeBase(town: TownState, name: string): string {
   const payload: number[] = [FORMAT, FACTION_IDS.indexOf(town.faction)];
 
   const cc = town.structures.find((s) => s.kind === 'cc');
-  const ccOrigin = cc?.cell ?? 11 * MAP_W + 27;
+  const ccOrigin = cc?.cell ?? TOWN_GRID.ccOrigin;
   payload.push(Math.min(3, Math.max(1, cc?.level ?? 1)));
   writeVarint(payload, ccOrigin);
 
@@ -140,6 +141,13 @@ export function encodeBase(town: TownState, name: string): string {
   // seed from the layout instead — see terrainSeedForLayout.
   writeVarint(payload, (town.terrainSeed ?? 0) >>> 0);
 
+  // Which board these cells are indexed against (v1.40). A code with no block
+  // is from the 32x24 western board, and the reader carries it across; see
+  // `regrid.ts`. Appended rather than bumping FORMAT, because a bump refuses
+  // every code already sitting in somebody's chat history, and a base that
+  // CAN be rotated faithfully should be.
+  writeVarint(payload, TOWN_GRID.version);
+
   const sum = checksum(payload);
   payload.push(sum & 0xff, (sum >> 8) & 0xff);
   return toBase64Url(payload);
@@ -149,7 +157,13 @@ export type DecodeResult =
   | { ok: true; base: SharedBase }
   | { ok: false; error: ShareError };
 
-const inMap = (cell: number): boolean => cell >= 0 && cell < MAP_W * MAP_H;
+/**
+ * Cells are checked against the LARGER of the two boards while reading,
+ * because which board a code means is not known until its last byte. What
+ * lands on the current one is settled afterwards, by `regridCell`.
+ */
+const READ_CELLS = Math.max(MAP_W * MAP_H, LEGACY_GRID.width * LEGACY_GRID.height);
+const inMap = (cell: number): boolean => cell >= 0 && cell < READ_CELLS;
 
 /** Read a code back, refusing anything that is not exactly what we wrote. */
 export function decodeBase(raw: string): DecodeResult {
@@ -223,15 +237,80 @@ export function decodeBase(raw: string): DecodeResult {
     terrainSeed = readVarint(cur);
     if (terrainSeed === null) return { ok: false, error: 'truncated' };
   }
+  // And a code written since v1.40 names its board. Anything older means the
+  // 32x24 western one, and gets carried across.
+  let gridVersion = 0;
+  if (cur.at < cur.bytes.length) {
+    const read = readVarint(cur);
+    if (read === null) return { ok: false, error: 'truncated' };
+    if (read > TOWN_GRID.version) return { ok: false, error: 'version' };
+    gridVersion = read;
+  }
   if (cur.at !== cur.bytes.length) return { ok: false, error: 'content' };
 
-  const base = { faction, name: cleanName(name), ccOrigin, ccLevel, walls, structures };
+  let base = { faction, name: cleanName(name), ccOrigin, ccLevel, walls, structures };
+  if (gridVersion < TOWN_GRID.version) {
+    const moved = regridShared(base);
+    if (!moved) return { ok: false, error: 'content' };
+    base = moved;
+    // The old ground described a board that is not there any more, so it is
+    // dropped and derived from the layout that survived the move — which both
+    // players compute identically, exactly as a pre-v1.19 code does.
+    terrainSeed = null;
+  } else if (structures.some((st) => !onBoard(st.cell)) || walls.some((w) => !onBoard(w.cell))) {
+    return { ok: false, error: 'content' };
+  }
   return {
     ok: true,
     base: {
       ...base,
       terrainSeed: terrainSeed && terrainSeed > 0 ? terrainSeed : terrainSeedForLayout(base),
     },
+  };
+}
+
+const onBoard = (cell: number): boolean => cell >= 0 && cell < MAP_W * MAP_H;
+
+/**
+ * Carry a decoded legacy base onto the current board.
+ *
+ * The same transpose a saved town gets, run through the same code — a shared
+ * base and a saved one were written against the same board, so they cannot be
+ * allowed to disagree about what a cell meant. Returns null if the command
+ * post itself has nowhere to go, which no real code produces and a corrupt
+ * one might.
+ */
+function regridShared(base: {
+  faction: FactionId;
+  name: string;
+  ccOrigin: CellIndex;
+  ccLevel: number;
+  walls: LayoutWall[];
+  structures: LayoutStructure[];
+}): typeof base | null {
+  const target = {
+    structures: [
+      { id: 0, kind: 'cc', cell: base.ccOrigin, level: base.ccLevel, wrecked: false },
+      ...base.structures.map((st, i) => ({
+        id: i + 1,
+        kind: st.kind,
+        cell: st.cell,
+        level: st.level ?? 1,
+        wrecked: false,
+      })),
+    ],
+    walls: base.walls.map((w) => ({ cell: w.cell, kind: w.kind })),
+  };
+  regridTown(target);
+  const cc = target.structures.find((st) => st.kind === 'cc');
+  if (!cc) return null;
+  return {
+    ...base,
+    ccOrigin: cc.cell,
+    structures: target.structures
+      .filter((st) => st.kind !== 'cc')
+      .map((st) => ({ cell: st.cell, kind: st.kind, level: st.level })),
+    walls: target.walls.map((w) => ({ cell: w.cell, kind: w.kind })),
   };
 }
 
