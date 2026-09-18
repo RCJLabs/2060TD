@@ -336,7 +336,8 @@ export class RaidScene extends Phaser.Scene {
     // screen exists to press was a two-handed reach. Reserving it above the tab
     // strip costs the drawer a row and puts it under the thumb.
     const primaryH = layoutOf(this, this.drawer).rowH;
-    this.layout = layoutOf(this, this.drawer, primaryH);
+    // Three lines under the title: the target, and two of resources.
+    this.layout = layoutOf(this, this.drawer, primaryH, 3);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     const { primary, board, pad, font } = this.layout;
@@ -1297,19 +1298,25 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
             ? 'nh90'
             : 'reaper';
   town.army[flier] = 1;
-  const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
-  place(town, 'barracks', idx(20, 5), now - 600_000);
+  // Approach space, like every other layout in the codebase: `u` is depth from
+  // the line the attack comes down, `v` runs across it.
+  const at = (u: number, v: number) => u * TOWN_GRID.width + v;
+  place(town, 'barracks', at(20, 3), now - 600_000);
   town.structures.find((s) => s.kind === 'cc')!.level = 2;
-  place(town, 'motorpool', idx(20, 17), now - 600_000);
+  place(town, 'motorpool', at(20, 15), now - 600_000);
   // A strip, and something on it (v1.34). The showcase called itself a mustered
   // mid-game town and had never owned an aircraft, which is why nothing here
   // exercised the air layer — including the read that says whether a target is
   // worth flying at. Sited clear of the wall line and the two training halls.
-  place(town, 'airfield', idx(14, 11), now - 600_000);
+  place(town, 'airfield', at(14, 9), now - 600_000);
   tick(town, now - 500_000);
-  structureAt(town, idx(20, 5))!.level = 3; // veteran garrison
-  structureAt(town, idx(20, 17))!.level = 2;
-  const barracks = structureAt(town, idx(20, 5));
+  // Placements can fail — a cell in the river, a footprint off the board — so
+  // these read what actually went down rather than asserting it did. A `!`
+  // here threw on one faction and took the whole scene with it.
+  const barracks = structureAt(town, at(20, 3));
+  const pool = structureAt(town, at(20, 15));
+  if (barracks) barracks.level = 3; // veteran garrison
+  if (pool) pool.level = 2;
   if (barracks) {
     barracks.trainQueue =
       faction === 'china'

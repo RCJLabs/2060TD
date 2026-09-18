@@ -228,19 +228,22 @@ export class SiegeScene extends Phaser.Scene {
   /** A scripted battle: funnel base, assault started, fast-forwarded into wave 2. */
   private applyDemoScript(): void {
     const e = this.engine;
-    const idx = (x: number, y: number) => e.grid.idx(x, y);
-    const wall = (x: number, y: number) =>
-      e.enqueue({ tick: 0, type: 'placeWall', cell: idx(x, y), kind: 'wall' });
+    // Approach space: `u` is depth from the line they come down, `v` across it.
+    // The funnel has to run ACROSS the advance to be a funnel, which is the one
+    // thing a plan written in x and y stops doing the moment the board rotates.
+    const at = (u: number, v: number) => e.grid.idx(v, u);
+    const wall = (u: number, v: number) =>
+      e.enqueue({ tick: 0, type: 'placeWall', cell: at(u, v), kind: 'wall' });
 
-    for (let y = 2; y <= 10; y++) wall(20, y);
-    for (let y = 14; y <= 22; y++) wall(20, y);
-    for (let y = 8; y <= 10; y++) wall(24, y);
-    for (let y = 14; y <= 16; y++) wall(24, y);
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(22, 10), kind: 'm2nest' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(22, 13), kind: 'm2nest' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(25, 12), kind: 'autocannon' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(26, 9), kind: 'mortar' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(25, 15), kind: 'aa' });
+    for (let v = 0; v <= 8; v++) wall(20, v);
+    for (let v = 12; v <= 18; v++) wall(20, v);
+    for (let v = 6; v <= 8; v++) wall(24, v);
+    for (let v = 12; v <= 14; v++) wall(24, v);
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(22, 8), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(22, 11), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(25, 10), kind: 'autocannon' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(26, 7), kind: 'mortar' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(25, 13), kind: 'aa' });
     e.enqueue({ tick: 0, type: 'startAssault' });
 
     // Jump into mid-wave-2 so screenshots land on the action even when the
@@ -254,9 +257,10 @@ export class SiegeScene extends Phaser.Scene {
     }
     // Live-window actions: field defenses drop in and a fire mission lands
     // on the gate while the first frames render.
-    e.command({ tick: e.tick + 3, type: 'placeStructure', cell: idx(21, 11), kind: 'depmg' });
-    e.command({ tick: e.tick + 5, type: 'placeStructure', cell: idx(19, 12), kind: 'claymore' });
-    e.command({ tick: e.tick + 10, type: 'castPower', kind: 'arty', target: { x: 19.5, y: 12.5 } });
+    e.command({ tick: e.tick + 3, type: 'placeStructure', cell: at(21, 9), kind: 'depmg' });
+    e.command({ tick: e.tick + 5, type: 'placeStructure', cell: at(19, 10), kind: 'claymore' });
+    // The fire mission lands on the gap in the line, in world coordinates.
+    e.command({ tick: e.tick + 10, type: 'castPower', kind: 'arty', target: { x: 10.5, y: 19.5 } });
 
 
   }

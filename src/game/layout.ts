@@ -167,6 +167,7 @@ export function computeLayout(
   drawer: number = DRAWER_HALF,
   insets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 },
   primaryH = 0,
+  statusLines = 1,
 ): Layout {
   const mode: LayoutMode = cssHeight > cssWidth ? 'portrait' : 'landscape';
   // Phones and small tablets get thumb-sized controls; big screens stay tight.
@@ -210,7 +211,15 @@ export function computeLayout(
   const sh = height - px(insets.top) - px(insets.bottom);
 
   if (mode === 'portrait') {
-    const statusH = px(t.statusH);
+    // Sized to what the scene puts in it, the way the landscape rail always
+    // has been (v1.40). Portrait used one constant for every screen, so the
+    // raid planner — which shows a target line and two resource lines under
+    // its title — drew its last line across the top of the map. Never shorter
+    // than the constant, so a two-row status is exactly what it was.
+    const statusH = Math.max(
+      px(t.statusH),
+      px(t.font.label + t.font.tiny * statusLines + t.pad * 2.6),
+    );
     const tabsH = px(t.tabsH);
     // The handle is on screen even when the drawer is shut — it is the
     // affordance that says the drawer can come back. Before v1.26 the only way
@@ -257,8 +266,9 @@ export function computeLayout(
     // little more of it costs the board nothing measurable and buys the panel
     // a real column of room (v1.40).
     const railW = Math.round(clamp(sw * 0.32, px(258), px(400)));
-    // Title plus three resource lines, with breathing room.
-    const statusH = px(t.font.label + t.font.tiny * 3 + t.pad * 2.6);
+    // Title plus its lines, with breathing room. Three is the floor rather
+    // than the count, so no rail gets shorter than the one shipped.
+    const statusH = px(t.font.label + t.font.tiny * Math.max(3, statusLines) + t.pad * 2.6);
     const tabsH = px(t.tabsH);
     board = { x: sx, y: sy, w: sw - railW, h: sh };
     boardFull = board;
@@ -319,7 +329,12 @@ export function computeLayout(
 }
 
 /** Layout for a scene's current canvas size. */
-export function layoutOf(scene: Phaser.Scene, drawer = DRAWER_HALF, primaryH = 0): Layout {
+export function layoutOf(
+  scene: Phaser.Scene,
+  drawer = DRAWER_HALF,
+  primaryH = 0,
+  statusLines = 1,
+): Layout {
   const dpr = devicePixelRatioCapped();
   const size = scene.scale.gameSize;
   return computeLayout(
@@ -329,6 +344,7 @@ export function layoutOf(scene: Phaser.Scene, drawer = DRAWER_HALF, primaryH = 0
     drawer,
     safeAreaInsets(),
     primaryH,
+    statusLines,
   );
 }
 
