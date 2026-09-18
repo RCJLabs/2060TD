@@ -43,7 +43,7 @@ const WIDTH = 20;
 
 function makeEngine(seed = 42, overrides: Partial<SimConfig> = {}): Engine {
   return new Engine(
-    { width: WIDTH, height: 11, seed, ccOrigin: 4 * WIDTH + 17, spawnColumn: 0, ...overrides },
+    { width: WIDTH, height: 11, seed, ccOrigin: 4 * WIDTH + 17, spawnLane: 0, ...overrides },
     CATALOG,
   );
 }

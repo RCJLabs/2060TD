@@ -78,7 +78,7 @@ describe('town state', () => {
     expect(place(town, 'supplyDepot', idx(8, 5), T0)).toBe(true);
     expect(canPlace(town, 'supplyDepot', idx(8, 8))).toBe('count'); // CC1 allows 2
     expect(canPlace(town, 'mortar', idx(12, 12))).toBe('count'); // CC1 allows 0
-    expect(canPlace(town, 'm2nest', idx(0, 5))).toBe('spawnColumn');
+    expect(canPlace(town, 'm2nest', idx(0, 5))).toBe('spawnLane');
   });
 
   it('structure upgrades are locked until the CC levels up', () => {
@@ -271,7 +271,7 @@ describe('the siege bridge', () => {
         height: 11,
         seed: 1,
         ccOrigin: 4 * 20 + 17,
-        spawnColumn: 0,
+        spawnLane: 0,
         layout: { walls: [{ cell: 30, kind: 'wall' }], structures: [{ cell: 4 * 20 + 8, kind: 'm2nest' }] },
       },
       TEST_CATALOG,

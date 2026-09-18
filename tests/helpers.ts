@@ -142,7 +142,7 @@ export function makeSandbox(seed = 42, overrides: Partial<SimConfig> = {}): Engi
     height: 11,
     seed,
     ccOrigin: 4 * width + 17,
-    spawnColumn: 0,
+    spawnLane: 0,
     ...overrides,
   };
   return new Engine(config, TEST_CATALOG);

@@ -241,7 +241,7 @@ describe('the integrator charges what the planner charged', () => {
     height: 24,
     seed: 42,
     ccOrigin: 11 * 32 + 27,
-    spawnColumn: 0,
+    spawnLane: 0,
     terrainSeed: 2060,
     terrainVersion: TERRAIN_VERSION,
   };
@@ -441,7 +441,7 @@ describe('nothing gets built in a river', () => {
     height: 24,
     seed: 42,
     ccOrigin: 11 * 32 + 27,
-    spawnColumn: 0,
+    spawnLane: 0,
     terrainSeed: 2060,
     terrainVersion: TERRAIN_VERSION,
   };

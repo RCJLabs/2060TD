@@ -600,7 +600,7 @@ function defenseMatrix(
           seed: seedOf(level, base.ccLevel, i),
           ccOrigin: CC_ORIGIN,
           ccLevel: base.ccLevel,
-          spawnColumn: 0,
+          spawnLane: 0,
           // The shipped game rolls (v1.23). This matrix builds its config by
           // hand rather than through `battleConfig`, so it is the one place
           // that would quietly keep measuring the sim as it was.

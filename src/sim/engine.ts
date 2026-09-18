@@ -301,7 +301,8 @@ export class Engine {
             config.width,
             config.height,
             occupiedCellsOf(config, catalog),
-            config.spawnColumn,
+            config.spawnLane,
+            config.spawnEdge ?? 'west',
           );
     this.phase = config.siege ? 'setup' : 'sandbox';
     this.supplies = config.siege?.startingSupplies ?? 0;
@@ -497,9 +498,8 @@ export class Engine {
       const wave = this.waves[this.waveIndex]!;
       while (this.spawnCursor < wave.length && wave[this.spawnCursor]!.atTick <= this.waveTick) {
         const entry = wave[this.spawnCursor++]!;
-        const column = entry.col ?? this.config.spawnColumn;
         this.spawnAttackerAt(
-          this.grid.idx(column, entry.row),
+          this.entryCell(entry),
           entry.kind,
           events,
           entry.doctrine,
@@ -1696,18 +1696,43 @@ export class Engine {
     if (structure.profile.blocks) this.grid.version++;
   }
 
+  // ---- the entry edge ------------------------------------------------------------
+
+  /**
+   * Where a wave entry comes onto the map.
+   *
+   * A raid or an infiltration tunnel names a cell and gets it. A siege wave
+   * names only where along the entry line it arrives, and the config's edge
+   * decides which axis that is — so the same authored wave enters down the
+   * west column on a legacy board and across the north row on the portrait
+   * one, without the wave having to know.
+   */
+  private entryCell(entry: WaveEntry): CellIndex {
+    const north = (this.config.spawnEdge ?? 'west') === 'north';
+    const lane = this.config.spawnLane;
+    const col = entry.col ?? (north ? 0 : lane);
+    const row = entry.row ?? (north ? lane : 0);
+    return this.grid.idx(col, row);
+  }
+
+  /** Is this cell on the reserved entry lane? Nothing may be built there. */
+  private onSpawnLane(cell: CellIndex): boolean {
+    const north = (this.config.spawnEdge ?? 'west') === 'north';
+    return (north ? this.grid.yOf(cell) : this.grid.xOf(cell)) === this.config.spawnLane;
+  }
+
   // ---- queries for the UI --------------------------------------------------------
 
   structureAt(cell: CellIndex): Structure | undefined {
     return this.structureAtCell.get(cell);
   }
 
-  /** Open ground, not the spawn column or a reserved cell, no attacker on it. */
+  /** Open ground, not the spawn lane or a reserved cell, no attacker on it. */
   isBuildable(cell: CellIndex, ignoreReserved = false): boolean {
     if (!this.grid.inBounds(cell)) return false;
     if (this.grid.wallAt(cell) || this.structureAtCell.has(cell)) return false;
     if (this.grid.isBlocked(cell)) return false;
-    if (this.grid.xOf(cell) === this.config.spawnColumn) return false;
+    if (this.onSpawnLane(cell)) return false;
     if (!ignoreReserved && this.config.reservedCells?.includes(cell)) return false;
     for (const attacker of this.attackers) {
       if (this.grid.cellAt(attacker.pos) === cell) return false;

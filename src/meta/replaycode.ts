@@ -157,7 +157,17 @@ function putWalls(out: number[], dict: Dictionary, list: LayoutWall[]): void {
   }
 }
 
-function putWave(out: number[], dict: Dictionary, wave: WaveDef): void {
+/**
+ * `homeLane` is the row a unit that named no row actually entered on — the
+ * config's entry lane when the battle came from the north, 0 otherwise.
+ *
+ * A wave entry may leave a coordinate to the config (v1.40), but a replay is a
+ * record of a battle that HAPPENED, so the codec stores the cell the unit
+ * really walked onto. That keeps the wire format untouched: `row` has been
+ * mandatory here since FORMAT 1 and every code ever written still reads back
+ * as the battle it recorded.
+ */
+function putWave(out: number[], dict: Dictionary, wave: WaveDef, homeLane: number): void {
   // Entries group by kind too, and atTick is delta-encoded within a group:
   // a wave is a handful of kinds arriving on a regular cadence.
   const byKind = new Map<string, WaveEntry[]>();
@@ -175,7 +185,7 @@ function putWave(out: number[], dict: Dictionary, wave: WaveDef): void {
     for (const e of entries) {
       writeVarint(out, e.atTick - previous);
       previous = e.atTick;
-      writeVarint(out, e.row);
+      writeVarint(out, e.row ?? homeLane);
       // col is optional (the regular western strip); +1 so absent is 0.
       writeVarint(out, e.col === undefined ? 0 : e.col + 1);
       out.push(DOCTRINES.indexOf(e.doctrine ?? 'assault'));
@@ -208,7 +218,7 @@ export function encodeReplay(replay: Replay): string {
   writeVarint(body, c.seed >>> 0);
   writeVarint(body, c.ccOrigin);
   body.push(Math.max(1, Math.min(9, c.ccLevel ?? 1)));
-  writeVarint(body, c.spawnColumn);
+  writeVarint(body, c.spawnLane);
   body.push(c.playerSide === 'attacker' ? 1 : 0);
 
   const mods = c.mods;
@@ -240,7 +250,8 @@ export function encodeReplay(replay: Replay): string {
     writeVarint(body, siege.prepSeconds);
     putMilli(body, siege.repairCostPerHp, 0);
     writeVarint(body, siege.waves.length);
-    for (const wave of siege.waves) putWave(body, dict, wave);
+    const homeLane = (c.spawnEdge ?? 'west') === 'north' ? c.spawnLane : 0;
+    for (const wave of siege.waves) putWave(body, dict, wave, homeLane);
   }
 
   putRecord(body, dict, c.powerCharges ?? {});
@@ -400,9 +411,9 @@ export function decodeReplay(raw: string): ReplayDecode {
   const cells = width * height;
   if (ccOrigin >= cells) return bad('content');
   const ccLevel = body[cur.at++];
-  const spawnColumn = readVarint(cur);
+  const spawnLane = readVarint(cur);
   const attackerSide = body[cur.at++];
-  if (ccLevel === undefined || spawnColumn === null || attackerSide === undefined) {
+  if (ccLevel === undefined || spawnLane === null || attackerSide === undefined) {
     return bad('truncated');
   }
 
@@ -412,7 +423,7 @@ export function decodeReplay(raw: string): ReplayDecode {
     seed,
     ccOrigin,
     ccLevel,
-    spawnColumn,
+    spawnLane,
     ...(attackerSide === 1 ? { playerSide: 'attacker' as const } : {}),
   };
 

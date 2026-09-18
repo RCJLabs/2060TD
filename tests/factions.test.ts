@@ -212,7 +212,7 @@ describe('faction pipeline', () => {
         height: TOWN_GRID.height,
         seed: 99,
         ccOrigin: TOWN_GRID.ccOrigin,
-        spawnColumn: TOWN_GRID.spawnColumn,
+        spawnLane: TOWN_GRID.spawnLane,
         siege: { ...missionSiege(mission, 'standard'), startingSupplies: 0 },
       };
       const engine = new Engine(config, defenseCatalogFor(faction));

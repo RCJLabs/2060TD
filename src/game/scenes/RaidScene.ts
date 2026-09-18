@@ -239,7 +239,7 @@ export class RaidScene extends Phaser.Scene {
       height: MAP_H,
       cell: CELL,
       terrain: raidGround,
-      spawnColumn: -1, // no home entry strip: this is somebody else's ground
+      spawnLane: -1, // no home entry strip: this is somebody else's ground
     });
     this.board.world.add([sheet, this.baseLayer, this.dynLayer]);
     this.board.passable = (col, row) => raidGround.passable(row * MAP_W + col);

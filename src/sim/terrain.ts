@@ -22,7 +22,7 @@
  * whether one cell can *see* another.
  */
 
-import type { CellIndex } from './types';
+import type { CellIndex, SpawnEdge } from './types';
 import { createRng, type Rng } from './rng';
 
 /**
@@ -243,7 +243,8 @@ export function generateTerrain(
   width: number,
   height: number,
   occupied: Iterable<CellIndex> = [],
-  spawnColumn = 0,
+  spawnLane = 0,
+  spawnEdge: SpawnEdge = 'west',
 ): TerrainField {
   if (version === TERRAIN_NONE) return FLAT_TERRAIN;
 
@@ -303,13 +304,15 @@ export function generateTerrain(
     if (cy > 0) blocked[cell - width] = 1;
     if (cy < height - 1) blocked[cell + width] = 1;
   }
-  // The spawn column and its neighbour are never touched. A failed spawn
+  // The spawn lane and its neighbours are never touched. A failed spawn
   // returns before the engine's speed-jitter draw, so one stranded unit would
   // shift every later roll and change the whole battle.
-  for (let y = 0; y < height; y++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const x = spawnColumn + dx;
-      if (x >= 0 && x < width) blocked[y * width + x] = 1;
+  const north = spawnEdge === 'north';
+  for (let along = 0; along < (north ? width : height); along++) {
+    for (let d = -1; d <= 1; d++) {
+      const lane = spawnLane + d;
+      if (lane < 0 || lane >= (north ? height : width)) continue;
+      blocked[north ? lane * width + along : along * width + lane] = 1;
     }
   }
 
@@ -393,7 +396,7 @@ export function generateTerrain(
     }
   }
 
-  drainUntilConnected(ground, width, height, spawnColumn);
+  drainUntilConnected(ground, width, height, spawnLane, spawnEdge);
 
   return {
     version,
@@ -429,7 +432,8 @@ function drainUntilConnected(
   ground: Uint8Array,
   width: number,
   height: number,
-  spawnColumn: number,
+  spawnLane: number,
+  spawnEdge: SpawnEdge,
 ): void {
   const size = width * height;
   const seen = new Uint8Array(size);
@@ -447,7 +451,11 @@ function drainUntilConnected(
     seen.fill(0);
     let head = 0;
     let tail = 0;
-    for (let y = 0; y < height; y++) tail = visit(y * width + spawnColumn, tail);
+    const north = spawnEdge === 'north';
+    const span = north ? width : height;
+    for (let along = 0; along < span; along++) {
+      tail = visit(north ? spawnLane * width + along : along * width + spawnLane, tail);
+    }
     while (head < tail) {
       const c = queue[head++]!;
       const x = c % width;

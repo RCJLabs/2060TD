@@ -77,6 +77,7 @@ import {
   wallAt,
   townTerrain,
   TOWN_GRID,
+  onSpawnLane,
   type PlacedStructure,
   type SiegeOutcome,
   type TownState,
@@ -326,7 +327,7 @@ export class TownScene extends Phaser.Scene {
       height: TOWN_GRID.height,
       cell: CELL,
       terrain: townTerrain(this.town),
-      spawnColumn: TOWN_GRID.spawnColumn,
+      spawnLane: TOWN_GRID.spawnLane,
     });
     this.board.world.add([sheet, this.staticLayer, this.dynLayer]);
     // So the harness can ask the board which cells are wet — see boardWetAt.
@@ -1543,7 +1544,7 @@ export class TownScene extends Phaser.Scene {
         (c) =>
           c >= 0 &&
           c < TOWN_GRID.width * TOWN_GRID.height &&
-          c % TOWN_GRID.width !== TOWN_GRID.spawnColumn &&
+          !onSpawnLane(c) &&
           !wallAt(this.town, c) &&
           (structureAt(this.town, c)?.id ?? s.id) === s.id,
       );
@@ -1576,7 +1577,7 @@ export class TownScene extends Phaser.Scene {
         (c) =>
           c >= 0 &&
           c < TOWN_GRID.width * TOWN_GRID.height &&
-          c % TOWN_GRID.width !== TOWN_GRID.spawnColumn &&
+          !onSpawnLane(c) &&
           !wallAt(this.town, c) &&
           (structureAt(this.town, c)?.id ?? s.id) === s.id,
       );

@@ -425,7 +425,7 @@ export function raidConfig(
     seed,
     ccOrigin: base.ccOrigin,
     ccLevel: base.ccLevel,
-    spawnColumn: 0,
+    spawnLane: 0,
     // The target's own ground. A base carries its terrain seed, so a ladder
     // rung, a duel and a replay of either all fight the same sheet.
     terrainSeed: base.terrainSeed,

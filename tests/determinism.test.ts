@@ -18,7 +18,7 @@ const SANDBOX_CONFIG: SimConfig = {
   height: 24,
   seed: 42,
   ccOrigin: 11 * 32 + 27,
-  spawnColumn: 0,
+  spawnLane: 0,
 };
 
 function sandboxScript(config: SimConfig): Command[] {

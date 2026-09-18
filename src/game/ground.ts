@@ -152,7 +152,7 @@ export interface SheetOptions {
   cell: number;
   terrain: TerrainField;
   /** Column reserved for attacker entry, or -1 for no entry strip. */
-  spawnColumn: number;
+  spawnLane: number;
   /** Sheet name for the bottom-left marginalia. */
   title?: string;
 }
@@ -199,7 +199,7 @@ function paintSheet(
   C: number,
   scale: number,
 ): void {
-  const { width, height, terrain, spawnColumn } = opts;
+  const { width, height, terrain, spawnLane } = opts;
   const pxW = width * C;
   const pxH = height * C;
   const seed = terrain.version * 7919 + 13;
@@ -386,16 +386,16 @@ function paintSheet(
   // ---- the entry strip ----------------------------------------------------
   // The one thing on the sheet that is not cartography: where they come from.
   // Solid ink, because everything hostile on this page is solid ink.
-  if (spawnColumn >= 0) {
-    const cx = spawnColumn * C + C / 2;
+  if (spawnLane >= 0) {
+    const cx = spawnLane * C + C / 2;
     ctx.strokeStyle = INK;
     ctx.lineWidth = hair * 1.4;
     ctx.setLineDash([C * 0.3, C * 0.3]);
     ctx.beginPath();
-    ctx.moveTo(spawnColumn * C, 0);
-    ctx.lineTo(spawnColumn * C, pxH);
-    ctx.moveTo((spawnColumn + 1) * C, 0);
-    ctx.lineTo((spawnColumn + 1) * C, pxH);
+    ctx.moveTo(spawnLane * C, 0);
+    ctx.lineTo(spawnLane * C, pxH);
+    ctx.moveTo((spawnLane + 1) * C, 0);
+    ctx.lineTo((spawnLane + 1) * C, pxH);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = INK;

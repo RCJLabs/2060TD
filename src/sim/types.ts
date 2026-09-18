@@ -196,13 +196,17 @@ export interface WaveEntry {
   atTick: number;
   /** Attacker kind (catalog key). */
   kind: string;
-  /** Spawn row in the entry column. */
-  row: number;
   /**
-   * Spawn column override — infiltration tunnels open INSIDE the map.
-   * Omit for the regular western entry strip.
+   * Spawn coordinates, as a plain (col, row) on the map.
+   *
+   * Whichever one is omitted is filled from the config's entry lane, so a
+   * wave that only says where along the edge a unit arrives does not have to
+   * know which edge that is: a west entry supplies the column, a north entry
+   * the row. Raids and infiltration tunnels give both, because they choose a
+   * cell rather than a place on the line.
    */
   col?: number;
+  row?: number;
   /** Behavior program; defaults to assault. */
   doctrine?: Doctrine;
   /**
@@ -324,6 +328,18 @@ export interface StandingOrders {
   maxActions?: number;
 }
 
+/**
+ * Which edge of the map a battle's attackers walk in from (v1.40).
+ *
+ * 'west' is the original and remains the default everywhere it is absent, so
+ * an archived replay re-fights the battle it recorded rather than a rotated
+ * one. The town turned 'north' when the world went portrait: a phone is held
+ * upright, and an attack that comes down the screen towards the base at the
+ * bottom is the long axis of the device pointed along the long axis of the
+ * fight.
+ */
+export type SpawnEdge = 'west' | 'north';
+
 export interface SimConfig {
   width: number;
   height: number;
@@ -332,8 +348,13 @@ export interface SimConfig {
   ccOrigin: CellIndex;
   /** Command Center upgrade level (scales its HP). Default 1. */
   ccLevel?: number;
-  /** Column reserved for attacker entry; nothing can be built there. */
-  spawnColumn: number;
+  /**
+   * The lane reserved for attacker entry, measured from `spawnEdge`; nothing
+   * can be built on it. A column on a west edge, a row on a north one.
+   */
+  spawnLane: number;
+  /** Which edge that lane runs along. Absent means 'west'. */
+  spawnEdge?: SpawnEdge;
   /**
    * Seed for the terrain field. Ignored unless `terrainVersion` names a real
    * generator. Kept separate from `seed` because the engine's RNG is a single

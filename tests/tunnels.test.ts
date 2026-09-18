@@ -84,7 +84,7 @@ describe('tunnel doctrine', () => {
     // Tunneled squads: every unit within the surfacing ring, delayed by the dig.
     bySquad[1]!.concat(bySquad[2]!).forEach((e) => {
       expect(Math.abs((e.col ?? 0) - mouthCol)).toBeLessThanOrEqual(2);
-      expect(Math.abs(e.row - mouthRow)).toBeLessThanOrEqual(2);
+      expect(Math.abs((e.row ?? 0) - mouthRow)).toBeLessThanOrEqual(2);
     });
     const hunterFirst = Math.min(...bySquad[1]!.map((e) => e.atTick));
     expect(hunterFirst).toBe(1 * SQUAD_DELAY_TICKS + TUNNEL_DIG_TICKS);

@@ -12,7 +12,7 @@ function makeSiege(seed = 42): Engine {
     height: 24,
     seed,
     ccOrigin: 11 * WIDTH + 27, // (27, 11)
-    spawnColumn: 0,
+    spawnLane: 0,
     siege: HOLD_THE_LINE,
   };
   return new Engine(config, M1_CATALOG);

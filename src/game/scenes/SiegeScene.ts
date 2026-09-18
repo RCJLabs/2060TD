@@ -151,7 +151,7 @@ export class SiegeScene extends Phaser.Scene {
       height: GRID_H,
       seed: this.demoMode ? 1337 : Date.now() >>> 0,
       ccOrigin: 11 * GRID_W + 27,
-      spawnColumn: 0,
+      spawnLane: 0,
       siege: standaloneSiege,
       // The sandbox is fought on ground like everything else. Pinned in demo
       // mode so a screenshot run is comparable to the last one.

@@ -26,7 +26,7 @@ function midConfig(seed: number, orders?: StandingOrders, level = 5): SimConfig 
     seed,
     ccOrigin: 11 * W + 27,
     ccLevel: 2,
-    spawnColumn: 0,
+    spawnLane: 0,
     siege: { ...buildAssault(level, enemyRosterFor('usa')), startingSupplies: 0 },
     layout: {
       walls,

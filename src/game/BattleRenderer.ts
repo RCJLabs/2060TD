@@ -126,7 +126,7 @@ export class BattleRenderer {
       height: grid.height,
       cell: c,
       terrain: this.engine.terrain,
-      spawnColumn: this.engine.config.spawnColumn,
+      spawnLane: this.engine.config.spawnLane,
     });
     if (this.sheet) this.container?.addAt(this.sheet, 0);
 

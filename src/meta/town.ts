@@ -43,7 +43,7 @@ import type { VaultEntry } from './vault';
 // this module) — the same shape as the VaultEntry import above it.
 import type { StoredPlan } from './warfare';
 import type { Engine } from '../sim/engine';
-import type { CellIndex, SimConfig, SimStats } from '../sim/types';
+import type { CellIndex, SimConfig, SimStats, SpawnEdge } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
 import { creditContracts, normalizeContracts, type ContractState } from './contracts';
 
@@ -59,8 +59,24 @@ export const TOWN_GRID = {
   width: 32,
   height: 24,
   ccOrigin: 11 * 32 + 27, // (27, 11)
-  spawnColumn: 0,
+  /** Reserved entry lane, measured from `spawnEdge`. Nothing builds on it. */
+  spawnLane: 0,
+  spawnEdge: 'west' as SpawnEdge,
 } as const;
+
+/**
+ * Is this cell on the town's reserved entry lane?
+ *
+ * One predicate, shared by the placement rules and by the scene's ghost, so
+ * the map and the funnel cannot disagree about where the enemy walks in.
+ */
+export function onSpawnLane(cell: CellIndex): boolean {
+  const along =
+    TOWN_GRID.spawnEdge === 'north'
+      ? Math.floor(cell / TOWN_GRID.width)
+      : cell % TOWN_GRID.width;
+  return along === TOWN_GRID.spawnLane;
+}
 
 export interface PlacedStructure {
   id: number;
@@ -335,7 +351,8 @@ export function townTerrain(town: TownState): TerrainField {
       TOWN_GRID.width,
       TOWN_GRID.height,
       TOWN_KEEP_DRY,
-      TOWN_GRID.spawnColumn,
+      TOWN_GRID.spawnLane,
+      TOWN_GRID.spawnEdge,
     );
     TERRAIN_CACHE.set(seed, field);
   }
@@ -363,7 +380,8 @@ export function fitTerrainSeed(town: TownState, startedAt: number): number {
       TOWN_GRID.width,
       TOWN_GRID.height,
       TOWN_KEEP_DRY,
-      TOWN_GRID.spawnColumn,
+      TOWN_GRID.spawnLane,
+      TOWN_GRID.spawnEdge,
     );
     if (occupied.every((cell) => field.passable(cell))) {
       TERRAIN_CACHE.set(seed, field);
@@ -765,7 +783,7 @@ export type PlaceError =
   | 'locked'
   | 'occupied'
   | 'bounds'
-  | 'spawnColumn'
+  | 'spawnLane'
   | 'terrain'
   | 'count'
   | 'cost'
@@ -776,7 +794,7 @@ function cellsFree(town: TownState, cells: CellIndex[], ignoreId?: number): Plac
   const ground = townTerrain(town);
   for (const cell of cells) {
     if (cell < 0 || cell >= w * TOWN_GRID.height) return 'bounds';
-    if (cell % w === TOWN_GRID.spawnColumn) return 'spawnColumn';
+    if (onSpawnLane(cell)) return 'spawnLane';
     // The sim refuses to build here too (water lands in Grid.blocked), so the
     // two layers have to agree or the UI offers a placement the battle would
     // not honour. No message is needed for it: the river is on the map.
@@ -1006,7 +1024,8 @@ function battleConfig(
     seed,
     ccOrigin: TOWN_GRID.ccOrigin,
     ccLevel: ccLevel(town),
-    spawnColumn: TOWN_GRID.spawnColumn,
+    spawnLane: TOWN_GRID.spawnLane,
+    spawnEdge: TOWN_GRID.spawnEdge,
     siege,
     layout: townLayout(town),
     powerCharges: { ...town.charges },

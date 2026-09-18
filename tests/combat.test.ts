@@ -77,7 +77,7 @@ const BASE: SimConfig = {
   height: 24,
   seed: 42,
   ccOrigin: 11 * 32 + 27,
-  spawnColumn: 0,
+  spawnLane: 0,
 };
 
 /** A short battle with shots actually fired, hashed at checkpoints. */
