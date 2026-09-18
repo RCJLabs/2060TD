@@ -958,53 +958,87 @@ never describe a gun that no longer exists.
 
 ## 6. Presentation
 
-### 6.1 Art direction — "the map table" *(rewritten v1.19)*
+### 6.1 Art direction — "the ink page" *(rewritten M32)*
 
-**You are not looking down at a battlefield. You are looking at a map of one, and drawing
-your defences onto it.**
+**You are not looking down at a battlefield. You are looking at a page of a graphic novel
+about one, and drawing your defences onto it.**
 
-A buff topographic sheet, lying on a dark table. Contours traced from the real height field,
-a watercourse, woodland, a road, kilometre grid with edge references. Your base sits on top
-in ink: real top-down silhouettes, one per structure kind, each with a paper knockout behind
-it the way a counter is printed over a map.
+Black and white, shaded with adhesive screentone, with exactly one colour on it. The board
+is a panel with a heavy border; so is the rail beside it; so is every overlay. The fiction
+is unchanged from v1.19 — it is still a map you are planning on, which is still why the view
+is top-down and why marginalia is native rather than clutter — but the medium changed from a
+surveyor's sheet to a printed page, and the medium is what carries the meaning now.
 
-The fiction earns its keep. It explains why the view is top-down and abstract, it makes
-marginalia native instead of clutter — a map is *supposed* to carry a scale bar and a grid
-reference — and it turns your buildings into what they already are: counters placed on ground
-somebody surveyed.
+**The substitution.** v1.19 said what ground you were looking at with HUE — green woodland,
+blue water, buff paper — and spent its entire value budget doing it, which is why every
+silhouette needed a cream knockout to survive being drawn on top of it. This says it with
+TONE DENSITY. The legend is the sim's own ground classes, so the density you see IS the class
+the pathfinder reads:
 
-**The value rule, measured, and it is about AREA rather than lightness alone:**
+| Ground | Screen | What it costs you |
+|---|---|---|
+| Open | `t10` dots | move cost 1.0 |
+| Rough | `t20` dots | 1.3 |
+| Steep | `t40` dots | 1.6, and +range to whoever holds it |
+| Woodland | 45° hatch | 1.15, and ×0.7 incoming direct fire |
+| Water | −30° cross-hatch | impassable |
+| Road | bare paper | 0.7 — the fastest ground there is, and the brightest |
 
-> Ground that **covers area** — paper, road, water, woodland — sits between L\* 63 and 83.
-> Everything you own that covers area sits between L\* 21 and 35. Nothing occupies the gap.
+**The value rule, and it is still about AREA rather than lightness alone:**
 
-Ground *marks* may go darker (the index contour is L\* 46) because a hairline covering no
-area cannot compete with a filled shape. Alarm accents are the deliberate exception: the
-tracer sits at L\* 76, squarely inside the ground band, and is unmissable anyway because it
-earns its read from hue and a knockout rather than from lightness.
+> Ground covers area and is never darker than a tone screen, so it is always at least 60%
+> paper by area. Anything hostile covers area and is **solid ink**. Anything you own covers
+> area and is **bare paper inside an ink keyline**. Nothing on the board is a mid grey, so
+> nothing on the board is ambiguous.
 
-**The UI is not on the sheet.** Panels, rows and text stay dark — they are the table the map
-is lying on. That is why the whole board changed and the drawer did not.
+That last clause is the one that does the work. A phone at 40% brightness in sunlight loses a
+crimson-versus-olive pair completely and loses nothing here, and the direction is very nearly
+colour-blind safe by construction — the one hue is a mark rather than a fill.
+
+**Objects get opposite treatments, and the reason is scale.** A structure is architecture
+drawn on the map: mass in paper, keyline in ink, detail marks in ink, and hostile structures
+filled solid with their marks knocked out. A unit is a counter placed on it — at 26 px a 3 px
+keyline round a 20 px figure closes up and turns the whole thing into a blot, so yours is
+painted eight times in ink around itself and theirs keeps a paper pad under a solid
+silhouette.
+
+**Two greys, one job each.** `ink-dim` is secondary ink for body copy and captions;
+hierarchy on a printed page comes from size and weight, not from washing out the value.
+`disabled` is the only light grey in the system, means "you cannot do this", and appears
+nowhere on the board — which is why a disabled row reads as disabled before it is read.
+
+**The UI is ON the page.** v1.19 kept panels dark on the argument that the board was paper
+and the UI was the table it was lying on. A comic has no table. The rail is a panel at the
+same line weight as the board, and every control has three states and no more: **knockout**
+(chosen, pressed, or the primary action — solid ink, paper label), **disabled** (paper inside
+a grey line, no ink at all), **resting** (paper inside an ink line).
+
+**Kinetics instead of particles.** An impact is a jagged star filled paper and stroked ink; a
+heavy one throws focus lines at itself; a strafe is speed lines. Ink does not fade to grey, so
+an effect holds full value and then cuts rather than dissolving. See `kinetics.ts`.
 
 | Token | Hex | Use |
 |---|---|---|
-| `bg-field` | `#d9cdb4` | The sheet |
-| `paper-warm` | `#e2d8c2` | Knockout halos, the inside of a gate |
-| `contour` | `#a88253` | Every 10 m, hairline |
-| `contour-index` | `#8a6538` | Every 50 m, heavier |
-| `water` / `water-deep` | `#93aaba` / `#6e8c9e` | Watercourse and its bank |
-| `wood` / `wood-edge` | `#8ca06a` / `#6f8050` | Canopy tint and stipple |
-| `road-case` / `road-fill` | `#f0eadb` / `#c9bfa6` | The road |
-| `grid-line` | `#7c7a6e` | Kilometre grid, at 14% |
-| `marg` | `#5a5346` | Sheet name, scale bar, grid references |
-| `olive-dark` / `olive` | `#2e3626` / `#3e4a32` | Structure ink |
-| `sand-dark` / `sand` | `#39422f` / `#4b563c` | Wall line, hesco |
-| `crimson` / `crimson-dark` | `#7a2b24` / `#5a1e19` | Hostile |
-| `bg-panel` / `bg-control` | `#20241f` / `#2a2f28` | The table: panels, and a control's face |
-| `ink` | `#d8d5c7` | UI text, on those dark panels |
-| `alarm` / `signal` / `tracer` | `#c0392b` / `#d35400` / `#e8b44a` | Accents |
+| `bg-field` / `paper-warm` | `#ffffff` | The paper, and the fill of anything you own |
+| tone screens | — | `t10`–`t60` dots, 45° hatch, −30° cross-hatch (`tone.ts`) |
+| `olive-dark` / `sand-dark` | `#111111` | Every keyline, every mark, every rule |
+| `crimson` | `#111111` | Hostile, filled solid |
+| `olive` / `sand` / `steel` | `#c9c9c9` | A secondary panel inside a silhouette |
+| `ink` | `#111111` | UI text |
+| `ink-dim` | `#4a4a4a` | Secondary copy, captions, marginalia |
+| `disabled` | `#9e9e9e` | "You cannot do this", and nothing else |
+| `alarm` / `signal` / `tracer` | `#e0243c` | The one colour. Three or four marks a screen |
+| `un-blue` | `#e0243c` | A medic's cross — the one persistent mark that earns it |
 
-Faction cameos: NK slate `#4a535c`, Russia rust `#6b4520`, UN blue `#3f6bab`.
+**Screentone is locked to the WORLD, not the screen.** The page is baked once in world space
+and lives inside the board container, so the dots are part of the ground: pan and they stay
+put, zoom and you lean in over the paper. A screen-locked dot screen crawls and moirés, and
+that is the usual way this style fails in a game.
+
+**What it deliberately does not have.** No web font. The mockups are set in Barlow Condensed
+and the style wants it, but adding it costs the offline build and the single-file build a
+network dependency, and a Phaser canvas cannot subset and inline a face the way a DOM UI can.
+That trade is an M30 question, not an M32 one.
 
 ### 6.2 Audio
 

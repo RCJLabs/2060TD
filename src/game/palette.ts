@@ -118,12 +118,13 @@ export const COLORS = {
   disabled: 0x9e9e9e,
 
   // ---- faction cameos -----------------------------------------------------
-  // Five armies told apart by tone density rather than hue — see the faction
-  // strip in the approved mockup. These are the flat stand-ins the UI uses
-  // where a single fill is all there is room for.
-  nkSlate: 0x808080,
-  ruRust: 0x555555,
-  unBlue: 0xc9c9c9,
+  // Three tokens that used to be hues — slate, rust and blue — carrying the
+  // few marks a faction owns outright. They are ink now, with one exception:
+  // a medic's cross is the most recognisable icon in the game, it belongs to
+  // one roster, and it is the one persistent mark that earns the accent.
+  nkSlate: 0x111111,
+  ruRust: 0x111111,
+  unBlue: 0xe0243c,
 };
 
 const ACCENT_DEFAULT = { alarm: 0xe0243c, signal: 0xe0243c, tracer: 0xe0243c, tracerExplosive: 0xe0243c };

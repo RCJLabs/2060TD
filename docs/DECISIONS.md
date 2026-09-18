@@ -440,3 +440,47 @@ here with the change and its date.
   whatever existed when it was written, and every feature added after it is
   untested by everything that uses it. Worth asking of any fixture: which
   shipped systems does this thing not contain?
+- 2026-09-18 — **Hue was spending the whole budget to say one thing.** The map
+  table of v1.19 used colour to carry ground class — green woodland, blue
+  water, buff paper — and the cost of that shows up in a clause the palette
+  had to state out loud: everything you own has to sit between L\* 21 and 35
+  because everything the ground does sits between 63 and 83, and a silhouette
+  drawn on top of it needs a cream knockout behind it or it is lost. The ink
+  pass says the same thing with TONE DENSITY and gets the value budget back.
+  The legend is not decorative: `t10` open, `t20` rough, `t40` steep, hatch
+  woodland, cross-hatch water, bare paper road is exactly the `Ground` enum
+  the pathfinder reads, so the density you see is the move cost you pay. What
+  it buys is a rule with no gap in it — ground is never darker than a screen,
+  hostile is solid ink, yours is bare paper inside a keyline, and nothing is a
+  mid grey. A phone at 40% brightness in sunlight loses crimson-against-olive
+  and loses none of this, and the whole direction is colour-blind safe almost
+  by accident, because the one hue left is a mark rather than a fill.
+- 2026-09-18 — **The same margin is a keyline at 90 px and a blot at 26 px.**
+  Structures and units both carried v1.19's paper halo, sized as a knockout
+  pad, and inverting it to ink worked on one and destroyed the other: a
+  building came out as paper inside a clean line, and a rifleman came out as a
+  small white figure in the middle of a large black disc, because the pad had
+  never been sized as a line. Three passes at the contact sheet to see it, and
+  the fix is that they are different objects. A structure is architecture
+  drawn on the map and gets a keyline. A unit is a counter placed on it, and
+  gets its outline by painting the whole figure eight times in ink around
+  itself — equivalent to a real outline for a closed silhouette, and free for
+  all thirty-four kinds and the nine primitives they share, where drawing one
+  per shape would not have been. The general form: a margin measured as a pad
+  is not a margin measured as a line, and a set of counters can only be judged
+  as a set, at the size the game actually draws them.
+- 2026-09-18 — **A palette swap is a rendering change everywhere the palette
+  is read, including where nothing looks at it.** Flipping `bgPanel` to paper
+  and `ink` to black repainted the entire UI correctly and silently broke two
+  things no test could see. An active tab filled with ink and kept an ink
+  label, so the open tab was a black rectangle with no name in it. Worse,
+  full-screen overlays had never owned a background — they drew type straight
+  onto an 86% black scrim, which worked while the type was cream — so every
+  briefing, report and menu became #111 on near-black, and all twenty-two E2E
+  harnesses stayed green, because the text objects were all still present and
+  still reported their strings. Label-driven checks cannot see contrast. The
+  answer was a harness change, not just a fix: `npm run screenshot` now shoots
+  the front door and drives a real overlay open, and `npm run zoom` magnifies
+  a region nearest-neighbour, which is how the grey rotor ring, the grey air
+  shadow and the health bar with an invisible trough were all found — every
+  one of them invisible at page size and obvious at 8x.

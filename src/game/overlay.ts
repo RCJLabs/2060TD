@@ -69,10 +69,60 @@ export class Overlay {
       ),
     );
 
+    /**
+     * The sheet the overlay is printed on.
+     *
+     * v1.19 did not need one: the scrim was dark, the type was cream, and an
+     * overlay was a dark card on a darker screen. The ink direction inverts
+     * the type, so without a paper ground behind it every briefing, report
+     * and menu would be #111 on an 86% black scrim — invisible, and invisible
+     * in a way no label-based harness can see, because the text objects are
+     * all still there and still report their strings.
+     *
+     * It is also what the style wants anyway: the page dims and one panel
+     * comes forward, inside the same heavy border every other panel has.
+     */
+    const sheetX = Math.max(0, cardX - pad);
+    const sheetY = Math.max(0, margin - pad);
+    this.objects.push(
+      this.own(
+        scene.add
+          .rectangle(
+            sheetX,
+            sheetY,
+            Math.min(width, cardW + pad * 2),
+            Math.max(0, height - sheetY * 2),
+            COLORS.bgField,
+          )
+          .setOrigin(0)
+          .setStrokeStyle(Math.max(3, layout.px(2.5)), COLORS.oliveDark)
+          .setDepth(this.depth),
+      ),
+    );
+
+    /**
+     * The masthead: a filled bar with the title knocked out of it.
+     *
+     * Every panel on this page already inverts to say "this one" — a chosen
+     * row, an open tab, the primary action. A titled overlay is the same
+     * statement at page scale, and it is also the one thing that stopped the
+     * front door reading as a text document with three buttons on it.
+     *
+     * Created before the title so it sits under it, sized after, because its
+     * height is whatever the title and subtitle actually measured.
+     */
+    const bar = opts.title
+      ? scene.add
+          .rectangle(sheetX, sheetY, Math.min(width, cardW + pad * 2), 0, COLORS.oliveDark)
+          .setOrigin(0)
+          .setDepth(this.depth)
+      : undefined;
+    if (bar) this.objects.push(this.own(bar));
+
     let y = margin;
     if (opts.title) {
       const title = scene.add
-        .text(cardX + cardW / 2, y, opts.title, mono(font.title, COLORS.ink, { fontStyle: 'bold', align: 'center' }))
+        .text(cardX + cardW / 2, y, opts.title, mono(font.title, COLORS.bgField, { fontStyle: 'bold', align: 'center' }))
         .setOrigin(0.5, 0)
         .setDepth(this.depth + 1);
       this.objects.push(this.own(title));
@@ -81,7 +131,7 @@ export class Overlay {
     if (opts.subtitle) {
       const sub = scene.add
         .text(cardX + cardW / 2, y, opts.subtitle, {
-          ...mono(font.tiny, COLORS.inkDim, { align: 'center' }),
+          ...mono(font.tiny, bar ? COLORS.bgField : COLORS.inkDim, { align: 'center' }),
           wordWrap: { width: cardW },
         })
         .setOrigin(0.5, 0)
@@ -89,6 +139,9 @@ export class Overlay {
       this.objects.push(this.own(sub));
       y += sub.height + pad;
     }
+    // The bar closes just above where the body starts, so the rule between
+    // masthead and content is the bar's own edge rather than a second line.
+    bar?.setSize(bar.width, Math.max(0, y - Math.round(pad * 0.5) - sheetY));
 
     const footerH = layout.rowH + pad * 2;
     this.card = { x: cardX, y, w: cardW, h: Math.max(layout.rowH, height - y - footerH - margin) };

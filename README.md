@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.34, in the browser. No install, no account, works on a phone.
+v1.35, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -19,7 +19,60 @@ v1.34, in the browser. No install, no account, works on a phone.
 Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`](docs/ROADMAP.md)
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-## Current state — v1.34: the approach
+## Current state — v1.35: the ink page
+
+The whole game is drawn on a page of a graphic novel now — black and white,
+shaded with adhesive screentone, with exactly one colour on it. Board, rail and
+overlay are all panels on the same page, at the same line weight.
+
+**Tone density replaced hue, and it is structural rather than decorative.** The
+map table of v1.19 used colour to say what ground you were looking at and spent
+its entire value budget doing it, which is why every silhouette needed a cream
+knockout to survive being drawn on top of it. The legend now is the sim's own
+`Ground` enum, so the density you see is the move cost you pay:
+
+| Ground | Screen | Costs |
+| --- | --- | --- |
+| Open | `t10` dots | 1.0 |
+| Rough | `t20` dots | 1.3 |
+| Steep | `t40` dots | 1.6, and +range to whoever holds it |
+| Woodland | 45° hatch | 1.15, and ×0.7 incoming direct fire |
+| Water | −30° cross-hatch | impassable |
+| Road | bare paper | 0.7 — fastest ground there is, and the brightest |
+
+What it buys is a rule with no gap in it: **ground is never darker than a screen,
+hostile is solid ink, yours is bare paper inside a keyline, nothing is a mid
+grey.** A phone at 40% brightness in sunlight loses a crimson-versus-olive pair
+completely and loses none of this.
+
+**Three control states and no more.** Knockout (chosen, pressed, or the primary
+action — solid ink, paper label), disabled (paper inside a grey line, no ink at
+all), resting. Selection is an inversion; there is no highlight and no second
+accent anywhere in the UI.
+
+**Structures and units needed opposite treatments, and finding that out took
+three passes at the contact sheet.** A structure is architecture drawn on the
+map and gets a keyline. A unit is a counter placed on it — the halo margins that
+read as a keyline round a 90 px building close up round a 26 px figure and turn
+it into a blot — so yours is painted eight times in ink around itself and theirs
+keeps a paper pad under a solid silhouette.
+
+The screentone is locked to the **world**, not the screen: the page is baked once
+in world space inside the board container, so pan and the dots stay on the
+ground. A screen-locked dot screen crawls, and that is the usual way this style
+fails in a game.
+
+Two harness gaps opened up on the way and both are closed. An active tab filled
+with ink and kept an ink label, so the open tab was a black rectangle with no
+name in it. And overlays had never owned a background — they drew type straight
+onto an 86% black scrim, which worked while the type was cream — so for one
+commit every briefing, report and menu was #111 on near-black with all
+twenty-two E2E harnesses green, because label-driven checks cannot see contrast.
+`npm run screenshot` now shoots the front door and drives a real overlay open,
+and `npm run zoom` magnifies a region nearest-neighbour, which is how three more
+art bugs turned up that were invisible at page size.
+
+## v1.34: the approach
 
 v1.33 ended on an information problem. Half the targets the front line deals are
 a materially different proposition flown, the shape is free knowledge, and the
@@ -1231,10 +1284,14 @@ node scripts/e2e-mobile.mjs  # the mobile audit: target sizes, mis-tap gaps,
                    # three phone viewports
 npm run build      # typecheck + production build (engine in its own chunk)
 npm run build:single # one self-contained HTML file, for the artifact
-npm run screenshot # headless screenshots into screenshots/ (desktop + phone)
+npm run screenshot # headless screenshots into screenshots/ (desktop + phone),
+                   # plus the front door and a driven-open overlay — the two
+                   # surfaces a label-driven harness cannot judge
 npm run sheet      # the contact sheet: every attacker silhouette side by side,
-                   # at the three sizes the game draws them, on both the map
-                   # ground and the drawer's panel
+                   # at the three sizes the game draws them, as yours and theirs
+npm run zoom -- screenshots/demo.png out.png 150 440 90 60 10
+                   # magnify a region, nearest-neighbour. Art bugs live at
+                   # counter scale and are invisible at page scale
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA

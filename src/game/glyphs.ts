@@ -740,7 +740,10 @@ export function drawAttackerGlyph(
 
   /** A rotor disc: the blur a turning blade makes, not the blade. */
   const rotor = (r: number, at = 0): void => {
-    g.lineStyle(Math.max(1, 1.3 * u), body, 0.55);
+    // Full value at half the weight, not half value at full weight: ink laid
+    // at 0.55 alpha is a mid grey, and mid grey is the one thing this page
+    // does not have.
+    g.lineStyle(Math.max(1, 0.7 * u), body, 1);
     g.strokeCircle(at * u, 0, r * u);
   };
 
@@ -845,7 +848,7 @@ export function drawAttackerGlyph(
         // a hollow counter is the only one on the sheet.
         halo(8);
         facing(() => {
-          g.lineStyle(Math.max(1, 1.3 * u), COLORS.nkSlate, 1);
+          g.lineStyle(Math.max(1, 1.3 * u), body, 1);
           g.strokeRect(-2.4 * u, -3.9 * u, 4.8 * u, 7.8 * u);
           g.strokeCircle(0.4 * u, 0, 2.4 * u);
           carried(1.2, -2.4, 4.4, 0, 0.9);

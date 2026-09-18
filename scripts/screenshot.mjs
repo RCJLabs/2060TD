@@ -45,7 +45,7 @@ try {
 
   const PHONE = { width: 412, height: 915, deviceScaleFactor: 3, isMobile: true };
 
-  const shoot = async (query, waitMs, file, device) => {
+  const shoot = async (query, waitMs, file, device, drive) => {
     const page = device
       ? await browser.newPage({
           viewport: { width: device.width, height: device.height },
@@ -60,6 +60,7 @@ try {
     });
     await page.goto(`http://localhost:${PORT}/?${query}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(waitMs);
+    if (drive) await drive(page);
     // The two-camera rig: anything outside both layers renders twice.
     const strays = await page.evaluate(() => window.lastline?.strays?.() ?? []);
     if (strays.length) errors.push(`${query}: outside both camera layers: ${strays.join(', ')}`);
@@ -78,6 +79,37 @@ try {
   await shoot('demo=raid&faction=nk', 3000, 'raid-nk.png'); // KPA raid with a sited gallery
   await shoot('demo=1&faction=un', 9000, 'demo-un.png'); // Blue Line battle
   await shoot('demo=raid&faction=un', 3000, 'raid-un.png'); // UN raid with medics mustered
+
+  // The two surfaces a label-driven harness cannot judge.
+  //
+  // The front door and a full-screen overlay are drawn almost entirely by
+  // `overlay.ts`, which has its own ground, its own type colours and its own
+  // border — and a regression there is INVISIBLE to every E2E check in the
+  // suite, because the text objects are all still present and still report
+  // their strings. The ink pass shipped exactly that bug for one commit:
+  // #111 type on an 86% black scrim, with every harness green.
+  const tapLabel = async (page, needle) => {
+    for (let i = 0; i < 20; i++) {
+      const hit = await page.evaluate((n) => {
+        const b = (window.lastline?.buttons?.() ?? []).find((x) =>
+          `${x.label} ${x.sub}`.toUpperCase().includes(n),
+        );
+        return b ? { x: b.x + b.w / 2, y: b.y + b.h / 2 } : null;
+      }, needle);
+      if (hit) {
+        await page.mouse.click(hit.x, hit.y);
+        await page.waitForTimeout(800);
+        return;
+      }
+      await page.waitForTimeout(250);
+    }
+    throw new Error(`no button matching "${needle}"`);
+  };
+  await shoot('', 2500, 'menu.png');
+  await shoot('demo=town', 2500, 'overlay.png', undefined, async (page) => {
+    await tapLabel(page, 'WAR');
+    await tapLabel(page, 'SERVICE RECORD');
+  });
 
   // Mobile-first: the same three screens as a phone actually renders them.
   await shoot('demo=town', 3000, 'phone-town.png', PHONE);
