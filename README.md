@@ -55,6 +55,15 @@ post on the new one, so every building keeps its offset from the post and its
 distance from the enemy: a base that funnelled attackers into a crossfire still
 does.
 
+Turning the board moved the ladder, and the obvious correction was rejected by
+measurement: pricing guns per cell of a frontage that shrank 24→20 overshot so
+far that tier 4 became a walkover. The gun ladder stays where six releases of
+tuning put it. What the turn did move is recorded rather than hand-tuned — most
+of all the **faction spread, which reopened from 4.2 points to 23.0**, with
+China up 16.4 and the KPA down 6.4. That is handed to the next balance
+milestone with its numbers; re-closing it against a combat model M22 is about
+to rebuild would be closing it twice.
+
 Seven E2E harnesses failed and only two were finding anything real. Five
 carried their own copy of the grid's dimensions, and all five reported "no free
 cell in view" — which reads like a camera bug and was arithmetic. **A test

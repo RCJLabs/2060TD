@@ -2705,6 +2705,29 @@ back everything the grid gave. Both, together, clear the bar on every phone.
 
 ### Open, and handed to M22
 
+**The faction spread reopened, and this is the big one.** M11 and M15 each spent
+a release closing it; v1.39 measured 4.2 points between best and worst faction
+at their own best line. v1.40 measures **23.0**:
+
+| faction | v1.39 | v1.40 |
+|---|---|---|
+| UNITED STATES | 80.6 | 88.2 |
+| PLA EXPEDITIONARY | 78.6 | **95.0** |
+| RUSSIAN GROUND | 82.6 | 83.4 |
+| KOREAN PEOPLE'S (tunnel) | 78.4 | **72.0** |
+| UN COALITION | 81.8 | 80.4 |
+
+China gained 16.4 and the KPA lost 6.4. The obvious worry — that the turn broke
+the tunnel mechanic, whose margins were authored against the old board — was
+checked and ruled out: 55.8% of the portrait board is still a legal gallery
+site, which is where it was. So this is five kits meeting a differently-shaped
+problem, not one kit losing its tool.
+
+It is not closed here on purpose. Re-closing a faction spread is what M11 and
+M15 each were, and M22 re-tunes on top of a rebuilt combat model — closing it
+against the current one means closing it twice. The number is recorded so the
+next balance milestone starts from it rather than rediscovering it.
+
 **DUG IN raises destruction instead of lowering it.** A condition that thickens
 walls 45% and guns 20% measures 0.420 against a bare 0.405, and the sign holds
 at 18 and at 90 runs. Destruction counts structures rather than walls, so it is
