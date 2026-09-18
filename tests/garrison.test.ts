@@ -263,7 +263,15 @@ describe('what the wall line is worth', () => {
     const bare = ticksBought((c) => noWatch(strip(c)));
     expect(walled).toBeGreaterThan(bare);
     // And by a margin worth having, not a rounding error.
-    expect(walled / bare).toBeGreaterThan(1.03);
+    //
+    // 1.02 since v1.40, and the reason is arithmetic rather than a slipped
+    // standard: a reference wall line runs ACROSS the entry frontage, and the
+    // frontage went from 24 cells to 20 when the board turned upright. The
+    // measured margin moved 1.033 to 1.027 — down by very close to the 17%
+    // the line itself lost, which says a wall buys the same time per cell of
+    // wall and there are simply fewer cells. The claim this defends is that
+    // the line is worth having; what a shorter line is worth is less.
+    expect(walled / bare).toBeGreaterThan(1.02);
   }, 30_000);
 
   it('and the gun trade is what lets a force live long enough to use it', () => {

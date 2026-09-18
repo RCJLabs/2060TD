@@ -188,9 +188,9 @@ describe('conditions in the battle', () => {
     expect(meanDestruction('hardrain')).toBeGreaterThan(bare);
 
     // DUG IN moves the battle, and since v1.40 it moves it the WRONG WAY:
-    // 0.486 bare against 0.512 dug in, stable across 18, 60 and 180 runs, so
-    // this is a finding and not noise. Destruction counts STRUCTURES, not
-    // walls, so it is not the +45% wall HP inflating its own denominator —
+    // 0.405 bare against 0.420 dug in, and the sign holds at 18 and at 90
+    // runs, so this is a finding and not noise. Destruction counts STRUCTURES,
+    // not walls, so it is not the +45% wall HP inflating its own denominator —
     // the reading is that thicker wire buys the defender breach time it can
     // no longer convert, and a force that gets through anyway simply has
     // longer inside to raze.

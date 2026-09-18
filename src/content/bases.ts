@@ -140,23 +140,23 @@ const CODENAMES = [
  * dropping it, so a shape that wants six guns still gets six.
  */
 /**
- * The frontage this ladder was tuned against, in cells (v1.40).
+ * The turn of the board changed what a rung is worth, and NOT by changing this
+ * (v1.40).
  *
- * Guns are laid ALONG the line the attack comes down, so what a rung is worth
- * is guns per cell of that line — not guns. The board turned upright and the
- * line went from 24 cells to 20, which raised coverage by a fifth without a
- * single number changing, and the measurement showed exactly that: all eight
- * archetypes lost mean clear rate, concentrated at T4, while DESTR% stayed
- * flat to a tenth of a point. The attacker still destroys as much; they no
- * longer finish.
+ * The first reading was that guns are laid along the entry line, so a rung is
+ * guns per cell of that line, and a line that went 24 cells to 20 raised
+ * coverage by a fifth for free. That is a reasonable argument and the
+ * measurement rejected it: scaling the count by the frontage overshot, taking
+ * a keep from 79.6 mean to 100.0 and leaving tier 4 such a walkover that a
+ * +45% wall condition measured no difference at all. One gun is worth more
+ * than the coverage effect, so the count is left exactly where six releases of
+ * tuning put it and the residual shift is recorded in the roadmap instead.
  */
-const TUNED_FRONTAGE = 24;
-
 export function towerCountFor(tier: number, towers: number): number {
   const want = (t: number): number =>
     Math.max(
       1,
-      Math.round(Math.min(8, 3 + Math.floor(t / 2)) * towers * (MAP_V / TUNED_FRONTAGE)),
+      Math.round(Math.min(8, 3 + Math.floor(t / 2)) * towers),
     );
   let count = want(1);
   for (let t = 2; t <= Math.max(1, tier); t++) count = Math.min(want(t), count + 1);
@@ -598,6 +598,20 @@ export function archetypeFor(tier: number, variant: number, faction?: string): A
 
 // ---- wall plans ------------------------------------------------------------------
 
+/**
+ * The largest ring radius that still fits the frontage, centred on `v`.
+ *
+ * A ring wider than the line does not make a bigger ring: `putWall` drops what
+ * it cannot place, so it makes a ring with HOLES IN ITS TIPS — and these two
+ * shapes exist to be the one way in. The first pass at the portrait board just
+ * lowered the authored radii, which fixed the holes and quietly made a keep
+ * the easiest thing on the ladder (98.6 mean against 79.6). Capping instead
+ * keeps the radius the shapes were tuned with wherever there is room for it.
+ */
+function ringFit(v: number, want: number): number {
+  return Math.max(2, Math.min(want, v - 1, MAP_V - 2 - v));
+}
+
 /** Walled rectangle with two or three gates, guns on the corners and gates. */
 function planCompound(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
@@ -633,12 +647,9 @@ function planCompound(c: PlanContext): void {
 /** Diamond ring with two breaches. */
 function planStar(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  // 6-7, not 7-8: a diamond of radius 8 around a post 9 cells from the edge
-  // runs off a 20-cell line, and `putWall` drops what it cannot place — so an
-  // oversized star is not a bigger star, it is a star with holes in its tips.
-  const r = ri(rng, 6, 7);
   const cx = ccU + 1;
   const cy = ccV + 1;
+  const r = ringFit(cy, ri(rng, 7, 8));
   const breachA = ri(rng, 0, 3);
   const breachB = (breachA + ri(rng, 1, 3)) % 4;
   for (let dx = -r; dx <= r; dx++) {
@@ -691,7 +702,7 @@ function planCorridor(c: PlanContext): void {
  */
 function planCamp(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const r = ri(rng, 5, 6);
+  const r = ringFit(ccV, ri(rng, 5, 7));
   const stub = ri(rng, 3, 5);
   for (let i = -stub; i <= stub; i++) {
     putWall(ccU + i, ccV - r);
@@ -785,9 +796,7 @@ function planStrongpoints(c: PlanContext): void {
 function planKeep(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
   const inner = 4;
-  // Same reason as the star: a ring that overruns the line is a ring with a
-  // gap, and this shape's whole argument is that there is exactly one way in.
-  const outer = ri(rng, 6, 7);
+  const outer = ringFit(ccV, ri(rng, 7, 8));
   const innerGate = ri(rng, 0, 3);
   const outerGate = (innerGate + 2) % 4;
   const ring = (r: number, gate: number): void => {
@@ -819,11 +828,7 @@ function planKeep(c: PlanContext): void {
 function planBunker(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
   const face = ccU - ri(rng, 5, 6);
-  // How much of the LINE the arc covers, so it scales with the line: 5-7 was
-  // three quarters of a 24-cell frontage and would be nearly all of a 20-cell
-  // one. Same class of quantity as the gun count — a number per cell of
-  // frontage, written as though the frontage were fixed.
-  const half = ri(rng, 4, 6);
+  const half = ri(rng, 5, 7);
   for (let y = ccV - half; y <= ccV + half; y++) {
     if (Math.abs(y - ccV) > 1) {
       putWall(face, y);

@@ -2706,20 +2706,43 @@ back everything the grid gave. Both, together, clear the bar on every phone.
 ### Open, and handed to M22
 
 **DUG IN raises destruction instead of lowering it.** A condition that thickens
-walls 45% and guns 20% now measures 0.512 against a bare 0.486 — stable across
-18, 60 and 180 runs, so not noise. Destruction counts structures rather than
-walls, so it is not the wall multiplier inflating its own denominator: the
-reading is that thicker wire buys breach time the defender can no longer
-convert into kills, and a force that gets through anyway has longer inside to
-raze. `tests/conditions.test.ts` records the number and asserts only what still
-holds.
+walls 45% and guns 20% measures 0.420 against a bare 0.405, and the sign holds
+at 18 and at 90 runs. Destruction counts structures rather than walls, so it is
+not the wall multiplier inflating its own denominator: the reading is that
+thicker wire buys breach time the defender can no longer convert into kills,
+and a force that gets through anyway has longer inside to raze.
+`tests/conditions.test.ts` records the number and asserts only what still holds.
 
-**The residual difficulty gap.** Pricing guns per cell of frontage recovers
-most of what the turn moved, but not all of it: CORRIDOR sits at 83.6 mean
-against 94.4, DISPERSED DEPOT at 85.8 against 93.4, and STAR FORT's T5 is the
-worst single cell. Closing those is per-shape work of the kind M15 spent a
-release on, and M22 re-tunes on top of the combat model anyway — doing it now
-is doing it twice.
+**The residual difficulty shift, and the tuning that was NOT done.** Turning the
+board moved the ladder, and the obvious correction was rejected by measurement.
+Guns are laid along the entry line, so the reading was that a rung is worth guns
+PER CELL of a line that went from 24 cells to 20 — but scaling the count by the
+frontage overshot badly, taking a keep from 79.6 mean to 100.0 and leaving tier
+4 such a walkover that a +45% wall condition measured no difference at all. One
+gun is worth more than the coverage effect. The gun ladder is therefore left
+exactly where six releases of tuning put it, and the only generator change that
+ships is `ringFit`, which is a correctness fix: a ring wider than the line is
+not a bigger ring, it is a ring with holes in its tips.
+
+What that leaves, against v1.39, is SPREAD rather than a shift — which is the
+bar this kind of change has to clear:
+
+| shape | v1.39 | v1.40 |
+|---|---|---|
+| COMPOUND | 100.0 | 93.4 |
+| OPEN CAMP | 99.0 | 92.0 |
+| CORRIDOR | 94.4 | 81.6 |
+| STAR FORT | 77.0 | 76.0 |
+| DISPERSED DEPOT | 93.4 | 83.8 |
+| STRONGPOINTS | 94.6 | 86.8 |
+| KEEP | 79.6 | 90.8 |
+| BUNKER COMPLEX | 61.6 | 68.8 |
+
+Mean −2.2 points, from −12.8 (corridor) to +11.2 (keep). Closing the per-shape
+gaps is work of the kind M15 spent a release on, and M22 re-tunes on top of the
+combat model anyway — doing it now is doing it twice. Worth carrying forward:
+**a keep swings 43 points on one gun**, which is a fragility worth naming
+whatever the board is.
 
 ### What it cost the harnesses
 
