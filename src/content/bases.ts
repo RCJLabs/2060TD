@@ -139,9 +139,25 @@ const CODENAMES = [
  * or zero — and the clamp hands the deferred gun back at T5 rather than
  * dropping it, so a shape that wants six guns still gets six.
  */
+/**
+ * The frontage this ladder was tuned against, in cells (v1.40).
+ *
+ * Guns are laid ALONG the line the attack comes down, so what a rung is worth
+ * is guns per cell of that line — not guns. The board turned upright and the
+ * line went from 24 cells to 20, which raised coverage by a fifth without a
+ * single number changing, and the measurement showed exactly that: all eight
+ * archetypes lost mean clear rate, concentrated at T4, while DESTR% stayed
+ * flat to a tenth of a point. The attacker still destroys as much; they no
+ * longer finish.
+ */
+const TUNED_FRONTAGE = 24;
+
 export function towerCountFor(tier: number, towers: number): number {
   const want = (t: number): number =>
-    Math.max(1, Math.round(Math.min(8, 3 + Math.floor(t / 2)) * towers));
+    Math.max(
+      1,
+      Math.round(Math.min(8, 3 + Math.floor(t / 2)) * towers * (MAP_V / TUNED_FRONTAGE)),
+    );
   let count = want(1);
   for (let t = 2; t <= Math.max(1, tier); t++) count = Math.min(want(t), count + 1);
   return count;
@@ -803,7 +819,11 @@ function planKeep(c: PlanContext): void {
 function planBunker(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
   const face = ccU - ri(rng, 5, 6);
-  const half = ri(rng, 5, 7);
+  // How much of the LINE the arc covers, so it scales with the line: 5-7 was
+  // three quarters of a 24-cell frontage and would be nearly all of a 20-cell
+  // one. Same class of quantity as the gun count — a number per cell of
+  // frontage, written as though the frontage were fixed.
+  const half = ri(rng, 4, 6);
   for (let y = ccV - half; y <= ccV + half; y++) {
     if (Math.abs(y - ccV) > 1) {
       putWall(face, y);
