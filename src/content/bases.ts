@@ -8,8 +8,17 @@ import type { CellIndex, LayoutStructure, LayoutWall, SpawnEdge } from '../sim/t
  * variant) so scouting, raiding, and replays all agree on the world.
  */
 
-export const MAP_W = 32;
-export const MAP_H = 24;
+/**
+ * The board, in cells (v1.40: 20x30, portrait).
+ *
+ * It was 32x24 through v1.39, which fitted a desktop window and nothing else:
+ * 32 cells across a 360px phone is an 11px cell, and an 11px cell cannot carry
+ * a silhouette, a level pip or a fingertip. Turning the board upright buys the
+ * phone an 18px cell while costing the fight almost nothing, because the axis
+ * that shrank is the one nobody walks along — see `MAP_U` below.
+ */
+export const MAP_W = 20;
+export const MAP_H = 30;
 export const TARGETS_PER_TIER = 3;
 
 /**
@@ -23,7 +32,7 @@ export const TARGETS_PER_TIER = 3;
  * every ternary live — narrowed to a literal it folds them and the other
  * arm stops being typechecked at all.
  */
-const APPROACH_NORTH: boolean = false;
+const APPROACH_NORTH: boolean = true;
 
 export const BASE_SPAWN_EDGE: SpawnEdge = APPROACH_NORTH ? 'north' : 'west';
 export const BASE_SPAWN_LANE = 0;
@@ -42,7 +51,9 @@ export const BASE_SPAWN_LANE = 0;
  * tower and economy spot lists. Eight shapes tuned over six releases stay
  * exactly as tuned, and the board underneath them can rotate.
  */
+/** Depth: 30 cells, against the 32 a west approach used to have. */
 export const MAP_U = APPROACH_NORTH ? MAP_H : MAP_W;
+/** Across: 20 cells, against 24. This is the axis the phone bought back. */
 export const MAP_V = APPROACH_NORTH ? MAP_W : MAP_H;
 
 /** Approach space to the real board. */
@@ -606,7 +617,10 @@ function planCompound(c: PlanContext): void {
 /** Diamond ring with two breaches. */
 function planStar(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const r = ri(rng, 7, 8);
+  // 6-7, not 7-8: a diamond of radius 8 around a post 9 cells from the edge
+  // runs off a 20-cell line, and `putWall` drops what it cannot place — so an
+  // oversized star is not a bigger star, it is a star with holes in its tips.
+  const r = ri(rng, 6, 7);
   const cx = ccU + 1;
   const cy = ccV + 1;
   const breachA = ri(rng, 0, 3);
@@ -635,7 +649,10 @@ function planCorridor(c: PlanContext): void {
   const lineA = ccU - 7;
   const lineB = ccU - 3;
   const gapA = ri(rng, 3, 8);
-  const gapB = ri(rng, 15, 20);
+  // The serpentine's far gap, on the opposite half of the line from the near
+  // one. 15-20 was the far half of a 24-cell line and is off the end of a
+  // 20-cell one.
+  const gapB = ri(rng, 12, 17);
   for (let y = 1; y <= MAP_V - 2; y++) {
     if (Math.abs(y - gapA) > 1) putWall(lineA, y);
     if (Math.abs(y - gapB) > 1) putWall(lineB, y);
@@ -658,7 +675,7 @@ function planCorridor(c: PlanContext): void {
  */
 function planCamp(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const r = ri(rng, 5, 7);
+  const r = ri(rng, 5, 6);
   const stub = ri(rng, 3, 5);
   for (let i = -stub; i <= stub; i++) {
     putWall(ccU + i, ccV - r);
@@ -752,7 +769,9 @@ function planStrongpoints(c: PlanContext): void {
 function planKeep(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
   const inner = 4;
-  const outer = ri(rng, 7, 8);
+  // Same reason as the star: a ring that overruns the line is a ring with a
+  // gap, and this shape's whole argument is that there is exactly one way in.
+  const outer = ri(rng, 6, 7);
   const innerGate = ri(rng, 0, 3);
   const outerGate = (innerGate + 2) % 4;
   const ring = (r: number, gate: number): void => {
@@ -845,8 +864,8 @@ export function generateBase(
   // it can land in is handed to the generator as ground to keep dry.
   const terrainSeed = (Math.imul(seed, 2654435761) ^ 0x517cc1b7) >>> 0;
   const ccBox: CellIndex[] = [];
-  for (let v = 9; v <= 13; v++) {
-    for (let u = 13; u <= 18; u++) ccBox.push(idx(realX(u, v), realY(u, v)));
+  for (let v = 8; v <= 11; v++) {
+    for (let u = 12; u <= 17; u++) ccBox.push(idx(realX(u, v), realY(u, v)));
   }
   const terrain = generateTerrain(
     terrainSeed,
@@ -865,8 +884,11 @@ export function generateBase(
 
   // The post sits deep and central: `ccU` is how far in from the attack, `ccV`
   // how far along the line.
-  const ccU = ri(rng, 13, 17);
-  const ccV = ri(rng, 9, 12);
+  // Depth is one cell shallower than the old board's 13-17, because the board
+  // is two cells shallower; across is re-centred on a 20-cell line instead of
+  // a 24-cell one. The approach a raider walks is otherwise what it was.
+  const ccU = ri(rng, 12, 16);
+  const ccV = ri(rng, 8, 10);
   const ccOrigin = idx(realX(ccU, ccV), realY(ccU, ccV));
   occupancy.block(footprint2(ccOrigin));
 

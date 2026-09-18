@@ -22,6 +22,8 @@ import {
   TARGETS_PER_TIER,
   archetypeFor,
   dealPairFor,
+  BASE_SPAWN_EDGE,
+  BASE_SPAWN_LANE,
   MAP_W,
   type ArchetypeId,
   type GeneratedBase,
@@ -37,6 +39,7 @@ import {
   type FactionId,
 } from '../content/factions';
 import { airTransit, slowestAirSpeed } from '../meta/airread';
+import { TOWN_GRID } from '../meta/town';
 import {
   DOCTRINE_IDS,
   raidConfig,
@@ -504,9 +507,9 @@ function raidMatrix(
 
 // ---- defense side: three reference bases vs the assault ladder ------------------
 
-const W = 32;
-const H = 24;
-const CC_ORIGIN = 11 * W + 27; // (27, 11) — the town grid's command post
+const W = TOWN_GRID.width;
+const H = TOWN_GRID.height;
+const CC_ORIGIN = TOWN_GRID.ccOrigin;
 
 interface ReferenceBase {
   name: string;
@@ -515,27 +518,35 @@ interface ReferenceBase {
   structures: LayoutStructure[];
 }
 
-const idx = (x: number, y: number): CellIndex => y * W + x;
+/**
+ * The reference bases below are written in APPROACH SPACE, like the generated
+ * ones: `u` is depth from the line the attack comes down, `v` runs across it.
+ *
+ * The numbers are the ones these bases have been tuned with since v0.3 —
+ * depth is unchanged, and across is two cells in from where it was because
+ * the line is 20 cells now instead of 24. What moved is this function.
+ */
+const idx = (u: number, v: number): CellIndex => u * W + v;
 
-/** A wall line at column x covering [y0, y1], skipping the listed gap rows. */
-function wallLine(walls: LayoutWall[], x: number, y0: number, y1: number, gaps: number[]): void {
-  for (let y = y0; y <= y1; y++) {
-    if (!gaps.includes(y)) walls.push({ cell: idx(x, y), kind: 'wall' });
+/** A wall line at depth u covering [v0, v1], skipping the listed gaps. */
+function wallLine(walls: LayoutWall[], u: number, v0: number, v1: number, gaps: number[]): void {
+  for (let v = v0; v <= v1; v++) {
+    if (!gaps.includes(v)) walls.push({ cell: idx(u, v), kind: 'wall' });
   }
 }
 
 /**
  * Reference towns, staged like a real save: everything within CC gating for
- * its level (counts and structure levels), west-facing funnels.
+ * its level (counts and structure levels), funnels facing the entry line.
  */
 function referenceBases(): ReferenceBase[] {
   // EARLY (CC1): one wall line, one gap, two gun nests. 21 walls of 50.
   const early: ReferenceBase = { name: 'EARLY (CC1)', ccLevel: 1, walls: [], structures: [] };
-  wallLine(early.walls, 20, 2, 21, [11, 12]);
+  wallLine(early.walls, 20, 1, 18, [9, 10]);
   early.structures = [
-    { cell: idx(22, 10), kind: 'm2nest', level: 1 },
-    { cell: idx(22, 13), kind: 'm2nest', level: 1 },
-    { cell: idx(21, 5), kind: 'autocannon', level: 1 },
+    { cell: idx(22, 8), kind: 'm2nest', level: 1 },
+    { cell: idx(22, 11), kind: 'm2nest', level: 1 },
+    { cell: idx(21, 3), kind: 'autocannon', level: 1 },
   ];
 
   // MID (CC2): offset double line — a serpentine through two kill pockets.
@@ -543,32 +554,32 @@ function referenceBases(): ReferenceBase[] {
   // that stalls at the line to shell the CC from standoff must be reachable
   // by at least one of them, wherever the escort fight left holes.
   const mid: ReferenceBase = { name: 'MID (CC2)', ccLevel: 2, walls: [], structures: [] };
-  wallLine(mid.walls, 20, 2, 21, [11, 12]);
-  wallLine(mid.walls, 24, 2, 21, [5, 6, 17, 18]);
+  wallLine(mid.walls, 20, 1, 18, [9, 10]);
+  wallLine(mid.walls, 24, 1, 18, [3, 4, 15, 16]);
   mid.structures = [
-    { cell: idx(22, 10), kind: 'm2nest', level: 2 },
-    { cell: idx(22, 13), kind: 'm2nest', level: 2 },
-    { cell: idx(26, 6), kind: 'm2nest', level: 2 },
-    { cell: idx(25, 8), kind: 'autocannon', level: 2 },
-    { cell: idx(25, 15), kind: 'autocannon', level: 2 },
-    { cell: idx(28, 8), kind: 'mortar', level: 1 },
+    { cell: idx(22, 8), kind: 'm2nest', level: 2 },
+    { cell: idx(22, 11), kind: 'm2nest', level: 2 },
+    { cell: idx(26, 4), kind: 'm2nest', level: 2 },
+    { cell: idx(25, 6), kind: 'autocannon', level: 2 },
+    { cell: idx(25, 13), kind: 'autocannon', level: 2 },
+    { cell: idx(28, 6), kind: 'mortar', level: 1 },
   ];
 
   // LATE (CC3): triple line, max emplacements at level 3.
   const late: ReferenceBase = { name: 'LATE (CC3)', ccLevel: 3, walls: [], structures: [] };
-  wallLine(late.walls, 17, 2, 21, [11, 12]);
-  wallLine(late.walls, 21, 2, 21, [4, 5, 18, 19]);
-  wallLine(late.walls, 25, 2, 21, [11, 12]);
+  wallLine(late.walls, 17, 1, 18, [9, 10]);
+  wallLine(late.walls, 21, 1, 18, [2, 3, 16, 17]);
+  wallLine(late.walls, 25, 1, 18, [9, 10]);
   late.structures = [
-    { cell: idx(19, 10), kind: 'm2nest', level: 3 },
-    { cell: idx(19, 13), kind: 'm2nest', level: 3 },
-    { cell: idx(23, 5), kind: 'm2nest', level: 3 },
-    { cell: idx(23, 18), kind: 'm2nest', level: 3 },
-    { cell: idx(27, 10), kind: 'autocannon', level: 3 },
-    { cell: idx(27, 14), kind: 'autocannon', level: 3 },
-    { cell: idx(22, 11), kind: 'autocannon', level: 3 },
-    { cell: idx(29, 9), kind: 'mortar', level: 2 },
-    { cell: idx(29, 14), kind: 'mortar', level: 2 },
+    { cell: idx(19, 8), kind: 'm2nest', level: 3 },
+    { cell: idx(19, 11), kind: 'm2nest', level: 3 },
+    { cell: idx(23, 3), kind: 'm2nest', level: 3 },
+    { cell: idx(23, 16), kind: 'm2nest', level: 3 },
+    { cell: idx(27, 8), kind: 'autocannon', level: 3 },
+    { cell: idx(27, 12), kind: 'autocannon', level: 3 },
+    { cell: idx(22, 9), kind: 'autocannon', level: 3 },
+    { cell: idx(29, 7), kind: 'mortar', level: 2 },
+    { cell: idx(29, 12), kind: 'mortar', level: 2 },
   ];
 
   return [early, mid, late];
@@ -600,7 +611,8 @@ function defenseMatrix(
           seed: seedOf(level, base.ccLevel, i),
           ccOrigin: CC_ORIGIN,
           ccLevel: base.ccLevel,
-          spawnLane: 0,
+          spawnLane: BASE_SPAWN_LANE,
+          spawnEdge: BASE_SPAWN_EDGE,
           // The shipped game rolls (v1.23). This matrix builds its config by
           // hand rather than through `battleConfig`, so it is the one place
           // that would quietly keep measuring the sim as it was.

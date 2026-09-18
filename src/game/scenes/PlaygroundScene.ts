@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { TOWN_GRID } from '../../meta/town';
 import { TERRAIN_VERSION } from '../../sim/terrain';
 import { music } from '../music';
 import { M1_CATALOG } from '../../content/catalog';
@@ -10,8 +11,9 @@ import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from 
 import { Panel, type PanelRow } from '../ui';
 
 const CELL = 32;
-const GRID_W = 32;
-const GRID_H = 24;
+// The board is the town's board, not a second opinion about it.
+const GRID_W = TOWN_GRID.width;
+const GRID_H = TOWN_GRID.height;
 
 type Tool = 'pan' | 'wall' | 'turret' | 'erase';
 
@@ -52,8 +54,9 @@ export class PlaygroundScene extends Phaser.Scene {
         width: GRID_W,
         height: GRID_H,
         seed: Date.now() >>> 0,
-        ccOrigin: 11 * GRID_W + 29,
-        spawnLane: 0,
+        ccOrigin: TOWN_GRID.ccOrigin,
+        spawnLane: TOWN_GRID.spawnLane,
+        spawnEdge: TOWN_GRID.spawnEdge,
       terrainSeed: 4242,
       terrainVersion: TERRAIN_VERSION,
       },

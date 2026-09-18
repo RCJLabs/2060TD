@@ -5,7 +5,7 @@ import { Coach } from '../coach';
 import { bonusMet, missionSiege, type MissionDef } from '../../content/campaign';
 import { campaignFor, defenseCatalogFor, flavorFor, type FactionId } from '../../content/factions';
 import { HOLD_THE_LINE } from '../../content/missions';
-import { outcomeFromEngine } from '../../meta/town';
+import { outcomeFromEngine, TOWN_GRID } from '../../meta/town';
 import { DT, Engine } from '../../sim/engine';
 import type { SimConfig, SimEvent } from '../../sim/types';
 import { audio } from '../audio';
@@ -34,8 +34,9 @@ export interface SiegeLaunchData {
 }
 
 const CELL = 32;
-const GRID_W = 32;
-const GRID_H = 24;
+// The board is the town's board, not a second opinion about it.
+const GRID_W = TOWN_GRID.width;
+const GRID_H = TOWN_GRID.height;
 /** Panel tabs: build items, ordnance, and the running sitrep. */
 const SIEGE_TABS = [
   { id: 'deploy', label: 'DEPLOY' },
@@ -150,8 +151,9 @@ export class SiegeScene extends Phaser.Scene {
       width: GRID_W,
       height: GRID_H,
       seed: this.demoMode ? 1337 : Date.now() >>> 0,
-      ccOrigin: 11 * GRID_W + 27,
-      spawnLane: 0,
+      ccOrigin: TOWN_GRID.ccOrigin,
+      spawnLane: TOWN_GRID.spawnLane,
+      spawnEdge: TOWN_GRID.spawnEdge,
       siege: standaloneSiege,
       // The sandbox is fought on ground like everything else. Pinned in demo
       // mode so a screenshot run is comparable to the last one.

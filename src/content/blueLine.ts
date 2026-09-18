@@ -29,7 +29,7 @@ export const BLUE_LINE: MissionDef[] = [
       'Container yards authorized. What the convoys deliver, keep behind concrete.',
     ],
     debriefDefeat: ['AFTER ACTION — the corridor fell. The evacuation walks from here.'],
-    waves: [{ entries: series(0, 50, 6, 'militia', [7, 12, 17]) }],
+    waves: [{ entries: series(0, 50, 6, 'militia', [6, 10, 14]) }],
     siegeOverrides: { suppliesPerWave: 60, startingCp: 0 },
     unlocks: ['storageBunker'],
     unlockNote: 'REQUISITION: CONTAINER YARD',
@@ -55,11 +55,11 @@ export const BLUE_LINE: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — they were through before the rules mattered.'],
     waves: [
-      { entries: series(0, 42, 7, 'militia', [5, 12, 19]) },
+      { entries: series(0, 42, 7, 'militia', [4, 10, 16]) },
       {
         entries: [
-          ...series(0, 38, 5, 'militia', [4, 9, 20]),
-          ...series(180, 45, 3, 'rifle', [9, 12, 15]),
+          ...series(0, 38, 5, 'militia', [3, 7, 17]),
+          ...series(180, 45, 3, 'rifle', [7, 10, 12]),
         ],
       },
     ],
@@ -91,20 +91,20 @@ export const BLUE_LINE: MissionDef[] = [
       {
         entries: [
           entry(0, 'sapper', 12),
-          ...series(50, 42, 6, 'militia', [5, 12, 19]),
+          ...series(50, 42, 6, 'militia', [4, 10, 16]),
         ],
       },
       {
         entries: [
-          ...series(0, 80, 2, 'sapper', [8, 16]),
-          ...series(100, 45, 4, 'rifle', [9, 15]),
+          ...series(0, 80, 2, 'sapper', [7, 13]),
+          ...series(100, 45, 4, 'rifle', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 38, 6, 'militia', [4, 8, 16, 20]),
+          ...series(0, 38, 6, 'militia', [3, 7, 13, 17]),
           entry(180, 'sapper', 12),
-          ...series(240, 50, 3, 'rifle', [7, 12, 17]),
+          ...series(240, 50, 3, 'rifle', [6, 10, 14]),
         ],
       },
     ],
@@ -136,21 +136,21 @@ export const BLUE_LINE: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 60, 2, 'grenadier', [9, 15]),
-          ...series(60, 42, 4, 'militia', [7, 17]),
+          ...series(0, 60, 2, 'grenadier', [7, 12]),
+          ...series(60, 42, 4, 'militia', [6, 14]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'grenadier', [7, 12, 17]),
-          ...series(90, 45, 5, 'rifle', [5, 12, 19]),
+          ...series(0, 55, 3, 'grenadier', [6, 10, 14]),
+          ...series(90, 45, 5, 'rifle', [4, 10, 16]),
         ],
       },
       {
         entries: [
-          ...series(0, 50, 4, 'grenadier', [5, 9, 15, 19]),
-          ...series(120, 70, 2, 'sapper', [8, 16]),
-          ...series(200, 45, 4, 'rifle', [9, 12, 15]),
+          ...series(0, 50, 4, 'grenadier', [4, 7, 12, 16]),
+          ...series(120, 70, 2, 'sapper', [7, 13]),
+          ...series(200, 45, 4, 'rifle', [7, 10, 12]),
         ],
       },
     ],
@@ -180,22 +180,22 @@ export const BLUE_LINE: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 55, 2, 'zbd', [9, 15]),
-          ...series(70, 42, 5, 'militia', [5, 12, 19]),
+          ...series(0, 55, 2, 'zbd', [7, 12]),
+          ...series(70, 42, 5, 'militia', [4, 10, 16]),
         ],
       },
       {
         entries: [
           entry(0, 'type99', 12),
-          ...series(80, 55, 2, 'zbd', [7, 17]),
-          ...series(140, 45, 4, 'rifle', [9, 15]),
+          ...series(80, 55, 2, 'zbd', [6, 14]),
+          ...series(140, 45, 4, 'rifle', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 100, 2, 'type99', [9, 15]),
-          ...series(70, 55, 2, 'zbd', [7, 17]),
-          ...series(160, 55, 3, 'grenadier', [9, 12, 15]),
+          ...series(0, 100, 2, 'type99', [7, 12]),
+          ...series(70, 55, 2, 'zbd', [6, 14]),
+          ...series(160, 55, 3, 'grenadier', [7, 10, 12]),
         ],
       },
     ],
@@ -228,31 +228,31 @@ export const BLUE_LINE: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 32, 9, 'militia', [4, 8, 12, 16, 20]),
-          ...series(220, 45, 3, 'rifle', [9, 15]),
+          ...series(0, 32, 9, 'militia', [3, 7, 10, 13, 17]),
+          ...series(220, 45, 3, 'rifle', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 70, 3, 'sapper', [7, 12, 17]),
-          ...series(80, 45, 4, 'rifle', [5, 12, 19]),
-          ...series(220, 55, 3, 'grenadier', [9, 12, 15]),
+          ...series(0, 70, 3, 'sapper', [6, 10, 14]),
+          ...series(80, 45, 4, 'rifle', [4, 10, 16]),
+          ...series(220, 55, 3, 'grenadier', [7, 10, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'zbd', [7, 12, 17]),
-          ...series(90, 35, 6, 'militia', [4, 6, 18, 20]),
-          ...series(240, 55, 3, 'grenadier', [7, 17]),
+          ...series(0, 55, 3, 'zbd', [6, 10, 14]),
+          ...series(90, 35, 6, 'militia', [3, 5, 15, 17]),
+          ...series(240, 55, 3, 'grenadier', [6, 14]),
         ],
       },
       {
         entries: [
-          ...series(0, 110, 2, 'type99', [9, 15]),
+          ...series(0, 110, 2, 'type99', [7, 12]),
           entry(170, 'zbd', 12),
-          ...series(220, 45, 5, 'rifle', [5, 9, 15, 19]),
-          ...series(340, 70, 2, 'sapper', [7, 17]),
-          ...series(430, 120, 2, 'type99', [12, 9]),
+          ...series(220, 45, 5, 'rifle', [4, 7, 12, 16]),
+          ...series(340, 70, 2, 'sapper', [6, 14]),
+          ...series(430, 120, 2, 'type99', [10, 7]),
         ],
       },
     ],

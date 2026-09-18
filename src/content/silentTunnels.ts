@@ -39,7 +39,7 @@ export const SILENT_TUNNELS: MissionDef[] = [
       'Buried depots authorized. Whatever the sealift lands, put it underground.',
     ],
     debriefDefeat: ['AFTER ACTION — the enclave fell. The harbor goes back to them.'],
-    waves: [{ entries: series(0, 55, 5, 'guardsman', [7, 12, 17]) }],
+    waves: [{ entries: series(0, 55, 5, 'guardsman', [6, 10, 14]) }],
     siegeOverrides: { suppliesPerWave: 60, startingCp: 0 },
     unlocks: ['storageBunker'],
     unlockNote: 'REQUISITION: BURIED DEPOT',
@@ -63,11 +63,11 @@ export const SILENT_TUNNELS: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — they were through the wire before the first flare went up.'],
     waves: [
-      { entries: series(0, 45, 6, 'guardsman', [5, 12, 19]) },
+      { entries: series(0, 45, 6, 'guardsman', [4, 10, 16]) },
       {
         entries: [
-          ...series(0, 38, 5, 'guardsman', [4, 9, 20]),
-          ...series(180, 50, 3, 'ranger', [9, 12, 15]),
+          ...series(0, 38, 5, 'guardsman', [3, 7, 17]),
+          ...series(180, 50, 3, 'ranger', [7, 10, 12]),
         ],
       },
     ],
@@ -99,20 +99,20 @@ export const SILENT_TUNNELS: MissionDef[] = [
       {
         entries: [
           entry(0, 'engineer', 12),
-          ...series(50, 45, 6, 'guardsman', [5, 12, 19]),
+          ...series(50, 45, 6, 'guardsman', [4, 10, 16]),
         ],
       },
       {
         entries: [
-          ...series(0, 80, 2, 'engineer', [8, 16]),
-          ...series(100, 50, 4, 'ranger', [9, 15]),
+          ...series(0, 80, 2, 'engineer', [7, 13]),
+          ...series(100, 50, 4, 'ranger', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 40, 6, 'guardsman', [4, 8, 16, 20]),
+          ...series(0, 40, 6, 'guardsman', [3, 7, 13, 17]),
           entry(180, 'engineer', 12),
-          ...series(240, 55, 3, 'ranger', [7, 12, 17]),
+          ...series(240, 55, 3, 'ranger', [6, 10, 14]),
         ],
       },
     ],
@@ -143,21 +143,21 @@ export const SILENT_TUNNELS: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 60, 2, 'javelin', [9, 15]),
-          ...series(60, 45, 4, 'guardsman', [7, 17]),
+          ...series(0, 60, 2, 'javelin', [7, 12]),
+          ...series(60, 45, 4, 'guardsman', [6, 14]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'javelin', [7, 12, 17]),
-          ...series(90, 45, 5, 'ranger', [5, 12, 19]),
+          ...series(0, 55, 3, 'javelin', [6, 10, 14]),
+          ...series(90, 45, 5, 'ranger', [4, 10, 16]),
         ],
       },
       {
         entries: [
-          ...series(0, 50, 4, 'javelin', [5, 9, 15, 19]),
-          ...series(120, 70, 2, 'engineer', [8, 16]),
-          ...series(200, 45, 4, 'ranger', [9, 12, 15]),
+          ...series(0, 50, 4, 'javelin', [4, 7, 12, 16]),
+          ...series(120, 70, 2, 'engineer', [7, 13]),
+          ...series(200, 45, 4, 'ranger', [7, 10, 12]),
         ],
       },
     ],
@@ -187,22 +187,22 @@ export const SILENT_TUNNELS: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 55, 2, 'humvee', [9, 15]),
-          ...series(70, 45, 5, 'guardsman', [5, 12, 19]),
+          ...series(0, 55, 2, 'humvee', [7, 12]),
+          ...series(70, 45, 5, 'guardsman', [4, 10, 16]),
         ],
       },
       {
         entries: [
           entry(0, 'abrams', 12),
-          ...series(80, 55, 2, 'humvee', [7, 17]),
-          ...series(140, 45, 4, 'ranger', [9, 15]),
+          ...series(80, 55, 2, 'humvee', [6, 14]),
+          ...series(140, 45, 4, 'ranger', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 100, 2, 'abrams', [9, 15]),
-          ...series(70, 55, 2, 'humvee', [7, 17]),
-          ...series(160, 55, 3, 'javelin', [9, 12, 15]),
+          ...series(0, 100, 2, 'abrams', [7, 12]),
+          ...series(70, 55, 2, 'humvee', [6, 14]),
+          ...series(160, 55, 3, 'javelin', [7, 10, 12]),
         ],
       },
     ],
@@ -236,32 +236,32 @@ export const SILENT_TUNNELS: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 35, 8, 'guardsman', [4, 8, 12, 16, 20]),
-          ...series(220, 50, 3, 'ranger', [9, 15]),
+          ...series(0, 35, 8, 'guardsman', [3, 7, 10, 13, 17]),
+          ...series(220, 50, 3, 'ranger', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 70, 3, 'engineer', [7, 12, 17]),
-          ...series(80, 45, 4, 'ranger', [5, 12, 19]),
-          ...series(220, 55, 3, 'javelin', [9, 12, 15]),
+          ...series(0, 70, 3, 'engineer', [6, 10, 14]),
+          ...series(80, 45, 4, 'ranger', [4, 10, 16]),
+          ...series(220, 55, 3, 'javelin', [7, 10, 12]),
         ],
       },
       {
         // Gallery three: Rangers surface from the captured tunnel heads.
         entries: [
-          ...[0, 30, 60, 90, 120].map((at, i) => t(18, i % 2 === 0 ? 7 : 16, at, 'ranger')),
-          ...series(60, 45, 4, 'guardsman', [4, 20]),
-          ...series(200, 55, 2, 'javelin', [9, 15]),
+          ...[0, 30, 60, 90, 120].map((at, i) => t(i % 2 === 0 ? 6 : 13, 18, at, 'ranger')),
+          ...series(60, 45, 4, 'guardsman', [3, 17]),
+          ...series(200, 55, 2, 'javelin', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 110, 2, 'abrams', [9, 15]),
+          ...series(0, 110, 2, 'abrams', [7, 12]),
           entry(170, 'humvee', 12),
-          ...series(220, 45, 5, 'ranger', [5, 9, 15, 19]),
-          ...series(340, 70, 2, 'engineer', [7, 17]),
-          ...series(430, 120, 2, 'abrams', [12, 9]),
+          ...series(220, 45, 5, 'ranger', [4, 7, 12, 16]),
+          ...series(340, 70, 2, 'engineer', [6, 14]),
+          ...series(430, 120, 2, 'abrams', [10, 7]),
         ],
       },
     ],
@@ -271,8 +271,8 @@ export const SILENT_TUNNELS: MissionDef[] = [
     reward: { supplies: 1100, fuel: 280 },
     bonus: { id: 'ccAbove90', label: 'ABOVE AND BELOW — HQ above 90%' },
     tunnels: [
-      { col: 18, row: 7 },
-      { col: 18, row: 16 },
+      { col: 6, row: 18 },
+      { col: 13, row: 18 },
     ],
   },
 ];

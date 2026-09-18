@@ -171,12 +171,18 @@ describe('silent tunnels campaign', () => {
   });
 
   it('marks the finale counter-tunnel mouths as reserved and spawns from them', () => {
+    // An INTERIOR spawn is one that names both coordinates: it has chosen a
+    // cell rather than a place on the entry line. Naming a column alone used
+    // to mean that, and since v1.40 it is what every ordinary arrival does —
+    // the board turned upright and units come down the columns.
     const finale = SILENT_TUNNELS[5]!;
     expect(finale.tunnels).toHaveLength(2);
-    const cols = new Set(finale.tunnels!.map((t) => t.col));
-    const interior = finale.waves.flatMap((w) => w.entries).filter((e) => e.col !== undefined);
+    const mouths = new Set(finale.tunnels!.map((t) => `${t.col},${t.row}`));
+    const interior = finale.waves
+      .flatMap((w) => w.entries)
+      .filter((e) => e.col !== undefined && e.row !== undefined);
     expect(interior.length).toBeGreaterThan(0);
-    for (const e of interior) expect(cols.has(e.col!)).toBe(true);
+    for (const e of interior) expect(mouths.has(`${e.col},${e.row}`)).toBe(true);
   });
 });
 

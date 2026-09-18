@@ -80,14 +80,26 @@ describe('campaign content', () => {
   });
 
   it('keeps every spawn entry on the map, and tunnel entries match declared tunnels', () => {
+    // An entry that names BOTH coordinates has chosen a cell rather than a
+    // place on the entry line, and the only thing allowed to do that is a
+    // declared tunnel mouth. That reading is what makes this survive the
+    // board turning upright in v1.40 — before, "has a col" meant "is a
+    // tunnel", which is now what every ordinary arrival has.
     for (const mission of CAMPAIGN) {
       const tunnelSet = new Set((mission.tunnels ?? []).map((t) => `${t.col},${t.row}`));
       for (const wave of mission.waves) {
         for (const e of wave.entries) {
-          expect(e.row).toBeGreaterThanOrEqual(0);
-          expect(e.row).toBeLessThan(TOWN_GRID.height);
-          expect(M1_CATALOG.attackers[e.kind], `unknown attacker ${e.kind}`).toBeDefined();
+          expect(e.col ?? e.row, `${mission.id} entry names no position`).toBeDefined();
           if (e.col !== undefined) {
+            expect(e.col).toBeGreaterThanOrEqual(0);
+            expect(e.col).toBeLessThan(TOWN_GRID.width);
+          }
+          if (e.row !== undefined) {
+            expect(e.row).toBeGreaterThanOrEqual(0);
+            expect(e.row).toBeLessThan(TOWN_GRID.height);
+          }
+          expect(M1_CATALOG.attackers[e.kind], `unknown attacker ${e.kind}`).toBeDefined();
+          if (e.col !== undefined && e.row !== undefined) {
             expect(tunnelSet.has(`${e.col},${e.row}`), `${mission.id} stray tunnel`).toBe(true);
           }
         }
@@ -102,8 +114,10 @@ describe('campaign content', () => {
     const count = (def: typeof standard) =>
       def.waves.reduce((n, w) => n + w.entries.length, 0);
     expect(count(hard)).toBeGreaterThan(count(standard));
-    const hardTunnelEntries = hard.waves.flatMap((w) => w.entries).filter((e) => e.col !== undefined);
-    const stdTunnelEntries = standard.waves.flatMap((w) => w.entries).filter((e) => e.col !== undefined);
+    const isTunnel = (e: { col?: number; row?: number }): boolean =>
+      e.col !== undefined && e.row !== undefined;
+    const hardTunnelEntries = hard.waves.flatMap((w) => w.entries).filter(isTunnel);
+    const stdTunnelEntries = standard.waves.flatMap((w) => w.entries).filter(isTunnel);
     expect(hardTunnelEntries.length).toBeGreaterThanOrEqual(stdTunnelEntries.length);
     expect(scaleWaves(mission.waves, 1.3)).toEqual(scaleWaves(mission.waves, 1.3));
   });
@@ -165,7 +179,7 @@ describe('campaign progression', () => {
     expect(config.buildLimits!.structures!['autocannon']).toBe(0); // locked
     expect(config.buildLimits!.structures!['depmg']).toBe(0); // locked
     expect(config.buildLimits!.structures!['m2nest']).toBeGreaterThan(0); // baseline
-    expect(config.reservedCells).toEqual([idx(18, 7), idx(18, 16)]);
+    expect(config.reservedCells).toEqual([idx(6, 18), idx(13, 18)]);
     expect(config.siege!.name).toContain('INFILTRATION');
   });
 

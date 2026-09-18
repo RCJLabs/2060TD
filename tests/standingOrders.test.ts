@@ -3,38 +3,40 @@ import { buildAssault } from '../src/content/assaults';
 import { defenseCatalogFor, enemyRosterFor, FACTION_IDS } from '../src/content/factions';
 import { STANDING_ORDERS, STANDING_ORDER_IDS } from '../src/content/standingOrders';
 import { deserialize, serialize } from '../src/meta/save';
-import { newTown, unlockAll, TOWN_GRID } from '../src/meta/town';
+import { newTown, onSpawnLane, unlockAll, TOWN_GRID } from '../src/meta/town';
 import { runOfflineProbes, PROBE_INTERVAL_MS } from '../src/meta/warfare';
 import { Engine } from '../src/sim/engine';
 import type { SimConfig, StandingOrders } from '../src/sim/types';
 
 const T0 = 1_700_000_000_000;
-const W = 32;
-const H = 24;
-const idx = (x: number, y: number) => y * W + x;
+const W = TOWN_GRID.width;
+const H = TOWN_GRID.height;
+/** Approach space, as the balance harness writes it: depth, then across. */
+const idx = (u: number, v: number) => u * W + v;
 
 /** The balance harness's MID reference base, the standing-orders test bed. */
 function midConfig(seed: number, orders?: StandingOrders, level = 5): SimConfig {
   const walls: { cell: number; kind: string }[] = [];
-  for (let y = 2; y <= 21; y++) {
-    if (y !== 11 && y !== 12) walls.push({ cell: idx(20, y), kind: 'wall' });
-    if (![5, 6, 17, 18].includes(y)) walls.push({ cell: idx(24, y), kind: 'wall' });
+  for (let v = 1; v <= 18; v++) {
+    if (v !== 9 && v !== 10) walls.push({ cell: idx(20, v), kind: 'wall' });
+    if (![3, 4, 15, 16].includes(v)) walls.push({ cell: idx(24, v), kind: 'wall' });
   }
   return {
     width: W,
     height: H,
     seed,
-    ccOrigin: 11 * W + 27,
+    ccOrigin: TOWN_GRID.ccOrigin,
     ccLevel: 2,
-    spawnLane: 0,
+    spawnLane: TOWN_GRID.spawnLane,
+    spawnEdge: TOWN_GRID.spawnEdge,
     siege: { ...buildAssault(level, enemyRosterFor('usa')), startingSupplies: 0 },
     layout: {
       walls,
       structures: [
-        { cell: idx(22, 10), kind: 'm2nest', level: 2 },
-        { cell: idx(22, 13), kind: 'm2nest', level: 2 },
-        { cell: idx(25, 8), kind: 'autocannon', level: 2 },
-        { cell: idx(25, 15), kind: 'autocannon', level: 2 },
+        { cell: idx(22, 8), kind: 'm2nest', level: 2 },
+        { cell: idx(22, 11), kind: 'm2nest', level: 2 },
+        { cell: idx(25, 6), kind: 'autocannon', level: 2 },
+        { cell: idx(25, 13), kind: 'autocannon', level: 2 },
       ],
     },
     powerCharges: { a10: 2, arty: 1 },
@@ -128,9 +130,23 @@ describe('standing orders in the meta', () => {
     expect(replayA.stateHash()).toBe(replayB.stateHash());
   });
 
-  it('town grid is wide enough for the reference cells', () => {
-    expect(TOWN_GRID.width).toBe(W);
-    expect(TOWN_GRID.height).toBe(H);
+  it('every reference cell is on the board and clear of the entry lane', () => {
+    // Was `TOWN_GRID.width === 32`, which stopped meaning anything the moment
+    // W came from TOWN_GRID. What this bed actually needs is that the base it
+    // builds exists: a wall or a gun quietly off the edge would wrap to the
+    // far side of the board, and the battle would still run.
+    const config = midConfig(1);
+    const cells = [
+      TOWN_GRID.ccOrigin,
+      ...config.layout!.walls.map((w) => w.cell),
+      ...config.layout!.structures.map((st) => st.cell),
+    ];
+    expect(cells.length).toBeGreaterThan(20);
+    for (const cell of cells) {
+      expect(cell).toBeGreaterThanOrEqual(0);
+      expect(cell).toBeLessThan(W * H);
+      expect(onSpawnLane(cell), `cell ${cell} sits on the entry lane`).toBe(false);
+    }
   });
 
   it('round-trips through the save and rejects junk values', () => {

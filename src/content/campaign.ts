@@ -89,7 +89,7 @@ export const CAMPAIGN: MissionDef[] = [
       'AFTER ACTION — the Command Center burned. Survivors fell back inland.',
       'Rebuild. The corridor is still ours to lose.',
     ],
-    waves: [{ entries: series(0, 50, 6, 'militia', [8, 12, 16]) }],
+    waves: [{ entries: series(0, 50, 6, 'militia', [7, 10, 13]) }],
     siegeOverrides: { suppliesPerWave: 60, startingCp: 0 },
     unlocks: ['storageBunker'],
     unlockNote: 'REQUISITION: STORAGE BUNKER',
@@ -114,11 +114,11 @@ export const CAMPAIGN: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — position overrun. CASCADE notes the corridor held elsewhere. Barely.'],
     waves: [
-      { entries: series(0, 40, 8, 'militia', [6, 12, 18]) },
+      { entries: series(0, 40, 8, 'militia', [5, 10, 15]) },
       {
         entries: [
-          ...series(0, 36, 6, 'militia', [4, 10, 20]),
-          ...series(200, 45, 3, 'rifle', [10, 12, 14]),
+          ...series(0, 36, 6, 'militia', [3, 8, 17]),
+          ...series(200, 45, 3, 'rifle', [8, 10, 12]),
         ],
       },
     ],
@@ -148,13 +148,13 @@ export const CAMPAIGN: MissionDef[] = [
       {
         entries: [
           entry(0, 'sapper', 12),
-          ...series(40, 36, 8, 'militia', [6, 12, 18]),
+          ...series(40, 36, 8, 'militia', [5, 10, 15]),
         ],
       },
       {
         entries: [
-          ...series(0, 70, 3, 'sapper', [6, 12, 18]),
-          ...series(120, 45, 4, 'rifle', [10, 14]),
+          ...series(0, 70, 3, 'sapper', [5, 10, 15]),
+          ...series(120, 45, 4, 'rifle', [8, 12]),
         ],
       },
     ],
@@ -183,17 +183,17 @@ export const CAMPAIGN: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — the fuel burned for six hours. The front felt it in a week.'],
     waves: [
-      { entries: series(0, 36, 10, 'militia', [4, 8, 16, 20]) },
+      { entries: series(0, 36, 10, 'militia', [3, 7, 13, 17]) },
       {
         entries: [
-          ...series(0, 45, 5, 'rifle', [8, 12, 16]),
-          ...series(140, 70, 2, 'sapper', [6, 18]),
+          ...series(0, 45, 5, 'rifle', [7, 10, 13]),
+          ...series(140, 70, 2, 'sapper', [5, 15]),
         ],
       },
       {
         entries: [
-          ...series(0, 30, 12, 'militia', [4, 6, 18, 20]),
-          ...series(220, 45, 4, 'rifle', [10, 14]),
+          ...series(0, 30, 12, 'militia', [3, 5, 15, 17]),
+          ...series(220, 45, 4, 'rifle', [8, 12]),
         ],
       },
     ],
@@ -223,21 +223,21 @@ export const CAMPAIGN: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 60, 2, 'grenadier', [10, 14]),
-          ...series(60, 45, 4, 'rifle', [8, 16]),
+          ...series(0, 60, 2, 'grenadier', [8, 12]),
+          ...series(60, 45, 4, 'rifle', [7, 13]),
         ],
       },
       {
         entries: [
-          ...series(0, 50, 4, 'grenadier', [8, 12, 16]),
-          ...series(100, 30, 10, 'militia', [4, 6, 18, 20]),
+          ...series(0, 50, 4, 'grenadier', [7, 10, 13]),
+          ...series(100, 30, 10, 'militia', [3, 5, 15, 17]),
         ],
       },
       {
         entries: [
-          ...series(0, 45, 5, 'grenadier', [6, 10, 14, 18]),
-          ...series(120, 60, 3, 'sapper', [8, 12, 16]),
-          ...series(200, 40, 6, 'rifle', [10, 12, 14]),
+          ...series(0, 45, 5, 'grenadier', [5, 8, 12, 15]),
+          ...series(120, 60, 3, 'sapper', [7, 10, 13]),
+          ...series(200, 40, 6, 'rifle', [8, 10, 12]),
         ],
       },
     ],
@@ -265,22 +265,22 @@ export const CAMPAIGN: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — they were behind the guns before the sirens. Refuse the interior.'],
     waves: [
-      { entries: series(0, 40, 8, 'militia', [6, 12, 18]) },
+      { entries: series(0, 40, 8, 'militia', [5, 10, 15]) },
       {
         entries: [
           ...[0, 30, 60, 90, 120, 150].map((at, i) =>
-            t(i % 2 === 0 ? 18 : 18, i % 2 === 0 ? 7 : 16, at, 'infiltrator'),
+            t(i % 2 === 0 ? 6 : 13, 18, at, 'infiltrator'),
           ),
-          ...series(60, 40, 4, 'militia', [8, 16]),
+          ...series(60, 40, 4, 'militia', [7, 13]),
         ],
       },
       {
         entries: [
           ...[0, 25, 50, 75, 100, 125, 150, 175].map((at, i) =>
-            t(18, i % 2 === 0 ? 7 : 16, at, 'infiltrator'),
+            t(i % 2 === 0 ? 6 : 13, 18, at, 'infiltrator'),
           ),
-          ...series(80, 70, 2, 'sapper', [10, 14]),
-          ...series(160, 45, 4, 'rifle', [8, 12, 16]),
+          ...series(80, 70, 2, 'sapper', [8, 12]),
+          ...series(160, 45, 4, 'rifle', [7, 10, 13]),
         ],
       },
     ],
@@ -290,8 +290,8 @@ export const CAMPAIGN: MissionDef[] = [
     reward: { supplies: 550, fuel: 100 },
     bonus: { id: 'ccAbove90', label: 'NOTHING GOT THROUGH — CC above 90%' },
     tunnels: [
-      { col: 18, row: 7 },
-      { col: 18, row: 16 },
+      { col: 6, row: 18 },
+      { col: 13, row: 18 },
     ],
   },
   {
@@ -314,22 +314,22 @@ export const CAMPAIGN: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 50, 2, 'zbd', [10, 14]),
-          ...series(80, 40, 6, 'rifle', [8, 12, 16]),
+          ...series(0, 50, 2, 'zbd', [8, 12]),
+          ...series(80, 40, 6, 'rifle', [7, 10, 13]),
         ],
       },
       {
         entries: [
           entry(0, 't72', 12),
-          ...series(60, 50, 2, 'zbd', [8, 16]),
-          ...series(120, 30, 8, 'militia', [4, 6, 18, 20]),
+          ...series(60, 50, 2, 'zbd', [7, 13]),
+          ...series(120, 30, 8, 'militia', [3, 5, 15, 17]),
         ],
       },
       {
         entries: [
-          ...series(0, 90, 2, 't72', [10, 14]),
-          ...series(60, 50, 3, 'zbd', [8, 12, 16]),
-          ...series(160, 50, 3, 'grenadier', [10, 12, 14]),
+          ...series(0, 90, 2, 't72', [8, 12]),
+          ...series(60, 50, 3, 'zbd', [7, 10, 13]),
+          ...series(160, 50, 3, 'grenadier', [8, 10, 12]),
         ],
       },
     ],
@@ -359,42 +359,42 @@ export const CAMPAIGN: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — the night was longer than the ammunition.'],
     waves: [
-      { entries: series(0, 32, 10, 'militia', [4, 8, 12, 16, 20]) },
+      { entries: series(0, 32, 10, 'militia', [3, 7, 10, 13, 17]) },
       {
         entries: [
-          ...series(0, 45, 6, 'rifle', [8, 12, 16]),
-          ...series(140, 70, 2, 'sapper', [6, 18]),
+          ...series(0, 45, 6, 'rifle', [7, 10, 13]),
+          ...series(140, 70, 2, 'sapper', [5, 15]),
         ],
       },
       {
         entries: [
-          ...series(0, 50, 4, 'grenadier', [8, 12, 16]),
-          ...series(80, 30, 8, 'militia', [4, 6, 18, 20]),
+          ...series(0, 50, 4, 'grenadier', [7, 10, 13]),
+          ...series(80, 30, 8, 'militia', [3, 5, 15, 17]),
         ],
       },
       {
         entries: [
-          ...series(0, 60, 2, 'zbd', [10, 14]),
-          ...series(60, 40, 6, 'rifle', [8, 12, 16]),
-          ...series(160, 35, 6, 'infiltrator', [4, 20]),
+          ...series(0, 60, 2, 'zbd', [8, 12]),
+          ...series(60, 40, 6, 'rifle', [7, 10, 13]),
+          ...series(160, 35, 6, 'infiltrator', [3, 17]),
         ],
       },
       {
         entries: [
           entry(0, 't72', 12),
-          ...series(60, 55, 2, 'zbd', [8, 16]),
-          ...series(120, 50, 4, 'grenadier', [6, 10, 14, 18]),
+          ...series(60, 55, 2, 'zbd', [7, 13]),
+          ...series(120, 50, 4, 'grenadier', [5, 8, 12, 15]),
           // The maze is irrelevant to these two. Nothing on the board can
           // elevate — that is the lesson, and the reason for the requisition.
-          ...series(200, 80, 2, 'wz10', [7, 17]),
+          ...series(200, 80, 2, 'wz10', [6, 14]),
         ],
       },
       {
         entries: [
           entry(0, 'type99', 12),
-          ...series(80, 55, 2, 'zbd', [8, 16]),
-          ...series(140, 40, 8, 'rifle', [6, 10, 14, 18]),
-          ...series(240, 90, 2, 'wz10', [10, 14]),
+          ...series(80, 55, 2, 'zbd', [7, 13]),
+          ...series(140, 40, 8, 'rifle', [5, 8, 12, 15]),
+          ...series(240, 90, 2, 'wz10', [8, 12]),
         ],
       },
     ],
@@ -425,38 +425,38 @@ export const CAMPAIGN: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 28, 12, 'militia', [4, 8, 12, 16, 20]),
-          ...series(200, 45, 4, 'rifle', [10, 14]),
+          ...series(0, 28, 12, 'militia', [3, 7, 10, 13, 17]),
+          ...series(200, 45, 4, 'rifle', [8, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 65, 3, 'sapper', [8, 12, 16]),
-          ...series(60, 40, 6, 'rifle', [6, 12, 18]),
-          ...series(200, 50, 3, 'grenadier', [10, 12, 14]),
+          ...series(0, 65, 3, 'sapper', [7, 10, 13]),
+          ...series(60, 40, 6, 'rifle', [5, 10, 15]),
+          ...series(200, 50, 3, 'grenadier', [8, 10, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'zbd', [8, 12, 16]),
-          ...series(80, 28, 10, 'militia', [4, 6, 18, 20]),
-          ...series(240, 50, 4, 'grenadier', [8, 16]),
+          ...series(0, 55, 3, 'zbd', [7, 10, 13]),
+          ...series(80, 28, 10, 'militia', [3, 5, 15, 17]),
+          ...series(240, 50, 4, 'grenadier', [7, 13]),
         ],
       },
       {
         entries: [
-          ...series(0, 90, 2, 't72', [10, 14]),
-          ...series(60, 55, 2, 'zbd', [8, 16]),
-          ...series(140, 40, 6, 'rifle', [6, 12, 18]),
+          ...series(0, 90, 2, 't72', [8, 12]),
+          ...series(60, 55, 2, 'zbd', [7, 13]),
+          ...series(140, 40, 6, 'rifle', [5, 10, 15]),
         ],
       },
       {
         entries: [
-          ...series(0, 100, 2, 'type99', [10, 14]),
+          ...series(0, 100, 2, 'type99', [8, 12]),
           entry(160, 't72', 12),
-          ...series(200, 55, 3, 'zbd', [8, 12, 16]),
-          ...series(300, 45, 4, 'grenadier', [6, 10, 14, 18]),
-          ...series(380, 60, 4, 'sapper', [8, 12, 16, 20]),
+          ...series(200, 55, 3, 'zbd', [7, 10, 13]),
+          ...series(300, 45, 4, 'grenadier', [5, 8, 12, 15]),
+          ...series(380, 60, 4, 'sapper', [7, 10, 13, 17]),
         ],
       },
     ],
@@ -487,11 +487,15 @@ export function scaleWaves(waves: WaveDef[], mult: number): WaveDef[] {
       const extra = Math.round(list.length * mult) - list.length;
       for (let i = 0; i < extra; i++) {
         const template = list[i % list.length]!;
+        // Carry whichever coordinates the template named, and only those. An
+        // ordinary arrival names one and leaves the other to the config's
+        // entry edge; writing `row: undefined` back would look the same in
+        // JSON and read as a real position to anything checking presence.
         extras.push({
           atTick: lastTick + 60 + i * 30,
           kind,
-          row: template.row,
           ...(template.col !== undefined ? { col: template.col } : {}),
+          ...(template.row !== undefined ? { row: template.row } : {}),
         });
       }
     }

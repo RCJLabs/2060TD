@@ -1,4 +1,12 @@
-import { generateBase, lootFor, MAP_H, MAP_W, type GeneratedBase } from '../content/bases';
+import {
+  BASE_SPAWN_EDGE,
+  BASE_SPAWN_LANE,
+  generateBase,
+  lootFor,
+  MAP_H,
+  MAP_W,
+  type GeneratedBase,
+} from '../content/bases';
 import type { Condition } from '../content/conditions';
 import { STORES_LOOT_BONUS } from '../content/leagues';
 import { RAID_CATALOG } from '../content/catalog';
@@ -63,25 +71,33 @@ export const DOCTRINE_IDS: Doctrine[] = ['assault', 'hunt', 'raze'];
 const range = (lo: number, hi: number): number[] =>
   Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
 
-/** Ordered spawn cells per sector, spread along one half of an edge. */
+/**
+ * Ordered spawn cells per sector, spread along one half of an edge.
+ *
+ * Re-authored for the portrait board (v1.40). North and south are the short
+ * edges now, so their halves are six cells rather than eleven; east and west
+ * are the long ones and grew. N1/N2 are the FRONT DOOR — the line a siege
+ * comes down and the one the defender's guns are aimed at — which is what
+ * makes choosing S1 or E2 instead a decision rather than a preference.
+ */
 export function sectorCells(id: SectorId): { col: number; row: number }[] {
   switch (id) {
     case 'N1':
-      return range(4, 14).map((col) => ({ col, row: 0 }));
+      return range(2, 8).map((col) => ({ col, row: 0 }));
     case 'N2':
-      return range(17, 27).map((col) => ({ col, row: 0 }));
+      return range(11, 17).map((col) => ({ col, row: 0 }));
     case 'S1':
-      return range(4, 14).map((col) => ({ col, row: MAP_H - 1 }));
+      return range(2, 8).map((col) => ({ col, row: MAP_H - 1 }));
     case 'S2':
-      return range(17, 27).map((col) => ({ col, row: MAP_H - 1 }));
+      return range(11, 17).map((col) => ({ col, row: MAP_H - 1 }));
     case 'W1':
-      return range(2, 10).map((row) => ({ col: 0, row }));
+      return range(3, 13).map((row) => ({ col: 0, row }));
     case 'W2':
-      return range(13, 21).map((row) => ({ col: 0, row }));
+      return range(17, 27).map((row) => ({ col: 0, row }));
     case 'E1':
-      return range(2, 10).map((row) => ({ col: MAP_W - 1, row }));
+      return range(3, 13).map((row) => ({ col: MAP_W - 1, row }));
     case 'E2':
-      return range(13, 21).map((row) => ({ col: MAP_W - 1, row }));
+      return range(17, 27).map((row) => ({ col: MAP_W - 1, row }));
   }
 }
 
@@ -425,7 +441,11 @@ export function raidConfig(
     seed,
     ccOrigin: base.ccOrigin,
     ccLevel: base.ccLevel,
-    spawnLane: 0,
+    // The target's board is a generated one, so its entry line is the
+    // generator's — what keeps the terrain's dry corridor on the same edge
+    // the base was laid out against.
+    spawnLane: BASE_SPAWN_LANE,
+    spawnEdge: BASE_SPAWN_EDGE,
     // The target's own ground. A base carries its terrain seed, so a ladder
     // rung, a duel and a replay of either all fight the same sheet.
     terrainSeed: base.terrainSeed,

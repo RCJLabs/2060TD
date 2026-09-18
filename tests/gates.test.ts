@@ -305,20 +305,28 @@ describe('the yard treats a gate as a piece of the wall line', () => {
   });
 
   it('runs the ring out of allowance sooner than plain wire does', () => {
-    // Free cells well clear of the spawn column and the command post.
-    const cells = Array.from({ length: 300 }, (_, i) => idx(1 + (i % 20), 2 + Math.floor(i / 20)));
+    // Free cells well clear of the entry lane and the command post: the top
+    // eighteen rows of the board, inset a cell on each side. The old list ran
+    // off a 20-cell-wide board and wrapped onto the next row, which quietly
+    // stopped both runs on the same collision instead of on the allowance.
+    const cells = Array.from({ length: 300 }, (_, i) => idx(1 + (i % 18), 2 + Math.floor(i / 18)));
+    // `continue`, not `break`: a refusal here can be the river rather than the
+    // allowance, and stopping on the first wet cell measures where the water
+    // is instead of what the line costs. Both runs then end when the ALLOWANCE
+    // does, which is the thing being compared.
     const lay = (kind: string): number => {
       const town = devTown();
       let n = 0;
       for (const cell of cells) {
-        if (!placeWall(town, cell, T0, kind)) break;
-        n++;
+        if (placeWall(town, cell, T0, kind)) n++;
       }
       return n;
     };
     const wire = lay('wall');
     const gates = lay('gate');
     expect(wire).toBeGreaterThan(0);
+    // And the allowance is what bound it, not the list running out.
+    expect(wire).toBeLessThan(cells.length);
     expect(gates).toBe(Math.floor(wire / GATE_SEGMENTS));
   });
 

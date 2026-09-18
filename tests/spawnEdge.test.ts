@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { M1_CATALOG } from '../src/content/catalog';
 import { Engine } from '../src/sim/engine';
-import { HOLD_THE_LINE } from '../src/content/missions';
 import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
 import { generateTerrain, TERRAIN_VERSION } from '../src/sim/terrain';
 import type { SiegeDef, SimConfig } from '../src/sim/types';
@@ -160,19 +159,17 @@ describe('terrain keeps the entry lane dry', () => {
  * which is what "a record does not change" has to mean. It is frozen because
  * the vault drops any entry that stops decoding — a format slip would quietly
  * empty every player's archive rather than fail loudly.
+ *
+ * The battle is written out in full below rather than borrowed from shipping
+ * content. The first draft of this fixture used HOLD_THE_LINE and broke the
+ * same day, when the campaign's entry lanes were re-authored for the portrait
+ * board: a true change to the CONTENT, failing a test that exists to watch the
+ * FORMAT. A fixture has to hold still on its own.
  */
 const V139_CODE =
-  'AQAAAQZGUk9aRU4KAmNjBm0ybmVzdAR3YWxsB21pbGl0aWEFcmlmbGUGc2FwcGVyBHd6MTAJZ3JlbmFkaWVyA3piZA' +
-  'Z0eXBlOTkgGJIh-wICAAAAAQIA-wIC_wAB1AIB_wABAgLPAiABDUhPTEQgVEhFIExJTkWKBXgolgGwCRkoBQIDCAAI' +
-  'AAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6AcoDAAAAOgHBALUAgwAAADoBygMAA' +
-  'AA6AcEBQEADAAAAOgHAwo8BAAAAOgHJAgAAADoByQQAAAA6AckFAAAAOgHJAQAAADoByQIAAAA6AckEAAAAOgHJBQA' +
-  'AADoByQEAAAA6AckCAAAAOgHBASEAgwAAADoBygMAAAA6AcoDAAAAOgHKAwAAADoBwYCtAEJAAAA6AdaDwAAAOgHAw' +
-  'cCAAoAAADoBzwOAAAA6AcECGQIAAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6AcoDAAAAOgHKBAAAADoBygIAAAA6Aco' +
-  'DAAAAOgHBQPcAQQAAADoBzwMAAAA6Ac8FAAAAOgHAwMMAAQAAADoBwASAAAA6AcUBgAAAOgHABQAAADoBxQEAAAA6A' +
-  'cAEgAAAOgHFAYAAADoBwAUAAAA6AcUBAAAAOgHABIAAADoBxQGAAAA6AcAFAAAAOgHBwSEAgoAAADoBygOAAAA6Aco' +
-  'CgAAAOgHKA4AAADoBwgCpAMIAAAA6AcoEAAAAOgHBQgCAAgAAADoBygQAAAA6AcEBlAGAAAA6AcoDAAAAOgHKBIAAA' +
-  'DoBygGAAAA6AcoDAAAAOgHKBIAAADoBwcDrAIKAAAA6AcoDAAAAOgHKA4AAADoBwUCkAMIAAAA6AcoEAAAAOgHCQGI' +
-  'BAwAAADoBwAAAAABYwAAAQABlUk';
+  'AQAAAQZGUk9aRU4HAmNjBm0ybmVzdAR3YWxsB21pbGl0aWEGc2FwcGVyBXJpZmxlA3piZCAYkiH7AgIAAAABAgD7' +
+  'AgL_AAHUAgH_AAECAs8CIAEGRlJPWkVOkANQHnjcCxQoAgIDAgAGAAAA6AcoDAAAAOgHBAFQEgAAAOgHAgUBAAkA' +
+  'AADoBwYBPAwAAgDoBwAAAAABYwAAAQABkM4';
 
 const frozenConfig = (): SimConfig => ({
   width: 32,
@@ -181,11 +178,35 @@ const frozenConfig = (): SimConfig => ({
   ccOrigin: 11 * 32 + 27,
   ccLevel: 2,
   spawnLane: 0,
-  siege: HOLD_THE_LINE,
   terrainVersion: 1,
   terrainSeed: 99,
   combatVersion: 1,
   objective: 'guns',
+  siege: {
+    name: 'FROZEN',
+    startingSupplies: 400,
+    suppliesPerWave: 80,
+    startingCp: 30,
+    cpCap: 120,
+    cpPerSecond: 1.5,
+    prepSeconds: 20,
+    repairCostPerHp: 0.04,
+    waves: [
+      {
+        entries: [
+          { atTick: 0, kind: 'militia', row: 6 },
+          { atTick: 40, kind: 'militia', row: 12 },
+          { atTick: 80, kind: 'sapper', row: 18 },
+        ],
+      },
+      {
+        entries: [
+          { atTick: 0, kind: 'rifle', row: 9 },
+          { atTick: 60, kind: 'zbd', row: 12, doctrine: 'raze' },
+        ],
+      },
+    ],
+  },
   layout: {
     structures: [
       { cell: 11 * 32 + 27, kind: 'cc', level: 2 },
@@ -220,7 +241,8 @@ describe('replay codes across the change', () => {
     // assertions above just as well.
     expect(out.replay.config.terrainSeed).toBe(99);
     expect(out.replay.config.layout?.structures.length).toBe(2);
-    expect(out.replay.config.siege?.waves.length).toBe(HOLD_THE_LINE.waves.length);
+    expect(out.replay.config.siege?.waves.length).toBe(2);
+    expect(out.replay.config.siege?.waves[0]!.entries.length).toBe(3);
   });
 
   it('round-trips a north battle, and says so in more bytes than a west one', () => {

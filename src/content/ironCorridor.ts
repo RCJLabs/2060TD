@@ -29,7 +29,7 @@ export const IRON_CORRIDOR: MissionDef[] = [
       'Deep bunkers authorized. Bury everything the railhead delivers.',
     ],
     debriefDefeat: ['AFTER ACTION — the railhead fell. The corridor starves behind it.'],
-    waves: [{ entries: series(0, 55, 5, 'guardsman', [7, 12, 17]) }],
+    waves: [{ entries: series(0, 55, 5, 'guardsman', [6, 10, 14]) }],
     siegeOverrides: { suppliesPerWave: 60, startingCp: 0 },
     unlocks: ['storageBunker'],
     unlockNote: 'REQUISITION: DEEP BUNKER',
@@ -53,11 +53,11 @@ export const IRON_CORRIDOR: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — they were inside the wire before anyone fired.'],
     waves: [
-      { entries: series(0, 45, 6, 'guardsman', [5, 12, 19]) },
+      { entries: series(0, 45, 6, 'guardsman', [4, 10, 16]) },
       {
         entries: [
-          ...series(0, 40, 4, 'guardsman', [4, 9, 20]),
-          ...series(170, 50, 3, 'ranger', [9, 12, 15]),
+          ...series(0, 40, 4, 'guardsman', [3, 7, 17]),
+          ...series(170, 50, 3, 'ranger', [7, 10, 12]),
         ],
       },
     ],
@@ -88,20 +88,20 @@ export const IRON_CORRIDOR: MissionDef[] = [
       {
         entries: [
           entry(0, 'engineer', 12),
-          ...series(50, 45, 6, 'guardsman', [5, 12, 19]),
+          ...series(50, 45, 6, 'guardsman', [4, 10, 16]),
         ],
       },
       {
         entries: [
-          ...series(0, 80, 2, 'engineer', [7, 17]),
-          ...series(100, 50, 4, 'ranger', [9, 15]),
+          ...series(0, 80, 2, 'engineer', [6, 14]),
+          ...series(100, 50, 4, 'ranger', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 40, 6, 'guardsman', [4, 8, 16, 20]),
+          ...series(0, 40, 6, 'guardsman', [3, 7, 13, 17]),
           entry(190, 'engineer', 12),
-          ...series(250, 55, 3, 'ranger', [7, 12, 17]),
+          ...series(250, 55, 3, 'ranger', [6, 10, 14]),
         ],
       },
     ],
@@ -132,21 +132,21 @@ export const IRON_CORRIDOR: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 60, 2, 'javelin', [9, 15]),
-          ...series(60, 45, 4, 'guardsman', [7, 17]),
+          ...series(0, 60, 2, 'javelin', [7, 12]),
+          ...series(60, 45, 4, 'guardsman', [6, 14]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'javelin', [7, 12, 17]),
-          ...series(90, 45, 5, 'ranger', [5, 12, 19]),
+          ...series(0, 55, 3, 'javelin', [6, 10, 14]),
+          ...series(90, 45, 5, 'ranger', [4, 10, 16]),
         ],
       },
       {
         entries: [
-          ...series(0, 50, 4, 'javelin', [5, 9, 15, 19]),
-          ...series(120, 70, 2, 'engineer', [7, 17]),
-          ...series(200, 45, 4, 'ranger', [9, 12, 15]),
+          ...series(0, 50, 4, 'javelin', [4, 7, 12, 16]),
+          ...series(120, 70, 2, 'engineer', [6, 14]),
+          ...series(200, 45, 4, 'ranger', [7, 10, 12]),
         ],
       },
     ],
@@ -175,22 +175,22 @@ export const IRON_CORRIDOR: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 55, 2, 'humvee', [9, 15]),
-          ...series(70, 45, 5, 'guardsman', [5, 12, 19]),
+          ...series(0, 55, 2, 'humvee', [7, 12]),
+          ...series(70, 45, 5, 'guardsman', [4, 10, 16]),
         ],
       },
       {
         entries: [
           entry(0, 'abrams', 12),
-          ...series(80, 55, 2, 'humvee', [7, 17]),
-          ...series(140, 45, 4, 'ranger', [9, 15]),
+          ...series(80, 55, 2, 'humvee', [6, 14]),
+          ...series(140, 45, 4, 'ranger', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 100, 2, 'abrams', [9, 15]),
-          ...series(70, 55, 2, 'humvee', [7, 17]),
-          ...series(160, 55, 3, 'javelin', [9, 12, 15]),
+          ...series(0, 100, 2, 'abrams', [7, 12]),
+          ...series(70, 55, 2, 'humvee', [6, 14]),
+          ...series(160, 55, 3, 'javelin', [7, 10, 12]),
         ],
       },
     ],
@@ -223,31 +223,31 @@ export const IRON_CORRIDOR: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 35, 8, 'guardsman', [4, 8, 12, 16, 20]),
-          ...series(220, 50, 3, 'ranger', [9, 15]),
+          ...series(0, 35, 8, 'guardsman', [3, 7, 10, 13, 17]),
+          ...series(220, 50, 3, 'ranger', [7, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 70, 3, 'engineer', [7, 12, 17]),
-          ...series(80, 45, 4, 'ranger', [5, 12, 19]),
-          ...series(220, 55, 3, 'javelin', [9, 12, 15]),
+          ...series(0, 70, 3, 'engineer', [6, 10, 14]),
+          ...series(80, 45, 4, 'ranger', [4, 10, 16]),
+          ...series(220, 55, 3, 'javelin', [7, 10, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'humvee', [7, 12, 17]),
-          ...series(90, 35, 6, 'guardsman', [4, 6, 18, 20]),
-          ...series(240, 55, 3, 'javelin', [7, 17]),
+          ...series(0, 55, 3, 'humvee', [6, 10, 14]),
+          ...series(90, 35, 6, 'guardsman', [3, 5, 15, 17]),
+          ...series(240, 55, 3, 'javelin', [6, 14]),
         ],
       },
       {
         entries: [
-          ...series(0, 110, 2, 'abrams', [9, 15]),
+          ...series(0, 110, 2, 'abrams', [7, 12]),
           entry(170, 'humvee', 12),
-          ...series(220, 45, 5, 'ranger', [5, 9, 15, 19]),
-          ...series(340, 70, 2, 'engineer', [7, 17]),
-          ...series(430, 120, 2, 'abrams', [12, 9]),
+          ...series(220, 45, 5, 'ranger', [4, 7, 12, 16]),
+          ...series(340, 70, 2, 'engineer', [6, 14]),
+          ...series(430, 120, 2, 'abrams', [10, 7]),
         ],
       },
     ],

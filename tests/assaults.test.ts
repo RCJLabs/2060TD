@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assaultLoot, buildAssault } from '../src/content/assaults';
+import { TOWN_GRID } from '../src/meta/town';
 
 const kindCount = (level: number, kind: string): number =>
   buildAssault(level)
@@ -36,12 +37,24 @@ describe('assault ladder generator', () => {
     expect(buildAssault(4)).toEqual(buildAssault(4));
   });
 
-  it('keeps wave entries within the battlefield rows', () => {
+  it('keeps wave entries on the board', () => {
+    // Written against `row` until v1.40, when the board turned upright and an
+    // assault started naming the COLUMN it comes down. Which axis a wave uses
+    // belongs to the config's entry edge, not to this test — so what is
+    // checked is the property that survives a rotation: every entry names a
+    // position, and every position it names is on the board.
     for (const level of [1, 3, 6, 10]) {
       for (const wave of buildAssault(level).waves) {
         for (const entry of wave.entries) {
-          expect(entry.row).toBeGreaterThanOrEqual(0);
-          expect(entry.row).toBeLessThan(24);
+          expect(entry.col ?? entry.row, 'an entry that names no position').toBeDefined();
+          if (entry.col !== undefined) {
+            expect(entry.col).toBeGreaterThanOrEqual(0);
+            expect(entry.col).toBeLessThan(TOWN_GRID.width);
+          }
+          if (entry.row !== undefined) {
+            expect(entry.row).toBeGreaterThanOrEqual(0);
+            expect(entry.row).toBeLessThan(TOWN_GRID.height);
+          }
           expect(entry.atTick).toBeGreaterThanOrEqual(0);
         }
       }

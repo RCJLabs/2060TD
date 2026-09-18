@@ -27,7 +27,7 @@ export const EASTERN_TIDE: MissionDef[] = [
       'Stores pits authorized. The fleet cannot resupply you forever; bank everything.',
     ],
     debriefDefeat: ['AFTER ACTION — the beachhead folded. The next wave lands on the same sand.'],
-    waves: [{ entries: series(0, 55, 5, 'guardsman', [8, 12, 16]) }],
+    waves: [{ entries: series(0, 55, 5, 'guardsman', [7, 10, 13]) }],
     siegeOverrides: { suppliesPerWave: 60, startingCp: 0 },
     unlocks: ['storageBunker'],
     unlockNote: 'REQUISITION: STORES PIT',
@@ -51,11 +51,11 @@ export const EASTERN_TIDE: MissionDef[] = [
     ],
     debriefDefeat: ['AFTER ACTION — small teams, small gaps, large consequences.'],
     waves: [
-      { entries: series(0, 45, 6, 'guardsman', [6, 12, 18]) },
+      { entries: series(0, 45, 6, 'guardsman', [5, 10, 15]) },
       {
         entries: [
-          ...series(0, 40, 4, 'guardsman', [4, 10, 20]),
-          ...series(180, 50, 3, 'ranger', [10, 12, 14]),
+          ...series(0, 40, 4, 'guardsman', [3, 8, 17]),
+          ...series(180, 50, 3, 'ranger', [8, 10, 12]),
         ],
       },
     ],
@@ -86,20 +86,20 @@ export const EASTERN_TIDE: MissionDef[] = [
       {
         entries: [
           entry(0, 'engineer', 12),
-          ...series(50, 45, 6, 'guardsman', [6, 12, 18]),
+          ...series(50, 45, 6, 'guardsman', [5, 10, 15]),
         ],
       },
       {
         entries: [
-          ...series(0, 80, 2, 'engineer', [8, 16]),
-          ...series(100, 50, 4, 'ranger', [10, 14]),
+          ...series(0, 80, 2, 'engineer', [7, 13]),
+          ...series(100, 50, 4, 'ranger', [8, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 40, 6, 'guardsman', [4, 8, 16, 20]),
+          ...series(0, 40, 6, 'guardsman', [3, 7, 13, 17]),
           entry(200, 'engineer', 12),
-          ...series(260, 55, 3, 'ranger', [8, 12, 16]),
+          ...series(260, 55, 3, 'ranger', [7, 10, 13]),
         ],
       },
     ],
@@ -130,21 +130,21 @@ export const EASTERN_TIDE: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 60, 2, 'javelin', [10, 14]),
-          ...series(60, 45, 4, 'guardsman', [8, 16]),
+          ...series(0, 60, 2, 'javelin', [8, 12]),
+          ...series(60, 45, 4, 'guardsman', [7, 13]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'javelin', [8, 12, 16]),
-          ...series(90, 45, 5, 'ranger', [6, 12, 18]),
+          ...series(0, 55, 3, 'javelin', [7, 10, 13]),
+          ...series(90, 45, 5, 'ranger', [5, 10, 15]),
         ],
       },
       {
         entries: [
-          ...series(0, 50, 4, 'javelin', [6, 10, 14, 18]),
-          ...series(120, 70, 2, 'engineer', [8, 16]),
-          ...series(200, 45, 4, 'ranger', [10, 12, 14]),
+          ...series(0, 50, 4, 'javelin', [5, 8, 12, 15]),
+          ...series(120, 70, 2, 'engineer', [7, 13]),
+          ...series(200, 45, 4, 'ranger', [8, 10, 12]),
         ],
       },
     ],
@@ -173,22 +173,22 @@ export const EASTERN_TIDE: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 55, 2, 'humvee', [10, 14]),
-          ...series(70, 45, 5, 'guardsman', [6, 12, 18]),
+          ...series(0, 55, 2, 'humvee', [8, 12]),
+          ...series(70, 45, 5, 'guardsman', [5, 10, 15]),
         ],
       },
       {
         entries: [
           entry(0, 'abrams', 12),
-          ...series(80, 55, 2, 'humvee', [8, 16]),
-          ...series(140, 45, 4, 'ranger', [10, 14]),
+          ...series(80, 55, 2, 'humvee', [7, 13]),
+          ...series(140, 45, 4, 'ranger', [8, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 100, 2, 'abrams', [10, 14]),
-          ...series(70, 55, 2, 'humvee', [8, 16]),
-          ...series(160, 55, 3, 'javelin', [10, 12, 14]),
+          ...series(0, 100, 2, 'abrams', [8, 12]),
+          ...series(70, 55, 2, 'humvee', [7, 13]),
+          ...series(160, 55, 3, 'javelin', [8, 10, 12]),
         ],
       },
     ],
@@ -221,31 +221,31 @@ export const EASTERN_TIDE: MissionDef[] = [
     waves: [
       {
         entries: [
-          ...series(0, 35, 8, 'guardsman', [4, 8, 12, 16, 20]),
-          ...series(220, 50, 3, 'ranger', [10, 14]),
+          ...series(0, 35, 8, 'guardsman', [3, 7, 10, 13, 17]),
+          ...series(220, 50, 3, 'ranger', [8, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 70, 3, 'engineer', [8, 12, 16]),
-          ...series(80, 45, 4, 'ranger', [6, 12, 18]),
-          ...series(220, 55, 3, 'javelin', [10, 12, 14]),
+          ...series(0, 70, 3, 'engineer', [7, 10, 13]),
+          ...series(80, 45, 4, 'ranger', [5, 10, 15]),
+          ...series(220, 55, 3, 'javelin', [8, 10, 12]),
         ],
       },
       {
         entries: [
-          ...series(0, 55, 3, 'humvee', [8, 12, 16]),
-          ...series(90, 35, 6, 'guardsman', [4, 6, 18, 20]),
-          ...series(240, 55, 3, 'javelin', [8, 16]),
+          ...series(0, 55, 3, 'humvee', [7, 10, 13]),
+          ...series(90, 35, 6, 'guardsman', [3, 5, 15, 17]),
+          ...series(240, 55, 3, 'javelin', [7, 13]),
         ],
       },
       {
         entries: [
-          ...series(0, 110, 2, 'abrams', [10, 14]),
+          ...series(0, 110, 2, 'abrams', [8, 12]),
           entry(170, 'humvee', 12),
-          ...series(220, 45, 5, 'ranger', [6, 10, 14, 18]),
-          ...series(340, 70, 2, 'engineer', [8, 16]),
-          ...series(430, 120, 2, 'abrams', [12, 10]),
+          ...series(220, 45, 5, 'ranger', [5, 8, 12, 15]),
+          ...series(340, 70, 2, 'engineer', [7, 13]),
+          ...series(430, 120, 2, 'abrams', [10, 8]),
         ],
       },
     ],

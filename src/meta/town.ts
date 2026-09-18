@@ -55,13 +55,29 @@ import { creditContracts, normalizeContracts, type ContractState } from './contr
  * so the whole layer is deterministic and testable.
  */
 
+/**
+ * The town board (v1.40: 20x30, portrait, attacked from the north).
+ *
+ * It was 32x24 entered from the west, which put 32 cells across the short
+ * side of a phone — an 11px cell, too small for a silhouette or a fingertip.
+ * Upright, the same phone gets 18px. The fight barely notices: depth from the
+ * entry line went 32 to 30, and it is depth that decides a raid.
+ *
+ * The post is the old (27, 11) transposed, and a town saved before this
+ * release is transposed with it, so every building keeps its distance from
+ * both the post and the enemy — see `regrid.ts`.
+ */
 export const TOWN_GRID = {
-  width: 32,
-  height: 24,
-  ccOrigin: 11 * 32 + 27, // (27, 11)
+  width: 20,
+  height: 30,
+  // (9, 27): the old (27, 11) rotated, then pulled two cells back to the
+  // middle of a 20-cell line — 11 was centre on a 24-cell one. A town saved
+  // before this release is translated by the same two cells, so every
+  // building keeps its exact offset from the post.
+  ccOrigin: 27 * 20 + 9, // (9, 27)
   /** Reserved entry lane, measured from `spawnEdge`. Nothing builds on it. */
   spawnLane: 0,
-  spawnEdge: 'west' as SpawnEdge,
+  spawnEdge: 'north' as SpawnEdge,
 } as const;
 
 /**
