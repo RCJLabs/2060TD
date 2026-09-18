@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { isBoardWorld } from './BoardView';
 import { audio } from './audio';
 import { haptic } from './haptics';
 import { music } from './music';
@@ -214,25 +215,50 @@ export function liveTexts(scenes: Phaser.Scene[]): string[] {
  * it once the text wrapped. Labels alone cannot catch that — a harness has
  * to be able to ask where things landed.
  */
-export function liveTextRects(
-  scenes: Phaser.Scene[],
-): { text: string; x: number; y: number; w: number; h: number; depth: number }[] {
-  const found: { text: string; x: number; y: number; w: number; h: number; depth: number }[] = [];
-  const walk = (items: Phaser.GameObjects.GameObject[]): void => {
+export interface TextRect {
+  text: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  depth: number;
+  /**
+   * True for text on the BOARD layer — a sector marker, a map label — which
+   * pans and zooms with the world and is expected to leave the screen (v1.40).
+   *
+   * Without this, "no static text runs off the screen" counted map marginalia
+   * as static, and passed only while the board happened to fit the viewport.
+   * A portrait world framed on a base does not, so the check started failing
+   * on text doing exactly what it is supposed to do.
+   */
+  onBoard: boolean;
+}
+
+export function liveTextRects(scenes: Phaser.Scene[]): TextRect[] {
+  const found: TextRect[] = [];
+  const walk = (items: Phaser.GameObjects.GameObject[], onBoard: boolean): void => {
     for (const item of items) {
       if (item instanceof Phaser.GameObjects.Container) {
-        if (item.visible) walk(item.list);
+        if (item.visible) walk(item.list, onBoard || isBoardWorld(item));
         continue;
       }
       if (item instanceof Phaser.GameObjects.Text && item.visible && item.text.length > 0) {
         const b = item.getBounds();
         // Depth comes along so a harness can scope to the modal layer: an
         // overlay line and a panel row behind the scrim are not an overlap.
-        found.push({ text: item.text, x: b.x, y: b.y, w: b.width, h: b.height, depth: item.depth });
+        found.push({
+          text: item.text,
+          x: b.x,
+          y: b.y,
+          w: b.width,
+          h: b.height,
+          depth: item.depth,
+          onBoard,
+        });
       }
     }
   };
-  for (const scene of scenes) walk(scene.children.list);
+  for (const scene of scenes) walk(scene.children.list, false);
   return found;
 }
 

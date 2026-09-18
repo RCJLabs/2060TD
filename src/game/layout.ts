@@ -252,7 +252,11 @@ export function computeLayout(
     // Wide phones fit two columns of rows; narrow ones stay single-file.
     cols = cssWidth >= 500 ? 2 : 1;
   } else {
-    const railW = Math.round(clamp(sw * 0.3, px(258), px(340)));
+    // A portrait world cannot use a wide landscape board: its height binds
+    // first, so every pixel past that is page margin. Letting the rail take a
+    // little more of it costs the board nothing measurable and buys the panel
+    // a real column of room (v1.40).
+    const railW = Math.round(clamp(sw * 0.32, px(258), px(400)));
     // Title plus three resource lines, with breathing room.
     const statusH = px(t.font.label + t.font.tiny * 3 + t.pad * 2.6);
     const tabsH = px(t.tabsH);

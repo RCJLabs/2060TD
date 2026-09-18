@@ -88,6 +88,35 @@ export function boardWetAt(col: number, row: number): boolean {
 }
 
 /**
+ * Is this container a board's world layer?
+ *
+ * The one thing `liveTextRects` needs to tell map marginalia from HUD text,
+ * and it lives here because `rigs` is the only place that knows which
+ * containers are board layers.
+ */
+export function isBoardWorld(container: Phaser.GameObjects.Container): boolean {
+  for (const rig of rigs) if (rig.world === container) return true;
+  return false;
+}
+
+/**
+ * The live board's size in cells, or null when no board is on screen.
+ *
+ * The harnesses address the map by cell and used to carry their own copy of
+ * the grid's dimensions. When the world turned portrait in v1.40 five of them
+ * scanned a board that was not there — and failed with "no free cell in view",
+ * which reads like a layout bug and was arithmetic. A test should not hold an
+ * opinion about the size of the thing it is testing.
+ */
+export function boardGrid(): { cols: number; rows: number } | null {
+  for (const rig of rigs) {
+    if (!rig.scene.sys.isActive()) continue;
+    return { cols: rig.cols, rows: rig.rows };
+  }
+  return null;
+}
+
+/**
  * Live board camera state (device px), or null when no board is on screen.
  *
  * The double-scroll bug of v1.22 was invisible to every harness we had: a
@@ -193,6 +222,14 @@ export class BoardView {
     scene.events.once(Phaser.Scenes.Events.DESTROY, forget);
   }
 
+  get cols(): number {
+    return this.opts.cols;
+  }
+
+  get rows(): number {
+    return this.opts.rows;
+  }
+
   get worldWidth(): number {
     return this.opts.cols * this.opts.cell;
   }
@@ -238,11 +275,15 @@ export class BoardView {
       return;
     }
     // A shorter viewport at the same zoom shows less ground, and `centerOn`
-    // would take that out of both ends — so the map appears to creep upward
-    // under a drawer that is only sliding over it. Holding the TOP edge of the
-    // view instead means the ground the drawer has not covered does not move.
+    // would take that out of both ends — so the map creeps under a drawer that
+    // is only sliding over it. The view holds one edge instead, and which one
+    // is not arbitrary: the drawer rises from the BOTTOM, and on a portrait
+    // board the command post sits at the bottom too. Holding the bottom edge
+    // means the map slides up with the drawer and your base stays on screen;
+    // holding the top would slide the base behind the sheet, which is the one
+    // thing you are looking at while the build drawer is open.
     if (wasH > 0 && wasZoom > 0 && this.rect.h !== wasH) {
-      this.centerY -= (wasH - this.rect.h) / (2 * wasZoom);
+      this.centerY += (wasH - this.rect.h) / (2 * wasZoom);
     }
     // Preserve the operator's zoom *relative* to fit across an orientation
     // flip, so a rotated phone doesn't jump to a different magnification.

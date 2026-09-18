@@ -127,6 +127,7 @@ export class BattleRenderer {
       cell: c,
       terrain: this.engine.terrain,
       spawnLane: this.engine.config.spawnLane,
+      spawnEdge: this.engine.config.spawnEdge ?? 'west',
     });
     if (this.sheet) this.container?.addAt(this.sheet, 0);
 

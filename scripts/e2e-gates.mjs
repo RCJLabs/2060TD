@@ -225,7 +225,27 @@ try {
       await tap('FIT VIEW', 700);
     }
   };
-  /** The first candidate cell that is both on screen and free. */
+  /** Every cell of the board that is currently on screen, in reading order. */
+  const onScreenCells = () =>
+    page.evaluate(() => {
+      const api = window.lastline;
+      const grid = api.grid?.() ?? { cols: 0, rows: 0 };
+      const out = [];
+      for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) if (api.cell(c, r)) out.push([c, r]);
+      }
+      return out;
+    });
+
+  /**
+   * The first cell that is both on screen and takes a wall.
+   *
+   * Asks the BOARD which cells are in view rather than carrying a list of
+   * five cells that were in view on the board of v1.39 (v1.40). A hand-written
+   * list is an opinion about the camera, the grid and the terrain all at once,
+   * and it goes stale silently: it fails as "no free cell in view", which
+   * reads like a camera bug and was three stale coordinates.
+   */
   const layOn = async (candidates) => {
     await fitBoard();
     for (const [col, row] of candidates) {
@@ -277,13 +297,7 @@ try {
   const segBefore = /(\d+)\/(\d+)/.exec(wallRow);
 
   await tapRow('BUILD VEHICLE GATE', 500);
-  const laid = await layOn([
-    [21, 8],
-    [22, 8],
-    [21, 16],
-    [22, 16],
-    [20, 9],
-  ]);
+  const laid = await layOn(await onScreenCells());
   check('a gate goes down on the map', laid !== null, laid ? `at ${laid}` : 'no free cell in view');
   const walls = await savedWalls();
   check(

@@ -237,9 +237,15 @@ try {
 
     // At fit zoom the whole map is on screen and a pan has nowhere to go, so
     // zoom in first — otherwise this control passes for the wrong reason.
+    //
+    // DIAGONAL, since v1.40. The world is portrait now, so on a landscape
+    // screen its width is the axis with slack: a purely sideways drag can be
+    // clamped to nothing at a zoom where the map pans perfectly well, and this
+    // check then fails for a fact about the board's shape rather than about
+    // gestures. A diagonal drag moves on whichever axis has room.
     for (let i = 0; i < 6; i++) await wheelAt(bMid.x, bMid.y, -120);
     before = await state();
-    await drag(bMid.x + B.w * 0.2, bMid.y, bMid.x - B.w * 0.2, bMid.y);
+    await drag(bMid.x + B.w * 0.2, bMid.y + B.h * 0.2, bMid.x - B.w * 0.2, bMid.y - B.h * 0.2);
     after = await state();
     check(
       `${run.name}: a drag inside the board still pans it`,

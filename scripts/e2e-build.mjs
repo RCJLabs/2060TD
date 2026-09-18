@@ -228,13 +228,21 @@ try {
       },
       [col, row],
     );
-  /** Which columns of the grid are on screen right now. */
+  /**
+   * Which columns of the grid are on screen right now.
+   *
+   * The board's size comes from the board (v1.40). This used to count to 32
+   * and 24, which was the shape of the world until it turned upright — and
+   * then scanned mostly empty space and reported "no free cell in view",
+   * which reads like a camera bug and is arithmetic.
+   */
   const columns = () =>
     page.evaluate(() => {
       const api = window.lastline;
+      const grid = api.grid?.() ?? { cols: 0, rows: 0 };
       const cols = [];
-      for (let c = 0; c < 32; c++) {
-        for (let r = 0; r < 24; r++) {
+      for (let c = 0; c < grid.cols; c++) {
+        for (let r = 0; r < grid.rows; r++) {
           if (api.cell(c, r)) {
             cols.push(c);
             break;
@@ -295,9 +303,29 @@ try {
   // wider than a cell and covers the one it is aiming at, so committing on
   // touch-down commits blind — but the lift now only parks a ghost. Nothing
   // is spent until CONFIRM, which is what makes a misaimed tap correctable.
+  //
+  // Both ends come from the BOARD (v1.40). They used to be arithmetic on the
+  // first visible column plus a fixed row — and a fixed row is a guess about
+  // where the camera is looking, which stopped being true the moment the world
+  // turned upright and the town started framing a base at the foot of it.
   const before = await structures();
-  const from = await cellAt(Math.max(2, (await columns())[0] + 3), 6);
-  const to = await cellAt(Math.max(2, (await columns())[0] + 3) + 3, 9);
+  const visible = await page.evaluate(() => {
+    const api = window.lastline;
+    const grid = api.grid?.() ?? { cols: 0, rows: 0 };
+    const out = [];
+    for (let r = 0; r < grid.rows; r++) {
+      for (let c = 0; c < grid.cols; c++) if (api.cell(c, r)) out.push([c, r]);
+    }
+    return out;
+  });
+  // Two cells a few apart, so the slide is a real drag across the map rather
+  // than a jiggle inside one cell.
+  const pick = visible[Math.floor(visible.length * 0.25)];
+  const pickTo = visible.find(
+    ([c, r]) => pick && Math.abs(c - pick[0]) >= 2 && Math.abs(r - pick[1]) >= 2,
+  );
+  const from = pick ? await cellAt(pick[0], pick[1]) : null;
+  const to = pickTo ? await cellAt(pickTo[0], pickTo[1]) : null;
   check('two free cells are on screen to slide between', from !== null && to !== null, '');
   if (from && to) {
     if (isMobile) {

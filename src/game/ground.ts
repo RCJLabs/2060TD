@@ -33,6 +33,7 @@
 
 import Phaser from 'phaser';
 import { Ground, type TerrainField } from '../sim/terrain';
+import type { SpawnEdge } from '../sim/types';
 import { COLORS, css } from './palette';
 import { INK, PAPER, toneFill, type ToneKind } from './tone';
 
@@ -151,8 +152,10 @@ export interface SheetOptions {
   height: number;
   cell: number;
   terrain: TerrainField;
-  /** Column reserved for attacker entry, or -1 for no entry strip. */
+  /** Lane reserved for attacker entry, or -1 for no entry strip. */
   spawnLane: number;
+  /** Which edge that lane runs along. */
+  spawnEdge: SpawnEdge;
   /** Sheet name for the bottom-left marginalia. */
   title?: string;
 }
@@ -199,7 +202,7 @@ function paintSheet(
   C: number,
   scale: number,
 ): void {
-  const { width, height, terrain, spawnLane } = opts;
+  const { width, height, terrain, spawnLane, spawnEdge } = opts;
   const pxW = width * C;
   const pxH = height * C;
   const seed = terrain.version * 7919 + 13;
@@ -387,24 +390,33 @@ function paintSheet(
   // The one thing on the sheet that is not cartography: where they come from.
   // Solid ink, because everything hostile on this page is solid ink.
   if (spawnLane >= 0) {
-    const cx = spawnLane * C + C / 2;
+    // The arrows point INTO the board, along the direction of the advance, so
+    // the strip reads as a direction rather than as a decorated edge. On the
+    // portrait board that is downward; on a legacy western one, rightward.
+    const north = spawnEdge === 'north';
+    const along = north ? width : height;
+    const mid = spawnLane * C + C / 2;
+    const far = north ? pxW : pxH;
+    /** Approach space to canvas: `d` across the lane, `a` along the edge. */
+    const px = (d: number, a: number): [number, number] => (north ? [a, d] : [d, a]);
+
     ctx.strokeStyle = INK;
     ctx.lineWidth = hair * 1.4;
     ctx.setLineDash([C * 0.3, C * 0.3]);
     ctx.beginPath();
-    ctx.moveTo(spawnLane * C, 0);
-    ctx.lineTo(spawnLane * C, pxH);
-    ctx.moveTo((spawnLane + 1) * C, 0);
-    ctx.lineTo((spawnLane + 1) * C, pxH);
+    for (const edge of [spawnLane * C, (spawnLane + 1) * C]) {
+      ctx.moveTo(...px(edge, 0));
+      ctx.lineTo(...px(edge, far));
+    }
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = INK;
-    for (let y = 1; y < height; y += 3) {
-      const cy = y * C + C / 2;
+    for (let i = 1; i < along; i += 3) {
+      const a = i * C + C / 2;
       ctx.beginPath();
-      ctx.moveTo(cx - C * 0.22, cy - C * 0.22);
-      ctx.lineTo(cx + C * 0.26, cy);
-      ctx.lineTo(cx - C * 0.22, cy + C * 0.22);
+      ctx.moveTo(...px(mid - C * 0.22, a - C * 0.22));
+      ctx.lineTo(...px(mid + C * 0.26, a));
+      ctx.lineTo(...px(mid - C * 0.22, a + C * 0.22));
       ctx.closePath();
       ctx.fill();
     }

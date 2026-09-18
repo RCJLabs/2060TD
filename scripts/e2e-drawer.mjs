@@ -75,9 +75,9 @@ try {
    * looking.
    *
    * `cell` is the size one grid square is drawn at — the number the whole
-   * portrait rework is about — and `topWorld` is the world Y at the board's
-   * top edge, which is the ground the drawer has NOT covered. Both come from
-   * the live camera rather than from anything the layout believes.
+   * portrait rework is about — and `bottomWorld` is the world Y at the board's
+   * bottom edge, the ground the drawer rises towards. Both come from the live
+   * camera rather than from anything the layout believes.
    */
   const shape = async () => {
     const raw = await page.evaluate(() => {
@@ -95,7 +95,7 @@ try {
       handle: to(raw.handle),
       // 32 world px per cell, drawn at `zoom`, shown at 1/dpr CSS px per device px.
       cell: cam ? (cam.zoom * 32) / raw.dpr : 0,
-      topWorld: cam ? cam.cy - cam.rect.h / cam.zoom / 2 : 0,
+      bottomWorld: cam ? cam.cy + cam.rect.h / cam.zoom / 2 : 0,
     };
   };
 
@@ -152,17 +152,19 @@ try {
   // difference between a silhouette that reads and one that does not.
   //
   // Both halves matter. Zoom alone would pass on a build that held the scale
-  // and slid the ground instead, so the world point at the board's TOP edge —
-  // the part of the map the drawer never covers — is pinned as well.
+  // and slid the ground instead, so the world point at the board's BOTTOM
+  // edge is pinned as well — the map slides up exactly as far as the drawer
+  // rises, which is what keeps a base at the foot of the board on screen
+  // while its build drawer is open.
   check(
     'and the map keeps its scale while the drawer moves',
     Math.abs(grown.cell - start.cell) < 0.25,
     `cell ${start.cell.toFixed(1)} → ${grown.cell.toFixed(1)}px`,
   );
   check(
-    'and the ground above the drawer stays put',
-    Math.abs(grown.topWorld - start.topWorld) < 6,
-    `top of view ${start.topWorld.toFixed(0)} → ${grown.topWorld.toFixed(0)} world px`,
+    'and the ground at the drawer edge stays on screen',
+    Math.abs(grown.bottomWorld - start.bottomWorld) < 6,
+    `foot of view ${start.bottomWorld.toFixed(0)} → ${grown.bottomWorld.toFixed(0)} world px`,
   );
 
   // ---- and it lands on a detent, not wherever the finger stopped ----------

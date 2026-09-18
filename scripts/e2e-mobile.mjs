@@ -104,8 +104,13 @@ const SCENES = [
       // Slide to aim: the lift decides the cell, and only CONFIRM spends.
       const cell = await page.evaluate(() => {
         const api = window.lastline;
-        for (let c = 4; c < 16; c++) {
-          for (let r = 4; r < 14; r++) {
+        // The board's own size, and only cells it says are on screen (v1.40).
+        // The box this used to scan was the middle of the old wide board and
+        // is off the top of the portrait one, so the aim found nothing and the
+        // scenario reported that it could not be set up.
+        const grid = api.grid?.() ?? { cols: 0, rows: 0 };
+        for (let c = 0; c < grid.cols; c++) {
+          for (let r = 0; r < grid.rows; r++) {
             const hit = api.cell(c, r);
             if (hit) return { x: hit.x / api.dpr, y: hit.y / api.dpr };
           }
@@ -291,8 +296,12 @@ try {
         t.x + t.w > listRect.x &&
         t.x < listRect.x + listRect.w;
 
+      // `onBoard` text pans and zooms with the map (v1.40): a sector marker at
+      // the foot of the board is meant to leave the screen when the camera
+      // frames the base, and counting it here made this check an assertion
+      // about the camera rather than about layout.
       const staticClipped = texts.filter(
-        (t) => t.depth >= topDepth && !inList(t) && t.y + t.h > vh + 0.5,
+        (t) => t.depth >= topDepth && !t.onBoard && !inList(t) && t.y + t.h > vh + 0.5,
       );
       check(
         `${where}: no static text runs off the screen`,

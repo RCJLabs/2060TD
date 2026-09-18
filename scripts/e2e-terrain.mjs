@@ -262,11 +262,17 @@ try {
   // encodes one generator's output fails for the wrong reason later.
   const wet = await page.evaluate(() => {
     const api = window.lastline;
+    const grid = api.grid?.() ?? { cols: 0, rows: 0 };
     const out = [];
-    // Search the frame the town opens on, not the whole sheet.
-    for (let row = 6; row <= 17 && out.length < 6; row++) {
-      for (let col = 19; col <= 29; col++) {
-        if (api.wet && api.wet(col, row)) {
+    // The whole sheet, and only what is REACHABLE: `cell()` already reports an
+    // off-screen cell as unreachable, so there is nothing here to guess about
+    // where the camera is looking. The version that guessed — a box drawn
+    // around where the base used to sit — scanned empty water-free space the
+    // moment the board turned upright, and failed saying the sheet had no
+    // river on it.
+    for (let row = 0; row < grid.rows && out.length < 6; row++) {
+      for (let col = 0; col < grid.cols; col++) {
+        if (api.wet && api.wet(col, row) && api.cell(col, row)) {
           out.push([col, row]);
           break;
         }
@@ -306,19 +312,24 @@ try {
 
   // The ban has to be specific, or "nothing built" would pass for a broken
   // build tool rather than for terrain.
+  //
+  // Outward in BOTH directions, not rightward: the old walk only ever looked
+  // east of the river, which was dry ground on the wide board and is off the
+  // edge of the portrait one. `tapCell` already declines anything unreachable,
+  // so the only thing this has to be right about is the search shape.
   let laid = null;
   if (refused) {
-    for (let dx = 2; dx <= 6 && !laid; dx++) {
-      for (const dy of [0, -1, 1]) {
-        const col = refused[0] + dx;
-        const row = refused[1] + dy;
-        const before = (await savedWalls()).length;
-        if (!(await tapCell(col, row, 500))) continue;
-        if ((await savedWalls()).length > before) {
-          laid = [col, row];
-          break;
-        }
-      }
+    const ring = [];
+    for (let d = 2; d <= 6; d++) {
+      for (const dx of [d, -d, 0, 0]) for (const dy of [0, 0, d, -d]) ring.push([dx, dy]);
+    }
+    for (const [dx, dy] of ring) {
+      if (laid) break;
+      const col = refused[0] + dx;
+      const row = refused[1] + dy;
+      const before = (await savedWalls()).length;
+      if (!(await tapCell(col, row, 400))) continue;
+      if ((await savedWalls()).length > before) laid = [col, row];
     }
   }
   check('and dry ground a few cells over takes one', laid !== null, laid ? `at ${laid}` : 'none');

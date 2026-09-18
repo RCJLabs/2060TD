@@ -240,6 +240,7 @@ export class RaidScene extends Phaser.Scene {
       cell: CELL,
       terrain: raidGround,
       spawnLane: -1, // no home entry strip: this is somebody else's ground
+      spawnEdge: TOWN_GRID.spawnEdge,
     });
     this.board.world.add([sheet, this.baseLayer, this.dynLayer]);
     this.board.passable = (col, row) => raidGround.passable(row * MAP_W + col);
