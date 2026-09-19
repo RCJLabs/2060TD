@@ -2480,14 +2480,125 @@ at stage one.
       channel only, so a zero says a unit's damage buys nothing, not that its
       body does — it still soaks. That is the strongest form of the M22 thesis
       and the bar Phase 3 has to clear.
-- [ ] **Phase 2 — the stage model in the engine, behind `KILL_CHAIN_VERSION`.**
-      Version 0 is today's sponge, frozen forever, so every archived replay
-      re-fights the battle it recorded. Same discipline as `TERRAIN_VERSION` and
-      `COMBAT_CURRENT`.
+- [x] **Phase 2 — the stage model in the engine, behind `KILL_CHAIN_VERSION`.**
+      `src/sim/killchain.ts`. Version 0 is the sponge, frozen: the 531 tests
+      that predate this release pass untouched, and `tests/killchain.test.ts`
+      pins that naming version 0 hashes identically to naming nothing.
+
+      The model, with every constant measured rather than chosen — shares
+      30/15/55 of the bar, a 4-cell cover radius, a crew of 2, a 20-second fuse:
+
+      | stage | bar | paid in | who is good at it |
+      |---|---|---|---|
+      | BREACH | 1.00→0.70 | `wallDps`, plus shells | sappers 60-80 over heavies 22-35 |
+      | SUPPRESS | gate at 0.70 | every gun within 4 cells down | anything with reach |
+      | CHARGE | 0.70→0.55 | `hqDps`, **two bodies minimum** | cheap infantry per manpower |
+      | BURN | 0.55→0.00 | a 20s clock, while held | whatever survives |
+
+      **The headline finding is how raids were actually being won.** Wiring the
+      stages in dropped the reference expeditions to 11.3% clear, and no
+      constant moved it — four of five factions scored EXACTLY ZERO under every
+      variant swept. The cause was not balance. Explosive does 1.0 against
+      `structure`, so three tanks parked at range four shelled the post down
+      without ever entering the base; the chain clamps standoff fire at the
+      breach floor, and the AI then stood there shelling a bar that could not
+      move, because `updateAttackers` stops a unit that has a target in reach.
+      Dropping the opened post from the target list — you bombard the bunker
+      open, then somebody walks in — took the same constants from 11.3% to
+      49.4%. **A win condition nobody designed had been carrying the game for
+      twenty-two milestones, and only a model that took it away could find it.**
+
+      What the model bought, on the five reference plans:
+
+      | | BRCH | GUNS | CHRG | BURN | stalls at |
+      |---|---|---|---|---|---|
+      | USA | 87 | 80 | 70 | 69 | CHARGE (−9) |
+      | China | 88 | 84 | 64 | 64 | CHARGE (−20) |
+      | Russia | 91 | 73 | 68 | 63 | GUNS (−18) |
+      | KPA | 66 | 64 | 61 | 59 | CHARGE (−3) |
+      | UN | 79 | 74 | 56 | 56 | CHARGE (−18) |
+
+      - **Suppression is a stage now.** 97-99% of raids passed it on the sponge;
+        64-84% pass it here. A radius of 6 asks for 3.2 guns dead on average, 4
+        for 1.22 and 3 for 0.53 — six was a shape tax that cost Russia 31 points
+        more than anyone else, which is why the shipped radius is 4.
+      - **The stages became monotone.** The sponge scored BREACH 5-36 UNDER BURN
+        78-86, which is incoherent on its face. These fall in order.
+      - **Parity improved without being tuned for.** Clear rate spread across the
+        five factions goes from 23 points to 13. Asking for four capabilities
+        suits five rosters better than asking for one.
+      - **DUG IN's inverted sign is fixed.** The v1.40 finding — thicker wire
+        RAISING destruction — is gone, because wire is now stage one and nothing
+        past it can be done at range. The same +45% costs a raid 42% of its
+        progress (0.67 stages against 0.39), and at a stronger force it is a
+        50-point swing in clear rate. `tests/conditions.test.ts` asserts the
+        direction rather than recording a defect.
+
+      **What it did NOT buy, stated plainly: the heavy is still the best unit to
+      bring.** A new instrument, `npm run balance -- --mix [version]`, prices six
+      compositions at one manpower budget, roles picked from each roster by stat:
+
+      | | 3 HEAVY | 2H+BRCH | 2H+GUN | 2H+BODY | 1H+MIX | 0 HEAVY |
+      |---|---|---|---|---|---|---|
+      | sponge, USA | **81** | 70 | 72 | 70 | 55 | 17 |
+      | chain, USA | **59** | 55 | 56 | 56 | 28 | 6 |
+      | sponge, Russia | **53** | 39 | 53 | 38 | 33 | 11 |
+      | chain, Russia | 33 | 27 | **38** | 23 | 14 | 5 |
+
+      The chain narrows the heavy's lead (USA −9 to −3) and flips Russia to
+      2H+GUN, but the shape of the answer is the same under both. **The binding
+      constraint is not what wins at the post, it is who survives the approach**:
+      small arms do 1.0 against `none` and 0.2 against `heavy`, so a squad of
+      engineers is wiped out at tick 703 having moved the bar from 1.00 to 0.97.
+      The chain gives infantry a job; the armour table still denies them the
+      chance to do it. That is Phase 3 and Phase 4's problem and it now has a
+      number attached.
+
+      **Two instrument defects found and fixed**, both of which had been quietly
+      distorting Phase 1's table:
+
+      - `silence()` zeroed `hqDps` and the weapon but NOT `wallDps`, so every
+        demolition unit read as contributing nothing. Phase 1's "the KPA
+        tunneler moves 13-15 points" was an artifact: corrected, it owns BREACH
+        at 62-67. China's sapper is still ~0 on the sponge and +4 on the chain,
+        which is small but is the first time a support unit has shown anything.
+      - The first staged run reported BURN at 0% for every faction while the
+        post's bar reached 0.000 in every raid that set a charge. `liveStage` is
+        read before the burn is applied, so on the tick the post fell it read
+        `burn`, the engine stopped, and the high-water mark never reached 4. A
+        re-tune against that readout would have been a re-tune against nothing.
+
+      Two rules were added because a test failed and the failure was right:
+      **an aircraft is not a body on the ground** (two gunships shelled a post
+      open, counted as crew and burned it down with no demolition and no
+      infantry anywhere in the force), and **the burn backs off rather than
+      resetting** when the ground is lost.
+
+      Legible where it is fought: the siege SITREP names the live stage
+      (`POST — COVERED BY 2 GUNS`, `CHARGE SETTING — 1/2 ON IT`) and a repulsed
+      raid's report says which stage it stalled at.
 - [ ] **Phase 3 — re-derive all five reference plans against it.** The bar: carry
       at or under 50%, and every roster slot delivering something measurable.
+
+      Three things Phase 2 hands it. **The plans are monocultures** — nine BTRs,
+      nine VABs, three Abrams — so the per-unit table reads 60-90 for their one
+      kind whatever the model does; that is what `--derive` has to fix.
+      **`--carry` measures a damage channel**, and under a model where presence
+      pays, a unit removed entirely is the honest test rather than a unit
+      silenced. And **the approach, not the objective, is what stops infantry**:
+      if re-derived plans converge on heavies again, the answer is the armour
+      table and not the plans.
 - [ ] **Phase 4 — re-tune the ladder.** Every matrix in `BALANCE.md` was measured
       on the sponge and none of them survives this.
+
+      Two specific debts. The chain applies to **every** post, so sieges,
+      campaign missions, counterattacks and offline probes all got easier for
+      the defender at the same time raids got harder — a post is a post, and
+      `battleConfig` names the model in one place, but the campaign's own
+      difficulty curve was tuned against the sponge. And `hqDps` now means
+      "how fast you work the objective" rather than "how fast you chew the
+      post"; the stat is intact and still discriminates, but nothing in the
+      rosters was authored with that reading in mind.
 
 ## M23 — "Live Fire": make defence the game the GDD claims
 

@@ -396,6 +396,17 @@ export interface SimConfig {
    */
   combatSeed?: number;
   /**
+   * Which kill-chain model decides what taking the command post takes
+   * (v1.41). Absent or 0 means the post is an HP sponge that `hqDps` chews at
+   * adjacency, which is what every config written before v1.41 gets — so an
+   * archived replay re-fights exactly the battle it recorded.
+   *
+   * Like `terrainVersion` and `combatVersion`, a version names a MODEL and
+   * not a revision of one: changing what the stages ask for means adding a
+   * version, never editing one.
+   */
+  killChainVersion?: number;
+  /**
    * What the raid came for (v1.24), and the tick it stops on.
    *
    * The sim does not read this — it knows what a structure IS and the war

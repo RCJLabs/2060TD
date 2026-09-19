@@ -21,6 +21,16 @@ an active player defends one to two ladder levels above their probe floor.
 > Every table below EXCEPT the ones that name a model was measured with the rolls on, so none
 > of them is comparable to a pre-v1.23 snapshot cell for cell.
 
+> **EVERY NUMBER IN THIS FILE PREDATES THE KILL CHAIN (v1.41) AND NONE OF IT SURVIVES.**
+> M22 Phase 2 replaced the command post's HP bar with a four-stage objective — breach,
+> suppress, charge, burn — so what a raid has to DO to win is no longer what these matrices
+> measured. On the reference expeditions the clear rate moves 76.9% to 62.5%, suppression
+> goes from a formality passed 97-99% of the time to a stage passed 64-84%, and the
+> faction spread closes from 23 points to 13. The snapshot is left as written rather than
+> half-refreshed, because a file with some rows re-measured and some not is worse than one
+> that is uniformly out of date and says so. **M22 Phase 4 regenerates it.** Until then,
+> read `npm run balance -- --chain 1` and `-- --mix 1` for what is current.
+
 ```
 RAID — UNITED STATES strike force (27 MP) vs PLA Front Line
 TIER | CLEAR% | DESTR% | MP LOST%

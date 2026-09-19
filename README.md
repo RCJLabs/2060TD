@@ -1398,6 +1398,9 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --plans for how much of a faction row is the plan, or
                    # -- --structure for what actually kills a command post, or
                    # -- --carry for how much of a raid is one unit, or
+                   # -- --chain [ver] for how far a raid gets, by stage, or
+                   # -- --mix [ver] for what one heavy buys against the
+                   #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or
                    # -- --sweep [vers] to price combat-variance candidates, or
                    # -- --objective [share] for what a raid could come for, or

@@ -19,6 +19,7 @@ import {
   raidConfig,
   resolveRaid,
   scoutTarget,
+  type RaidResolution,
   type SquadPlan,
 } from '../src/meta/warfare';
 
@@ -161,7 +162,14 @@ describe('conditions in the battle', () => {
       { units: { javelin: 2, engineer: 1 }, sector: 'N1', doctrine: 'hunt' },
       { units: { ranger: 2, engineer: 1, humvee: 1 }, sector: 'S1', doctrine: 'raze' },
     ];
-    const meanDestruction = (id: ConditionId | null): number => {
+    /**
+     * Two readings of the same eighteen raids: how much got razed, and how far
+     * the assault got through the kill chain. The second arrived with v1.41
+     * and is the sharper of the two — destruction counts what a force had
+     * time to knock down on its way, while stages count whether it got
+     * anywhere, which is what a condition is supposed to move.
+     */
+    const meanOf = (id: ConditionId | null, read: (r: RaidResolution) => number): number => {
       let total = 0;
       let runs = 0;
       // Forced shapes, not the deal (v1.21). DUG IN thickens WALLS and guns,
@@ -175,30 +183,35 @@ describe('conditions in the battle', () => {
           const config = raidConfig(base, force, 4242 + seed * 7919, trainableFor('usa'), {
             ...(id ? { condition: CONDITION_BY_ID[id] } : {}),
           });
-          total += resolveRaid(config, force, 4).destructionPct;
+          total += read(resolveRaid(config, force, 4));
           runs++;
         }
       }
       return total / runs;
     };
+    const meanDestruction = (id: ConditionId | null): number =>
+      meanOf(id, (r) => r.destructionPct);
+    const meanProgress = (id: ConditionId | null): number => meanOf(id, (r) => r.chainStages);
 
     const bare = meanDestruction(null);
     expect(meanDestruction(null)).toBe(bare); // deterministic, condition or not
     expect(meanDestruction('clearline')).toBe(bare);
     expect(meanDestruction('hardrain')).toBeGreaterThan(bare);
 
-    // DUG IN moves the battle, and since v1.40 it moves it the WRONG WAY:
-    // 0.405 bare against 0.420 dug in, and the sign holds at 18 and at 90
-    // runs, so this is a finding and not noise. Destruction counts STRUCTURES,
-    // not walls, so it is not the +45% wall HP inflating its own denominator —
-    // the reading is that thicker wire buys the defender breach time it can
-    // no longer convert, and a force that gets through anyway simply has
-    // longer inside to raze.
+    // DUG IN's sign, which v1.40 recorded as INVERTED — 0.420 destroyed dug
+    // in against 0.405 bare, stable at 18 runs and at 90 — is fixed, and the
+    // kill chain is what fixed it. Thicker wire used only to buy breach time
+    // the defender could not convert, because the post could be shot down
+    // from standoff whether or not the wire was cut. Now the wire is stage
+    // one of four and nothing past it can be done at range, so the same +45%
+    // costs the raid 42% of its progress: 0.67 stages bare against 0.39.
     //
-    // Recorded rather than asserted away. The direction is a combat-model
-    // question and M22 is queued to rebuild exactly that; what is checked
-    // here is the claim in this test's own name, which still holds.
-    expect(Math.abs(meanDestruction('dugin') - bare)).toBeGreaterThan(0.01);
+    // Asserted on PROGRESS rather than on destruction, because that is the
+    // channel a condition moves. Destruction is down too (0.403 to 0.398) but
+    // by less than noise at this sample, and a directional claim on a
+    // half-point margin would fail for the wrong reasons.
+    expect(meanProgress('dugin')).toBeLessThan(meanProgress(null));
+    expect(meanProgress('hardrain')).toBeGreaterThan(meanProgress(null));
   });
 
   it('scales the loot the wreckage is worth', () => {

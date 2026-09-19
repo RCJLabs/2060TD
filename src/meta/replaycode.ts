@@ -3,6 +3,7 @@ import { garrisonById, isGarrisonId } from '../content/garrison';
 import { standingOrdersFor, isStandingOrdersId } from '../content/standingOrders';
 import { TERRAIN_VERSION } from '../sim/terrain';
 import { COMBAT_CURRENT, COMBAT_NONE } from '../sim/combat';
+import { CHAIN_CURRENT, CHAIN_NONE } from '../sim/killchain';
 import { OBJECTIVE_IDS, isObjectiveId } from './objectives';
 import type {
   AutoPowerRule,
@@ -301,7 +302,12 @@ export function encodeReplay(replay: Replay): string {
   // costs nothing to record and every archived code still decodes to the
   // battle it recorded rather than a rotated one.
   const edgeIndex = SPAWN_EDGES.indexOf(c.spawnEdge ?? 'west');
-  const needObjective = objectiveIndex > 0 || edgeIndex > 0;
+  // What taking the post took (v1.41). The sponge is what every code before
+  // this release means, so it is the "no block" value and a battle fought on
+  // it costs nothing to record.
+  const chainVersion = c.killChainVersion ?? CHAIN_NONE;
+  const needEdge = edgeIndex > 0 || chainVersion > CHAIN_NONE;
+  const needObjective = objectiveIndex > 0 || needEdge;
   const needCombat = combatVersion > COMBAT_NONE || needObjective;
   const garrisonId = c.garrison?.id ?? '';
   const needGarrison = garrisonId !== '' || needCombat;
@@ -338,8 +344,13 @@ export function encodeReplay(replay: Replay): string {
   // code with no block re-fights to the ending it always had.
   if (needObjective) writeVarint(body, objectiveIndex);
 
-  // The entry edge (v1.40), last and optional like every block above it.
-  if (edgeIndex > 0) writeVarint(body, edgeIndex);
+  // The entry edge (v1.40), optional like every block above it.
+  if (needEdge) writeVarint(body, edgeIndex);
+
+  // The kill chain (v1.41), last. A replay is a RECORD of a battle, so it has
+  // to name what taking the post took at the time: a raid recorded against
+  // the sponge re-fights the sponge forever, even once a staged model ships.
+  if (chainVersion > CHAIN_NONE) writeVarint(body, chainVersion);
 
   // Header, dictionary, then the body — the reader needs the names first.
   const head: number[] = [FORMAT, REPLAY_KINDS.indexOf(replay.kind)];
@@ -681,6 +692,15 @@ export function decodeReplay(raw: string): ReplayDecode {
     const edge = SPAWN_EDGES[index];
     if (edge === undefined) return bad('content');
     if (index > 0) config.spawnEdge = edge;
+  }
+
+  // What taking the post took, if this code was written after v1.41. Older
+  // codes end here and re-fight the sponge, which is the battle they recorded.
+  if (cur.at < body.length) {
+    const version = readVarint(cur);
+    if (version === null) return bad('truncated');
+    if (version > CHAIN_CURRENT) return bad('version');
+    if (version > CHAIN_NONE) config.killChainVersion = version;
   }
 
   return {

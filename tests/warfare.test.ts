@@ -347,29 +347,21 @@ describe('raid planning and resolution', () => {
     applyRaidResult(
       town,
       base,
-      {
-        // Built by hand rather than through `makeResolution`, which is what
-        // that helper exists to absorb — every field the shape gains breaks
-        // this literal for reasons unrelated to what it checks.
-        cleared: true,
+      // Through `makeResolution`, which states only the fields this test is
+      // about. The hand-written literal that used to sit here broke on every
+      // field the shape gained — `wallsBreached` in v1.41, `chainStages`
+      // right after it — each time for a reason that had nothing to do with
+      // whether a cleared raid banks its loot. Twice was enough.
+      makeResolution({
         ticks: 1000,
-        wallsBreached: 0,
         deployed: planDeployment(plan),
         survivors: { ranger: 2, abrams: 2 },
         losses: { ranger: 3 },
         destroyed: { cc: 1, supplyCache: 2 },
         loot: { supplies: 300, fuel: 40 },
         destructionPct: 0.5,
-        powersUsed: {},
-        reserves: 0,
         squads: [{ slot: 0, deployed: 7, returned: 4 }],
-        ccHpFraction: 0,
-        objective: 'post',
-        objectiveMet: true,
-        quota: 0,
-        progress: 0,
-        withdrew: false,
-      },
+      }),
       config,
       T0 + 1000,
     );

@@ -51,11 +51,13 @@ import {
   type SquadPlan,
 } from '../meta/warfare';
 import { CONDITIONS } from '../content/conditions';
+import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
 import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
+import { CHAIN_NONE, chainModelFor } from '../sim/killchain';
 import {
   OBJECTIVES,
   OBJECTIVE_FLOOR,
@@ -1623,12 +1625,36 @@ function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): numbe
 const CHAIN_STAGES = ['BREACH', 'GUNS', 'CHARGE', 'BURN'] as const;
 type ChainStage = (typeof CHAIN_STAGES)[number];
 
-/** Which stages one resolved raid got through. */
+/**
+ * Which stages one resolved raid got through.
+ *
+ * Two lenses on the same four columns, because the two models keep the score
+ * in different places:
+ *
+ * - On the SPONGE there are no stages, so they are inferred from what the
+ *   raid left behind. The inference is a lens on mechanics that are already
+ *   there, not a claim that the sponge has stages.
+ * - Under the CHAIN the engine counts them itself, and the count is the
+ *   answer: `chainStages` is a high-water mark of stages COMPLETED.
+ *
+ * The columns mean the same thing either way — how far did this raid get —
+ * which is what makes the two tables comparable, and comparing them is the
+ * entire point of having built the sponge lens first.
+ */
 function stagesReached(
   outcome: RaidResolution,
   base: GeneratedBase,
   guns: Set<string>,
+  staged: boolean,
 ): Record<ChainStage, boolean> {
+  if (staged) {
+    return {
+      BREACH: outcome.chainStages >= 1,
+      GUNS: outcome.chainStages >= 2,
+      CHARGE: outcome.chainStages >= 3,
+      BURN: outcome.chainStages >= 4,
+    };
+  }
   return {
     // A base with no wire cannot be blocked by it, so the stage is passed
     // rather than skipped — scoring it as a failure would read every open
@@ -1640,7 +1666,8 @@ function stagesReached(
   };
 }
 
-function chainTable(): string {
+function chainTable(chainVersion = CHAIN_NONE): string {
+  const model = chainModelFor(chainVersion);
   const zero = (): Record<ChainStage, number> =>
     ({ BREACH: 0, GUNS: 0, CHARGE: 0, BURN: 0 });
 
@@ -1657,8 +1684,16 @@ function chainTable(): string {
         for (let v = 0; v < 2; v++) {
           const base = generateBase(tier, v, kit, arch.id);
           for (let i = 0; i < 2; i++) {
-            const config = raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction));
-            const reached = stagesReached(resolveRaid(config, squads, tier, cat), base, guns);
+            const config = {
+              ...raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction)),
+              killChainVersion: chainVersion,
+            };
+            const reached = stagesReached(
+              resolveRaid(config, squads, tier, cat),
+              base,
+              guns,
+              model.staged,
+            );
             for (const stage of CHAIN_STAGES) if (reached[stage]) hit[stage]++;
             runs++;
           }
@@ -1670,13 +1705,28 @@ function chainTable(): string {
     return out;
   };
 
+  /**
+   * Every damage channel a unit has, off — the body stays on the board.
+   *
+   * `wallDps` is in here and was not in the first draft, which understated
+   * every sapper in the game: silencing one left its 60-80 demolition intact,
+   * so the BREACH column could not move and the row read as a unit that
+   * contributes nothing. It is the same oversight in both models, but the
+   * chain is the one that makes it matter, since demolition is what buys the
+   * first stage.
+   */
   const silence = (cat: Catalog, kind: string): Catalog => ({
     ...cat,
     attackers: Object.fromEntries(
       Object.entries(cat.attackers).map(([k, p]) => [
         k,
         k === kind
-          ? { ...p, hqDps: 0, weapon: p.weapon ? { ...p.weapon, damage: 0 } : p.weapon }
+          ? {
+              ...p,
+              hqDps: 0,
+              wallDps: 0,
+              weapon: p.weapon ? { ...p.weapon, damage: 0 } : p.weapon,
+            }
           : p,
       ]),
     ),
@@ -1684,7 +1734,7 @@ function chainTable(): string {
 
   const pct = (n: number): string => n.toFixed(0).padStart(4);
   const lines = [
-    'THE KILL CHAIN — how far the reference expedition gets, by stage',
+    `THE KILL CHAIN — how far the reference expedition gets, by stage (${model.label})`,
     'FACTION     | BRCH | GUNS | CHRG | BURN | STALLS AT',
     '------------+------+------+------+------+-----------',
   ];
@@ -1739,10 +1789,171 @@ function chainTable(): string {
     }
   }
   lines.push('');
-  lines.push('Drops are percentage points of stage reach lost when that unit DOES NO DAMAGE.');
+  lines.push('Drops are percentage points of stage reach lost when that unit DOES NO DAMAGE —');
+  lines.push('hqDps, wallDps and its weapon all zeroed.');
   lines.push('It stays on the board, so a zero row means its damage buys nothing — not that');
   lines.push('the unit does: a body still soaks fire. Same channel `--carry` measures.');
   lines.push('A roster where every unit owns BURN and nothing else is a roster of escorts.');
+  return lines.join('\n');
+}
+
+/**
+ * Does the chain actually ASK for a mix? (v1.41)
+ *
+ * The per-unit table above cannot answer that, and it is important to say why:
+ * three of the five reference plans are monocultures — nine BTRs, nine VABs,
+ * three Abrams — so silencing their one kind silences the whole army and the
+ * row reads 60-90 whatever the model does. That is a plan problem, and M22
+ * Phase 3 is where it gets fixed.
+ *
+ * This asks the model directly instead. One manpower budget per faction, five
+ * compositions built from its OWN roster by stat rather than by name, so the
+ * table keeps working when the content changes:
+ *
+ *     ALL HEAVY   the thing the sponge rewards — fill the budget with the
+ *                 toughest unit there is
+ *     +BREACH     one heavy, the rest demolition
+ *     +BODIES     one heavy, the rest of the cheapest bodies available
+ *     COMBINED    one of each role, the remainder in bodies
+ *     NO HEAVY    breachers, guns and bodies, no heavy at all
+ *
+ * Run it under both models. If ALL HEAVY wins under the sponge and loses under
+ * the chain, the milestone did what it set out to do. If ALL HEAVY wins under
+ * both, it did not, and no amount of re-derived plans will hide that.
+ */
+type MixRole = 'heavy' | 'breacher' | 'gun' | 'body';
+
+function rolesFor(faction: FactionId): Record<MixRole, TrainMeta> | null {
+  const cat = raidCatalogFor(faction);
+  const ground = trainableFor(faction).filter((t) => cat.attackers[t.kind] && !cat.attackers[t.kind]!.air);
+  if (ground.length < 3) return null;
+  const at = (t: TrainMeta) => cat.attackers[t.kind]!;
+  const best = (score: (t: TrainMeta) => number, skip: TrainMeta[]): TrainMeta =>
+    ground
+      .filter((t) => !skip.includes(t))
+      .reduce((a, b) => (score(b) > score(a) ? b : a));
+  const heavy = best((t) => at(t).maxHp, []);
+  const breacher = best((t) => at(t).wallDps, [heavy]);
+  const gun = best((t) => at(t).weapon?.damage ?? 0, [heavy, breacher]);
+  // The cheapest body there is: least manpower, ties broken on least CP so the
+  // pick is deterministic rather than roster-order dependent.
+  const body = ground
+    .filter((t) => t !== heavy && t !== breacher && t !== gun)
+    .reduce(
+      (a, b) => (b.manpower < a.manpower || (b.manpower === a.manpower && at(b).cpValue < at(a).cpValue) ? b : a),
+      ground.find((t) => t !== heavy && t !== breacher && t !== gun) ?? heavy,
+    );
+  return { heavy, breacher, gun, body };
+}
+
+/** Fill a manpower budget with a fixed core, then spend the rest on one role. */
+function fillBudget(
+  roles: Record<MixRole, TrainMeta>,
+  budget: number,
+  core: Partial<Record<MixRole, number>>,
+  topUp: MixRole | null,
+): Record<string, number> {
+  const units: Record<string, number> = {};
+  let left = budget;
+  for (const [role, want] of Object.entries(core) as [MixRole, number][]) {
+    const meta = roles[role];
+    for (let i = 0; i < want && meta.manpower <= left; i++) {
+      units[meta.kind] = (units[meta.kind] ?? 0) + 1;
+      left -= meta.manpower;
+    }
+  }
+  if (topUp) {
+    const meta = roles[topUp];
+    while (meta.manpower <= left) {
+      units[meta.kind] = (units[meta.kind] ?? 0) + 1;
+      left -= meta.manpower;
+    }
+  }
+  return units;
+}
+
+function mixTable(chainVersion = CHAIN_NONE): string {
+  const model = chainModelFor(chainVersion);
+  /** Round-robin one force into the three reference sectors. */
+  const spread = (units: Record<string, number>): SquadPlan[] => {
+    const sectors: SectorId[] = ['W1', 'N1', 'S1'];
+    const piles: Record<string, number>[] = [{}, {}, {}];
+    let at = 0;
+    for (const [kind, n] of Object.entries(units)) {
+      for (let i = 0; i < n; i++) {
+        const pile = piles[at % 3]!;
+        pile[kind] = (pile[kind] ?? 0) + 1;
+        at++;
+      }
+    }
+    return piles.map((units_, i) => ({
+      units: units_,
+      sector: sectors[i]!,
+      doctrine: 'assault' as const,
+      slot: i,
+    }));
+  };
+
+  const clearRate = (faction: FactionId, units: Record<string, number>): number => {
+    const squads = spread(units);
+    const kit = baseKitFor(faction);
+    const cat = raidCatalogFor(faction);
+    let wins = 0;
+    let runs = 0;
+    for (const tier of [2, 3, 4, 5]) {
+      for (const arch of ARCHETYPES) {
+        for (let v = 0; v < 2; v++) {
+          const base = generateBase(tier, v, kit, arch.id);
+          const config = {
+            ...raidConfig(base, squads, seedOf(tier, v, 0), trainableFor(faction)),
+            killChainVersion: chainVersion,
+          };
+          if (resolveRaid(config, squads, tier, cat).cleared) wins++;
+          runs++;
+        }
+      }
+    }
+    return runs > 0 ? (wins / runs) * 100 : 0;
+  };
+
+  // A ladder in ONE variable: how many heavies the budget keeps. Everything
+  // else is the remainder spent on one specialist role, so a column beating
+  // `3 HEAVY` says that trading exactly one heavy for that role pays.
+  const MIXES: [string, Partial<Record<MixRole, number>>, MixRole | null][] = [
+    ['3 HEAVY', {}, 'heavy'],
+    ['2H+BRCH', { heavy: 2 }, 'breacher'],
+    ['2H+GUN', { heavy: 2 }, 'gun'],
+    ['2H+BODY', { heavy: 2 }, 'body'],
+    ['1H+MIX', { heavy: 1, breacher: 1, gun: 1 }, 'body'],
+    ['0 HEAVY', { breacher: 1, gun: 1 }, 'body'],
+  ];
+
+  const lines = [
+    `WHAT ONE HEAVY BUYS — one manpower budget, six compositions (${model.label})`,
+    'FACTION     | BUDGET | 3 HEAVY | 2H+BRCH | 2H+GUN | 2H+BODY | 1H+MIX | 0 HEAVY | BEST',
+    '------------+--------+---------+---------+--------+---------+--------+---------+---------',
+  ];
+  for (const faction of FACTION_IDS) {
+    const roles = rolesFor(faction);
+    if (!roles) continue;
+    // Three of the toughest thing in the roster: what the derived reference
+    // plans converged on under the sponge, and so the budget worth comparing at.
+    const budget = roles.heavy.manpower * 3;
+    const rates = MIXES.map(([, core, topUp]) => clearRate(faction, fillBudget(roles, budget, core, topUp)));
+    let bestAt = 0;
+    for (let i = 1; i < rates.length; i++) if (rates[i]! > rates[bestAt]!) bestAt = i;
+    lines.push(
+      `${flavorFor(faction).faction.slice(0, 11).padEnd(11)} |` +
+        `${String(budget).padStart(6)}  |` +
+        rates.map((r, i) => r.toFixed(0).padStart(MIXES[i]![0].length + 1) + ' ').join('|') +
+        `| ${MIXES[bestAt]![0]}`,
+    );
+  }
+  lines.push('');
+  lines.push('Clear rate, 4 tiers x 8 archetypes x 2 variants. Roles are picked from each');
+  lines.push("roster BY STAT — toughest, most demolition, biggest gun, cheapest body — so");
+  lines.push('the table survives content changes a hand-written unit list would not.');
+  lines.push('A column beating 3 HEAVY says trading exactly one heavy for that role pays.');
   return lines.join('\n');
 }
 
@@ -3105,7 +3316,14 @@ function main(): void {
     return;
   }
   if (process.argv.includes('--chain')) {
-    console.log(chainTable());
+    const arg = process.argv[process.argv.indexOf('--chain') + 1];
+    console.log(chainTable(/^\d+$/.test(arg ?? '') ? Number(arg) : CHAIN_NONE));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--mix')) {
+    const arg = process.argv[process.argv.indexOf('--mix') + 1];
+    console.log(mixTable(/^\d+$/.test(arg ?? '') ? Number(arg) : CHAIN_NONE));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

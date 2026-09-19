@@ -622,9 +622,25 @@ export class SiegeScene extends Phaser.Scene {
           }
         }
         const integrity = Math.max(0, Math.round((e.cc.hp / e.cc.profile.maxHp) * 100));
+        // Under the kill chain the integrity number STOPS for reasons the bar
+        // cannot show — a gun still covering the post, or a crew one body
+        // short. That is a defensive decision (keep the gun alive, kill the
+        // holders) and the panel has to be able to state it.
+        const chain = e.chainProgress();
+        const chainLine =
+          chain === null || chain.stage === 'down'
+            ? null
+            : chain.stage === 'breach'
+              ? 'SHELL HOLDING'
+              : chain.stage === 'suppress'
+                ? `COVERED BY ${chain.covering} GUN${chain.covering === 1 ? '' : 'S'}`
+                : chain.stage === 'charge'
+                  ? `CHARGE SETTING — ${chain.holders}/${chain.crew} ON IT`
+                  : 'CHARGE SET — BURN THEM OFF IT';
         rows.push(
           { id: 'h2', label: 'SITREP', heading: true },
           { id: 's1', label: `CC INTEGRITY ${integrity}%`, heading: true },
+          ...(chainLine ? [{ id: 's1b', label: `POST — ${chainLine}`, heading: true }] : []),
           { id: 's2', label: `KILLS ${e.stats.kills} / ${e.stats.spawned} SPAWNED`, heading: true },
           { id: 's3', label: `WALLS LOST ${e.stats.wallsLost}`, heading: true },
           { id: 's4', label: `GUNS LOST ${e.stats.structuresLost}`, heading: true },

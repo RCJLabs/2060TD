@@ -637,3 +637,38 @@ here with the change and its date.
   draft fell back to cell 0 and teleported a fuel dump from the deep rear
   corner to the enemy's doorstep — still present, still counted, and a gift.
 
+- 2026-09-19 — **Taking a command post is a job, not a health bar** (M22, the
+  kill chain). The post becomes a four-stage progress bar — breach, suppress,
+  charge, burn — each stage gated on a DIFFERENT stat, so no unit answers all
+  four. Behind `KILL_CHAIN_VERSION`, frozen, with version 0 the sponge, exactly
+  as `TERRAIN_VERSION` and the combat model are. Three of its rules were
+  written because a measurement or a test refused the first draft: an aircraft
+  is not a body on the ground (two gunships took a post with no demolition and
+  no infantry), the burn backs off rather than resetting, and the crew minimum
+  of two stays even though dropping it is the single largest gain in clear rate
+  available — buying back difficulty by reopening the defect the milestone
+  exists to close is a poor trade.
+- 2026-09-19 — **A model that takes something away is how you find out what was
+  really carrying the game.** Wiring the stages in dropped the reference
+  expeditions from 76.9% to 11.3%, and no constant moved it: four of five
+  factions scored EXACTLY ZERO under every variant swept, which is the shape of
+  a structural cause rather than a balance one. It was. Explosive does 1.0
+  against `structure`, so three tanks had been parking at range four and
+  shelling the post down without ever entering the base — a win condition
+  nobody designed, undetectable for twenty-two milestones because it worked.
+  The chain clamps standoff fire at the breach floor, and the AI then stood
+  there shelling a bar that could not move, since a unit with a target in reach
+  does not advance. Dropping the opened post from the target list took the same
+  constants from 11.3% to 49.4%. **Identical results across a whole sweep are a
+  finding, not a plateau.**
+- 2026-09-19 — **An instrument that cannot see a channel reports zero, and zero
+  reads like a finding.** `--chain`'s `silence()` zeroed `hqDps` and the weapon
+  but not `wallDps`, so Phase 1 reported the KPA tunneler moving 13-15 points
+  when its demolition is worth 62-67, and reported two of China's three kinds
+  as contributing nothing. Separately, the first staged run reported BURN at 0%
+  for every faction while the post's bar reached 0.000 in every raid that set a
+  charge — the stage was read before the burn was applied, and the battle ends
+  in the same tick, so a completed burn looked like a stalled one forever. Both
+  were caught by cross-checking the instrument against a second reading before
+  tuning against it, which is the only reason the constants were not re-derived
+  against a broken readout.
