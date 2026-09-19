@@ -2577,17 +2577,79 @@ at stage one.
       Legible where it is fought: the siege SITREP names the live stage
       (`POST — COVERED BY 2 GUNS`, `CHARGE SETTING — 1/2 ON IT`) and a repulsed
       raid's report says which stage it stalled at.
-- [ ] **Phase 3 — re-derive all five reference plans against it.** The bar: carry
+- [x] **Phase 3 — re-derive all five reference plans against it.** The bar: carry
       at or under 50%, and every roster slot delivering something measurable.
+      **Half met, and the half that is not is a content finding rather than a
+      plan one.**
 
-      Three things Phase 2 hands it. **The plans are monocultures** — nine BTRs,
-      nine VABs, three Abrams — so the per-unit table reads 60-90 for their one
-      kind whatever the model does; that is what `--derive` has to fix.
-      **`--carry` measures a damage channel**, and under a model where presence
-      pays, a unit removed entirely is the honest test rather than a unit
-      silenced. And **the approach, not the objective, is what stops infantry**:
-      if re-derived plans converge on heavies again, the answer is the armour
-      table and not the plans.
+      **The search could not express the answer.** `--derive` capped a
+      composition at THREE unit kinds. The kill chain has four stages, each
+      wanting a different unit, so the search was structurally incapable of
+      proposing the force the model was built to reward — it would have
+      reported "nothing beat the reference" and the reason would have been the
+      instrument. Lifted to four, which roughly doubles the space (USA 472
+      compositions to 757, China 2360 to 6216).
+
+      **`--carry` now measures presence, not just damage.** SILENCED zeroes
+      every damage stat and leaves the body. REPLACED takes the kind OUT and
+      spends its manpower on the rest of the plan, in the proportions the plan
+      already had — the planning question, and the one the bar is set on. The
+      two channels diverge enormously: China's Type 99 reads 64 silenced and 42
+      replaced. A single-kind plan cannot answer REPLACED at all, which is the
+      monoculture problem stated in one column.
+
+      **What combined arms costs, which is what the phase turned on.** A new
+      ladder in `--derive` reports the best HELD-OUT plan at each number of unit
+      kinds instead of one argmax, because an argmax cannot price a trade:
+
+      | | REF | 1 KIND | 2 KINDS | 3 KINDS | 4 KINDS |
+      |---|---|---|---|---|---|
+      | USA | 77.5 | 74.2 | 77.5 | 75.0 | 64.2 |
+      | China | 65.8 | 15.8 | 74.2 | **82.5** | 76.7 |
+      | Russia | 66.7 | 79.2 | 69.2 | 76.7 | 71.7 |
+      | KPA | 68.3 | 45.0 | 75.8 | 74.2 | 67.5 |
+      | UN | 69.2 | 69.2 | 66.7 | **66.7** | 57.5 |
+
+      **Mixing is nearly free.** Every faction has a three-kind plan within 2.5
+      points of its best concentrated one, and two GAIN by it. Adopted:
+
+      | faction | plan | was | is |
+      |---|---|---|---|
+      | USA | 2×abrams 2×humvee 1×javelin | 77.5 | 75.0 |
+      | China | 2×grenadier 1×militia 3×type99 | 65.8 | **82.5** |
+      | Russia | 6×btr 3×demoteam 1×rpg | 66.7 | **76.7** |
+      | KPA | 12×nkrifle 2×rpg7 5×tunneler | 68.3 | **74.2** |
+      | UN | 7×vab 1×unsapper 1×nlaw | 69.2 | 66.7 |
+
+      Read the units: a **sapper's** successor, a **demolition team**, an
+      **RPG**, an **NLAW**. Kinds that measured zero for twenty-two milestones
+      are in the optimum now. And every faction stalls at the same stage —
+      CHARGE, the bodies-on-the-objective gate — which is what a designed
+      bottleneck looks like, against a sponge where the columns did not even
+      fall in order.
+
+      **The bar, honestly.** Carry: USA 59% → **41%**, Russia n/a → **6%**, KPA
+      18% → **42%** — three of five under 50, and Russia essentially carry-free.
+      China 32% → **61%** and the UN n/a → **71%** fail, and no plan fixes them:
+      dropping one Type 99 costs China 16-35 points across six measured
+      alternatives, and dropping two VABs costs the UN 7-14 across seven. Those
+      two rosters put 21 of 26 manpower's worth of value in one unit. **That is
+      a content fact, and the bar cannot be met by choosing a plan** — handed to
+      Phase 4 with the numbers.
+
+      **A defect in the search, found by disagreeing with itself.** Raising the
+      sample from 150 to 260 — a strict SUPERSET of the same seeded stream —
+      moved the USA's three-kind winner from 75.0 DOWN to 65.8. More candidates
+      cannot make the true best worse, so the screen must have promoted worse
+      candidates above the real winner and evicted it before it was ever
+      deep-scored. The finalist cut per bucket went 6 to 10, and the chosen
+      plans were each verified directly on the held-out battles rather than
+      trusted from the search's own report.
+
+      One more thing that cost five points and would have been invisible:
+      `--derive` round-robins units into sectors in ROSTER order, so a plan
+      transcribed in a different key order is a different battle. The emitted
+      source says so; a hand-written literal does not.
 - [ ] **Phase 4 — re-tune the ladder.** Every matrix in `BALANCE.md` was measured
       on the sponge and none of them survives this.
 

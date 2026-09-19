@@ -672,3 +672,34 @@ here with the change and its date.
   were caught by cross-checking the instrument against a second reading before
   tuning against it, which is the only reason the constants were not re-derived
   against a broken readout.
+- 2026-09-19 — **A search cannot propose what its representation forbids** (M22
+  Phase 3). `--derive` capped a composition at three unit kinds, which was
+  invisible until the kill chain gave the game four stages wanting four
+  different units. The search would have answered "nothing beat the reference"
+  and the answer would have been about the instrument. Lifted to four — one per
+  stage — and three of five factions immediately turned up three-kind plans
+  containing units that had measured zero for twenty-two milestones. Before
+  concluding that a model failed to change behaviour, check that the thing
+  measuring behaviour can express the change.
+- 2026-09-19 — **An argmax cannot price a trade.** The plan search reported one
+  winner per faction, which can say whether the reference is stale and nothing
+  about what a better-shaped plan costs. Reporting the best plan at each number
+  of unit kinds turned an unanswerable question into a two-line answer: mixing
+  is free — every faction has a three-kind plan within 2.5 points of its best
+  concentrated one, and China and Russia gain 10-17 by it. The milestone's whole
+  premise turned on that number and no previous run could have produced it.
+- 2026-09-19 — **Disagreeing with yourself is data.** Raising the plan search
+  from 150 samples to 260 — a strict superset of the same seeded stream — moved
+  the USA's reported three-kind optimum from 75.0 DOWN to 65.8. More candidates
+  cannot make a true best worse, so the drop proved the noisy screen was
+  evicting the real winner before it was ever deep-scored. Two habits paid for
+  themselves here: running the same measurement at two sizes, and verifying the
+  plans actually adopted directly on held-out battles instead of trusting the
+  search's own report of them.
+- 2026-09-19 — **A bar written before the measurement can turn out to be about
+  something else.** M22 asked for a carry at or under 50%. Re-derived plans
+  deliver it for three factions — Russia falls to 6% — and cannot for China or
+  the UN at any composition measured: dropping one Type 99 costs 16-35 points,
+  dropping two VABs costs 7-14. Those rosters concentrate 21 of 26 manpower's
+  worth of value in one unit, so the bar is a claim about CONTENT and no choice
+  of plan satisfies it. Recorded as failed rather than redefined as met.

@@ -110,39 +110,55 @@ const seedOf = (a: number, b: number, c: number): number =>
  *   thematic reasons and paid for it: a raid that sends a third of its force
  *   to the depots is a raid that arrives at the post a third under strength.
  *
- * The cost of a derived reference is that it is a monoculture in three cases,
- * so a defensive table now reads "how does this hold against nine APCs" rather
- * than against combined arms. `--kits` and `--shapes` vary force composition
- * and are the guard against tuning content to one attacker shape.
+ * **Re-derived against the kill chain in v1.41, and they are combined arms
+ * now.** M15's derived optima were monocultures in three cases — nine BTRs,
+ * nine VABs, three Abrams — which made a defensive table read "how does this
+ * hold against nine APCs". The four-stage objective changed what a plan is
+ * for, and the ladder in `--derive` priced the trade that M15 could not see:
+ * every faction has a THREE-kind plan within 2.5 points of its best
+ * concentrated one, and China and Russia gain 10-17 points by mixing.
  *
- * Regenerate with `npm run balance -- --derive 60`, which emits these as
- * source. The sector split follows roster iteration order, so transcribe from
- * that output rather than by hand.
+ *     faction   was                              is
+ *     USA       3xabrams 1xjavelin        77.5   2xabrams 2xhumvee 1xjavelin  75.0
+ *     CHINA     1xmilitia 2xsapper 3xt99  65.8   2xgrenadier 1xmilitia 3xt99  82.5
+ *     RUSSIA    9xbtr                     66.7   6xbtr 3xdemoteam 1xrpg       76.7
+ *     NK        3xinf 5xnkrifle 9xtunnel  68.3   12xnkrifle 2xrpg7 5xtunneler 74.2
+ *     UN        9xvab                     69.2   7xvab 1xunsapper 1xnlaw      66.7
+ *
+ * A demolition team, an RPG and an NLAW are in there: kinds that measured zero
+ * for twenty-two milestones. `--kits` and `--shapes` remain the guard against
+ * tuning content to one attacker shape.
+ *
+ * Regenerate with `npm run balance -- --derive 150`, which emits these as
+ * source. **The sector split follows roster iteration order**, so transcribe
+ * from that output rather than by hand — a plan written in a different key
+ * order round-robins into different sectors and is a different battle, worth
+ * five points on the USA's plan when it was measured both ways.
  */
 const RAID_PLANS: Record<FactionId, SquadPlan[]> = {
   usa: [
     { units: { javelin: 1, abrams: 1 }, sector: 'W1', doctrine: 'assault' },
-    { units: { abrams: 1 }, sector: 'N1', doctrine: 'assault' },
-    { units: { abrams: 1 }, sector: 'S1', doctrine: 'assault' },
+    { units: { humvee: 1, abrams: 1 }, sector: 'N1', doctrine: 'assault' },
+    { units: { humvee: 1 }, sector: 'S1', doctrine: 'assault' },
   ],
   china: [
-    { units: { militia: 1, type99: 1 }, sector: 'W1', doctrine: 'hunt' },
-    { units: { sapper: 1, type99: 1 }, sector: 'N1', doctrine: 'hunt' },
-    { units: { sapper: 1, type99: 1 }, sector: 'S1', doctrine: 'hunt' },
+    { units: { militia: 1, type99: 1 }, sector: 'W1', doctrine: 'assault' },
+    { units: { grenadier: 1, type99: 1 }, sector: 'N1', doctrine: 'assault' },
+    { units: { grenadier: 1, type99: 1 }, sector: 'S1', doctrine: 'assault' },
   ],
   russia: [
-    { units: { btr: 3 }, sector: 'W1', doctrine: 'assault' },
-    { units: { btr: 3 }, sector: 'N1', doctrine: 'assault' },
-    { units: { btr: 3 }, sector: 'S1', doctrine: 'assault' },
+    { units: { demoteam: 1, rpg: 1, btr: 2 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { demoteam: 1, btr: 2 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { demoteam: 1, btr: 2 }, sector: 'S1', doctrine: 'hunt' },
   ],
   nk: [
-    { units: { nkrifle: 2, infiltrator: 1, tunneler: 3 }, sector: 'W1', doctrine: 'hunt' },
-    { units: { nkrifle: 2, infiltrator: 1, tunneler: 3 }, sector: 'N1', doctrine: 'hunt' },
-    { units: { nkrifle: 1, infiltrator: 1, tunneler: 3 }, sector: 'S1', doctrine: 'hunt' },
+    { units: { nkrifle: 4, tunneler: 2, rpg7: 1 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { nkrifle: 4, tunneler: 2 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { nkrifle: 4, tunneler: 1, rpg7: 1 }, sector: 'S1', doctrine: 'hunt' },
   ],
   un: [
-    { units: { vab: 3 }, sector: 'W1', doctrine: 'hunt' },
-    { units: { vab: 3 }, sector: 'N1', doctrine: 'hunt' },
+    { units: { unsapper: 1, vab: 2 }, sector: 'W1', doctrine: 'hunt' },
+    { units: { nlaw: 1, vab: 2 }, sector: 'N1', doctrine: 'hunt' },
     { units: { vab: 3 }, sector: 'S1', doctrine: 'hunt' },
   ],
 };
@@ -1957,6 +1973,29 @@ function mixTable(chainVersion = CHAIN_NONE): string {
   return lines.join('\n');
 }
 
+/**
+ * Who carries a raid, measured two ways (v1.41).
+ *
+ * SILENCED is the original channel: every damage stat zeroed, the body left on
+ * the board. It answers "what is this unit's damage worth" and it was the only
+ * question worth asking while the post was an HP sponge, because damage was
+ * the only thing that ended a raid.
+ *
+ * Under the kill chain that is no longer true. Bodies work the charge and hold
+ * the ground while the post burns, so a unit can be worth a great deal while
+ * measuring zero under SILENCED. REPLACED closes that: the kind is taken OUT
+ * of the plan and its manpower spent on whatever else the plan already had, in
+ * the proportions it already had them. That is the planning question — is this
+ * unit better than more of the rest — and it is the one M22's bar is set on.
+ *
+ * At equal manpower deliberately. Removing eight manpower of Abrams and not
+ * spending it measures a smaller raid, which loses for a reason that is not
+ * the Abrams.
+ *
+ * A single-kind plan cannot answer REPLACED at all: there is nothing to spend
+ * the manpower on. Those rows read `n/a`, and that is not a gap in the
+ * instrument — it is the monoculture problem stated in one column.
+ */
 function carryTable(): string {
   const silence = (cat: Catalog, kind: string): Catalog => ({
     ...cat,
@@ -1964,13 +2003,67 @@ function carryTable(): string {
       Object.entries(cat.attackers).map(([k, p]) => [
         k,
         k === kind
-          ? { ...p, hqDps: 0, weapon: p.weapon ? { ...p.weapon, damage: 0 } : p.weapon }
+          ? { ...p, hqDps: 0, wallDps: 0, weapon: p.weapon ? { ...p.weapon, damage: 0 } : p.weapon }
           : p,
       ]),
     ),
   });
-  const run = (faction: FactionId, cat: Catalog): number => {
-    const squads = RAID_PLANS[faction].map((s, at) => ({ ...s, slot: at }));
+
+  /**
+   * The plan with `kind` gone and its manpower respent on the rest.
+   *
+   * Substitutes are added one at a time, cheapest-affordable first among the
+   * kinds furthest below their original share, so the plan keeps its shape
+   * rather than turning into a pile of whatever is cheapest. Returns null when
+   * there is nothing left to spend on.
+   */
+  const replace = (
+    faction: FactionId,
+    plan: SquadPlan[],
+    kind: string,
+  ): SquadPlan[] | null => {
+    const mpOf = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
+    const counts: Record<string, number> = {};
+    for (const sq of plan) for (const [k, n] of Object.entries(sq.units)) counts[k] = (counts[k] ?? 0) + n;
+    const others = Object.keys(counts).filter((k) => k !== kind && (mpOf[k] ?? 0) > 0);
+    if (others.length === 0) return null;
+
+    let budget = (mpOf[kind] ?? 0) * (counts[kind] ?? 0);
+    const want: Record<string, number> = {};
+    const total = others.reduce((a, k) => a + counts[k]!, 0);
+    for (;;) {
+      // The kind furthest below its original share of the surviving force,
+      // ties broken on cost then name so the walk is deterministic.
+      const added = others.reduce((a, b) => a + (want[b] ?? 0), 0);
+      const pick = others
+        .filter((k) => (mpOf[k] ?? 0) <= budget)
+        .sort((a, b) => {
+          const sa = (counts[a]! + (want[a] ?? 0)) / (total + added || 1) - counts[a]! / total;
+          const sb = (counts[b]! + (want[b] ?? 0)) / (total + added || 1) - counts[b]! / total;
+          return sa - sb || mpOf[a]! - mpOf[b]! || (a < b ? -1 : 1);
+        })[0];
+      if (!pick) break;
+      want[pick] = (want[pick] ?? 0) + 1;
+      budget -= mpOf[pick]!;
+    }
+
+    const out: SquadPlan[] = plan.map((sq) => ({
+      ...sq,
+      units: Object.fromEntries(Object.entries(sq.units).filter(([k]) => k !== kind)),
+    }));
+    let at = 0;
+    for (const [k, n] of Object.entries(want)) {
+      for (let i = 0; i < n; i++) {
+        const sq = out[at % out.length]!;
+        sq.units[k] = (sq.units[k] ?? 0) + 1;
+        at++;
+      }
+    }
+    return out.filter((sq) => Object.keys(sq.units).length > 0);
+  };
+
+  const run = (faction: FactionId, cat: Catalog, plan: SquadPlan[]): number => {
+    const squads = plan.map((s, at) => ({ ...s, units: { ...s.units }, slot: at }));
     let cleared = 0;
     let runs = 0;
     for (const tier of [2, 3, 4, 5]) {
@@ -1989,42 +2082,55 @@ function carryTable(): string {
   };
 
   const lines = [
-    'WHO CARRIES A RAID — each unit kind silenced in turn, both damage channels',
-    'FACTION | CARRY UNIT   | ITS MP | RAID IS | DEAD WEIGHT (MP delivering nothing)',
-    '--------+--------------+--------+---------+------------------------------------',
+    'WHO CARRIES A RAID — every unit kind taken out of the plan, two ways',
+    'FACTION | UNIT         | MP | BASE | SILENCED | REPLACED | SHARE',
+    '--------+--------------+----+------+----------+----------+------',
   ];
   let topShare = 0;
+  let topLabel = '';
+  const monocultures: FactionId[] = [];
   for (const faction of FACTION_IDS) {
     const cat = raidCatalogFor(faction);
-    const base = run(faction, cat);
+    const plan = RAID_PLANS[faction];
+    const base = run(faction, cat, plan);
     const counts: Record<string, number> = {};
-    for (const s of RAID_PLANS[faction]) {
-      for (const [k, n] of Object.entries(s.units)) counts[k] = (counts[k] ?? 0) + n;
-    }
+    for (const s of plan) for (const [k, n] of Object.entries(s.units)) counts[k] = (counts[k] ?? 0) + n;
+    if (Object.keys(counts).length === 1) monocultures.push(faction);
     const mpOf = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
-    const drops = Object.keys(counts).map((k) => ({ k, drop: base - run(faction, silence(cat, k)) }));
-    drops.sort((a, b) => b.drop - a.drop);
-    const carry = drops[0]!;
-    const share = base > 0 ? (carry.drop / base) * 100 : 0;
-    topShare = Math.max(topShare, share);
-    const dead = drops
-      .filter((d) => d.drop < 1.5)
-      .reduce((a, d) => a + (mpOf[d.k] ?? 0) * (counts[d.k] ?? 0), 0);
-    lines.push(
-      `${pad(faction.toUpperCase(), 7)} | ${pad(carry.k, 12)} | ` +
-        `${pad((mpOf[carry.k] ?? 0) * (counts[carry.k] ?? 0), 6)} | ${pad(`${share.toFixed(0)}%`, 7)} | ` +
-        `${pad(`${dead} of ${planManpower(faction)} MP`, 35)}`,
-    );
+    for (const kind of Object.keys(counts).sort()) {
+      const quiet = base - run(faction, silence(cat, kind), plan);
+      const swapped = replace(faction, plan, kind);
+      const gone = swapped === null ? null : base - run(faction, cat, swapped);
+      const share = gone === null || base <= 0 ? null : (gone / base) * 100;
+      if (share !== null && share > topShare) {
+        topShare = share;
+        topLabel = `${faction.toUpperCase()} ${kind}`;
+      }
+      lines.push(
+        `${pad(faction.toUpperCase(), 7)} | ${pad(kind, 12)} | ` +
+          `${pad((mpOf[kind] ?? 0) * (counts[kind] ?? 0), 2)} | ${pad(base.toFixed(0), 4)} | ` +
+          `${pad(quiet.toFixed(0), 8)} | ${pad(gone === null ? 'n/a' : gone.toFixed(0), 8)} | ` +
+          `${pad(share === null ? 'n/a' : `${share.toFixed(0)}%`, 5)}`,
+      );
+    }
   }
   lines.push('');
   lines.push(
-    `ONE UNIT IS UP TO ${topShare.toFixed(0)}% OF A RAID. Ending a raid means killing the command ` +
-      'post; ranged fire is discounted hard against structures and melee only fires when ADJACENT,',
+    `WORST CARRY ${topShare.toFixed(0)}% — ${topLabel || 'nothing measurable'}. M22's bar is 50%: ` +
+      'above it, the plan is one unit and two decorations, and "your plan is your skill" is false.',
   );
   lines.push(
-    '  so the heavy is the only unit that reliably survives to get there and hits hard when it does. ' +
-      'Everything else is escort — and a buff to an escort buys nothing.',
+    'SILENCED zeroes every damage stat and leaves the body; REPLACED takes the kind out and ' +
+      'spends its manpower on the rest of the plan. A unit that scores low SILENCED and high ' +
+      'REPLACED is earning its place with its BODY — under the kill chain that is a real job, ' +
+      'since the charge needs a crew and the burn needs the ground held.',
   );
+  if (monocultures.length > 0) {
+    lines.push(
+      `REPLACED is n/a for ${monocultures.map((f) => f.toUpperCase()).join(', ')}: a plan of one ` +
+        'kind has nothing to spend the manpower on. That is the finding, not a gap.',
+    );
+  }
   return lines.join('\n');
 }
 
@@ -2452,7 +2558,7 @@ function seedTable(combatVersion = COMBAT_CURRENT): string {
  * it stands.
  *
  * Sampled rather than exhaustive, and it says so. There are 472-2621
- * compositions per faction inside the manpower band at three unit kinds, and
+ * compositions per faction inside the manpower band at four unit kinds, and
  * screening all of them against three doctrines is half an hour of sim. The
  * sample is drawn from a fixed seed, so this is repeatable rather than a
  * one-off.
@@ -2460,12 +2566,44 @@ function seedTable(combatVersion = COMBAT_CURRENT): string {
 function deriveTable(sampleSize = 200, air = false): string {
   const SCREEN_TIERS = [3];
   const SCREEN_ARCH: ArchetypeId[] = ['compound', 'keep', 'star', 'corridor'];
-  const SCREEN_SEEDS = 2;
-  const FINALISTS = 8;
+  // Deepened in v1.41 alongside the four-kind cap. A screen is a RANKING over
+  // hundreds of candidates, and eight binary outcomes per candidate carries a
+  // standard error near 17 points — enough that a top-8 cut is substantially
+  // a draw. The space doubled at the same time, so the screen had to widen or
+  // the search would report noise with more confidence than before.
+  const SCREEN_SEEDS = 3;
+  /**
+   * Finalists deep-scored PER kind-count bucket rather than globally.
+   *
+   * A global top-N is dominated by whichever bucket happens to screen highest,
+   * so the buckets that lose get no finalist run at all and their row would be
+   * a screen score masquerading as a measurement.
+   *
+   * Ten rather than six, because six was measurably not enough. Raising the
+   * sample from 150 to 260 — a strict SUPERSET of the same seeded stream —
+   * moved the USA's three-kind winner from 75.0 down to 65.8. More candidates
+   * cannot make the true best worse, so the only explanation is that the
+   * larger set screened some worse candidates above the real winner and evicted
+   * it before it was ever deep-scored. A screen is a noisy ranker; the cut
+   * taken from it has to be loose enough to survive that.
+   */
+  const PER_KIND = 10;
   const seedFor = (i: number): number => ((i * 2654435761 + 977) & 0x7fffffff) >>> 0;
 
   /**
-   * Every multiset of units inside the manpower band, at most three kinds.
+   * Every multiset of units inside the manpower band, at most FOUR kinds.
+   *
+   * Three until v1.41, and the cap was load-bearing in a way nobody noticed:
+   * the kill chain has four stages, each wanting a different unit, so a
+   * three-kind search is structurally incapable of expressing the force the
+   * model was built to reward. It would have reported "nothing beat the
+   * reference" and the reason would have been the search, not the rosters.
+   *
+   * Four rather than unlimited because four is the number of stages, and
+   * because the marginal space past it is small — USA 757 compositions at four
+   * kinds against 794 unlimited, China 6216 against 8653. What it does cost is
+   * coverage: the space roughly doubles, so a sample of the same size sees
+   * proportionally less of it.
    *
    * In air mode the pool is the whole roster rather than the airfield alone:
    * the shipped air plans are two squads of rotors and a ground tail, and a
@@ -2473,6 +2611,9 @@ function deriveTable(sampleSize = 200, air = false): string {
    * the one the reference asks. What makes a plan an AIR plan is that it must
    * contain something flown, which is filtered below.
    */
+  /** One kind per stage of the kill chain. See the note below. */
+  const MAX_KINDS = 4;
+
   const compositions = (faction: FactionId): Record<string, number>[] => {
     const airKinds = new Set(
       trainableFor(faction)
@@ -2492,7 +2633,7 @@ function deriveTable(sampleSize = 200, air = false): string {
       }
       const meta = pool[at]!;
       for (let n = 0; n * meta.manpower <= left; n++) {
-        if (n > 0 && kinds + 1 > 3) break;
+        if (n > 0 && kinds + 1 > MAX_KINDS) break;
         if (n > 0) acc[meta.kind] = n;
         walk(at + 1, left - n * meta.manpower, kinds + (n > 0 ? 1 : 0), acc);
         if (n > 0) delete acc[meta.kind];
@@ -2561,13 +2702,19 @@ function deriveTable(sampleSize = 200, air = false): string {
       .join(' ');
 
   const lines = [
-    `IS THE ${air ? 'AIR ' : ''}REFERENCE PLAN ANY GOOD? — ${sampleSize} sampled compositions x 3 doctrines`,
+    `IS THE ${air ? 'AIR ' : ''}REFERENCE PLAN ANY GOOD? — ${sampleSize} sampled compositions ` +
+      `x 3 doctrines, up to ${MAX_KINDS} unit kinds`,
     'FACTION | REF MP | REFERENCE | IN-SAMPL | HELD OUT | CURSE | GAIN | THE PLAN THAT BEAT IT',
     '--------+--------+-----------+----------+----------+-------+------+----------------------',
   ];
   const FULL_ARCH = ARCHETYPES.map((a) => a.id);
   let worst = 0;
   const winners: { faction: FactionId; squads: SquadPlan[] }[] = [];
+  const ladder: {
+    faction: FactionId;
+    byKinds: Map<number, { at: number; held: number; squads: SquadPlan[]; label: string }>;
+  }[] = [];
+  const references: Partial<Record<FactionId, number>> = {};
 
   for (const faction of FACTION_IDS) {
     const all = compositions(faction);
@@ -2624,29 +2771,105 @@ function deriveTable(sampleSize = 200, air = false): string {
     }
     screened.sort((a, b) => b.at - a.at);
 
-    // Rank the finalists on the selection seeds...
-    let best: { at: number; squads: SquadPlan[]; label: string } | null = null;
-    for (const candidate of screened.slice(0, FINALISTS)) {
-      const squads = spread(candidate.units, candidate.doctrine);
-      const at = score(faction, squads, RAID_TIERS, FULL_ARCH, 3);
-      if (best === null || at > best.at) {
-        best = { at, squads, label: `${describe(candidate.units)} ${candidate.doctrine.toUpperCase()}` };
+    // Rank the finalists on the selection seeds — but SEPARATELY at each number
+    // of unit kinds, which is the question M22 actually has to answer.
+    //
+    // A single global winner cannot say what combined arms costs, and under the
+    // kill chain that is the whole argument: the model was built so that four
+    // stages want four different units, and if the optimum is still one kind
+    // then either the model failed or the price of mixing is worth paying and
+    // somebody has to see the number before deciding. Ranking per bucket makes
+    // the trade visible instead of hiding it behind an argmax.
+    const byKinds = new Map<number, { at: number; held: number; squads: SquadPlan[]; label: string }>();
+    const buckets = new Map<number, typeof screened>();
+    for (const candidate of screened) {
+      const k = Object.keys(candidate.units).length;
+      const at = buckets.get(k);
+      if (at) at.push(candidate);
+      else buckets.set(k, [candidate]);
+    }
+    for (const [kinds, pool] of buckets) {
+      let top: { at: number; squads: SquadPlan[]; label: string } | null = null;
+      for (const candidate of pool.slice(0, PER_KIND)) {
+        const squads = spread(candidate.units, candidate.doctrine);
+        const at = score(faction, squads, RAID_TIERS, FULL_ARCH, 3);
+        if (top === null || at > top.at) {
+          top = { at, squads, label: `${describe(candidate.units)} ${candidate.doctrine.toUpperCase()}` };
+        }
+      }
+      if (top !== null) {
+        byKinds.set(kinds, { ...top, held: score(faction, top.squads, RAID_TIERS, FULL_ARCH, 3, HELD_OUT) });
       }
     }
-    // ...then score the winner and the reference on battles neither has seen.
+    ladder.push({ faction, byKinds });
+
+    // The global winner is whichever bucket won, scored on held-out battles.
+    let best: { at: number; squads: SquadPlan[]; label: string } | null = null;
+    let held = 0;
+    for (const entry of byKinds.values()) {
+      if (best === null || entry.at > best.at) {
+        best = { at: entry.at, squads: entry.squads, label: entry.label };
+        held = entry.held;
+      }
+    }
     const reference = air ? AIR_RAID_PLANS[faction] : RAID_PLANS[faction];
     const refScore = score(faction, reference, RAID_TIERS, FULL_ARCH, 3, HELD_OUT);
-    const held = best === null ? refScore : score(faction, best.squads, RAID_TIERS, FULL_ARCH, 3, HELD_OUT);
+    if (best === null) held = refScore;
     const gain = held - refScore;
     const curse = best === null ? 0 : best.at - held;
     worst = Math.max(worst, gain);
     if (best !== null && gain > 0) winners.push({ faction, squads: best.squads });
+    references[faction] = refScore;
     lines.push(
       `${pad(faction.toUpperCase(), 7)} | ${pad(planManpower(faction), 6)} | ${pad(refScore.toFixed(1), 9)} | ` +
         `${pad(best === null ? '—' : best.at.toFixed(1), 8)} | ${pad(held.toFixed(1), 8)} | ` +
         `${pad(curse.toFixed(1), 5)} | ${pad((gain >= 0 ? '+' : '') + gain.toFixed(1), 4)} | ` +
         `${best === null ? 'nothing beat it' : best.label}`,
     );
+  }
+
+  // ---- what combined arms costs -----------------------------------------------------
+  lines.push('');
+  lines.push(
+    `WHAT COMBINED ARMS COSTS — best HELD-OUT plan at each number of unit kinds`,
+  );
+  lines.push('FACTION | REF  | 1 KIND | 2 KINDS | 3 KINDS | 4 KINDS | MIXING COSTS');
+  lines.push('--------+------+--------+---------+---------+---------+-------------');
+  let dearest = 0;
+  for (const { faction, byKinds } of ladder) {
+    const cell = (k: number): string => {
+      const at = byKinds.get(k);
+      return at === undefined ? '—' : at.held.toFixed(1);
+    };
+    const held = (k: number): number | null => byKinds.get(k)?.held ?? null;
+    // What you give up to field a plan that is actually a plan: the best
+    // concentrated force against the best one with three kinds or more.
+    const concentrated = Math.max(held(1) ?? -1, held(2) ?? -1);
+    const mixed = Math.max(held(3) ?? -1, held(4) ?? -1);
+    const cost = concentrated < 0 || mixed < 0 ? null : concentrated - mixed;
+    if (cost !== null) dearest = Math.max(dearest, cost);
+    lines.push(
+      `${pad(faction.toUpperCase(), 7)} | ${pad((references[faction] ?? 0).toFixed(1), 4)} | ` +
+        `${pad(cell(1), 6)} | ${pad(cell(2), 7)} | ${pad(cell(3), 7)} | ${pad(cell(4), 7)} | ` +
+        `${cost === null ? 'n/a' : (cost >= 0 ? '-' : '+') + Math.abs(cost).toFixed(1) + ' points'}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    `THE DEAREST MIX COSTS ${dearest.toFixed(1)} POINTS. This is the number M22 Phase 3 turns ` +
+      'on. The milestone\'s bar asks every roster slot to deliver something measurable, and a ' +
+      'reference plan of one kind cannot answer that at all — `--carry` reads n/a, because ' +
+      'there is nothing to spend the manpower on. If mixing is cheap, the references should ' +
+      'mix and the bar is met by choosing to. If it is dear, the bar is a claim about the ' +
+      'CONTENT and no plan can satisfy it.',
+  );
+  lines.push('');
+  lines.push('EVERY BUCKET WINNER, one line each — transcribe whichever the decision picks:');
+  for (const { faction, byKinds } of ladder) {
+    for (const kinds of [...byKinds.keys()].sort()) {
+      const at = byKinds.get(kinds)!;
+      lines.push(`  ${pad(faction, 7)} ${kinds} kind(s)  ${pad(at.held.toFixed(1), 5)}  ${at.label}`);
+    }
   }
 
   if (winners.length > 0) {
