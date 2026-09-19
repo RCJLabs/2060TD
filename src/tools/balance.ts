@@ -1586,6 +1586,166 @@ function shapeClear(faction: FactionId, tier: number, shape: ArchetypeId): numbe
  * reaches the post buys nothing, which cost this milestone three separate
  * measurements to learn.
  */
+/**
+ * THE KILL CHAIN — how far a raid gets, and what gets it there (M22 phase 1).
+ *
+ * `--carry` answers "whose silence changes the verdict" and that is all it can
+ * answer, because the verdict is one bit. It found that one unit is 99-100% of
+ * a raid and could not say why, which is the whole reason this exists: a raid
+ * has to be readable as a SEQUENCE before anything can be said about which
+ * unit is for which part of it.
+ *
+ * Four stages, named for what a raid physically does:
+ *
+ *   BREACH  break a wall segment to get in
+ *   GUNS    put a covering emplacement down
+ *   CHARGE  reach the post and land a hit on it
+ *   BURN    finish it
+ *
+ * All four are read off today's sponge, deliberately. They are not new
+ * mechanics; they are a lens on the mechanics that are already there, so the
+ * baseline this prints stays comparable after the stage model ships behind
+ * `KILL_CHAIN_VERSION` and can be used to judge it.
+ *
+ * **BREACH IS NOT A GATE TODAY, AND THE COLUMN IS THERE TO SHOW THAT.** The
+ * first draft of this called it WIRE and read it as "got in", which every
+ * faction then failed at 5-36% while still burning the post four times in
+ * five. Nothing was wrong with the sim: a wall line STEERS, it does not block
+ * (GDD §5.3), so a force that walks around the wire never breaks any and is
+ * inside all the same. Low BREACH beside high CHARGE is that, and after M22
+ * this column is where the difference shows up.
+ *
+ * The stages are reported INDEPENDENTLY rather than as a strict prefix, since
+ * they are not strictly ordered today — a base can keep guns outside its wire.
+ * STALLS AT names the biggest FALL between consecutive stages, which is where
+ * a raid actually runs out rather than where it happens to score low.
+ */
+const CHAIN_STAGES = ['BREACH', 'GUNS', 'CHARGE', 'BURN'] as const;
+type ChainStage = (typeof CHAIN_STAGES)[number];
+
+/** Which stages one resolved raid got through. */
+function stagesReached(
+  outcome: RaidResolution,
+  base: GeneratedBase,
+  guns: Set<string>,
+): Record<ChainStage, boolean> {
+  return {
+    // A base with no wire cannot be blocked by it, so the stage is passed
+    // rather than skipped — scoring it as a failure would read every open
+    // camp as a force that could not get in.
+    BREACH: base.walls.length === 0 || outcome.wallsBreached > 0,
+    GUNS: Object.entries(outcome.destroyed).some(([kind, n]) => n > 0 && guns.has(kind)),
+    CHARGE: outcome.ccHpFraction < 1,
+    BURN: outcome.cleared,
+  };
+}
+
+function chainTable(): string {
+  const zero = (): Record<ChainStage, number> =>
+    ({ BREACH: 0, GUNS: 0, CHARGE: 0, BURN: 0 });
+
+  /** Stage reach RATES for one faction's reference expedition, 0..100. */
+  const run = (faction: FactionId, cat: Catalog): Record<ChainStage, number> => {
+    const squads = RAID_PLANS[faction].map((s, at) => ({ ...s, slot: at }));
+    const kit = baseKitFor(faction);
+    const guns = new Set<string>([...kit.towers, kit.aa]);
+    const hit = zero();
+    let runs = 0;
+    // Same scope as `--carry`, so the two tables are read against each other.
+    for (const tier of [2, 3, 4, 5]) {
+      for (const arch of ARCHETYPES) {
+        for (let v = 0; v < 2; v++) {
+          const base = generateBase(tier, v, kit, arch.id);
+          for (let i = 0; i < 2; i++) {
+            const config = raidConfig(base, squads, seedOf(tier, v, i), trainableFor(faction));
+            const reached = stagesReached(resolveRaid(config, squads, tier, cat), base, guns);
+            for (const stage of CHAIN_STAGES) if (reached[stage]) hit[stage]++;
+            runs++;
+          }
+        }
+      }
+    }
+    const out = zero();
+    for (const stage of CHAIN_STAGES) out[stage] = runs > 0 ? (hit[stage] / runs) * 100 : 0;
+    return out;
+  };
+
+  const silence = (cat: Catalog, kind: string): Catalog => ({
+    ...cat,
+    attackers: Object.fromEntries(
+      Object.entries(cat.attackers).map(([k, p]) => [
+        k,
+        k === kind
+          ? { ...p, hqDps: 0, weapon: p.weapon ? { ...p.weapon, damage: 0 } : p.weapon }
+          : p,
+      ]),
+    ),
+  });
+
+  const pct = (n: number): string => n.toFixed(0).padStart(4);
+  const lines = [
+    'THE KILL CHAIN — how far the reference expedition gets, by stage',
+    'FACTION     | BRCH | GUNS | CHRG | BURN | STALLS AT',
+    '------------+------+------+------+------+-----------',
+  ];
+  const baseline: Partial<Record<FactionId, Record<ChainStage, number>>> = {};
+  for (const faction of FACTION_IDS) {
+    const rates = run(faction, raidCatalogFor(faction));
+    baseline[faction] = rates;
+    // Where the chain actually loses people: the biggest fall from one stage
+    // to the next. A stage that simply scores low without falling from the one
+    // before it is not where the raid ran out.
+    let stalls: string = 'nowhere';
+    let worstFall = 2;
+    for (let i = 1; i < CHAIN_STAGES.length; i++) {
+      const fall = rates[CHAIN_STAGES[i - 1]!] - rates[CHAIN_STAGES[i]!];
+      if (fall > worstFall) {
+        worstFall = fall;
+        stalls = `${CHAIN_STAGES[i]} (-${fall.toFixed(0)})`;
+      }
+    }
+    lines.push(
+      `${flavorFor(faction).faction.slice(0, 11).padEnd(11)} |${pct(rates.BREACH)}  |${pct(rates.GUNS)}  |` +
+        `${pct(rates.CHARGE)}  |${pct(rates.BURN)}  | ${stalls}`,
+    );
+  }
+
+  lines.push('');
+  lines.push('WHO GETS YOU THROUGH — each unit silenced, the stage that stops advancing');
+  lines.push('FACTION     | UNIT         | MP | BRCH | GUNS | CHRG | BURN | ITS STAGE');
+  lines.push('------------+--------------+----+------+------+------+------+-----------');
+  for (const faction of FACTION_IDS) {
+    const cat = raidCatalogFor(faction);
+    const before = baseline[faction]!;
+    const counts: Record<string, number> = {};
+    for (const s of RAID_PLANS[faction]) {
+      for (const [k, n] of Object.entries(s.units)) counts[k] = (counts[k] ?? 0) + n;
+    }
+    const mpOf = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
+    for (const kind of Object.keys(counts)) {
+      const after = run(faction, silence(cat, kind));
+      const drop = (st: ChainStage): number => before[st] - after[st];
+      // The stage a unit is FOR: where silencing it costs the most progress.
+      // A unit whose biggest loss is BURN is an escort by another name — that
+      // is the finish line, not a job.
+      let worst: ChainStage = 'BREACH';
+      for (const st of CHAIN_STAGES) if (drop(st) > drop(worst)) worst = st;
+      const owns = drop(worst) >= 3 ? worst : '—';
+      lines.push(
+        `${flavorFor(faction).faction.slice(0, 11).padEnd(11)} | ${kind.padEnd(12)} |` +
+          `${String(mpOf[kind] ?? 0).padStart(3)} |${pct(drop('BREACH'))}  |${pct(drop('GUNS'))}  |` +
+          `${pct(drop('CHARGE'))}  |${pct(drop('BURN'))}  | ${owns}`,
+      );
+    }
+  }
+  lines.push('');
+  lines.push('Drops are percentage points of stage reach lost when that unit DOES NO DAMAGE.');
+  lines.push('It stays on the board, so a zero row means its damage buys nothing — not that');
+  lines.push('the unit does: a body still soaks fire. Same channel `--carry` measures.');
+  lines.push('A roster where every unit owns BURN and nothing else is a roster of escorts.');
+  return lines.join('\n');
+}
+
 function carryTable(): string {
   const silence = (cat: Catalog, kind: string): Catalog => ({
     ...cat,
@@ -2941,6 +3101,11 @@ function main(): void {
   if (process.argv.includes('--seed')) {
     const arg = process.argv[process.argv.indexOf('--seed') + 1];
     console.log(seedTable(/^\d+$/.test(arg ?? '') ? Number(arg) : COMBAT_CURRENT));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--chain')) {
+    console.log(chainTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

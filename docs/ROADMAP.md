@@ -2437,10 +2437,49 @@ different unit. Breachers open, suppression keeps heads down, the heavy still
 matters and can no longer solo four stages, and a force with no infantry stalls
 at stage one.
 
-- [ ] **Phase 1 — an instrument that attributes PROGRESS, not kills.** Which
-      stage each raid died at, per unit kind, per faction. `--carry` can only say
-      "silencing this changes the verdict"; this has to say "this unit is what
-      gets you through stage 2".
+- [x] **Phase 1 — an instrument that attributes PROGRESS, not kills.**
+      `npm run balance -- --chain`. Four stages read off today's sponge, so the
+      baseline stays comparable once the model ships.
+
+      **There is no chain.** Measured, three of the four stages are not gates at
+      all:
+
+      | faction | BRCH | GUNS | CHRG | BURN | stalls at |
+      |---|---|---|---|---|---|
+      | USA | 30 | 98 | 92 | 84 | BURN (−8) |
+      | China | 36 | 98 | 90 | 86 | CHARGE (−9) |
+      | Russia | 12 | 99 | 97 | 79 | BURN (−18) |
+      | KPA | 70 | 98 | 66 | 63 | CHARGE (−32) |
+      | UN | 5 | 97 | 84 | 78 | CHARGE (−13) |
+
+      Covering guns die in 97-99% of raids — suppression is not a stage, it is
+      a formality. BREACH is low and means nothing today, which the instrument
+      had to learn the hard way: the first draft called it WIRE and read it as
+      "got in", then reported every faction failing to get in while burning the
+      post four times in five. A wall line steers, it does not block (GDD
+      §5.3), so a force that walks around the wire breaks none and is inside
+      anyway. That column is where M22's difference will show.
+
+      And per unit, the sponge is confirmed in the sharpest terms yet:
+
+      | faction | unit | MP | BRCH | GUNS | CHRG | BURN |
+      |---|---|---|---|---|---|---|
+      | USA | abrams | 8 | 21 | 64 | **91** | **84** |
+      | USA | javelin | 3 | −1 | 1 | 3 | 7 |
+      | China | type99 | 7 | 23 | 88 | **90** | **86** |
+      | China | militia | 1 | 0 | 0 | 0 | 0 |
+      | China | sapper | 2 | 0 | 0 | 0 | 0 |
+      | Russia | btr | 3 | 0 | **99** | **97** | 79 |
+      | KPA | tunneler | 2 | 0 | 0 | 15 | 13 |
+      | KPA | infiltrator | 1 | 0 | 0 | −1 | −3 |
+      | UN | vab | 3 | 0 | **97** | 84 | 78 |
+
+      Two of China's three unit kinds move NOTHING at any stage — not a little,
+      zero. The KPA's infiltrator scores negative, meaning the raid is very
+      slightly better off with it silent. Read precisely: this is the damage
+      channel only, so a zero says a unit's damage buys nothing, not that its
+      body does — it still soaks. That is the strongest form of the M22 thesis
+      and the bar Phase 3 has to clear.
 - [ ] **Phase 2 — the stage model in the engine, behind `KILL_CHAIN_VERSION`.**
       Version 0 is today's sponge, frozen forever, so every archived replay
       re-fights the battle it recorded. Same discipline as `TERRAIN_VERSION` and

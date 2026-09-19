@@ -526,6 +526,14 @@ export interface RaidResolution {
   survivors: Record<string, number>;
   losses: Record<string, number>;
   destroyed: Record<string, number>;
+  /**
+   * Wall segments the attacker actually broke (v1.41).
+   *
+   * `destroyed` has always covered structures and said nothing about the wire,
+   * which is the first thing a raid has to get through — so "did this force
+   * even cut its way in" was not a question the resolution could answer.
+   */
+  wallsBreached: number;
   loot: { supplies: number; fuel: number };
   destructionPct: number;
   /** Ordnance charges actually expended by the fire plan. */
@@ -673,6 +681,7 @@ export function resolveRaid(
     survivors,
     losses,
     destroyed,
+    wallsBreached: engine.stats.wallsLost,
     loot,
     destructionPct: initialTotal > 0 ? destroyedTotal / initialTotal : 0,
     powersUsed,

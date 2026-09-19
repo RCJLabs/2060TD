@@ -348,8 +348,12 @@ describe('raid planning and resolution', () => {
       town,
       base,
       {
+        // Built by hand rather than through `makeResolution`, which is what
+        // that helper exists to absorb — every field the shape gains breaks
+        // this literal for reasons unrelated to what it checks.
         cleared: true,
         ticks: 1000,
+        wallsBreached: 0,
         deployed: planDeployment(plan),
         survivors: { ranger: 2, abrams: 2 },
         losses: { ranger: 3 },

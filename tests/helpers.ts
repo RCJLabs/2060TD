@@ -197,6 +197,7 @@ export function makeResolution(over: Partial<RaidResolution> = {}): RaidResoluti
   return {
     cleared: true,
     ticks: 1,
+    wallsBreached: 0,
     deployed: {},
     survivors: {},
     losses: {},
