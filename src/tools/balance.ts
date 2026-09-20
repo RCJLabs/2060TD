@@ -4123,6 +4123,55 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--orders')) {
+    // Prices the two v1.42 order mechanics against the numbers M23 actually
+    // cares about. A lever that raises hold% while leaving the waves dead has
+    // not helped: LIVE is the share of waves that move the margin at all.
+    const mid = referenceBases().find((b) => b.name.startsWith('MID'))!;
+    const VARIANTS: [string, Partial<StandingOrders>][] = [
+      ['shipped', {}],
+      ['fairShare', { fairShare: true }],
+      ['perWave', { perWave: true }],
+      ['both', { fairShare: true, perWave: true }],
+    ];
+    console.log('ORDERS — the two v1.42 mechanics, MID (CC2) levels 3-4, 20 seeds x 5 factions');
+    console.log('PRESET         | VARIANT   | HELD | ACTS |  LOW  | LIVE');
+    console.log('---------------+-----------+------+------+-------+-----');
+    for (const id of ['holdfast', 'counterbattery', 'tripwire'] as const) {
+      for (const [label, over] of VARIANTS) {
+        const orders = { ...STANDING_ORDERS[id], ...over };
+        let held = 0;
+        let acts = 0;
+        let low = 0;
+        let live = 0;
+        let waves = 0;
+        let n = 0;
+        for (const faction of FACTION_IDS) {
+          for (const level of [3, 4]) {
+            for (let i = 0; i < 20; i++) {
+              const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), orders);
+              if (r.held) held++;
+              acts += r.acts;
+              low += r.low;
+              for (let w = 0; w < r.integrity.length; w++) {
+                const drop = (w === 0 ? 1 : r.integrity[w - 1]!) - r.integrity[w]!;
+                if (drop > 0.005) live++;
+                waves++;
+              }
+              n++;
+            }
+          }
+        }
+        console.log(
+          `${pad(id.toUpperCase(), 14)} | ${pad(label, 9)} | ${pad(`${((held / n) * 100).toFixed(0)}%`, 4)} | ` +
+            `${pad((acts / n).toFixed(1), 4)} | ${(low / n).toFixed(3)} | ` +
+            `${pad(`${((live / waves) * 100).toFixed(0)}%`, 4)}`,
+        );
+      }
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--verbs')) {
     const arg = process.argv[process.argv.indexOf('--verbs') + 1];
     console.log(verbTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));

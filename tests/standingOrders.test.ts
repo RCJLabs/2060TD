@@ -111,6 +111,40 @@ describe('standing orders in the engine', () => {
     }
   });
 
+  /**
+   * v1.42 added two optional order mechanics that were MEASURED AND NOT
+   * ADOPTED (see ROADMAP M23 Phase 2). They stay in the type because the
+   * instrument that priced them is worth keeping, which makes this the load
+   * bearing test: absent, they must change nothing at all, or every archived
+   * replay re-fights a battle it did not record.
+   */
+  it('the unadopted order mechanics are inert unless asked for', () => {
+    for (const seed of [41, 7]) {
+      const shipped = runOut(midConfig(seed, STANDING_ORDERS.tripwire));
+      const spelled = runOut(
+        midConfig(seed, { ...STANDING_ORDERS.tripwire, fairShare: false, perWave: false }),
+      );
+      expect(shipped.tick).toBeGreaterThan(200);
+      expect(shipped.ordersExecuted).toBeGreaterThan(0);
+      expect(spelled.stateHash()).toBe(shipped.stateHash());
+    }
+    // And asked for, each one actually does something — a flag that is inert
+    // when set is not a flag, it is a typo nobody notices.
+    const base = runOut(midConfig(41, STANDING_ORDERS.tripwire));
+    const shared = runOut(midConfig(41, { ...STANDING_ORDERS.tripwire, fairShare: true }));
+    expect(shared.stateHash()).not.toBe(base.stateHash());
+    // `perWave` only has anything to refill in a battle that reaches a second
+    // wave, so it is asserted across levels rather than on one: on a defence
+    // that is overrun in wave one it legitimately does nothing, and a test
+    // that demanded otherwise would be wrong about the mechanic.
+    const movedSomewhere = [3, 4, 5].some(
+      (level) =>
+        runOut(midConfig(41, { ...STANDING_ORDERS.tripwire, perWave: true }, level)).stateHash() !==
+        runOut(midConfig(41, STANDING_ORDERS.tripwire, level)).stateHash(),
+    );
+    expect(movedSomewhere, 'perWave changed nothing at any level').toBe(true);
+  });
+
   it('respects the action budget', () => {
     const single: StandingOrders = {
       id: 'test',

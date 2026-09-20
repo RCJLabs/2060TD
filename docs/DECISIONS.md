@@ -793,3 +793,18 @@ here with the change and its date.
   the three shipped presets are all damage. They were written for the HP sponge
   M22 replaced, and nothing re-read them afterwards, which is the same oversight
   as `defenseMatrix` never being told about the chain, one layer up.
+- 2026-09-20 — **The defence ladder is a step function, and that is why no verb
+  matters.** 93% of the defence rows in `BALANCE.md` have one contested level or
+  none: `100 | 85 | 0 | 0 | 0 | 0`. One row in fifteen is a ramp. Every lever
+  priced in M23 Phase 2 — the action budget, rule order, a per-wave refill, the
+  choice of verb, where it is aimed — moved rows between 0% and 100% and never
+  produced a battle that was close, because a curve with no slope has nowhere
+  for a player's input to land. The instinct at the start of the phase was to
+  add verbs; the measurement says the verbs were never the binding constraint.
+- 2026-09-20 — **A metric that falls for two opposite reasons cannot be read
+  alone.** M23 Phase 1 shipped LIVE WAVES — the share of waves that move the
+  post's margin — as the headline for "is defence an action game". It falls when
+  the attack never arrives, which was the point, and it ALSO falls when the
+  defence is dominant: the `perWave` variant raises hold rate to 93-100% and
+  drops LIVE in every row. "Close" needs hold% near 50 AND live waves, and a
+  single number cannot say that. Pairing it was the mistake, not measuring it.

@@ -2912,6 +2912,49 @@ premium", which converts idle attrition into sessions.
       make the gate cheaper to clear, to give the damage verbs a job the chain
       can see, or to make rule ORDER a thing the player chooses rather than a
       trap — and that is a design call, not a tuning one.
+
+      **Two candidate fixes priced, both rejected, and the rejection is the
+      finding.** `npm run balance -- --orders`, MID (CC2) levels 3-4.
+
+      | preset | shipped | fairShare | perWave |
+      |---|---|---|---|
+      | HOLDFAST | 97% | **74%** | 100% |
+      | COUNTERBATTERY | 66% | 66% | **93%** |
+      | TRIPWIRE | 65% | 86% | **100%** |
+
+      `fairShare` — no rule may take more than its share of the budget — fixes
+      TRIPWIRE and BREAKS HOLDFAST, because HOLDFAST's whole strength was
+      placing the SAME good verb three times. It punishes the correctly
+      ordered preset to rescue the wrong one, which is levelling rather than
+      fixing. `perWave` makes all three strong and is therefore not a fix
+      either: it turns the defence dominant rather than making the battles
+      close. Both stay in the type, defaulted off and pinned inert by a test,
+      because the instrument that priced them is what Phase 3 will reach for.
+
+      **And it exposed a flaw in Phase 1's own headline.** LIVE WAVES measures
+      post damage, so it falls both when the attack never arrives AND when the
+      defence is dominant — `perWave` raises hold rate and lowers LIVE in every
+      row. It cannot be read alone. What "close" needs is hold% near 50 AND
+      LIVE high, and nothing measured so far produces both.
+
+      **Which is the real answer to the whole phase: the ladder has no
+      contested band.** Parsed straight out of `BALANCE.md`, counting levels
+      where a defence row lands between 5% and 95%:
+
+      | contested levels in the row | rows |
+      |---|---|
+      | 0 | 6 of 15 (40%) |
+      | 1 | 8 of 15 (53%) |
+      | 3 | 1 of 15 (7%) |
+
+      **93% of defence rows are step functions** — `100 | 85 | 0 | 0 | 0 | 0` —
+      one level of contest and then a cliff. Exactly one row in fifteen is a
+      ramp (`USA MID: 100 100 100 90 75 10`), and it is the exception that
+      proves the shape is achievable. No verb set can matter where the
+      difficulty curve has no slope, which is why every lever priced in this
+      phase moved rows between 0% and 100% without ever producing a battle that
+      was close. Phase 3's first job is a contested band; the verbs get
+      re-judged against it afterwards, not before.
 - [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
       memorable.**
 
