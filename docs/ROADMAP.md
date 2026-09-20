@@ -2769,8 +2769,22 @@ premium", which converts idle attrition into sessions.
       **And a number in `BALANCE.md` was wrong because of it.** `defenseMatrix`
       reads anything that is not a victory as "did not hold", so every
       deadlock has been filed as a defeat: `NK MID (CC2)` at level 3 read 0%
-      hold when all eight seeds were stalemates with the post at 70%. Those
-      rows move on the next snapshot.
+      hold when all eight seeds were stalemates with the post at 70%. The
+      re-measured snapshot moved exactly those rows — that cell 10 → 85, and
+      `NK LATE (CC3)` levels 4-6 from 0/0/0 to 100/100/85.
+
+      **What the rule costs, held to one variable.** Same seeds, same plans,
+      chain v1 against v2 across the USA raid ladder: CLEAR% and DESTR% come
+      back IDENTICAL in all five tiers and only MP LOST% moves — T2 27 → 73,
+      T4 66 → 75. That is the whole of it. An assault that stalls was never
+      going to clear and had already done its damage, so the only question
+      the rule answers is whether the force pinned at the wire walks home,
+      and the answer is no. Worth saying plainly because "withdraws" is the
+      fiction and a write-off is the mechanic: the stats credit the defender
+      with the kills, which for a defender who has just destroyed an assault
+      on their own command post is close enough to true to be worth the
+      simplicity, and a 46-point swing in what a half-failed raid costs is
+      the price of it.
 - [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
       AND against how often the player's input changed the outcome. A verb that
       does not move the second number is decoration.

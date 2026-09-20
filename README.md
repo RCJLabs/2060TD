@@ -20,7 +20,7 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.41: the kill chain
+## Current state — v1.41.1: the kill chain
 
 For twenty-two milestones the command post was an **HP sponge**, and it decided
 the game in a way nobody designed. Ranged fire is discounted hard against
@@ -79,6 +79,17 @@ the objective. Small arms do 1.0 against unarmoured and 0.2 against heavy, so
 eight engineers are wiped out at tick 703 having moved the bar from 1.00 to
 0.97. The chain gives infantry a job; the armour table still denies them the
 chance to do it.
+
+**v1.41.1 — a rule that makes something unwinnable must also make it end.** The
+crew minimum means one attacker can never take a post; once every gun that could
+reach it is dead it can never be killed either; and a wave ends only when the
+attackers do. v1.41 therefore shipped an **18% chance of a siege that never
+finishes** — measured as 0% on the sponge against 18% on the chain, the
+signature identical every time: one unit, bar pinned at the breach floor, nobody
+able to do anything about it. An assault that achieves nothing for ninety
+seconds is now spent, and written off where it stands. Held to one variable, the
+rule changes no raid's clear rate and no raid's destruction in any tier — only
+what a half-failed raid costs, and that by a lot.
 
 ## v1.40: a board a phone can read
 

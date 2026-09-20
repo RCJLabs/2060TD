@@ -743,3 +743,16 @@ here with the change and its date.
   composed into a hole. The measurement that caught the first was re-run after
   fixing it and still showed 6% — which is the only reason the second was found
   at all.
+- 2026-09-20 — **A spent assault is written off, not walked home.** The stall rule
+  ends the deadlock by destroying whoever is still standing on the post, and the
+  fiction calls that a withdrawal. Held to one variable — same seeds, same plans,
+  chain v1 against v2 — CLEAR% and DESTR% come back identical in every tier of
+  the USA ladder and only MP LOST% moves, T2 27 → 73 and T4 66 → 75. So the rule
+  changes nothing about what a raid achieves and everything about what a
+  half-failed one costs. Both halves of that were worth keeping: a second removal
+  path that let a unit vanish without the defender being credited would be a new
+  way for something to leave the board with nothing watching it, and a stall that
+  cost the attacker nothing would be a free way to end a raid that is going
+  badly. The price is that a repulse reads as a kill in the stats, which for a
+  defender who has just destroyed an assault at their own wire is close enough to
+  true.
