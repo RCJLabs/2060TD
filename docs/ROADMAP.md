@@ -2966,7 +2966,7 @@ back everything the grid gave. Both, together, clear the bar on every phone.
       cannot use.
 - [x] **Re-tune.** Every raid matrix was measured on a 32-cell approach.
 
-### Open, and handed to M22
+### Open, and handed to M22 — answered in v1.41
 
 **The faction spread reopened, and this is the big one.** M11 and M15 each spent
 a release closing it; v1.39 measured 4.2 points between best and worst faction
@@ -3029,6 +3029,33 @@ gaps is work of the kind M15 spent a release on, and M22 re-tunes on top of the
 combat model anyway — doing it now is doing it twice. Worth carrying forward:
 **a keep swings 43 points on one gun**, which is a fragility worth naming
 whatever the board is.
+
+#### What M22 did with these three
+
+Recorded here rather than left dangling, because a section headed "handed to"
+a milestone that has since shipped is a section that stops being read.
+
+- **The faction spread: partly closed, 23.0 → 18.8**, and re-ordered rather
+  than compressed. China fell from the ceiling (95.0) to mid (72.0) and the
+  KPA rose from the floor (72.0) to the ceiling (77.6); the USA fell furthest,
+  88.2 → 58.8. The chain did that without being aimed at it — asking for four
+  capabilities suits five different rosters better than asking for one. Still
+  open, and now with a companion: the parity MEAN fell 83.8 → 68.2 and tier 5
+  sits at 8/32/12/72/0, which is a wall rather than a curve.
+- **DUG IN's inverted sign: FIXED, and the chain is what fixed it.** Thicker
+  wire used only to buy breach time the defender could not convert, because
+  the post could be shot down from standoff whether or not the wire was cut.
+  Wire is stage one of four now and nothing past it can be done at range, so
+  the same +45% costs a raid 42% of its progress — 0.67 stages against 0.39 —
+  and 50 points of clear rate at a stronger force. `tests/conditions.test.ts`
+  asserts the direction instead of recording a defect.
+- **The keep's 43-point swing on one gun: still open, and now understood.**
+  M22 found the mechanism while explaining something else: a tough,
+  long-ranged, dual-purpose gun sited inside the post's 4-cell cover radius is
+  a SUPPRESSION GATE, not just damage, and the defence rows price that at two
+  to three ladder levels. A keep concentrates exactly such guns around its
+  post. Whether three rungs from one building is the intended weight is the
+  open question; the cover radius is the lever.
 
 ### What it cost the harnesses
 
