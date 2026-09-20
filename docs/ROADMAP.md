@@ -3153,3 +3153,13 @@ was being read for.
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
 - Balance numbers are provisional until M5's harness; resist hand-tuning before it exists.
 - Each milestone is pushed to the repo in a runnable state with green tests.
+- The 22 E2E harnesses gate every release, and they are TIMING-based: each step
+  sleeps a fixed number of milliseconds rather than polling for the condition it
+  is about to assert. Under CPU load that is a flake source — three so far, a
+  different harness each time (`e2e-build` under a concurrent screenshot run,
+  `e2e-tutorial` on a port collision, `e2e-vault` on a reload that took longer
+  than its 2500ms to settle), and every one of them passed alone straight after.
+  Re-running the harness by itself is the workaround in use; converting the
+  sleeps to condition polls is the fix, and it is owed. Until then: a single
+  harness failing in a batch run is not evidence of a regression OR of a flake
+  until it has been re-run alone.
