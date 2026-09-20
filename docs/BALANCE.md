@@ -1,4 +1,4 @@
-# Balance snapshot (v1.40.0)
+# Balance snapshot (v1.41.0)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.

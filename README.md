@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.40, in the browser. No install, no account, works on a phone.
+v1.41, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,67 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.40: a board a phone can read
+## Current state — v1.41: the kill chain
+
+For twenty-two milestones the command post was an **HP sponge**, and it decided
+the game in a way nobody designed. Ranged fire is discounted hard against
+structures and melee only fires at adjacency, so there were two ways to win:
+walk a survivor onto the post, or — the one nobody noticed until it was
+measured — **park three tanks at range four and shell the post down without
+ever entering the base**. `--carry` read one unit as 99–100% of a raid because
+one unit could do both.
+
+Taking a post is now a **demolition job in four stages**, each gated on a
+different stat, so that no unit answers all four:
+
+| stage | bar | paid in | who is good at it |
+|---|---|---|---|
+| **BREACH** | 1.00→0.70 | `wallDps`, plus shells | sappers 60–80 over heavies 22–35 |
+| **SUPPRESS** | gate at 0.70 | every gun within 4 cells down | anything with reach |
+| **CHARGE** | 0.70→0.55 | `hqDps`, **two bodies minimum** | cheap infantry per manpower |
+| **BURN** | 0.55→0.00 | a 20-second clock, while held | whatever survives |
+
+The model is frozen behind `KILL_CHAIN_VERSION`, version 0 being the sponge, so
+every archived replay re-fights the battle it recorded.
+
+**How the old win condition was found is the story.** Wiring the stages in
+dropped the reference expeditions to 11.3% clear and *no constant moved it* —
+four of five factions scored exactly zero under every variant swept. Identical
+results across a whole sweep is a structural cause, not a plateau. The chain
+clamps standoff fire at the breach floor, and the attacker AI then stood at
+range four shelling a bar that could not move, because a unit with a target in
+reach does not advance. Dropping the opened post from the target list — you
+bombard the bunker open, then somebody walks in — took the same constants to
+49.4%.
+
+**The reference plans are combined arms now.** A search that capped a force at
+three unit kinds could not express a four-stage answer; lifted to four, and
+priced at each kind-count rather than by one argmax, it says mixing is nearly
+free — every faction has a three-kind plan within 2.5 points of its best
+concentrated one, and two gain 10–17 points by it:
+
+| faction | was | is |
+|---|---|---|
+| USA | 3×abrams 1×javelin — 77.5 | 2×abrams 2×humvee 1×javelin — 75.0 |
+| China | 1×militia 2×sapper 3×type99 — 65.8 | 2×grenadier 1×militia 3×type99 — **82.5** |
+| Russia | 9×btr — 66.7 | 6×btr 3×demoteam 1×rpg — **76.7** |
+| KPA | 3×infiltrator 5×rifle 9×tunneler — 68.3 | 12×nkrifle 2×rpg7 5×tunneler — **74.2** |
+| UN | 9×vab — 69.2 | 7×vab 1×unsapper 1×nlaw — 66.7 |
+
+A demolition team, an RPG and an NLAW are in those optima — kinds that measured
+zero for twenty-two milestones. Suppression went from a formality passed 97–99%
+of the time to a stage passed 64–84%, the faction spread closed 23.0 → 18.8,
+and DUG IN's inverted sign is fixed: +45% wall HP now costs a raid 42% of its
+progress instead of raising destruction.
+
+**What it did not buy, stated plainly.** The heavy is still the best unit to
+bring, and the reason has a number: the binding constraint is the approach, not
+the objective. Small arms do 1.0 against unarmoured and 0.2 against heavy, so
+eight engineers are wiped out at tick 703 having moved the bar from 1.00 to
+0.97. The chain gives infantry a job; the armour table still denies them the
+chance to do it.
+
+## v1.40: a board a phone can read
 
 This is a phone game, and its board was 32 cells across. On a 360px phone that
 is an **11px cell** — too small for a silhouette, a level pip or a fingertip.

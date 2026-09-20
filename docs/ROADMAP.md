@@ -2422,7 +2422,7 @@ Four findings drive the whole programme:
 
 ---
 
-## M22 — "The Kill Chain": rebuild what winning a battle IS
+## M22 — v1.41 "The Kill Chain": rebuild what winning a battle IS
 
 **The one that has to go first.** The command post is an HP sponge that only
 adjacency meaningfully damages: `DAMAGE_MULT` discounts ranged fire hard against
