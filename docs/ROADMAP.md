@@ -2860,6 +2860,12 @@ premium", which converts idle attrition into sessions.
       let one. v1.41.1's "stalls now 0/180 on both models" was measured with no
       defender policy at all. It was true, and it was not the claim it looked
       like.
+
+      **And the regenerated snapshot moved nothing — zero of 901 table rows.**
+      Which is the same fact from the other end: no shipped configuration can
+      reach the hang, because the most generous preset in the game allows six
+      actions and it takes more than that. A defect can be real, severe, and
+      completely invisible to every table you own, all at once.
 - [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
       memorable.**
 

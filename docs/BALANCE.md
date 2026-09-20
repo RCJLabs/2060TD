@@ -1,4 +1,4 @@
-# Balance snapshot (v1.41.1)
+# Balance snapshot (v1.41.2)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -42,6 +42,16 @@ an active player defends one to two ladder levels above their probe floor.
 > the wire walks home. It does not. The DEFENSE rows gained for the mirror reason —
 > a stalemate used to run to the tick cap and be filed as a defeat, and is now
 > scored as the defender victory it always was.
+>
+> **v1.41.2 latches the breach, and these tables are measured against chain
+> version 3.** M22 dropped the opened post from the target list so standoff fire
+> could not shell a bar that cannot move, and wrote it as a live comparison
+> against the breach floor — which a repair aura crosses back over, handing the
+> livelock straight back. Found in M23 Phase 2 on UN LATE (CC3) level 4, where a
+> lone gunship held a bar oscillating either side of 0.70 for thirty thousand
+> ticks. It was invisible to every table in this file, including the two written
+> to hunt exactly this: a defender only reaches it by taking more than the three
+> actions HOLDFAST allows, and nothing here had ever let one.
 
 ```
 RAID — UNITED STATES strike force (25 MP) vs PLA Front Line
