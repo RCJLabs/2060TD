@@ -1692,12 +1692,20 @@ export class Engine {
     for (const s of this.structures) {
       if (s.hp <= 0 || !this.isDefenseStructure(s)) continue;
       // A mount that cannot engage the ground is not covering the post. Every
-      // faction's dedicated AA site is `targets: 'air'`, and the first draft
-      // counted them, which made a Stinger pit gate a demolition charge being
-      // set by infantry it physically cannot shoot at. The snapshot found it:
-      // WITH AA COVER rows jumped two to three ladder levels — China's MID
-      // line went 85/0/0/0 to 100/100/100/70 — from a building whose whole
-      // identity is that it answers aircraft and nothing else.
+      // faction's dedicated AA site is `targets: 'air'` — the USA's profile
+      // says "it watches the sky and nothing else" — so counting one would
+      // gate a demolition charge on a gun that physically cannot shoot the
+      // men setting it.
+      //
+      // **This is latent, and the record needs to say so.** It was written
+      // after the WITH AA COVER rows of the balance snapshot jumped two to
+      // three ladder levels, and the guess was that this rule caused it. It
+      // did not: re-running with the rule in place reproduced all fourteen
+      // moved rows EXACTLY. The mount those rows add is the dual-purpose
+      // flak (`targets: 'both'`), sited 2.24 cells from the post, and it
+      // gates suppression correctly — that jump is the model working. No row
+      // in the snapshot exercises an air-only mount at all, which is why
+      // nothing moved. The rule is right; it just was not the explanation.
       //
       // Edited into version 1 rather than shipped as version 2 on purpose.
       // The freeze exists so an archived replay re-fights the battle it

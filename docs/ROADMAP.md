@@ -2650,17 +2650,68 @@ at stage one.
       `--derive` round-robins units into sectors in ROSTER order, so a plan
       transcribed in a different key order is a different battle. The emitted
       source says so; a hand-written literal does not.
-- [ ] **Phase 4 — re-tune the ladder.** Every matrix in `BALANCE.md` was measured
-      on the sponge and none of them survives this.
+- [x] **Phase 4 — re-tune the ladder.** `docs/BALANCE.md` regenerated against
+      the chain. **Measured, explained, and NOT tuned — the reasons are below
+      and the second one is the important one.**
 
-      Two specific debts. The chain applies to **every** post, so sieges,
-      campaign missions, counterattacks and offline probes all got easier for
-      the defender at the same time raids got harder — a post is a post, and
-      `battleConfig` names the model in one place, but the campaign's own
-      difficulty curve was tuned against the sponge. And `hqDps` now means
-      "how fast you work the objective" rather than "how fast you chew the
-      post"; the stat is intact and still discriminates, but nothing in the
-      rosters was authored with that reading in mind.
+      **The defence half was still on the sponge.** `defenseMatrix` builds its
+      `SimConfig` by hand rather than through `battleConfig` and was never told
+      about the chain, so every DEFENSE, FORTIFY, HOLDFAST and AA row would
+      have been measured against an HP-sponge post while the game shipped four
+      staged gates. The comment on that config predicted this exact failure
+      when `combatVersion` was added in v1.23 — "the one place that would
+      quietly keep measuring the sim as it was" — and it fired again, a whole
+      milestone later. Fixed before the snapshot was taken.
+
+      **What the chain did to the ladder:**
+
+      | | sponge | chain | |
+      |---|---|---|---|
+      | parity spread | 23.0 | **18.8** | closed 4.2 |
+      | parity mean | 83.8 | **68.2** | the ladder got much harder |
+      | ceiling | China 95.0 | KPA 77.6 | the order inverted |
+      | floor | KPA 72.0 | USA / UN 58.8 | |
+
+      T5 is the wall: 8 / 32 / 12 / 72 / 0 across the five factions. A rung
+      four of five clear under a third of the time, and one clears never, is
+      not a curve.
+
+      **The defence rows split, and the split is the design working.** Bare
+      rows drifted DOWN a few points (China MID L3 35 → 15, KPA 25 → 10): the
+      chain pays for bodies and the AI's assault waves are mass. Every WITH AA
+      COVER row jumped two to three ladder levels — China's MID line went
+      85/0/0/0 to 100/100/100/70, the KPA's 65/0/0/0 to 100/95/95/20. The
+      cause is the suppression gate: the row's mounts are DUAL-PURPOSE flak
+      (`targets: 'both'`), one of them sited 2.24 cells from the post centre,
+      inside the 4-cell cover radius. A tough, long-ranged gun beside the post
+      is now a gate rather than just damage, and it is worth three rungs.
+
+      **A wrong cause, published and then corrected.** The jump was first
+      attributed to air-only mounts being counted as cover, and a fix shipped
+      saying so. Re-running with the fix in place reproduced all fourteen moved
+      rows EXACTLY — it explained nothing. The rule is still right (a Stinger
+      pit cannot suppress infantry standing on the post) but it is LATENT: no
+      row in the snapshot exercises an air-only mount, which is why nothing
+      moved, and `tests/killchain.test.ts` now carries the only thing that
+      exercises it.
+
+      **Why no tuning.** Three levers present themselves — the gun ladder for
+      the 15-point mean drop, the T5 rung, and the cover radius for the AA
+      effect — and all three are the same mistake M33 already made and
+      measured: scaling the gun ladder by frontage overshot so badly that a
+      +45% wall condition measured no difference at all. The numbers here are
+      one snapshot old against a combat model four phases old. A re-tune wants
+      a stable target, and the honest state is that M22 rebuilt what winning
+      is and has not yet been played. Recorded, handed to the next balance
+      milestone with the three levers named.
+
+      **One debt could not be paid and should not be pretended away.** The
+      campaign side is unmeasurable headlessly: 33 missions across five
+      factions were run under both models and returned 0% hold under each,
+      because `newTown()` is an empty yard and a campaign mission is a
+      player-in-the-loop prep phase the harness cannot play. The defence-floor
+      tables are the proxy, and they are in the snapshot. Whether the campaign
+      curve moved is a playtest question.
 
 ## M23 — "Live Fire": make defence the game the GDD claims
 

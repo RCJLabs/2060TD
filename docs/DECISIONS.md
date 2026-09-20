@@ -703,3 +703,24 @@ here with the change and its date.
   dropping two VABs costs 7-14. Those rosters concentrate 21 of 26 manpower's
   worth of value in one unit, so the bar is a claim about CONTENT and no choice
   of plan satisfies it. Recorded as failed rather than redefined as met.
+- 2026-09-20 — **A fix that explains nothing is still a fix, and saying which
+  is the job.** The first chain-measured balance snapshot showed every WITH AA
+  COVER defence row jumping two to three ladder levels. The guess was that
+  `coveringGuns()` counted air-only mounts, and a change shipped saying the
+  snapshot had found it. Re-running with the change in place reproduced all
+  fourteen moved rows EXACTLY: the mounts in that row are dual-purpose flak
+  sited inside the cover radius, so they gate suppression correctly and the
+  jump is the model working. The rule is kept — a Stinger pit cannot suppress
+  infantry standing on the post — but it is latent, and the only thing that
+  exercises it is a test written for that purpose. A causal claim and a
+  correctness claim are different claims; publishing the first on the evidence
+  for the second is how a changelog starts lying.
+- 2026-09-20 — **A re-tune wants a stable target, and M22 has not been played.**
+  Phase 4 regenerated every matrix and then changed no content. The chain
+  closed the faction spread 23.0 to 18.8 and dropped the mean 83.8 to 68.2,
+  with tier 5 at 8/32/12/72/0 — a real wall, and three obvious levers for it.
+  All three are the mistake M33 already made and measured, where scaling the
+  gun ladder by frontage overshot so far that a +45% wall condition measured no
+  difference at all. Tuning content against a snapshot one run old, of a combat
+  model four phases old, that no player has touched, is doing the work twice.
+  Measured, explained, levers named, handed forward.

@@ -114,10 +114,12 @@ describe('the kill chain', () => {
 
   it('an air-defence mount does not cover the post', () => {
     // Its own profile says it "watches the sky and nothing else", so it cannot
-    // shoot the men setting a charge and cannot be what stops them. The first
-    // draft counted any structure with a weapon, and the balance snapshot
-    // found it: WITH AA COVER rows jumped two to three ladder levels off a
-    // building whose whole identity is answering aircraft.
+    // shoot the men setting a charge and cannot be what stops them.
+    //
+    // This test exists because nothing else exercises the rule. The balance
+    // snapshot's WITH AA COVER rows use the DUAL-PURPOSE flak, which gates
+    // suppression correctly, so those rows are identical with the rule and
+    // without it. Without this test the rule would be unmeasured code.
     const e = staged();
     e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(15, 5), kind: 'aaSite' });
     send(e, 'tank', 2);
