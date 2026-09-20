@@ -112,6 +112,23 @@ describe('the kill chain', () => {
     expect(clear.cc.hp, 'the same force got no further on an open post').toBeLessThan(BREACH_FLOOR);
   });
 
+  it('an air-defence mount does not cover the post', () => {
+    // Its own profile says it "watches the sky and nothing else", so it cannot
+    // shoot the men setting a charge and cannot be what stops them. The first
+    // draft counted any structure with a weapon, and the balance snapshot
+    // found it: WITH AA COVER rows jumped two to three ladder levels off a
+    // building whose whole identity is answering aircraft.
+    const e = staged();
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(15, 5), kind: 'aaSite' });
+    send(e, 'tank', 2);
+    e.run(2500);
+    const chain = e.chainProgress()!;
+    expect(chain.covering, 'an air-only mount was counted as cover').toBe(0);
+    expect(e.cc.hp, 'the assault was gated by a gun that cannot shoot it').toBeLessThan(
+      BREACH_FLOOR,
+    );
+  });
+
   it('one body cannot work the charge; two can', () => {
     const alone = staged();
     send(alone, 'tank', 1);

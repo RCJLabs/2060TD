@@ -1691,6 +1691,20 @@ export class Engine {
     let n = 0;
     for (const s of this.structures) {
       if (s.hp <= 0 || !this.isDefenseStructure(s)) continue;
+      // A mount that cannot engage the ground is not covering the post. Every
+      // faction's dedicated AA site is `targets: 'air'`, and the first draft
+      // counted them, which made a Stinger pit gate a demolition charge being
+      // set by infantry it physically cannot shoot at. The snapshot found it:
+      // WITH AA COVER rows jumped two to three ladder levels — China's MID
+      // line went 85/0/0/0 to 100/100/100/70 — from a building whose whole
+      // identity is that it answers aircraft and nothing else.
+      //
+      // Edited into version 1 rather than shipped as version 2 on purpose.
+      // The freeze exists so an archived replay re-fights the battle it
+      // recorded, and no build carrying a chain has ever reached a player —
+      // v1.40 is deployed and has no chain at all. Freezing a defect on the
+      // day it is found would protect nothing and cost a version number.
+      if (layerOf(s.profile.weapon!) === 'air') continue;
       const dx = s.center.x - this.cc.center.x;
       const dy = s.center.y - this.cc.center.y;
       if (dx * dx + dy * dy <= r2) n++;
