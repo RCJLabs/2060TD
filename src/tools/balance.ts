@@ -57,7 +57,7 @@ import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
 import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
-import { CHAIN_NONE, chainModelFor } from '../sim/killchain';
+import { CHAIN_CURRENT, CHAIN_NONE, chainModelFor } from '../sim/killchain';
 import {
   OBJECTIVES,
   OBJECTIVE_FLOOR,
@@ -631,10 +631,16 @@ function defenseMatrix(
           ccLevel: base.ccLevel,
           spawnLane: BASE_SPAWN_LANE,
           spawnEdge: BASE_SPAWN_EDGE,
-          // The shipped game rolls (v1.23). This matrix builds its config by
-          // hand rather than through `battleConfig`, so it is the one place
-          // that would quietly keep measuring the sim as it was.
+          // The shipped game rolls (v1.23) and fights a staged objective
+          // (v1.41). This matrix builds its config BY HAND rather than through
+          // `battleConfig`, so it is the one place that quietly keeps measuring
+          // the sim as it was — and it did exactly that, twice now. The v1.23
+          // comment predicted it; v1.41 shipped a whole milestone before
+          // anyone checked whether the defence half of the snapshot had been
+          // told. Every line added to `battleConfig` has to be added here too,
+          // or this file reports a game nobody is playing.
           combatVersion: COMBAT_CURRENT,
+          killChainVersion: CHAIN_CURRENT,
           siege: { ...buildAssault(level, roster), startingSupplies: 0 },
           layout: {
             walls: base.walls.map((w) => ({ ...w })),
@@ -4016,6 +4022,16 @@ function main(): void {
       '>',
       '> Every table below EXCEPT the ones that name a model was measured with the rolls on, so none',
       '> of them is comparable to a pre-v1.23 snapshot cell for cell.',
+      '>',
+      '> **These are the first tables measured against the KILL CHAIN (v1.41), and none of them is',
+      '> comparable to a v1.40 cell either.** Taking a command post is no longer chewing an HP bar:',
+      '> it is four staged gates — breach, suppress, charge, burn — each paid in a different stat',
+      '> (GDD §5.4a). Two things follow for reading these rows. The raid rows use REFERENCE PLANS',
+      '> that were re-derived against the chain and are combined arms now, so a raid cell measures',
+      '> a different force as well as a different objective. And the DEFENSE rows moved for a',
+      '> reason that is not content: `defenseMatrix` builds its config by hand, it was never told',
+      '> about the chain, and so every defence number in the v1.41 snapshot before this one was',
+      '> still being measured on the sponge while the game shipped the chain.',
       '',
       '```',
       body,
