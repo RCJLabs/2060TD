@@ -2866,6 +2866,52 @@ premium", which converts idle attrition into sessions.
       reach the hang, because the most generous preset in the game allows six
       actions and it takes more than that. A defect can be real, severe, and
       completely invisible to every table you own, all at once.
+
+      **Then the table the phase exists for: `npm run balance -- --verbs`.** One
+      rule at a time, everything else held fixed — same budget, same hostile
+      threshold, same cooldown, `cpAtLeast` set to the thing's own price so
+      every verb acts the moment it can afford to. Scoped to MID (CC2) levels
+      3-4, because a verb measured on a row that cannot move reads zero for a
+      reason that is not about the verb.
+
+      | verb | HELD vs nothing |
+      |---|---|
+      | `foxhole -> ccApproach` | **+32** |
+      | `depmg -> ccApproach` | **+31** |
+      | `foxhole -> breach` | +6 |
+      | `depmg -> breach` | +4 |
+      | `claymore -> ccApproach` | +2 |
+      | `a10 -> densest` | +0 |
+      | `arty -> densest` | **-3** |
+
+      **The verb barely matters; the AIM does.** A gun at the approach is worth
+      +31. The same gun at the breach is worth +4. A mine on the same cell is
+      +2, and the two fire missions are nothing and worse than nothing. That is
+      the kill chain's own doing and it is geometric: SUPPRESS gates the post on
+      every live gun within `coverRadius`, so a deployed WEAPON inside that
+      radius adds a gate the attacker must clear, and everything else merely
+      does damage. Since M22 the defence's only real lever is adding gates.
+
+      **Which makes two of the three shipped presets pre-chain artifacts.**
+      COUNTERBATTERY is all damage — A-10, claymore, artillery — and scores
+      exactly +0. TRIPWIRE scores -1 while OWNING the +31 verb, and that is the
+      third finding: rules are evaluated in list order and every action spends
+      one of `maxActions`, so a cheap rule at the top with a short cooldown
+      starves everything below it. TRIPWIRE's claymore sits first at
+      `cpAtLeast: 16` on a 100-tick cooldown and eats all five actions before
+      `depmg -> ccApproach` ever fires. Delete that one rule, change nothing
+      else, and the preset goes **65% to 100% on the same action budget.**
+
+      **The uncomfortable part, and what Phase 3 has to decide.** The one verb
+      that works is worth so much that aiming it correctly ends the question —
+      a single correctly-placed gun takes these rows to 97-100%. So the answer
+      to "how often did the player's input change the outcome" is: one move
+      changes everything and the rest change nothing, which is not a verb set
+      with depth. Repairing TRIPWIRE to 100% would flatten the game further,
+      not improve it, so it is deliberately NOT done here. The options are to
+      make the gate cheaper to clear, to give the damage verbs a job the chain
+      can see, or to make rule ORDER a thing the player chooses rather than a
+      trap — and that is a design call, not a tuning one.
 - [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
       memorable.**
 

@@ -774,3 +774,22 @@ here with the change and its date.
   that found it, `--budget`, was written to test a hypothesis that turned out to
   be wrong; it earned its place by what it found on the way. When a lever is
   cheap to sweep, sweep it past where the content currently sits.
+- 2026-09-20 — **A rule list is a priority list, and nobody said so.** Standing
+  orders evaluate in array order and every action spends one of `maxActions`, so
+  a cheap rule at the top with a short cooldown silently starves an expensive
+  one below it. TRIPWIRE ships with the best verb in the game at position two
+  and scores WORSE THAN DOING NOTHING because a claymore rule at `cpAtLeast: 16`
+  spends the whole budget first; deleting that one rule takes it from 65% to
+  100% on the same five actions. The rule is a trap for whoever authors a preset
+  next, including a player if authoring ever reaches them, and the defect is not
+  in either rule — it is in the fact that ordering carries meaning nothing
+  declares.
+- 2026-09-20 — **The kill chain made the defence geometric, and the presets did
+  not notice.** `--verbs` prices each defender action alone: a gun deployed
+  within the post's cover radius is worth +31 points of hold rate, the same gun
+  at the breach +4, a mine +2, a fire mission 0 or -3. SUPPRESS gates on live
+  guns near the post, so placing a weapon there adds a GATE while everything
+  else merely does damage — and damage is not what decides these battles. Two of
+  the three shipped presets are all damage. They were written for the HP sponge
+  M22 replaced, and nothing re-read them afterwards, which is the same oversight
+  as `defenseMatrix` never being told about the chain, one layer up.

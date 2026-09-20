@@ -724,6 +724,168 @@ function siegeTrace(
 }
 
 /**
+ * The verb set, ONE AT A TIME — the table M23 Phase 2 exists to produce.
+ *
+ * The shipped presets each bundle three rules, so `--leverage` can say HOLDFAST
+ * carries all the leverage and cannot say WHICH of its three rules does. This
+ * runs a policy with exactly one rule, and holds everything else fixed: the
+ * same budget, the same hostile threshold, the same cooldown, and a `cpAtLeast`
+ * equal to the thing's own price so every verb acts the moment it can afford
+ * to. What varies is the verb and where it is aimed.
+ *
+ * Scoped to MID (CC2) levels 3-4, because that is where `--leverage` found the
+ * only leverage on the board. A verb measured on a row that cannot move reads
+ * zero for a reason that has nothing to do with the verb.
+ *
+ * The prior worth testing: since M22, SUPPRESS gates the post on every live gun
+ * within `coverRadius`, so a deployed GUN adds a gate the attacker must clear
+ * while a mine or a fire mission only does damage. If that is right, the verbs
+ * that place weapons should beat the ones that deal damage, and two of the
+ * three shipped presets are written for the HP sponge the chain replaced.
+ */
+function verbTable(seeds = 20): string {
+  interface Verb {
+    label: string;
+    action: 'deploy' | 'power';
+    kind: string;
+    target: 'breach' | 'ccApproach' | 'densest';
+    price: number;
+  }
+  const VERBS: Verb[] = [
+    { label: 'depmg -> breach', action: 'deploy', kind: 'depmg', target: 'breach', price: 25 },
+    { label: 'depmg -> ccApproach', action: 'deploy', kind: 'depmg', target: 'ccApproach', price: 25 },
+    { label: 'depmg -> densest', action: 'deploy', kind: 'depmg', target: 'densest', price: 25 },
+    { label: 'foxhole -> breach', action: 'deploy', kind: 'foxhole', target: 'breach', price: 20 },
+    { label: 'foxhole -> ccApproach', action: 'deploy', kind: 'foxhole', target: 'ccApproach', price: 20 },
+    { label: 'claymore -> ccApproach', action: 'deploy', kind: 'claymore', target: 'ccApproach', price: 15 },
+    { label: 'claymore -> densest', action: 'deploy', kind: 'claymore', target: 'densest', price: 15 },
+    { label: 'a10 -> densest', action: 'power', kind: 'a10', target: 'densest', price: 45 },
+    { label: 'arty -> densest', action: 'power', kind: 'arty', target: 'densest', price: 60 },
+  ];
+
+  const mid = referenceBases().find((b) => b.name.startsWith('MID'))!;
+  const CELLS: [FactionId, number][] = [];
+  for (const faction of FACTION_IDS) for (const level of [3, 4]) CELLS.push([faction, level]);
+
+  /** Hold rate and mean low-water mark over every scoped cell. */
+  const score = (policy: SiegePolicy): { held: number; low: number } => {
+    let held = 0;
+    let low = 0;
+    let n = 0;
+    for (const [faction, level] of CELLS) {
+      for (let i = 0; i < seeds; i++) {
+        const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), policy);
+        if (r.held) held++;
+        low += r.low;
+        n++;
+      }
+    }
+    return { held: (held / n) * 100, low: low / n };
+  };
+
+  const bare = score(null);
+  const lines = [
+    `VERBS — one rule at a time, MID (CC2) levels 3-4, ${seeds} seeds x ${CELLS.length} cells`,
+    'VERB                   | HELD | vs NONE |   LOW | vs NONE',
+    '-----------------------+------+---------+-------+--------',
+    `${pad('(nothing)', 22)} | ${pad(`${bare.held.toFixed(0)}%`, 4)} |       — | ` +
+      `${bare.low.toFixed(3)} |       —`,
+  ];
+  for (const verb of VERBS) {
+    const policy = {
+      id: 'probe',
+      maxActions: 3,
+      rules: [
+        {
+          cpAtLeast: verb.price,
+          action: verb.action,
+          kind: verb.kind,
+          target: verb.target,
+          minHostiles: 2,
+          cooldownTicks: 200,
+        },
+      ],
+    } as unknown as StandingOrders;
+    const got = score(policy);
+    const dHeld = got.held - bare.held;
+    const dLow = got.low - bare.low;
+    lines.push(
+      `${pad(verb.label, 22)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
+        `${pad(dHeld >= 0 ? `+${dHeld.toFixed(0)}` : dHeld.toFixed(0), 7)} | ` +
+        `${got.low.toFixed(3)} | ${pad(dLow >= 0 ? `+${dLow.toFixed(3)}` : dLow.toFixed(3), 7)}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    'One matchup is 1/' +
+      `${CELLS.length * seeds} of a cell here, so treat anything inside ${(100 / (CELLS.length * seeds)).toFixed(0)}% of NONE as noise ` +
+      'and read LOW, which is continuous, when the verdict has not moved.',
+  );
+
+  // ---- and what the SHIPPED presets do with those verbs ------------------------
+  //
+  // Rules are evaluated in list order and every action spends one of
+  // `maxActions`, so a cheap rule at the top with a short cooldown can eat the
+  // whole budget before an expensive rule further down ever gets a turn. The
+  // two repairs below change ONE thing each, to say whether that is what is
+  // happening rather than to fix anything yet.
+  const gunAtApproach = {
+    cpAtLeast: 45,
+    action: 'deploy',
+    kind: 'depmg',
+    target: 'ccApproach',
+    minHostiles: 3,
+    cooldownTicks: 240,
+  };
+  const PRESETS: [string, StandingOrders][] = [
+    ['HOLDFAST (shipped)', STANDING_ORDERS.holdfast],
+    ['COUNTERBATTERY (shipped)', STANDING_ORDERS.counterbattery],
+    ['TRIPWIRE (shipped)', STANDING_ORDERS.tripwire],
+    [
+      'TRIPWIRE less the claymore',
+      {
+        ...STANDING_ORDERS.tripwire,
+        rules: STANDING_ORDERS.tripwire.rules.filter((r) => r.kind !== 'claymore'),
+      } as StandingOrders,
+    ],
+    [
+      'CBTY + a gun at the approach',
+      {
+        ...STANDING_ORDERS.counterbattery,
+        rules: [gunAtApproach, ...STANDING_ORDERS.counterbattery.rules],
+      } as unknown as StandingOrders,
+    ],
+  ];
+  lines.push('');
+  lines.push(`PRESETS — the same cells, the shipped three and two one-line repairs`);
+  lines.push('PRESET                       | HELD | vs NONE |   LOW | ACTS');
+  lines.push('-----------------------------+------+---------+-------+-----');
+  for (const [label, policy] of PRESETS) {
+    let held = 0;
+    let low = 0;
+    let acts = 0;
+    let n = 0;
+    for (const [faction, level] of CELLS) {
+      for (let i = 0; i < seeds; i++) {
+        const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), policy);
+        if (r.held) held++;
+        low += r.low;
+        acts += r.acts;
+        n++;
+      }
+    }
+    const pct = (held / n) * 100;
+    const d = pct - bare.held;
+    lines.push(
+      `${pad(label, 28)} | ${pad(`${pct.toFixed(0)}%`, 4)} | ` +
+        `${pad(d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0), 7)} | ${(low / n).toFixed(3)} | ` +
+        `${pad((acts / n).toFixed(1), 4)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
  * WHY is a row decided before anybody plays?
  *
  * `--leverage` found that 37 of 45 rows come back identical under every
@@ -3958,6 +4120,12 @@ function main(): void {
     const arg = process.argv[process.argv.indexOf('--siege') + 1];
     const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 8;
     console.log(siegeTable([2, 3, 4], seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--verbs')) {
+    const arg = process.argv[process.argv.indexOf('--verbs') + 1];
+    console.log(verbTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

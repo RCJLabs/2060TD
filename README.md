@@ -1488,6 +1488,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --spend [seeds] for what the defender was ABLE to do:
                    #    starved, idle, or it acted and lost anyway, or
                    # -- --budget to sweep the action budget past the content, or
+                   # -- --verbs to price each defender action ALONE, and the
+                   #    shipped presets against them, or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or
