@@ -2823,6 +2823,43 @@ premium", which converts idle attrition into sessions.
       CP, same magazine, same battle: one preset decides it and two are
       decoration. That is a content finding about the presets, not an argument
       for more verbs.
+
+      **Then: WHY are those 37 rows decided? Two hypotheses, both refuted, and a
+      shipped hang behind them.**
+
+      The first was a rich-get-richer CP loop — a defence being overrun earns
+      least exactly when it needs most, since CP comes from kills. `--spend`
+      says no. Every losing row ends the battle sitting on a FULL 150 CP bank,
+      having spent 48-66 on exactly three actions. It is not starved; it is not
+      idle either. It always acts, always three times, always at the same price,
+      whether the base is winning comfortably or being overrun. The defender's
+      play is a fixed opening, not a response.
+
+      The second was that the action budget binds, `maxActions: 3` being the
+      only thing stopping a defender who dies rich. `npm run balance -- --budget`
+      sweeps it to 3, 6, 12 and unlimited. The ten dead EARLY (CC1) rows stay at
+      **0% at every one of them**, landing 11-17 actions and still losing 20/20.
+      So the constraint is IMPACT, not opportunity, and that is the finding: the
+      defender gets to act, can afford to act, and acting more does not help.
+
+      **The sweep also found an inversion, which turned out to be a hang.** UN
+      LATE (CC3) level 4 read 100% at cap 3 and 40% at cap 12 — playing more
+      lost the battle. It was not balance: DEFEAT is 0 at every budget, and
+      those were timeouts. Traced to a lone gunship holding a bar oscillating
+      between 0.7031 and 0.7094 of maximum for thirty thousand ticks, either
+      side of the 0.70 breach floor, because the UN's own repair aura kept
+      lifting the post back over the line that M22 tests LIVE to decide whether
+      standoff fire may target it. Fixed as `CHAIN_CURRENT = 3`: the breach
+      latches. Both inversions gone, 178 of the 180 cells in the sweep
+      byte-identical across the fix.
+
+      **Worth saying plainly: every instrument in the repo was blind to it,
+      including the two built to hunt exactly this.** `--siege` and `--leverage`
+      read the same before and after, because a defender only reaches the bug by
+      taking more than the three actions HOLDFAST allows, and nothing had ever
+      let one. v1.41.1's "stalls now 0/180 on both models" was measured with no
+      defender policy at all. It was true, and it was not the claim it looked
+      like.
 - [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
       memorable.**
 
