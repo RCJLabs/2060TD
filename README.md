@@ -1472,6 +1472,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --chain [ver] for how far a raid gets, by stage, or
                    # -- --siege [seeds] for whether a siege is ever CLOSE —
                    #    the margin at each wave end rather than the verdict, or
+                   # -- --leverage [seeds] for whether PLAYING changes the
+                   #    outcome — the same battle under each defender policy, or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or

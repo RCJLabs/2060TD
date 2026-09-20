@@ -2788,6 +2788,41 @@ premium", which converts idle attrition into sessions.
 - [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
       AND against how often the player's input changed the outcome. A verb that
       does not move the second number is decoration.
+
+      **The second number now exists: `npm run balance -- --leverage`.** Same
+      board, same seed, same attack, the defender's policy the only variable —
+      doing nothing, against each of the three shipped standing-orders presets
+      with a stocked magazine. Checked before it was believed: the NONE column
+      reproduces `--siege`'s HELD in all 45 rows, and the magazine that rides
+      with the policies is inert without one (pinned in `standingOrders.test.ts`
+      after the probe agreed on 200/200 battles), so the columns really do
+      differ by one thing.
+
+      | | |
+      |---|---|
+      | FLIPPED | **8%** of battles had a verdict that depended on the policy |
+      | NO VERB HELPS | **82%** of rows came back identical under all four |
+
+      **The shape of it matters more than the number. Leverage lives in one
+      band and nowhere else.** Of 45 rows, 37 are decided before the battle
+      starts: every EARLY (CC1) row is 100% at level 2 and 0% at levels 3-4
+      under every policy, and every LATE (CC3) row is 100% under every policy.
+      Seven of the eight rows that move at all are MID (CC2) at level 3 or 4.
+      That is Phase 1's LIVE WAVES 28% seen from the other side — most sieges
+      are settled by the permanent layer before the player has a say, so a
+      fifth verb added to the same battles would read zero for the same reason
+      the first four do.
+
+      **And the verb set is not weak, it is one verb.** On every row that moves,
+      HOLDFAST is best or tied best, and on three of them it is the difference
+      between a row that cannot be won and one that nearly cannot be lost —
+      CHINA, NK and UN at MID (CC2) level 4 go 0% to 95%, 75% and 100%. On
+      those same rows COUNTERBATTERY and TRIPWIRE score exactly 0%. Across the
+      whole table neither ever moves a row by more than two battles in twenty,
+      in either direction, which at 20 seeds is the noise floor M13 set. Same
+      CP, same magazine, same battle: one preset decides it and two are
+      decoration. That is a content finding about the presets, not an argument
+      for more verbs.
 - [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
       memorable.**
 

@@ -77,6 +77,40 @@ describe('standing orders in the engine', () => {
     );
   });
 
+  /**
+   * The invariant `--leverage` rests on. That table reads the defender's policy
+   * as its only variable, but its baseline column has an EMPTY magazine while
+   * every policy column has a stocked one — so "a policy did worse than doing
+   * nothing" would be two variables, not one, if a magazine did anything by
+   * itself. It does not: nothing casts a power unless a policy or an autoPower
+   * rule asks for it, so the charges sit there.
+   */
+  it('a magazine with no policy to spend it changes nothing at all', () => {
+    for (const seed of [41, 7, 13]) {
+      const stocked = runOut(midConfig(seed));
+      const bare = runOut({ ...midConfig(seed), powerCharges: {} });
+      // Liveness first: two battles that agree because neither happened is not
+      // a passing test.
+      expect(stocked.tick).toBeGreaterThan(200);
+      expect(stocked.stats.kills).toBeGreaterThan(0);
+      expect(stocked.stats.cpSpent).toBe(0);
+      // NOT stateHash: it folds in `chargesLeft`, so a stocked battle cannot
+      // hash equal to a bare one however identically the two are fought. What
+      // is being claimed is that everything the battle DOES is the same, so
+      // that is what gets compared.
+      expect(bare.tick).toBe(stocked.tick);
+      expect(bare.phase).toBe(stocked.phase);
+      expect(bare.cc.hp).toBe(stocked.cc.hp);
+      expect(bare.stats).toEqual(stocked.stats);
+      expect(bare.attackers.map((a) => `${a.id}:${a.hp}:${a.state}`)).toEqual(
+        stocked.attackers.map((a) => `${a.id}:${a.hp}:${a.state}`),
+      );
+      expect(bare.structures.map((st) => `${st.id}:${st.hp}`)).toEqual(
+        stocked.structures.map((st) => `${st.id}:${st.hp}`),
+      );
+    }
+  });
+
   it('respects the action budget', () => {
     const single: StandingOrders = {
       id: 'test',
