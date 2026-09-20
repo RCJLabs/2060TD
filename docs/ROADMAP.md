@@ -3233,11 +3233,15 @@ was being read for.
 - Each milestone is pushed to the repo in a runnable state with green tests.
 - The 22 E2E harnesses gate every release, and they are TIMING-based: each step
   sleeps a fixed number of milliseconds rather than polling for the condition it
-  is about to assert. Under CPU load that is a flake source — three so far, a
-  different harness each time (`e2e-build` under a concurrent screenshot run,
-  `e2e-tutorial` on a port collision, `e2e-vault` on a reload that took longer
-  than its 2500ms to settle), and every one of them passed alone straight after.
-  Re-running the harness by itself is the workaround in use; converting the
-  sleeps to condition polls is the fix, and it is owed. Until then: a single
-  harness failing in a batch run is not evidence of a regression OR of a flake
-  until it has been re-run alone.
+  is about to assert. Under CPU load that is a flake source, and the v1.41.2
+  gate priced it: two full batches of the same suite on the same commit failed
+  `e2e-flow` and `e2e-raid` the first time and `e2e-build` the second. **No
+  harness failed twice, and all three passed alone.** Five different harnesses
+  have flaked this way now (`e2e-build`, `e2e-tutorial`, `e2e-vault`,
+  `e2e-flow`, `e2e-raid`), always a step that needed longer than its sleep — and
+  the second batch was starved by a single harness re-run started alongside it,
+  so the contention is easy to cause by accident. Converting the sleeps to
+  condition polls is the fix, and it is owed. Until then, two rules: run the
+  batch with nothing else going, and treat one harness failing in a batch as
+  evidence of neither a regression nor a flake until it has been re-run by
+  itself.
