@@ -756,3 +756,21 @@ here with the change and its date.
   badly. The price is that a repulse reads as a kill in the stats, which for a
   defender who has just destroyed an assault at their own wire is close enough to
   true.
+- 2026-09-20 — **A threshold a rule tests LIVE can be crossed back.** M22 stopped
+  standoff fire shelling an immovable bar by dropping the opened post from the
+  target list, and asked "is the bar above the breach floor?" every tick. A
+  repair aura lifting the post a hair over that floor re-arms it as a target, so
+  the defence's own engineering reinstates the livelock — measured on the
+  sustainment faction defending its own command post, a bar oscillating between
+  0.7031 and 0.7094 for thirty thousand ticks. The fix is a latch, not a bigger
+  number: `chainDone` was already a high-water mark. The general lesson is that
+  a rule expressing "this has HAPPENED" must not be written as a test on a
+  quantity something else can restore.
+- 2026-09-20 — **An instrument can only find bugs in the range it samples.**
+  Three instruments looked at these sieges — `--siege`, `--leverage`, `--spend`
+  — and all three read identically before and after a fix for a hang that
+  affected 14 of 20 battles in one row. Every one of them ran the defender at or
+  below the three actions HOLDFAST allows, and the hang needs more. The sweep
+  that found it, `--budget`, was written to test a hypothesis that turned out to
+  be wrong; it earned its place by what it found on the way. When a lever is
+  cheap to sweep, sweep it past where the content currently sits.

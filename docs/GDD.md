@@ -681,7 +681,7 @@ direct-fire weapons shooting "through" walls are an accepted abstraction — bot
 benefit symmetrically, and the readability win beats the realism loss. Revisit only if
 playtesting shows degenerate tactics.
 
-### 5.4a Taking a command post — the kill chain *(v1.41; spent-assault rule v1.41.1)*
+### 5.4a Taking a command post — the kill chain *(v1.41; spent assault v1.41.1; latched breach v1.41.2)*
 
 For twenty-two milestones the post was an **HP sponge**, and it decided the game in a way
 nobody designed. Ranged fire is discounted hard against `structure` and `hqDps` only fires
@@ -700,7 +700,7 @@ on a different stat, which is the whole design: no unit answers all four.
 | **CHARGE** | 0.70 → 0.55 | `hqDps`, and only with **two bodies** on the perimeter | cheap infantry, per point of manpower |
 | **BURN** | 0.55 → 0.00 | a 20-second clock, while the ground is held | whatever survives, and the medic keeping it alive |
 
-Five rules carry the design, and each of them was a measured correction rather than a guess:
+Six rules carry the design, and each of them was a measured correction rather than a guess:
 
 - **A shell opens the post; it does not take it.** Standoff fire works the BREACH share and
   stops at its floor. Once the post is open it stops being a target for guns at all — which
@@ -724,6 +724,15 @@ Five rules carry the design, and each of them was a measured correction rather t
   second way for a unit to leave the board with nothing watching it is worse than a repulse
   that reads as one. Held to one variable it changes no raid's clear rate and no raid's
   destruction — only what a half-failed one costs.
+- **A breach stays open** *(v1.41.2)*. "A shell opens the post; it does not take it" was
+  written as a live comparison against the breach floor, and a post being REPAIRED crosses
+  back over it — so the defence's own engineering re-arms the post as a ranged target and
+  hands back the very livelock that rule exists to prevent. Measured on the sustainment
+  faction defending at CC3: a lone gunship held the bar oscillating between 0.7031 and
+  0.7094 for thirty thousand ticks, and none of the three ways the spent-assault rule can
+  end a battle could see it. The breach is a high-water mark now. The post can still be
+  healed and healing it still costs the attacker time at BURN; it just cannot make itself
+  a target again.
 
 `KILL_CHAIN_VERSION` names a MODEL, frozen forever — version 0 is the sponge, so every
 archived replay re-fights the battle it recorded. Same discipline as `TERRAIN_VERSION` and

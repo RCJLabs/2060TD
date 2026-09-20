@@ -2788,6 +2788,84 @@ premium", which converts idle attrition into sessions.
 - [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
       AND against how often the player's input changed the outcome. A verb that
       does not move the second number is decoration.
+
+      **The second number now exists: `npm run balance -- --leverage`.** Same
+      board, same seed, same attack, the defender's policy the only variable —
+      doing nothing, against each of the three shipped standing-orders presets
+      with a stocked magazine. Checked before it was believed: the NONE column
+      reproduces `--siege`'s HELD in all 45 rows, and the magazine that rides
+      with the policies is inert without one (pinned in `standingOrders.test.ts`
+      after the probe agreed on 200/200 battles), so the columns really do
+      differ by one thing.
+
+      | | |
+      |---|---|
+      | FLIPPED | **8%** of battles had a verdict that depended on the policy |
+      | NO VERB HELPS | **82%** of rows came back identical under all four |
+
+      **The shape of it matters more than the number. Leverage lives in one
+      band and nowhere else.** Of 45 rows, 37 are decided before the battle
+      starts: every EARLY (CC1) row is 100% at level 2 and 0% at levels 3-4
+      under every policy, and every LATE (CC3) row is 100% under every policy.
+      Seven of the eight rows that move at all are MID (CC2) at level 3 or 4.
+      That is Phase 1's LIVE WAVES 28% seen from the other side — most sieges
+      are settled by the permanent layer before the player has a say, so a
+      fifth verb added to the same battles would read zero for the same reason
+      the first four do.
+
+      **And the verb set is not weak, it is one verb.** On every row that moves,
+      HOLDFAST is best or tied best, and on three of them it is the difference
+      between a row that cannot be won and one that nearly cannot be lost —
+      CHINA, NK and UN at MID (CC2) level 4 go 0% to 95%, 75% and 100%. On
+      those same rows COUNTERBATTERY and TRIPWIRE score exactly 0%. Across the
+      whole table neither ever moves a row by more than two battles in twenty,
+      in either direction, which at 20 seeds is the noise floor M13 set. Same
+      CP, same magazine, same battle: one preset decides it and two are
+      decoration. That is a content finding about the presets, not an argument
+      for more verbs.
+
+      **Then: WHY are those 37 rows decided? Two hypotheses, both refuted, and a
+      shipped hang behind them.**
+
+      The first was a rich-get-richer CP loop — a defence being overrun earns
+      least exactly when it needs most, since CP comes from kills. `--spend`
+      says no. Every losing row ends the battle sitting on a FULL 150 CP bank,
+      having spent 48-66 on exactly three actions. It is not starved; it is not
+      idle either. It always acts, always three times, always at the same price,
+      whether the base is winning comfortably or being overrun. The defender's
+      play is a fixed opening, not a response.
+
+      The second was that the action budget binds, `maxActions: 3` being the
+      only thing stopping a defender who dies rich. `npm run balance -- --budget`
+      sweeps it to 3, 6, 12 and unlimited. The ten dead EARLY (CC1) rows stay at
+      **0% at every one of them**, landing 11-17 actions and still losing 20/20.
+      So the constraint is IMPACT, not opportunity, and that is the finding: the
+      defender gets to act, can afford to act, and acting more does not help.
+
+      **The sweep also found an inversion, which turned out to be a hang.** UN
+      LATE (CC3) level 4 read 100% at cap 3 and 40% at cap 12 — playing more
+      lost the battle. It was not balance: DEFEAT is 0 at every budget, and
+      those were timeouts. Traced to a lone gunship holding a bar oscillating
+      between 0.7031 and 0.7094 of maximum for thirty thousand ticks, either
+      side of the 0.70 breach floor, because the UN's own repair aura kept
+      lifting the post back over the line that M22 tests LIVE to decide whether
+      standoff fire may target it. Fixed as `CHAIN_CURRENT = 3`: the breach
+      latches. Both inversions gone, 178 of the 180 cells in the sweep
+      byte-identical across the fix.
+
+      **Worth saying plainly: every instrument in the repo was blind to it,
+      including the two built to hunt exactly this.** `--siege` and `--leverage`
+      read the same before and after, because a defender only reaches the bug by
+      taking more than the three actions HOLDFAST allows, and nothing had ever
+      let one. v1.41.1's "stalls now 0/180 on both models" was measured with no
+      defender policy at all. It was true, and it was not the claim it looked
+      like.
+
+      **And the regenerated snapshot moved nothing — zero of 901 table rows.**
+      Which is the same fact from the other end: no shipped configuration can
+      reach the hang, because the most generous preset in the game allows six
+      actions and it takes more than that. A defect can be real, severe, and
+      completely invisible to every table you own, all at once.
 - [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
       memorable.**
 
@@ -3155,11 +3233,15 @@ was being read for.
 - Each milestone is pushed to the repo in a runnable state with green tests.
 - The 22 E2E harnesses gate every release, and they are TIMING-based: each step
   sleeps a fixed number of milliseconds rather than polling for the condition it
-  is about to assert. Under CPU load that is a flake source — three so far, a
-  different harness each time (`e2e-build` under a concurrent screenshot run,
-  `e2e-tutorial` on a port collision, `e2e-vault` on a reload that took longer
-  than its 2500ms to settle), and every one of them passed alone straight after.
-  Re-running the harness by itself is the workaround in use; converting the
-  sleeps to condition polls is the fix, and it is owed. Until then: a single
-  harness failing in a batch run is not evidence of a regression OR of a flake
-  until it has been re-run alone.
+  is about to assert. Under CPU load that is a flake source, and the v1.41.2
+  gate priced it: two full batches of the same suite on the same commit failed
+  `e2e-flow` and `e2e-raid` the first time and `e2e-build` the second. **No
+  harness failed twice, and all three passed alone.** Five different harnesses
+  have flaked this way now (`e2e-build`, `e2e-tutorial`, `e2e-vault`,
+  `e2e-flow`, `e2e-raid`), always a step that needed longer than its sleep — and
+  the second batch was starved by a single harness re-run started alongside it,
+  so the contention is easy to cause by accident. Converting the sleeps to
+  condition polls is the fix, and it is owed. Until then, two rules: run the
+  batch with nothing else going, and treat one harness failing in a batch as
+  evidence of neither a regression nor a flake until it has been re-run by
+  itself.

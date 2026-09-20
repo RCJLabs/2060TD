@@ -648,13 +648,28 @@ interface WaveTrace {
    * and that one cannot.
    */
   timedOut: boolean;
+  /** Standing-order actions the policy actually landed. */
+  acts: number;
+  /** CP it spent, and CP still in hand when the battle ended. */
+  spent: number;
+  banked: number;
+  kills: number;
 }
+
+/**
+ * What the defender is allowed to do. `null` is the Phase 1 baseline — the
+ * permanent layer alone, spending nothing — and every other entry is the
+ * closest thing the harness has to a player: a standing-orders preset with a
+ * typically-stocked magazine, the same pairing `defenseMatrix` uses.
+ */
+type SiegePolicy = StandingOrders | null;
 
 function siegeTrace(
   faction: FactionId,
   base: ReferenceBase,
   level: number,
   seed: number,
+  policy: SiegePolicy = null,
 ): WaveTrace {
   const catalog = defenseCatalogFor(faction);
   const roster = enemyRosterFor(faction);
@@ -673,7 +688,8 @@ function siegeTrace(
       walls: base.walls.map((w) => ({ ...w })),
       structures: base.structures.map((st) => ({ ...st })),
     },
-    powerCharges: {},
+    powerCharges: policy ? { a10: 2, arty: 1 } : {},
+    ...(policy ? { standingOrders: policy } : {}),
   };
   const engine = new Engine(config, catalog);
   engine.enqueue({ tick: 0, type: 'startAssault' });
@@ -700,7 +716,206 @@ function siegeTrace(
     held: engine.phase === 'victory',
     low,
     timedOut: engine.phase !== 'victory' && engine.phase !== 'defeat',
+    acts: engine.ordersExecuted,
+    spent: engine.stats.cpSpent,
+    banked: engine.cp,
+    kills: engine.stats.kills,
   };
+}
+
+/**
+ * WHY is a row decided before anybody plays?
+ *
+ * `--leverage` found that 37 of 45 rows come back identical under every
+ * policy, which is a fact about the rows and not about the verb list. This
+ * asks what the defender was actually ABLE to do in them, because three very
+ * different situations all read as "the policy changed nothing" and each one
+ * wants a different fix:
+ *
+ * - **STARVED** — no actions, no CP banked. The policy could not afford to
+ *   play. CP comes from `cpPerSecond` and from `cpValue` per kill, so a
+ *   defence that is being overrun earns least exactly when it needs most.
+ * - **IDLE** — no actions, CP piling up. The policy had the money and its
+ *   rules never fired: a `cpAtLeast` it never cleared, a target shape that
+ *   never appeared, an action budget spent early.
+ * - **SPENT AND LOST** — actions at the ceiling and the row still falls. The
+ *   verbs fired and did not matter, which is the only one of the three that
+ *   is an argument about the verbs themselves.
+ *
+ * Run under HOLDFAST alone, because `--leverage` showed it is the only preset
+ * that moves a row at all: asking what the other two were able to do is a
+ * question about presets, and this is a question about battles.
+ */
+function spendTable(levels = [2, 3, 4], seeds = 20): string {
+  const lines = [
+    `SPEND — what could the defender DO? HOLDFAST, means over ${seeds} seeds`,
+    'FACTION  | BASE        | LVL | HELD | KILLS |    CP SPENT |   CP BANKED | ACTS | READ',
+    '---------+-------------+-----+------+-------+-------------+-------------+------+---------------',
+  ];
+  const tally: Record<string, number> = { starved: 0, idle: 0, 'spent, lost': 0, live: 0 };
+
+  for (const faction of FACTION_IDS) {
+    for (const base of referenceBases()) {
+      for (const level of levels) {
+        const runs = Array.from({ length: seeds }, (_, i) =>
+          siegeTrace(
+            faction,
+            base,
+            level,
+            seedOf(level, base.ccLevel, i),
+            STANDING_ORDERS.holdfast,
+          ),
+        );
+        const mean = (f: (r: WaveTrace) => number): number =>
+          runs.reduce((a, r) => a + f(r), 0) / runs.length;
+        const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+        const acts = mean((r) => r.acts);
+        const spent = mean((r) => r.spent);
+        const banked = mean((r) => r.banked);
+        const kills = mean((r) => r.kills);
+
+        // A row is only "decided" if it is decided the same way every seed;
+        // anything in between is a row the player is already inside.
+        const read =
+          held > 0 && held < 100
+            ? 'live'
+            : acts >= 0.5
+              ? held === 100
+                ? 'spent, won'
+                : 'spent, lost'
+              : banked >= 1
+                ? 'idle'
+                : 'starved';
+        tally[read] = (tally[read] ?? 0) + 1;
+
+        lines.push(
+          `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+            `${pad(`${held.toFixed(0)}%`, 4)} | ${pad(kills.toFixed(1), 5)} | ` +
+            `${pad(spent.toFixed(1), 11)} | ${pad(banked.toFixed(1), 11)} | ` +
+            `${pad(acts.toFixed(1), 4)} | ${read}`,
+        );
+      }
+    }
+  }
+
+  lines.push('');
+  for (const [name, n] of Object.entries(tally)) {
+    if (n > 0) lines.push(`${name.toUpperCase()}: ${n} rows`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Does PLAYING change the outcome?
+ *
+ * M23 Phase 1 measured the defence with the player absent and found 28% of
+ * waves moving the margin at all. That says the battle is passive; it does not
+ * say whether a player COULD have changed it, and those are different claims.
+ * This is the second one: the same board, the same seed, the same attack, with
+ * the defender's policy as the only variable.
+ *
+ * The four policies are everything the headless harness can express as player
+ * input — doing nothing, and the three shipped standing-orders presets with a
+ * stocked magazine. The magazine rides along with the policy and not with the
+ * baseline, which would be a second variable if it did anything by itself; it
+ * does not, because nothing casts a power unless a policy or an autoPower rule
+ * asks for it. Pinned in `standingOrders.test.ts` ("a magazine with no policy
+ * to spend it changes nothing at all") rather than assumed, and checked here
+ * across all 45 rows: the NONE column reproduces `--siege`'s HELD exactly.
+ *
+ * That is a floor on the verb set's leverage, not a ceiling:
+ * a human picks targets a policy cannot. But it is the RIGHT floor to know
+ * before adding a verb, because if the verbs that exist move nothing on a row,
+ * the row is what needs fixing and a fourth verb will read zero too.
+ *
+ * FLIPPED is the number Phase 2 has to move. It counts battles, not rows: for
+ * one (base, level, seed) the four policies fight the identical attack, and a
+ * flip is a seed where they did not agree on the verdict. A row-level average
+ * would let one policy's good luck on seed 3 cancel another's bad luck on seed
+ * 5 and report leverage that no single battle ever had.
+ */
+function leverageTable(levels = [2, 3, 4], seeds = 8): string {
+  const policies: [string, SiegePolicy][] = [
+    ['NONE', null],
+    ['HOLD', STANDING_ORDERS.holdfast],
+    ['CBTY', STANDING_ORDERS.counterbattery],
+    ['TRIP', STANDING_ORDERS.tripwire],
+  ];
+  const lines = [
+    `LEVERAGE — does playing change the outcome? Policy is the only variable (${seeds} seeds)`,
+    'FACTION  | BASE        | LVL | ' +
+      policies.map(([name]) => pad(name, 4)).join(' | ') +
+      ' | SPREAD | FLIPPED | BEST dLOW',
+    '---------+-------------+-----+------+------+------+------+--------+---------+-----------',
+  ];
+  let flippedBattles = 0;
+  let allBattles = 0;
+  let deadRows = 0;
+  let allRows = 0;
+  let bestGain = 0;
+
+  for (const faction of FACTION_IDS) {
+    for (const base of referenceBases()) {
+      for (const level of levels) {
+        // [policy][seed] — held as a grid so a seed can be read ACROSS
+        // policies, which is the whole point of the table.
+        const grid = policies.map(([, policy]) =>
+          Array.from({ length: seeds }, (_, i) =>
+            siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), policy),
+          ),
+        );
+        const holds = grid.map((runs) => (runs.filter((r) => r.held).length / seeds) * 100);
+        let flips = 0;
+        for (let i = 0; i < seeds; i++) {
+          const verdicts = new Set(grid.map((runs) => runs[i]!.held));
+          if (verdicts.size > 1) flips++;
+        }
+        flippedBattles += flips;
+        allBattles += seeds;
+        allRows++;
+        const spread = Math.max(...holds) - Math.min(...holds);
+        if (spread === 0 && flips === 0) deadRows++;
+
+        // How much lower the post was allowed to get — averaged per seed, and
+        // the best policy read per seed rather than per row, because "the
+        // best policy" is a choice a player makes for THIS battle.
+        let gain = 0;
+        for (let i = 0; i < seeds; i++) {
+          const bare = grid[0]![i]!.low;
+          const best = Math.max(...grid.slice(1).map((runs) => runs[i]!.low));
+          gain += best - bare;
+        }
+        gain /= seeds;
+        if (gain > bestGain) bestGain = gain;
+
+        lines.push(
+          `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+            holds.map((h) => pad(`${h.toFixed(0)}%`, 4)).join(' | ') +
+            ` | ${pad(spread.toFixed(0), 6)} | ${pad(`${flips}/${seeds}`, 7)} | ` +
+            `${pad(gain >= 0 ? `+${gain.toFixed(3)}` : gain.toFixed(3), 10)}`,
+        );
+      }
+    }
+  }
+
+  const pct = (a: number, b: number): string => (b > 0 ? ((a / b) * 100).toFixed(0) : '0');
+  lines.push('');
+  lines.push(
+    `FLIPPED ${pct(flippedBattles, allBattles)}% — the share of BATTLES whose verdict depended on the ` +
+      'policy. This is the second number M23 Phase 2 judges a verb by, and the ' +
+      'first one it has to move: a verb that does not change what happens is decoration.',
+  );
+  lines.push(
+    `NO VERB HELPS ${pct(deadRows, allRows)}% of rows came back identical under all four policies — ` +
+      'same hold rate, no seed disagreeing. On those the verb set is not weak, it is absent, ' +
+      'and a fifth verb added to the same battle would read zero too.',
+  );
+  lines.push(
+    `BEST dLOW +${bestGain.toFixed(3)} — the largest a policy ever moved how close the post came to ` +
+      'falling, averaged over seeds. Integrity is continuous where a verdict is not, so this ' +
+      'sees leverage that has not yet grown big enough to flip a battle.',
+  );
+  return lines.join('\n');
 }
 
 function siegeTable(levels = [2, 3, 4], seeds = 8): string {
@@ -3746,6 +3961,53 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--budget')) {
+    // Prices the action budget, the one lever that costs nothing to test:
+    // `maxActions` is the only thing stopping a defender who ends a lost
+    // battle sitting on a full 150 CP. If the dead rows move with it, they
+    // were an opportunity problem. They do not.
+    const budgets = [3, 6, 12, 999];
+    console.log('BUDGET — HOLDFAST with maxActions swept (20 seeds). Held% / acts / banked');
+    console.log(
+      'FACTION  | BASE        | LVL | ' + budgets.map((b) => pad(`cap ${b}`, 16)).join(' | '),
+    );
+    for (const faction of FACTION_IDS) {
+      for (const base of referenceBases()) {
+        for (const level of [2, 3, 4]) {
+          const cells = budgets.map((maxActions) => {
+            const orders = { ...STANDING_ORDERS.holdfast, maxActions };
+            const runs = Array.from({ length: 20 }, (_, i) =>
+              siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), orders),
+            );
+            const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+            const acts = runs.reduce((a, r) => a + r.acts, 0) / runs.length;
+            const bank = runs.reduce((a, r) => a + r.banked, 0) / runs.length;
+            return pad(`${held.toFixed(0)}% ${acts.toFixed(1)}a ${bank.toFixed(0)}cp`, 16);
+          });
+          console.log(
+            `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+              cells.join(' | '),
+          );
+        }
+      }
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--spend')) {
+    const arg = process.argv[process.argv.indexOf('--spend') + 1];
+    const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 20;
+    console.log(spendTable([2, 3, 4], seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--leverage')) {
+    const arg = process.argv[process.argv.indexOf('--leverage') + 1];
+    const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 8;
+    console.log(leverageTable([2, 3, 4], seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--mix')) {
     const arg = process.argv[process.argv.indexOf('--mix') + 1];
     console.log(mixTable(/^\d+$/.test(arg ?? '') ? Number(arg) : CHAIN_NONE));
@@ -4240,6 +4502,16 @@ function main(): void {
       '> the wire walks home. It does not. The DEFENSE rows gained for the mirror reason —',
       '> a stalemate used to run to the tick cap and be filed as a defeat, and is now',
       '> scored as the defender victory it always was.',
+      '>',
+      '> **v1.41.2 latches the breach, and these tables are measured against chain',
+      '> version 3.** M22 dropped the opened post from the target list so standoff fire',
+      '> could not shell a bar that cannot move, and wrote it as a live comparison',
+      '> against the breach floor — which a repair aura crosses back over, handing the',
+      '> livelock straight back. Found in M23 Phase 2 on UN LATE (CC3) level 4, where a',
+      '> lone gunship held a bar oscillating either side of 0.70 for thirty thousand',
+      '> ticks. It was invisible to every table in this file, including the two written',
+      '> to hunt exactly this: a defender only reaches it by taking more than the three',
+      '> actions HOLDFAST allows, and nothing here had ever let one.',
       '',
       '```',
       body,

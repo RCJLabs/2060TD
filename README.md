@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.41.1, in the browser. No install, no account, works on a phone.
+v1.41.2, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,7 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.41.1: the kill chain
+## Current state — v1.41.2: the kill chain
 
 For twenty-two milestones the command post was an **HP sponge**, and it decided
 the game in a way nobody designed. Ranged fire is discounted hard against
@@ -90,6 +90,17 @@ able to do anything about it. An assault that achieves nothing for ninety
 seconds is now spent, and written off where it stands. Held to one variable, the
 rule changes no raid's clear rate and no raid's destruction in any tier — only
 what a half-failed raid costs, and that by a lot.
+
+**v1.41.2 — a threshold a rule tests LIVE can be crossed back.** "A shell opens
+the post; it does not take it" was written as a live comparison against the
+breach floor, and a post being *repaired* crosses back over it — so the
+defence's own engineering re-arms the post as a ranged target and hands back
+the livelock that rule exists to prevent. Found by sweeping the defender's
+action budget past where any content sits: a lone gunship holding the bar
+between 0.7031 and 0.7094 for thirty thousand ticks. **Every instrument in the
+repo was blind to it**, including the two written to hunt exactly this, because
+all of them run the defender at or below the three actions its best preset
+allows. The breach latches now.
 
 ## v1.40: a board a phone can read
 
@@ -1472,6 +1483,11 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --chain [ver] for how far a raid gets, by stage, or
                    # -- --siege [seeds] for whether a siege is ever CLOSE —
                    #    the margin at each wave end rather than the verdict, or
+                   # -- --leverage [seeds] for whether PLAYING changes the
+                   #    outcome — the same battle under each defender policy, or
+                   # -- --spend [seeds] for what the defender was ABLE to do:
+                   #    starved, idle, or it acted and lost anyway, or
+                   # -- --budget to sweep the action budget past the content, or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or
