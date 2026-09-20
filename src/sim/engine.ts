@@ -1886,6 +1886,11 @@ export class Engine {
    */
   private postTakesFire(): boolean {
     if (!this.chain.staged) return true;
+    // `chainDone` is a high-water mark, so this latch cannot be undone by a
+    // repair aura lifting the bar back over the breach floor — which is
+    // exactly the livelock the live comparison below still has. See
+    // `ChainModel.latchOpen`.
+    if (this.chain.latchOpen && this.chainDone >= 1) return false;
     return this.cc.hp > this.chain.breachTo * this.cc.profile.maxHp;
   }
 

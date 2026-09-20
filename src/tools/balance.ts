@@ -648,6 +648,12 @@ interface WaveTrace {
    * and that one cannot.
    */
   timedOut: boolean;
+  /** Standing-order actions the policy actually landed. */
+  acts: number;
+  /** CP it spent, and CP still in hand when the battle ended. */
+  spent: number;
+  banked: number;
+  kills: number;
 }
 
 /**
@@ -710,7 +716,93 @@ function siegeTrace(
     held: engine.phase === 'victory',
     low,
     timedOut: engine.phase !== 'victory' && engine.phase !== 'defeat',
+    acts: engine.ordersExecuted,
+    spent: engine.stats.cpSpent,
+    banked: engine.cp,
+    kills: engine.stats.kills,
   };
+}
+
+/**
+ * WHY is a row decided before anybody plays?
+ *
+ * `--leverage` found that 37 of 45 rows come back identical under every
+ * policy, which is a fact about the rows and not about the verb list. This
+ * asks what the defender was actually ABLE to do in them, because three very
+ * different situations all read as "the policy changed nothing" and each one
+ * wants a different fix:
+ *
+ * - **STARVED** — no actions, no CP banked. The policy could not afford to
+ *   play. CP comes from `cpPerSecond` and from `cpValue` per kill, so a
+ *   defence that is being overrun earns least exactly when it needs most.
+ * - **IDLE** — no actions, CP piling up. The policy had the money and its
+ *   rules never fired: a `cpAtLeast` it never cleared, a target shape that
+ *   never appeared, an action budget spent early.
+ * - **SPENT AND LOST** — actions at the ceiling and the row still falls. The
+ *   verbs fired and did not matter, which is the only one of the three that
+ *   is an argument about the verbs themselves.
+ *
+ * Run under HOLDFAST alone, because `--leverage` showed it is the only preset
+ * that moves a row at all: asking what the other two were able to do is a
+ * question about presets, and this is a question about battles.
+ */
+function spendTable(levels = [2, 3, 4], seeds = 20): string {
+  const lines = [
+    `SPEND — what could the defender DO? HOLDFAST, means over ${seeds} seeds`,
+    'FACTION  | BASE        | LVL | HELD | KILLS |    CP SPENT |   CP BANKED | ACTS | READ',
+    '---------+-------------+-----+------+-------+-------------+-------------+------+---------------',
+  ];
+  const tally: Record<string, number> = { starved: 0, idle: 0, 'spent, lost': 0, live: 0 };
+
+  for (const faction of FACTION_IDS) {
+    for (const base of referenceBases()) {
+      for (const level of levels) {
+        const runs = Array.from({ length: seeds }, (_, i) =>
+          siegeTrace(
+            faction,
+            base,
+            level,
+            seedOf(level, base.ccLevel, i),
+            STANDING_ORDERS.holdfast,
+          ),
+        );
+        const mean = (f: (r: WaveTrace) => number): number =>
+          runs.reduce((a, r) => a + f(r), 0) / runs.length;
+        const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+        const acts = mean((r) => r.acts);
+        const spent = mean((r) => r.spent);
+        const banked = mean((r) => r.banked);
+        const kills = mean((r) => r.kills);
+
+        // A row is only "decided" if it is decided the same way every seed;
+        // anything in between is a row the player is already inside.
+        const read =
+          held > 0 && held < 100
+            ? 'live'
+            : acts >= 0.5
+              ? held === 100
+                ? 'spent, won'
+                : 'spent, lost'
+              : banked >= 1
+                ? 'idle'
+                : 'starved';
+        tally[read] = (tally[read] ?? 0) + 1;
+
+        lines.push(
+          `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+            `${pad(`${held.toFixed(0)}%`, 4)} | ${pad(kills.toFixed(1), 5)} | ` +
+            `${pad(spent.toFixed(1), 11)} | ${pad(banked.toFixed(1), 11)} | ` +
+            `${pad(acts.toFixed(1), 4)} | ${read}`,
+        );
+      }
+    }
+  }
+
+  lines.push('');
+  for (const [name, n] of Object.entries(tally)) {
+    if (n > 0) lines.push(`${name.toUpperCase()}: ${n} rows`);
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -3866,6 +3958,46 @@ function main(): void {
     const arg = process.argv[process.argv.indexOf('--siege') + 1];
     const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 8;
     console.log(siegeTable([2, 3, 4], seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--budget')) {
+    // Prices the action budget, the one lever that costs nothing to test:
+    // `maxActions` is the only thing stopping a defender who ends a lost
+    // battle sitting on a full 150 CP. If the dead rows move with it, they
+    // were an opportunity problem. They do not.
+    const budgets = [3, 6, 12, 999];
+    console.log('BUDGET — HOLDFAST with maxActions swept (20 seeds). Held% / acts / banked');
+    console.log(
+      'FACTION  | BASE        | LVL | ' + budgets.map((b) => pad(`cap ${b}`, 16)).join(' | '),
+    );
+    for (const faction of FACTION_IDS) {
+      for (const base of referenceBases()) {
+        for (const level of [2, 3, 4]) {
+          const cells = budgets.map((maxActions) => {
+            const orders = { ...STANDING_ORDERS.holdfast, maxActions };
+            const runs = Array.from({ length: 20 }, (_, i) =>
+              siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), orders),
+            );
+            const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+            const acts = runs.reduce((a, r) => a + r.acts, 0) / runs.length;
+            const bank = runs.reduce((a, r) => a + r.banked, 0) / runs.length;
+            return pad(`${held.toFixed(0)}% ${acts.toFixed(1)}a ${bank.toFixed(0)}cp`, 16);
+          });
+          console.log(
+            `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+              cells.join(' | '),
+          );
+        }
+      }
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--spend')) {
+    const arg = process.argv[process.argv.indexOf('--spend') + 1];
+    const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 20;
+    console.log(spendTable([2, 3, 4], seeds));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

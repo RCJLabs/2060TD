@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHAIN_CURRENT, CHAIN_NONE, chainModelFor } from '../src/sim/killchain';
+import { CHAIN_CURRENT, CHAIN_NONE, CHAIN_SPENT, chainModelFor } from '../src/sim/killchain';
 import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
 import type { SimConfig } from '../src/sim/types';
 import { Engine } from '../src/sim/engine';
@@ -216,6 +216,61 @@ describe('the kill chain', () => {
     expect(e.chainProgress()!.holders).toBe(0);
     expect(e.cc.hp).toBeGreaterThan(half);
     expect(e.cc.hp).toBeLessThanOrEqual(CHARGE_FLOOR);
+  });
+
+  /**
+   * The third deadlock (v1.41.2). M22 dropped the opened post from the target
+   * list so standoff fire could not shell an immovable bar forever, and wrote
+   * that as a live comparison against the breach floor. A repaired post
+   * crosses back over it, re-arms itself as a target, and the livelock M22
+   * removed walks straight back in — which is what UN LATE (CC3) level 4 was
+   * doing for thirty thousand ticks, the sustainment faction healing its own
+   * command post a hair above the floor while a lone gunship knocked it back
+   * down.
+   */
+  it('a post being repaired does not re-arm itself as a target forever', () => {
+    // One aircraft, a post held at the breach floor, and something patching
+    // it by a hair — the UN LATE (CC3) level 4 reproducer, in miniature. The
+    // aura is modelled by re-healing on a clock rather than placing an
+    // engineer, so the test turns on the threshold and not on content.
+    const run = (version: number) => {
+      const e = makeSandbox(42, { killChainVersion: version });
+      send(e, 'breacher', 2);
+      send(e, 'gunFlyer', 1);
+      for (let i = 0; i < 6000 && e.cc.hp > BREACH_FLOOR; i++) e.step();
+      const opened = e.cc.hp <= BREACH_FLOOR;
+      // Leave exactly the reproducer standing: one AIRCRAFT, which is never a
+      // body on the ground and so can never crew the charge however long it
+      // stays. Shelling the post is the only thing it can do at all.
+      for (const a of e.attackers) if (a.profile.kind !== 'gunFlyer') a.hp = 0;
+      // Long past the model's patience, with the post patched on a clock.
+      for (let i = 0; i < MODEL.stallSeconds * 20 + 2000; i++) {
+        if (i % 20 === 0) e.cc.hp = Math.max(e.cc.hp, BREACH_FLOOR + 30);
+        e.step();
+      }
+      return { opened, left: e.attackers.length, states: e.attackers.map((a) => a.state) };
+    };
+
+    const spent = run(CHAIN_SPENT);
+    const latched = run(CHAIN_CURRENT);
+    // Liveness: both fixtures must actually have opened the post, or the two
+    // runs differ for a reason that has nothing to do with the threshold.
+    expect(spent.opened, 'the v2 fixture never opened the post').toBe(true);
+    expect(latched.opened, 'the v3 fixture never opened the post').toBe(true);
+    // v1.41.1: the patched post is a target again, so the aircraft sits at
+    // standoff `engaging` it — and `engaging` is not `assaulting`, which is
+    // the only state the spent-assault sweep can take. Nothing ever ends.
+    // It is still standing there, and the reason is the third of the three in
+    // `ChainModel.latchOpen`: the stall clock watches a board fingerprint that
+    // CONTAINS the bar, so a post being damaged to the floor and patched back
+    // off it resets the clock forever. (The field case reached the same hang
+    // by the first reason as well — there the aircraft never closed at all,
+    // and `engaging` is a state the sweep cannot take.)
+    expect(spent.left, 'v1.41.1 spent an aircraft it cannot see').toBe(1);
+    expect(spent.states).toEqual(['assaulting']);
+    // v1.41.2: the breach latched, so the post is nobody's ranged target. The
+    // aircraft closes instead, which makes it an assault the sweep can spend.
+    expect(latched.left, 'the aircraft is still loitering').toBe(0);
   });
 
   it('the whole chain ends in a taken post, and the sim says who took it', () => {

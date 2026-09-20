@@ -66,8 +66,14 @@ export const CHAIN_NONE = 0;
 /** v1.41's model, frozen: it deadlocks, and `CHAIN_STALL_SECONDS` says how. */
 export const CHAIN_BREACH = 1;
 
+/**
+ * v1.41.1's model, frozen: it deadlocks too, in a way its own fix could not
+ * see. See `latchOpen`.
+ */
+export const CHAIN_SPENT = 2;
+
 /** The shipped model. New configs name this; nothing else should. */
-export const CHAIN_CURRENT = 2;
+export const CHAIN_CURRENT = 3;
 
 /** Where a raid has got to. `down` means the post has fallen. */
 export type ChainStage = 'breach' | 'suppress' | 'charge' | 'burn' | 'down';
@@ -156,6 +162,14 @@ export interface ChainModel {
    * stopwatch.
    */
   readonly stallSeconds: number;
+  /**
+   * Once BREACH has been completed, does the post STAY a valid target for
+   * ranged fire, however much it is later repaired?
+   *
+   * False re-reads the live bar every tick, which is what v1.41 and v1.41.1
+   * do and what a repair aura turns into a livelock.
+   */
+  readonly latchOpen: boolean;
 }
 
 const sponge: ChainModel = {
@@ -169,6 +183,7 @@ const sponge: ChainModel = {
   burnSeconds: 1,
   burnDecay: 0,
   stallSeconds: 0,
+  latchOpen: false,
 };
 
 /**
@@ -218,6 +233,7 @@ const theBreach: ChainModel = {
   burnDecay: 0.5,
   // No stall rule, which is the defect this version is frozen with.
   stallSeconds: 0,
+  latchOpen: false,
 };
 
 /**
@@ -231,16 +247,51 @@ const theBreach: ChainModel = {
  */
 const spentAssault: ChainModel = {
   ...theBreach,
-  version: CHAIN_CURRENT,
+  version: CHAIN_SPENT,
   label: 'breach, suppress, charge, burn; a spent assault withdraws',
   stallSeconds: 90,
+  latchOpen: false,
+};
+
+/**
+ * The third deadlock, and the one that says why a rule needs a LATCH.
+ *
+ * M22 stopped three tanks shelling an immovable bar by dropping the opened
+ * post from the target list, and wrote that as a live comparison: the post
+ * takes fire while `hp > breachTo * maxHp`. A repaired post crosses back over
+ * that line. Measured in M23 Phase 2, on UN LATE (CC3) level 4 — the
+ * sustainment faction, repairing its own command post — a lone `wz10` stood
+ * off and shelled a bar that oscillated between 0.7031 and 0.7094 of maximum
+ * for THIRTY THOUSAND ticks: damaged to the floor, healed a hair above it,
+ * re-acquired, damaged again.
+ *
+ * v1.41.1's spent-assault rule cannot see it, three times over. The unit is
+ * `engaging` rather than `assaulting`, so it never counts at the post and the
+ * clock never starts; the clock's kill sweep only takes units that are
+ * assaulting; and the board fingerprint the clock watches contains the bar,
+ * which the repair aura is moving every tick. A rule written against "nobody
+ * is making progress" was defeated by something making a tiny amount of it,
+ * forever.
+ *
+ * So the breach latches. Once the post has been opened it stays open to the
+ * target list however much it is later repaired, which is also the honest
+ * reading: a hole in the wall does not un-hole because somebody patched the
+ * paint. The post can still be healed, and healing it still costs the
+ * attacker time at BURN — it just cannot re-arm itself as a target.
+ */
+const latched: ChainModel = {
+  ...spentAssault,
+  version: CHAIN_CURRENT,
+  label: 'breach, suppress, charge, burn; a breach stays open',
+  latchOpen: true,
 };
 
 /** The version registry. A version is frozen: a new model is a new number. */
 export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_NONE]: sponge,
   [CHAIN_BREACH]: theBreach,
-  [CHAIN_CURRENT]: spentAssault,
+  [CHAIN_SPENT]: spentAssault,
+  [CHAIN_CURRENT]: latched,
 };
 
 /**
