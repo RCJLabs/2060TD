@@ -2722,9 +2722,55 @@ repositioning field defences mid-wave at a cost. And change WHEN a siege happens
 — an offline probe should be offerable as "defend this live, right now, for a
 premium", which converts idle attrition into sessions.
 
-- [ ] **Phase 1 — a pressure-curve instrument.** Is a siege ever actually close?
-      Measure the margin over time, not the verdict. A defence that is decided at
-      wave 1 and watched for four more is not an action game.
+- [x] **Phase 1 — a pressure-curve instrument.** `npm run balance -- --siege`.
+      One row per (base, level): post integrity at the end of each wave, the
+      first wave that moves it, the wave that moves it most, and the lowest
+      integrity reached in a run that was WON — the only number that can say a
+      win was earned rather than collected.
+
+      **It is not an action game yet, and the numbers are not close.**
+
+      | | |
+      |---|---|
+      | LIVE WAVES | **28%** — the share of waves that move the margin at all |
+      | NEVER IN DOUBT | **69%** of rows that were won never dropped below 90% integrity in ANY seed |
+
+      Seven waves in ten are watched rather than played: the attack never
+      reaches the one thing that decides the battle. And where the defender
+      wins, it usually wins untouched. A typical row reads `100 100 100 100 99`
+      — four waves of nothing, then a scratch.
+
+      **It also found a hang that v1.41 shipped.** 18% of reference sieges
+      deadlocked: 0% on the sponge, 18% on the chain, every one of them a
+      single attacker in state `assaulting` with the bar pinned at the breach
+      floor. The crew minimum means one attacker can never take a post; once
+      every gun that could reach it is dead it can never be killed either; and
+      a wave ends only when the attackers do. In a live siege that is a player
+      watching one immortal tank stand on their command post until the tick
+      cap.
+
+      Fixed as `CHAIN_CURRENT = 2` — a new version rather than an edit,
+      because v1.41 had shipped and the freeze stops being a formality the
+      moment a build reaches a player. An assault that has achieved nothing
+      for 90 seconds is spent and withdraws. "Achieved nothing" is the whole
+      board standing still — no damage to the post, nothing destroyed, nobody
+      killed — rather than the bar alone, because a bar pinned at the
+      suppression gate while the rest of the force works through the covering
+      guns is an assault in progress.
+
+      **The fix had a second half that only appeared once the first landed.** A
+      lone AIRCRAFT deadlocks identically, and for a reason M22 introduced
+      itself: "an aircraft is not a body on the ground" keeps it out of the
+      holder count, so a clock gated on holders never started for the one
+      attacker that is hardest to shoot down. The quorum counts anyone who
+      reached the objective; only the crew minimum counts boots. Stalls now
+      0/180 on both models.
+
+      **And a number in `BALANCE.md` was wrong because of it.** `defenseMatrix`
+      reads anything that is not a victory as "did not hold", so every
+      deadlock has been filed as a defeat: `NK MID (CC2)` at level 3 read 0%
+      hold when all eight seeds were stalemates with the post at 70%. Those
+      rows move on the next snapshot.
 - [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
       AND against how often the player's input changed the outcome. A verb that
       does not move the second number is decoration.

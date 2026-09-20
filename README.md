@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.41, in the browser. No install, no account, works on a phone.
+v1.41.1, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -1459,6 +1459,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --structure for what actually kills a command post, or
                    # -- --carry for how much of a raid is one unit, or
                    # -- --chain [ver] for how far a raid gets, by stage, or
+                   # -- --siege [seeds] for whether a siege is ever CLOSE —
+                   #    the margin at each wave end rather than the verdict, or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or

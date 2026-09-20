@@ -724,3 +724,22 @@ here with the change and its date.
   difference at all. Tuning content against a snapshot one run old, of a combat
   model four phases old, that no player has touched, is doing the work twice.
   Measured, explained, levers named, handed forward.
+- 2026-09-20 — **A rule that makes something unwinnable must also make it end**
+  (M23 Phase 1). The kill chain's crew minimum means one attacker can never take
+  a command post — which was the point, and which nobody thought through to its
+  conclusion: once every gun that could reach that attacker is dead it can never
+  be killed either, and a wave ends only when the attackers do. v1.41 shipped an
+  18% chance of a siege that never finishes. Measured as 0% on the sponge against
+  18% on the chain, the signature identical every time: one unit, state
+  `assaulting`, bar pinned at the breach floor. An assault that achieves nothing
+  for ninety seconds is now spent and withdraws. The termination argument for a
+  battle used to be "attackers die"; adding a rule that makes an attacker
+  incapable of winning quietly removed the other half of it.
+- 2026-09-20 — **The second half of a bug hides behind the first.** Fixing the
+  ground deadlock revealed an identical one for aircraft, caused by a different
+  M22 rule: "an aircraft is not a body on the ground" keeps it out of the holder
+  count, so a stall clock gated on holders never started for the attacker that is
+  hardest to shoot down. Two rules written a phase apart, each correct alone,
+  composed into a hole. The measurement that caught the first was re-run after
+  fixing it and still showed 6% — which is the only reason the second was found
+  at all.

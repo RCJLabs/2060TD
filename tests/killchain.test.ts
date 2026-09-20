@@ -134,7 +134,11 @@ describe('the kill chain', () => {
   it('one body cannot work the charge; two can', () => {
     const alone = staged();
     send(alone, 'tank', 1);
-    alone.run(2500);
+    // Read it BEFORE the stall rule fires. A lone tank reaches the post around
+    // t=13s and has the shell open by t=28s; from there the board is static
+    // and `stallSeconds` starts counting, so at 2500 ticks the unit has
+    // already withdrawn and `holders` is 0. 1500 sits inside that window.
+    alone.run(1500);
     const chain = alone.chainProgress()!;
     expect(chain.holders).toBe(1);
     expect(chain.crew).toBe(2);
@@ -145,6 +149,48 @@ describe('the kill chain', () => {
     send(pair, 'tank', 2);
     pair.run(2500);
     expect(pair.cc.hp).toBeLessThan(CHARGE_FLOOR);
+  });
+
+  it('an assault that can achieve nothing is spent, and the battle ends', () => {
+    // v1.41 shipped a hang: the crew minimum means one attacker can never take
+    // a post, and once every gun that could reach it is dead it can never be
+    // killed either — so a wave that ends when the attackers do never ends.
+    // Measured at 18% of reference sieges. The sandbox reproduces it exactly:
+    // one tank, nothing that can shoot it.
+    const e = staged();
+    send(e, 'tank', 1);
+    e.run(1500);
+    expect(e.chainProgress()!.holders, 'the fixture never reached the post').toBe(1);
+    expect(e.attackers.length).toBe(1);
+
+    // Past the model's patience it gives up and the board clears.
+    e.run(MODEL.stallSeconds * 20 + 100);
+    expect(e.attackers.length, 'the spent assault is still standing there').toBe(0);
+    expect(e.cc.hp, 'the post fell to a force that could never take it').toBeGreaterThan(0);
+
+    // And the rule does not fire on an assault that is getting somewhere: two
+    // tanks move the bar, so the board is never static.
+    const working = staged();
+    send(working, 'tank', 2);
+    working.run(MODEL.stallSeconds * 20 + 2000);
+    expect(working.cc.hp, 'a working assault was withdrawn').toBeLessThan(CHARGE_FLOOR);
+  });
+
+  it('and an aircraft loitering over the post is spent too', () => {
+    // The half that was missed the first time. "An aircraft is not a body on
+    // the ground" keeps it out of the holder count, so a stall clock gated on
+    // HOLDERS never starts for the one attacker that is hardest to shoot down
+    // — a lone Reaper deadlocked every late reference base at level 4 after
+    // the ground case was already fixed. The quorum counts anyone who reached
+    // the objective; only the crew minimum counts boots.
+    const e = staged();
+    send(e, 'gunFlyer', 1);
+    e.run(1500);
+    expect(e.attackers.length, 'the fixture never reached the post').toBe(1);
+    expect(e.chainProgress()!.holders, 'an aircraft was counted as a holder').toBe(0);
+
+    e.run(MODEL.stallSeconds * 20 + 100);
+    expect(e.attackers.length, 'the aircraft is still loitering').toBe(0);
   });
 
   it('the burn is a clock, and it backs off when the ground is not held', () => {
