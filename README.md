@@ -1541,6 +1541,11 @@ npm run fit -- 20x30 18x28
                    # a candidate grid against the real board rect on six
                    # devices, with the drawer open and shut, because on a
                    # portrait world the two bind in turn
+npm run e2e        # THE GATE: all 22 harnesses in sequence, and a failure
+                   # re-run once ALONE before it is called anything — a flake
+                   # is reported loudly and passes, a real failure fails twice
+                   # and does not. Run it with nothing else going; the
+                   # contention that causes flakes is easy to cause by accident
 node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA

@@ -3320,17 +3320,14 @@ was being read for.
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
 - Balance numbers are provisional until M5's harness; resist hand-tuning before it exists.
 - Each milestone is pushed to the repo in a runnable state with green tests.
-- The 22 E2E harnesses gate every release, and they are TIMING-based: each step
-  sleeps a fixed number of milliseconds rather than polling for the condition it
-  is about to assert. Under CPU load that is a flake source, and the v1.41.2
-  gate priced it: two full batches of the same suite on the same commit failed
-  `e2e-flow` and `e2e-raid` the first time and `e2e-build` the second. **No
-  harness failed twice, and all three passed alone.** Five different harnesses
-  have flaked this way now (`e2e-build`, `e2e-tutorial`, `e2e-vault`,
-  `e2e-flow`, `e2e-raid`), always a step that needed longer than its sleep — and
-  the second batch was starved by a single harness re-run started alongside it,
-  so the contention is easy to cause by accident. Converting the sleeps to
-  condition polls is the fix, and it is owed. Until then, two rules: run the
-  batch with nothing else going, and treat one harness failing in a batch as
-  evidence of neither a regression nor a flake until it has been re-run by
-  itself.
+- The 22 E2E harnesses gate every release with `npm run e2e`, which runs them
+  in sequence and **re-runs a failure once, alone, before calling it anything**
+  — the rule that came out of the v1.41.2 gate, where two batches on the same
+  commit failed different harnesses and none failed twice. A flake is reported
+  loudly and passes the gate; a real failure fails twice and does not.
+- Sixteen of those harnesses poll for the UI to STOP CHANGING rather than
+  sleeping a constant (v1.42). The six gesture-driven ones keep their sleeps on
+  purpose: their waits are part of the test — a list has to still be COASTING
+  when the next touch lands — so a settle-poll there would buy false passes
+  rather than fewer false failures. `e2e-drawer` is the one that still flakes,
+  and that is the accepted residual rather than an oversight.
