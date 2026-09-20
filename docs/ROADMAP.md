@@ -2722,9 +2722,69 @@ repositioning field defences mid-wave at a cost. And change WHEN a siege happens
 — an offline probe should be offerable as "defend this live, right now, for a
 premium", which converts idle attrition into sessions.
 
-- [ ] **Phase 1 — a pressure-curve instrument.** Is a siege ever actually close?
-      Measure the margin over time, not the verdict. A defence that is decided at
-      wave 1 and watched for four more is not an action game.
+- [x] **Phase 1 — a pressure-curve instrument.** `npm run balance -- --siege`.
+      One row per (base, level): post integrity at the end of each wave, the
+      first wave that moves it, the wave that moves it most, and the lowest
+      integrity reached in a run that was WON — the only number that can say a
+      win was earned rather than collected.
+
+      **It is not an action game yet, and the numbers are not close.**
+
+      | | |
+      |---|---|
+      | LIVE WAVES | **28%** — the share of waves that move the margin at all |
+      | NEVER IN DOUBT | **69%** of rows that were won never dropped below 90% integrity in ANY seed |
+
+      Seven waves in ten are watched rather than played: the attack never
+      reaches the one thing that decides the battle. And where the defender
+      wins, it usually wins untouched. A typical row reads `100 100 100 100 99`
+      — four waves of nothing, then a scratch.
+
+      **It also found a hang that v1.41 shipped.** 18% of reference sieges
+      deadlocked: 0% on the sponge, 18% on the chain, every one of them a
+      single attacker in state `assaulting` with the bar pinned at the breach
+      floor. The crew minimum means one attacker can never take a post; once
+      every gun that could reach it is dead it can never be killed either; and
+      a wave ends only when the attackers do. In a live siege that is a player
+      watching one immortal tank stand on their command post until the tick
+      cap.
+
+      Fixed as `CHAIN_CURRENT = 2` — a new version rather than an edit,
+      because v1.41 had shipped and the freeze stops being a formality the
+      moment a build reaches a player. An assault that has achieved nothing
+      for 90 seconds is spent and withdraws. "Achieved nothing" is the whole
+      board standing still — no damage to the post, nothing destroyed, nobody
+      killed — rather than the bar alone, because a bar pinned at the
+      suppression gate while the rest of the force works through the covering
+      guns is an assault in progress.
+
+      **The fix had a second half that only appeared once the first landed.** A
+      lone AIRCRAFT deadlocks identically, and for a reason M22 introduced
+      itself: "an aircraft is not a body on the ground" keeps it out of the
+      holder count, so a clock gated on holders never started for the one
+      attacker that is hardest to shoot down. The quorum counts anyone who
+      reached the objective; only the crew minimum counts boots. Stalls now
+      0/180 on both models.
+
+      **And a number in `BALANCE.md` was wrong because of it.** `defenseMatrix`
+      reads anything that is not a victory as "did not hold", so every
+      deadlock has been filed as a defeat: `NK MID (CC2)` at level 3 read 0%
+      hold when all eight seeds were stalemates with the post at 70%. The
+      re-measured snapshot moved exactly those rows — that cell 10 → 85, and
+      `NK LATE (CC3)` levels 4-6 from 0/0/0 to 100/100/85.
+
+      **What the rule costs, held to one variable.** Same seeds, same plans,
+      chain v1 against v2 across the USA raid ladder: CLEAR% and DESTR% come
+      back IDENTICAL in all five tiers and only MP LOST% moves — T2 27 → 73,
+      T4 66 → 75. That is the whole of it. An assault that stalls was never
+      going to clear and had already done its damage, so the only question
+      the rule answers is whether the force pinned at the wire walks home,
+      and the answer is no. Worth saying plainly because "withdraws" is the
+      fiction and a write-off is the mechanic: the stats credit the defender
+      with the kills, which for a defender who has just destroyed an assault
+      on their own command post is close enough to true to be worth the
+      simplicity, and a 46-point swing in what a half-failed raid costs is
+      the price of it.
 - [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
       AND against how often the player's input changed the outcome. A verb that
       does not move the second number is decoration.
@@ -3093,3 +3153,13 @@ was being read for.
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
 - Balance numbers are provisional until M5's harness; resist hand-tuning before it exists.
 - Each milestone is pushed to the repo in a runnable state with green tests.
+- The 22 E2E harnesses gate every release, and they are TIMING-based: each step
+  sleeps a fixed number of milliseconds rather than polling for the condition it
+  is about to assert. Under CPU load that is a flake source — three so far, a
+  different harness each time (`e2e-build` under a concurrent screenshot run,
+  `e2e-tutorial` on a port collision, `e2e-vault` on a reload that took longer
+  than its 2500ms to settle), and every one of them passed alone straight after.
+  Re-running the harness by itself is the workaround in use; converting the
+  sleeps to condition polls is the fix, and it is owed. Until then: a single
+  harness failing in a batch run is not evidence of a regression OR of a flake
+  until it has been re-run alone.

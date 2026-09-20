@@ -63,8 +63,11 @@
 /** The sponge: every config written before v1.41. */
 export const CHAIN_NONE = 0;
 
+/** v1.41's model, frozen: it deadlocks, and `CHAIN_STALL_SECONDS` says how. */
+export const CHAIN_BREACH = 1;
+
 /** The shipped model. New configs name this; nothing else should. */
-export const CHAIN_CURRENT = 1;
+export const CHAIN_CURRENT = 2;
 
 /** Where a raid has got to. `down` means the post has fallen. */
 export type ChainStage = 'breach' | 'suppress' | 'charge' | 'burn' | 'down';
@@ -122,6 +125,37 @@ export interface ChainModel {
    * holder should cost the attacker ground, not the whole raid.
    */
   readonly burnDecay: number;
+  /**
+   * Seconds of a COMPLETELY static board — the bar unmoved, nothing destroyed,
+   * nobody killed — with somebody still on the post, after which the assault
+   * is spent and its holders withdraw. 0 disables the rule.
+   *
+   * This exists because v1.41 shipped a hang. The crew minimum means a lone
+   * attacker can never take a post; if every gun that could reach it is
+   * already dead, it also never dies, and a wave ends only when the attackers
+   * do. Measured on the reference sieges: 0% of battles deadlocked on the
+   * sponge and 18% on `CHAIN_BREACH`, every one of them a single unit in state
+   * `assaulting` with the bar pinned at the breach floor. In a live siege that
+   * is a player watching one immortal tank stand on their command post until
+   * the tick cap.
+   *
+   * It has two halves, and the second only appeared once the first was fixed.
+   * A LONE AIRCRAFT deadlocks identically, for a reason this model introduced
+   * itself: "an aircraft is not a body on the ground" keeps it out of the
+   * holder count, so a clock gated on holders never started for the one
+   * attacker that is hardest to shoot down. The engine's quorum therefore
+   * counts everyone who reached the objective, flying or not, while the crew
+   * minimum still counts only boots.
+   *
+   * The trigger is deliberately the whole board rather than the bar alone. A
+   * bar pinned at the suppression gate while the rest of the force works its
+   * way through the covering guns is an assault in progress, and withdrawing
+   * its holders would punish a slow attack instead of a dead one. Requiring
+   * that NOTHING has happened — no damage to the post, no structure or wall
+   * down, no attacker killed — is a deadlock signature rather than a
+   * stopwatch.
+   */
+  readonly stallSeconds: number;
 }
 
 const sponge: ChainModel = {
@@ -134,6 +168,7 @@ const sponge: ChainModel = {
   chargeCrew: 1,
   burnSeconds: 1,
   burnDecay: 0,
+  stallSeconds: 0,
 };
 
 /**
@@ -172,7 +207,7 @@ const sponge: ChainModel = {
  *   capabilities suits five different rosters better than asking for one.
  */
 const theBreach: ChainModel = {
-  version: CHAIN_CURRENT,
+  version: CHAIN_BREACH,
   label: 'breach, suppress, charge, burn',
   staged: true,
   breachTo: 0.7,
@@ -181,12 +216,31 @@ const theBreach: ChainModel = {
   chargeCrew: 2,
   burnSeconds: 20,
   burnDecay: 0.5,
+  // No stall rule, which is the defect this version is frozen with.
+  stallSeconds: 0,
+};
+
+/**
+ * v1.42: the same four stages, and an assault that can be spent.
+ *
+ * A new version rather than an edit, because v1.41 SHIPPED. The freeze exists
+ * so an archived replay re-fights the battle it recorded, and the moment a
+ * build reaches a player that stops being a formality — the previous
+ * correction to this model was edited in place precisely because nothing had
+ * shipped yet, and that argument is no longer available.
+ */
+const spentAssault: ChainModel = {
+  ...theBreach,
+  version: CHAIN_CURRENT,
+  label: 'breach, suppress, charge, burn; a spent assault withdraws',
+  stallSeconds: 90,
 };
 
 /** The version registry. A version is frozen: a new model is a new number. */
 export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_NONE]: sponge,
-  [CHAIN_CURRENT]: theBreach,
+  [CHAIN_BREACH]: theBreach,
+  [CHAIN_CURRENT]: spentAssault,
 };
 
 /**

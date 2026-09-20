@@ -603,6 +603,195 @@ function referenceBases(): ReferenceBase[] {
   return [early, mid, late];
 }
 
+/**
+ * Is a siege ever actually CLOSE? (M23 Phase 1)
+ *
+ * Every defence table in this file reports a VERDICT — held or did not. That
+ * says nothing about whether the battle in between was a game. The GDD's first
+ * pillar is "defense is the action game"; a defence that is decided in wave one
+ * and watched for four more is a cutscene with a HUD, and no verdict column
+ * can tell the two apart.
+ *
+ * So this measures the MARGIN OVER TIME. One row per (base, level): the
+ * defender's command post integrity at the end of each wave, plus four
+ * readings that say where the tension was, if anywhere.
+ *
+ * - **FIRST** is the first wave in which the post takes any damage at all.
+ *   Every wave before it was watched rather than played — the attack never
+ *   reached the thing that decides the battle.
+ * - **BIGGEST** is the single wave that moved the margin most. If one wave
+ *   does all the work, the others are pacing.
+ * - **CLOSEST** is the lowest integrity reached across runs that were WON. A
+ *   defence whose wins never dip below 90% was never in doubt; one that wins
+ *   at 12% was a game.
+ * - **LIVE** is the share of waves that moved the margin at all, which is the
+ *   headline the milestone turns on.
+ *
+ * Deliberately NOT a counterfactual: nothing here forks a battle at wave three
+ * and re-rolls it, because the engine cannot snapshot and a re-run from tick
+ * zero with a different seed is a different battle, not a branch of this one.
+ * What it can say is where the margin moved and how near it came, which is the
+ * question as the milestone asked it.
+ */
+interface WaveTrace {
+  /** Post integrity 0..1 at the end of each wave reached. */
+  integrity: number[];
+  held: boolean;
+  /** Lowest integrity at any wave end, whatever the verdict. */
+  low: number;
+  /**
+   * The battle hit the tick cap without reaching a verdict.
+   *
+   * Counted because the defence tables do NOT: `defenseMatrix` reads anything
+   * that is not `victory` as a loss, so a stalemate has always been filed as a
+   * defeat. Whether that is rare or routine is a question this row can answer
+   * and that one cannot.
+   */
+  timedOut: boolean;
+}
+
+function siegeTrace(
+  faction: FactionId,
+  base: ReferenceBase,
+  level: number,
+  seed: number,
+): WaveTrace {
+  const catalog = defenseCatalogFor(faction);
+  const roster = enemyRosterFor(faction);
+  const config: SimConfig = {
+    width: W,
+    height: H,
+    seed,
+    ccOrigin: CC_ORIGIN,
+    ccLevel: base.ccLevel,
+    spawnLane: BASE_SPAWN_LANE,
+    spawnEdge: BASE_SPAWN_EDGE,
+    combatVersion: COMBAT_CURRENT,
+    killChainVersion: CHAIN_CURRENT,
+    siege: { ...buildAssault(level, roster), startingSupplies: 0 },
+    layout: {
+      walls: base.walls.map((w) => ({ ...w })),
+      structures: base.structures.map((st) => ({ ...st })),
+    },
+    powerCharges: {},
+  };
+  const engine = new Engine(config, catalog);
+  engine.enqueue({ tick: 0, type: 'startAssault' });
+
+  const max = engine.cc.profile.maxHp;
+  const integrity: number[] = [];
+  let low = 1;
+  let seen = -1;
+  while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
+    engine.step();
+    const now = Math.max(0, engine.cc.hp / max);
+    if (now < low) low = now;
+    // A wave ended when the index moved on, or when the battle did. Read the
+    // margin at that boundary rather than on a clock, because waves are not
+    // the same length and a tick-sampled curve would compare different things.
+    if (engine.waveIndex > seen) {
+      if (seen >= 0) integrity.push(now);
+      seen = engine.waveIndex;
+    }
+  }
+  integrity.push(Math.max(0, engine.cc.hp / max));
+  return {
+    integrity,
+    held: engine.phase === 'victory',
+    low,
+    timedOut: engine.phase !== 'victory' && engine.phase !== 'defeat',
+  };
+}
+
+function siegeTable(levels = [2, 3, 4], seeds = 8): string {
+  const lines = [
+    `PRESSURE — is a siege ever close? Post integrity at each wave end (${seeds} seeds)`,
+    'FACTION  | BASE        | LVL | W1  W2  W3  W4  W5  W6 | FIRST | BIGGEST  | CLOSEST | HELD | STALL',
+    '---------+-------------+-----+------------------------+-------+----------+---------+------+------',
+  ];
+  let liveWaves = 0;
+  let allWaves = 0;
+  let neverClose = 0;
+  let wonRows = 0;
+  let stalled = 0;
+  let allRuns = 0;
+
+  for (const faction of FACTION_IDS) {
+    for (const base of referenceBases()) {
+      for (const level of levels) {
+        const runs: WaveTrace[] = [];
+        for (let i = 0; i < seeds; i++) {
+          runs.push(siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i)));
+        }
+        const waves = Math.max(...runs.map((r) => r.integrity.length));
+        const mean = (at: number): number => {
+          const xs = runs.map((r) => r.integrity[Math.min(at, r.integrity.length - 1)] ?? 0);
+          return xs.reduce((a, b) => a + b, 0) / xs.length;
+        };
+        const curve = Array.from({ length: waves }, (_, at) => mean(at));
+        allWaves += waves;
+
+        let first = 0;
+        let biggest = 0;
+        let biggestAt = 0;
+        for (let at = 0; at < waves; at++) {
+          const drop = (at === 0 ? 1 : curve[at - 1]!) - curve[at]!;
+          if (drop > 0.005) {
+            liveWaves++;
+            if (first === 0) first = at + 1;
+            if (drop > biggest) {
+              biggest = drop;
+              biggestAt = at + 1;
+            }
+          }
+        }
+        const won = runs.filter((r) => r.held);
+        const closest = won.length > 0 ? Math.min(...won.map((r) => r.low)) : null;
+        if (won.length > 0) {
+          wonRows++;
+          if (closest! > 0.9) neverClose++;
+        }
+        const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+        const stalls = runs.filter((r) => r.timedOut).length;
+        stalled += stalls;
+        allRuns += runs.length;
+        lines.push(
+          `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+            Array.from({ length: 6 }, (_, at) =>
+              at < waves ? pad(Math.round(curve[at]! * 100), 3) : '  —',
+            ).join(' ') +
+            ` | ${pad(first === 0 ? 'never' : `W${first}`, 5)} | ` +
+            `${pad(biggest > 0 ? `W${biggestAt} -${Math.round(biggest * 100)}` : '—', 8)} | ` +
+            `${pad(closest === null ? '—' : closest.toFixed(2), 7)} | ${pad(`${held.toFixed(0)}%`, 4)} | ` +
+            `${pad(stalls > 0 ? `${Math.round((stalls / runs.length) * 100)}%` : '—', 5)}`,
+        );
+      }
+    }
+  }
+
+  lines.push('');
+  lines.push(
+    `LIVE WAVES ${allWaves > 0 ? ((liveWaves / allWaves) * 100).toFixed(0) : 0}% — the share of waves that moved the margin AT ALL. ` +
+      'The rest were watched: the attack never reached the one thing that decides the battle.',
+  );
+  lines.push(
+    `NEVER IN DOUBT ${wonRows > 0 ? ((neverClose / wonRows) * 100).toFixed(0) : 0}% of rows that were won never dropped below 90% ` +
+      'integrity in ANY seed. GDD pillar 1 says defence is the action game; a row like that is a HUD over a cutscene.',
+  );
+  lines.push(
+    `STALLED ${allRuns > 0 ? ((stalled / allRuns) * 100).toFixed(0) : 0}% of runs hit the tick cap with no verdict, and every ` +
+      'defence table in this file has been filing those as losses — `defenseMatrix` reads anything that is',
+    'not a victory as "did not hold". A stalemate is not a defeat, and a row that is mostly stalemate is not',
+    'a hold rate.',
+  );
+  lines.push(
+    'FIRST is the first wave the post takes damage. BIGGEST is the wave that moved the margin most —',
+    'one wave doing all of it means the others are pacing. CLOSEST is the lowest integrity reached in a',
+    'run that was WON, which is the only number that can say a win was earned rather than collected.',
+  );
+  return lines.join('\n');
+}
+
 interface DefenseRow {
   stage: string;
   holdPct: number[];
@@ -3550,6 +3739,13 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--siege')) {
+    const arg = process.argv[process.argv.indexOf('--siege') + 1];
+    const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 8;
+    console.log(siegeTable([2, 3, 4], seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--mix')) {
     const arg = process.argv[process.argv.indexOf('--mix') + 1];
     console.log(mixTable(/^\d+$/.test(arg ?? '') ? Number(arg) : CHAIN_NONE));
@@ -4032,6 +4228,18 @@ function main(): void {
       '> reason that is not content: `defenseMatrix` builds its config by hand, it was never told',
       '> about the chain, and so every defence number in the v1.41 snapshot before this one was',
       '> still being measured on the sponge while the game shipped the chain.',
+      '>',
+      "> **v1.41.1 moved MP LOST% and the DEFENSE rows, and nothing else.** v1.41's chain",
+      '> could deadlock: an attacker that had reached the post, could not pay the crew',
+      '> minimum and could no longer be shot had nowhere left to go, and 18% of reference',
+      '> sieges ended that way. A spent assault is now written off after 90 static seconds',
+      '> (GDD §5.4a). Held to ONE variable — same seeds, same plans, chain v1 against v2 —',
+      '> CLEAR% and DESTR% come back identical in every tier and only MP LOST% moves (USA',
+      '> T2 27 → 73, T4 66 → 75): the assault that stalls was never going to clear and had',
+      '> already done its damage, so the whole of the change is whether the force pinned at',
+      '> the wire walks home. It does not. The DEFENSE rows gained for the mirror reason —',
+      '> a stalemate used to run to the tick cap and be filed as a defeat, and is now',
+      '> scored as the defender victory it always was.',
       '',
       '```',
       body,

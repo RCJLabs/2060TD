@@ -681,7 +681,7 @@ direct-fire weapons shooting "through" walls are an accepted abstraction — bot
 benefit symmetrically, and the readability win beats the realism loss. Revisit only if
 playtesting shows degenerate tactics.
 
-### 5.4a Taking a command post — the kill chain *(v1.41)*
+### 5.4a Taking a command post — the kill chain *(v1.41; spent-assault rule v1.41.1)*
 
 For twenty-two milestones the post was an **HP sponge**, and it decided the game in a way
 nobody designed. Ranged fire is discounted hard against `structure` and `hqDps` only fires
@@ -700,7 +700,7 @@ on a different stat, which is the whole design: no unit answers all four.
 | **CHARGE** | 0.70 → 0.55 | `hqDps`, and only with **two bodies** on the perimeter | cheap infantry, per point of manpower |
 | **BURN** | 0.55 → 0.00 | a 20-second clock, while the ground is held | whatever survives, and the medic keeping it alive |
 
-Four rules carry the design, and each of them was a measured correction rather than a guess:
+Five rules carry the design, and each of them was a measured correction rather than a guess:
 
 - **A shell opens the post; it does not take it.** Standoff fire works the BREACH share and
   stops at its floor. Once the post is open it stops being a target for guns at all — which
@@ -714,6 +714,16 @@ Four rules carry the design, and each of them was a measured correction rather t
   the post burns. Without this, two gunships take a post with no demolition and no infantry.
 - **The burn backs off, it does not reset.** Losing the last holder costs the attacker
   ground, not the raid.
+- **An assault that achieves nothing is spent** *(v1.41.1)*. Ninety seconds of a completely
+  static board — no damage to the post, nothing destroyed, nobody killed — with somebody
+  still standing on the objective, and the assault is written off where it stands. The crew
+  minimum means one attacker can never take a post, and once every gun that could reach it is
+  dead it can never be killed either; a battle ends when the attackers do, so without this
+  the rule that made a solo heavy impossible also made 18% of sieges impossible to finish.
+  The fiction calls it a withdrawal; the stats credit the defender with the kills, because a
+  second way for a unit to leave the board with nothing watching it is worse than a repulse
+  that reads as one. Held to one variable it changes no raid's clear rate and no raid's
+  destruction — only what a half-failed one costs.
 
 `KILL_CHAIN_VERSION` names a MODEL, frozen forever — version 0 is the sponge, so every
 archived replay re-fights the battle it recorded. Same discipline as `TERRAIN_VERSION` and

@@ -240,6 +240,18 @@ export class Engine {
   private chainBreachDps = 0;
   private chainChargeDps = 0;
   private chainHolders = 0;
+  /**
+   * Everyone at the objective, aircraft included — the stall clock's quorum.
+   *
+   * Separate from `chainHolders` because the two answer different questions.
+   * Holders are BOOTS: they crew the charge and hold the ground while the post
+   * burns, and an aircraft does neither. But an aircraft loitering over a post
+   * it cannot take is still something standing on the objective achieving
+   * nothing, and gating the stall clock on holders alone left exactly that
+   * case deadlocking — reproduced as a lone Reaper, state `assaulting`, bar
+   * pinned at the breach floor, on every late reference base at level 4.
+   */
+  private chainAtPost = 0;
   /** First holder by id this tick: who gets the credit if the post falls. */
   private chainWorker: string | null = null;
   private chainStage: ChainStage = 'breach';
@@ -249,6 +261,16 @@ export class Engine {
    * survive that.
    */
   private chainDone = 0;
+  /**
+   * Ticks of a completely static board with somebody on the post. See
+   * `ChainModel.stallSeconds`: past the model's patience the assault is spent
+   * and its holders withdraw, because otherwise a lone attacker that can
+   * never pay the crew minimum and can never be shot is a battle that does
+   * not end.
+   */
+  private chainIdle = 0;
+  /** The board fingerprint the idle counter is measured against. */
+  private chainStill = '';
   private nextId = 1;
   private queue: Command[] = [];
   private spawnCursor = 0;
@@ -1379,6 +1401,7 @@ export class Engine {
     this.chainBreachDps = 0;
     this.chainChargeDps = 0;
     this.chainHolders = 0;
+    this.chainAtPost = 0;
     this.chainWorker = null;
     for (const attacker of this.attackers) {
       attacker.prevPos = { ...attacker.pos };
@@ -1650,6 +1673,8 @@ export class Engine {
    * updating in isolation cannot answer that.
    */
   private workTheChain(attacker: Attacker): void {
+    // Anyone who got here counts against the stall clock, flying or not.
+    this.chainAtPost++;
     // An aircraft is not a body on the ground. It can shell the post open and
     // it can kill the guns that cover it — two of the four stages, and a real
     // job — but it cannot be the crew that sets a charge and it holds nothing
@@ -1766,6 +1791,7 @@ export class Engine {
       case 'down':
         break;
     }
+    this.spendStalledAssault(before);
     if (before > 0 && this.cc.hp <= 0) {
       this.stats.ccKillerKind ??= this.chainWorker ?? 'the assault';
       this.chainStage = 'down';
@@ -1774,6 +1800,52 @@ export class Engine {
       // same step. Read from the stage that was live when the post fell, a
       // completed BURN would have looked like a stalled one forever.
       this.chainDone = 4;
+    }
+  }
+
+  /**
+   * An assault that has achieved nothing for long enough is spent.
+   *
+   * The deadlock this closes: the crew minimum means one attacker can never
+   * take a post, and once every gun that could reach it is dead it can never
+   * be killed either — so the wave, which ends when the attackers do, never
+   * ends. Measured at 18% of reference sieges on `CHAIN_BREACH` against 0% on
+   * the sponge.
+   *
+   * "Achieved nothing" is the whole board standing still, not just the bar:
+   * during suppression the bar is pinned at the breach floor BY DESIGN while
+   * the rest of the force works through the covering guns, and an assault
+   * doing that is working, not stalled. So the fingerprint includes what has
+   * died. If nothing has been destroyed, nobody has been killed and the post
+   * has not moved, nothing is happening by any reading.
+   *
+   * The holders are taken off the board rather than the battle being declared
+   * over, and they go through the ORDINARY death sweep: it already emits the
+   * event the renderer needs, ends the wave once the board is clear, and
+   * credits the defender with the kill and its Command Points. A second
+   * removal path that skipped those would be a new way for a unit to vanish
+   * with nothing watching it. The cost is that a repulse reads as a kill in
+   * the stats, which for a defender who has just destroyed an assault at
+   * their own wire is close enough to true to be worth the simplicity.
+   */
+  private spendStalledAssault(barBefore: number): void {
+    if (!this.chain.staged || this.chain.stallSeconds <= 0) return;
+    if (this.chainAtPost === 0 || this.cc.hp <= 0) {
+      this.chainIdle = 0;
+      return;
+    }
+    const still =
+      `${barBefore.toFixed(6)}|${this.stats.kills}|` +
+      `${this.stats.structuresLost}|${this.stats.wallsLost}`;
+    if (still !== this.chainStill) {
+      this.chainStill = still;
+      this.chainIdle = 0;
+      return;
+    }
+    if (++this.chainIdle < this.chain.stallSeconds * TICKS_PER_SECOND) return;
+    this.chainIdle = 0;
+    for (const attacker of this.attackers) {
+      if (attacker.hp > 0 && attacker.state === 'assaulting') attacker.hp = 0;
     }
   }
 
