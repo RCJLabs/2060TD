@@ -23,6 +23,7 @@ import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
 import { TERRAIN_NONE, TERRAIN_VERSION } from '../sim/terrain';
 import { COMBAT_CURRENT } from '../sim/combat';
+import { CHAIN_CURRENT } from '../sim/killchain';
 import { isObjectiveId, watchObjective, type ObjectiveId } from './objectives';
 import type {
   AttackerMods,
@@ -455,6 +456,10 @@ export function raidConfig(
     // the clock — is a different battle every time it is fought, and a replay
     // that carries the same seed re-fights the one that happened.
     combatVersion: COMBAT_CURRENT,
+    // …and every new raid is fought for a staged objective rather than an HP
+    // sponge (v1.41). Named here rather than defaulted in the engine, so an
+    // archived replay that names nothing still re-fights the sponge it recorded.
+    killChainVersion: CHAIN_CURRENT,
     ...(support.combatSeed !== undefined ? { combatSeed: support.combatSeed >>> 0 } : {}),
     ...(support.objective !== undefined && support.objective !== 'post'
       ? { objective: support.objective }
@@ -526,6 +531,20 @@ export interface RaidResolution {
   survivors: Record<string, number>;
   losses: Record<string, number>;
   destroyed: Record<string, number>;
+  /**
+   * Wall segments the attacker actually broke (v1.41).
+   *
+   * `destroyed` has always covered structures and said nothing about the wire,
+   * which is the first thing a raid has to get through — so "did this force
+   * even cut its way in" was not a question the resolution could answer.
+   */
+  wallsBreached: number;
+  /**
+   * Stages of the kill chain the assault completed, 0-4 (v1.41): breach,
+   * suppress, charge, burn. Always 0 on the sponge, which has no stages —
+   * the caller knows which model it asked for and reads this against that.
+   */
+  chainStages: number;
   loot: { supplies: number; fuel: number };
   destructionPct: number;
   /** Ordnance charges actually expended by the fire plan. */
@@ -673,6 +692,8 @@ export function resolveRaid(
     survivors,
     losses,
     destroyed,
+    wallsBreached: engine.stats.wallsLost,
+    chainStages: engine.chainStagesCleared,
     loot,
     destructionPct: initialTotal > 0 ? destroyedTotal / initialTotal : 0,
     powersUsed,

@@ -637,3 +637,90 @@ here with the change and its date.
   draft fell back to cell 0 and teleported a fuel dump from the deep rear
   corner to the enemy's doorstep — still present, still counted, and a gift.
 
+- 2026-09-19 — **Taking a command post is a job, not a health bar** (M22, the
+  kill chain). The post becomes a four-stage progress bar — breach, suppress,
+  charge, burn — each stage gated on a DIFFERENT stat, so no unit answers all
+  four. Behind `KILL_CHAIN_VERSION`, frozen, with version 0 the sponge, exactly
+  as `TERRAIN_VERSION` and the combat model are. Three of its rules were
+  written because a measurement or a test refused the first draft: an aircraft
+  is not a body on the ground (two gunships took a post with no demolition and
+  no infantry), the burn backs off rather than resetting, and the crew minimum
+  of two stays even though dropping it is the single largest gain in clear rate
+  available — buying back difficulty by reopening the defect the milestone
+  exists to close is a poor trade.
+- 2026-09-19 — **A model that takes something away is how you find out what was
+  really carrying the game.** Wiring the stages in dropped the reference
+  expeditions from 76.9% to 11.3%, and no constant moved it: four of five
+  factions scored EXACTLY ZERO under every variant swept, which is the shape of
+  a structural cause rather than a balance one. It was. Explosive does 1.0
+  against `structure`, so three tanks had been parking at range four and
+  shelling the post down without ever entering the base — a win condition
+  nobody designed, undetectable for twenty-two milestones because it worked.
+  The chain clamps standoff fire at the breach floor, and the AI then stood
+  there shelling a bar that could not move, since a unit with a target in reach
+  does not advance. Dropping the opened post from the target list took the same
+  constants from 11.3% to 49.4%. **Identical results across a whole sweep are a
+  finding, not a plateau.**
+- 2026-09-19 — **An instrument that cannot see a channel reports zero, and zero
+  reads like a finding.** `--chain`'s `silence()` zeroed `hqDps` and the weapon
+  but not `wallDps`, so Phase 1 reported the KPA tunneler moving 13-15 points
+  when its demolition is worth 62-67, and reported two of China's three kinds
+  as contributing nothing. Separately, the first staged run reported BURN at 0%
+  for every faction while the post's bar reached 0.000 in every raid that set a
+  charge — the stage was read before the burn was applied, and the battle ends
+  in the same tick, so a completed burn looked like a stalled one forever. Both
+  were caught by cross-checking the instrument against a second reading before
+  tuning against it, which is the only reason the constants were not re-derived
+  against a broken readout.
+- 2026-09-19 — **A search cannot propose what its representation forbids** (M22
+  Phase 3). `--derive` capped a composition at three unit kinds, which was
+  invisible until the kill chain gave the game four stages wanting four
+  different units. The search would have answered "nothing beat the reference"
+  and the answer would have been about the instrument. Lifted to four — one per
+  stage — and three of five factions immediately turned up three-kind plans
+  containing units that had measured zero for twenty-two milestones. Before
+  concluding that a model failed to change behaviour, check that the thing
+  measuring behaviour can express the change.
+- 2026-09-19 — **An argmax cannot price a trade.** The plan search reported one
+  winner per faction, which can say whether the reference is stale and nothing
+  about what a better-shaped plan costs. Reporting the best plan at each number
+  of unit kinds turned an unanswerable question into a two-line answer: mixing
+  is free — every faction has a three-kind plan within 2.5 points of its best
+  concentrated one, and China and Russia gain 10-17 by it. The milestone's whole
+  premise turned on that number and no previous run could have produced it.
+- 2026-09-19 — **Disagreeing with yourself is data.** Raising the plan search
+  from 150 samples to 260 — a strict superset of the same seeded stream — moved
+  the USA's reported three-kind optimum from 75.0 DOWN to 65.8. More candidates
+  cannot make a true best worse, so the drop proved the noisy screen was
+  evicting the real winner before it was ever deep-scored. Two habits paid for
+  themselves here: running the same measurement at two sizes, and verifying the
+  plans actually adopted directly on held-out battles instead of trusting the
+  search's own report of them.
+- 2026-09-19 — **A bar written before the measurement can turn out to be about
+  something else.** M22 asked for a carry at or under 50%. Re-derived plans
+  deliver it for three factions — Russia falls to 6% — and cannot for China or
+  the UN at any composition measured: dropping one Type 99 costs 16-35 points,
+  dropping two VABs costs 7-14. Those rosters concentrate 21 of 26 manpower's
+  worth of value in one unit, so the bar is a claim about CONTENT and no choice
+  of plan satisfies it. Recorded as failed rather than redefined as met.
+- 2026-09-20 — **A fix that explains nothing is still a fix, and saying which
+  is the job.** The first chain-measured balance snapshot showed every WITH AA
+  COVER defence row jumping two to three ladder levels. The guess was that
+  `coveringGuns()` counted air-only mounts, and a change shipped saying the
+  snapshot had found it. Re-running with the change in place reproduced all
+  fourteen moved rows EXACTLY: the mounts in that row are dual-purpose flak
+  sited inside the cover radius, so they gate suppression correctly and the
+  jump is the model working. The rule is kept — a Stinger pit cannot suppress
+  infantry standing on the post — but it is latent, and the only thing that
+  exercises it is a test written for that purpose. A causal claim and a
+  correctness claim are different claims; publishing the first on the evidence
+  for the second is how a changelog starts lying.
+- 2026-09-20 — **A re-tune wants a stable target, and M22 has not been played.**
+  Phase 4 regenerated every matrix and then changed no content. The chain
+  closed the faction spread 23.0 to 18.8 and dropped the mean 83.8 to 68.2,
+  with tier 5 at 8/32/12/72/0 — a real wall, and three obvious levers for it.
+  All three are the mistake M33 already made and measured, where scaling the
+  gun ladder by frontage overshot so far that a +45% wall condition measured no
+  difference at all. Tuning content against a snapshot one run old, of a combat
+  model four phases old, that no player has touched, is doing the work twice.
+  Measured, explained, levers named, handed forward.

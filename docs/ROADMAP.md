@@ -2422,7 +2422,7 @@ Four findings drive the whole programme:
 
 ---
 
-## M22 — "The Kill Chain": rebuild what winning a battle IS
+## M22 — v1.41 "The Kill Chain": rebuild what winning a battle IS
 
 **The one that has to go first.** The command post is an HP sponge that only
 adjacency meaningfully damages: `DAMAGE_MULT` discounts ranged fire hard against
@@ -2437,18 +2437,281 @@ different unit. Breachers open, suppression keeps heads down, the heavy still
 matters and can no longer solo four stages, and a force with no infantry stalls
 at stage one.
 
-- [ ] **Phase 1 — an instrument that attributes PROGRESS, not kills.** Which
-      stage each raid died at, per unit kind, per faction. `--carry` can only say
-      "silencing this changes the verdict"; this has to say "this unit is what
-      gets you through stage 2".
-- [ ] **Phase 2 — the stage model in the engine, behind `KILL_CHAIN_VERSION`.**
-      Version 0 is today's sponge, frozen forever, so every archived replay
-      re-fights the battle it recorded. Same discipline as `TERRAIN_VERSION` and
-      `COMBAT_CURRENT`.
-- [ ] **Phase 3 — re-derive all five reference plans against it.** The bar: carry
+- [x] **Phase 1 — an instrument that attributes PROGRESS, not kills.**
+      `npm run balance -- --chain`. Four stages read off today's sponge, so the
+      baseline stays comparable once the model ships.
+
+      **There is no chain.** Measured, three of the four stages are not gates at
+      all:
+
+      | faction | BRCH | GUNS | CHRG | BURN | stalls at |
+      |---|---|---|---|---|---|
+      | USA | 30 | 98 | 92 | 84 | BURN (−8) |
+      | China | 36 | 98 | 90 | 86 | CHARGE (−9) |
+      | Russia | 12 | 99 | 97 | 79 | BURN (−18) |
+      | KPA | 70 | 98 | 66 | 63 | CHARGE (−32) |
+      | UN | 5 | 97 | 84 | 78 | CHARGE (−13) |
+
+      Covering guns die in 97-99% of raids — suppression is not a stage, it is
+      a formality. BREACH is low and means nothing today, which the instrument
+      had to learn the hard way: the first draft called it WIRE and read it as
+      "got in", then reported every faction failing to get in while burning the
+      post four times in five. A wall line steers, it does not block (GDD
+      §5.3), so a force that walks around the wire breaks none and is inside
+      anyway. That column is where M22's difference will show.
+
+      And per unit, the sponge is confirmed in the sharpest terms yet:
+
+      | faction | unit | MP | BRCH | GUNS | CHRG | BURN |
+      |---|---|---|---|---|---|---|
+      | USA | abrams | 8 | 21 | 64 | **91** | **84** |
+      | USA | javelin | 3 | −1 | 1 | 3 | 7 |
+      | China | type99 | 7 | 23 | 88 | **90** | **86** |
+      | China | militia | 1 | 0 | 0 | 0 | 0 |
+      | China | sapper | 2 | 0 | 0 | 0 | 0 |
+      | Russia | btr | 3 | 0 | **99** | **97** | 79 |
+      | KPA | tunneler | 2 | 0 | 0 | 15 | 13 |
+      | KPA | infiltrator | 1 | 0 | 0 | −1 | −3 |
+      | UN | vab | 3 | 0 | **97** | 84 | 78 |
+
+      Two of China's three unit kinds move NOTHING at any stage — not a little,
+      zero. The KPA's infiltrator scores negative, meaning the raid is very
+      slightly better off with it silent. Read precisely: this is the damage
+      channel only, so a zero says a unit's damage buys nothing, not that its
+      body does — it still soaks. That is the strongest form of the M22 thesis
+      and the bar Phase 3 has to clear.
+- [x] **Phase 2 — the stage model in the engine, behind `KILL_CHAIN_VERSION`.**
+      `src/sim/killchain.ts`. Version 0 is the sponge, frozen: the 531 tests
+      that predate this release pass untouched, and `tests/killchain.test.ts`
+      pins that naming version 0 hashes identically to naming nothing.
+
+      The model, with every constant measured rather than chosen — shares
+      30/15/55 of the bar, a 4-cell cover radius, a crew of 2, a 20-second fuse:
+
+      | stage | bar | paid in | who is good at it |
+      |---|---|---|---|
+      | BREACH | 1.00→0.70 | `wallDps`, plus shells | sappers 60-80 over heavies 22-35 |
+      | SUPPRESS | gate at 0.70 | every gun within 4 cells down | anything with reach |
+      | CHARGE | 0.70→0.55 | `hqDps`, **two bodies minimum** | cheap infantry per manpower |
+      | BURN | 0.55→0.00 | a 20s clock, while held | whatever survives |
+
+      **The headline finding is how raids were actually being won.** Wiring the
+      stages in dropped the reference expeditions to 11.3% clear, and no
+      constant moved it — four of five factions scored EXACTLY ZERO under every
+      variant swept. The cause was not balance. Explosive does 1.0 against
+      `structure`, so three tanks parked at range four shelled the post down
+      without ever entering the base; the chain clamps standoff fire at the
+      breach floor, and the AI then stood there shelling a bar that could not
+      move, because `updateAttackers` stops a unit that has a target in reach.
+      Dropping the opened post from the target list — you bombard the bunker
+      open, then somebody walks in — took the same constants from 11.3% to
+      49.4%. **A win condition nobody designed had been carrying the game for
+      twenty-two milestones, and only a model that took it away could find it.**
+
+      What the model bought, on the five reference plans:
+
+      | | BRCH | GUNS | CHRG | BURN | stalls at |
+      |---|---|---|---|---|---|
+      | USA | 87 | 80 | 70 | 69 | CHARGE (−9) |
+      | China | 88 | 84 | 64 | 64 | CHARGE (−20) |
+      | Russia | 91 | 73 | 68 | 63 | GUNS (−18) |
+      | KPA | 66 | 64 | 61 | 59 | CHARGE (−3) |
+      | UN | 79 | 74 | 56 | 56 | CHARGE (−18) |
+
+      - **Suppression is a stage now.** 97-99% of raids passed it on the sponge;
+        64-84% pass it here. A radius of 6 asks for 3.2 guns dead on average, 4
+        for 1.22 and 3 for 0.53 — six was a shape tax that cost Russia 31 points
+        more than anyone else, which is why the shipped radius is 4.
+      - **The stages became monotone.** The sponge scored BREACH 5-36 UNDER BURN
+        78-86, which is incoherent on its face. These fall in order.
+      - **Parity improved without being tuned for.** Clear rate spread across the
+        five factions goes from 23 points to 13. Asking for four capabilities
+        suits five rosters better than asking for one.
+      - **DUG IN's inverted sign is fixed.** The v1.40 finding — thicker wire
+        RAISING destruction — is gone, because wire is now stage one and nothing
+        past it can be done at range. The same +45% costs a raid 42% of its
+        progress (0.67 stages against 0.39), and at a stronger force it is a
+        50-point swing in clear rate. `tests/conditions.test.ts` asserts the
+        direction rather than recording a defect.
+
+      **What it did NOT buy, stated plainly: the heavy is still the best unit to
+      bring.** A new instrument, `npm run balance -- --mix [version]`, prices six
+      compositions at one manpower budget, roles picked from each roster by stat:
+
+      | | 3 HEAVY | 2H+BRCH | 2H+GUN | 2H+BODY | 1H+MIX | 0 HEAVY |
+      |---|---|---|---|---|---|---|
+      | sponge, USA | **81** | 70 | 72 | 70 | 55 | 17 |
+      | chain, USA | **59** | 55 | 56 | 56 | 28 | 6 |
+      | sponge, Russia | **53** | 39 | 53 | 38 | 33 | 11 |
+      | chain, Russia | 33 | 27 | **38** | 23 | 14 | 5 |
+
+      The chain narrows the heavy's lead (USA −9 to −3) and flips Russia to
+      2H+GUN, but the shape of the answer is the same under both. **The binding
+      constraint is not what wins at the post, it is who survives the approach**:
+      small arms do 1.0 against `none` and 0.2 against `heavy`, so a squad of
+      engineers is wiped out at tick 703 having moved the bar from 1.00 to 0.97.
+      The chain gives infantry a job; the armour table still denies them the
+      chance to do it. That is Phase 3 and Phase 4's problem and it now has a
+      number attached.
+
+      **Two instrument defects found and fixed**, both of which had been quietly
+      distorting Phase 1's table:
+
+      - `silence()` zeroed `hqDps` and the weapon but NOT `wallDps`, so every
+        demolition unit read as contributing nothing. Phase 1's "the KPA
+        tunneler moves 13-15 points" was an artifact: corrected, it owns BREACH
+        at 62-67. China's sapper is still ~0 on the sponge and +4 on the chain,
+        which is small but is the first time a support unit has shown anything.
+      - The first staged run reported BURN at 0% for every faction while the
+        post's bar reached 0.000 in every raid that set a charge. `liveStage` is
+        read before the burn is applied, so on the tick the post fell it read
+        `burn`, the engine stopped, and the high-water mark never reached 4. A
+        re-tune against that readout would have been a re-tune against nothing.
+
+      Two rules were added because a test failed and the failure was right:
+      **an aircraft is not a body on the ground** (two gunships shelled a post
+      open, counted as crew and burned it down with no demolition and no
+      infantry anywhere in the force), and **the burn backs off rather than
+      resetting** when the ground is lost.
+
+      Legible where it is fought: the siege SITREP names the live stage
+      (`POST — COVERED BY 2 GUNS`, `CHARGE SETTING — 1/2 ON IT`) and a repulsed
+      raid's report says which stage it stalled at.
+- [x] **Phase 3 — re-derive all five reference plans against it.** The bar: carry
       at or under 50%, and every roster slot delivering something measurable.
-- [ ] **Phase 4 — re-tune the ladder.** Every matrix in `BALANCE.md` was measured
-      on the sponge and none of them survives this.
+      **Half met, and the half that is not is a content finding rather than a
+      plan one.**
+
+      **The search could not express the answer.** `--derive` capped a
+      composition at THREE unit kinds. The kill chain has four stages, each
+      wanting a different unit, so the search was structurally incapable of
+      proposing the force the model was built to reward — it would have
+      reported "nothing beat the reference" and the reason would have been the
+      instrument. Lifted to four, which roughly doubles the space (USA 472
+      compositions to 757, China 2360 to 6216).
+
+      **`--carry` now measures presence, not just damage.** SILENCED zeroes
+      every damage stat and leaves the body. REPLACED takes the kind OUT and
+      spends its manpower on the rest of the plan, in the proportions the plan
+      already had — the planning question, and the one the bar is set on. The
+      two channels diverge enormously: China's Type 99 reads 64 silenced and 42
+      replaced. A single-kind plan cannot answer REPLACED at all, which is the
+      monoculture problem stated in one column.
+
+      **What combined arms costs, which is what the phase turned on.** A new
+      ladder in `--derive` reports the best HELD-OUT plan at each number of unit
+      kinds instead of one argmax, because an argmax cannot price a trade:
+
+      | | REF | 1 KIND | 2 KINDS | 3 KINDS | 4 KINDS |
+      |---|---|---|---|---|---|
+      | USA | 77.5 | 74.2 | 77.5 | 75.0 | 64.2 |
+      | China | 65.8 | 15.8 | 74.2 | **82.5** | 76.7 |
+      | Russia | 66.7 | 79.2 | 69.2 | 76.7 | 71.7 |
+      | KPA | 68.3 | 45.0 | 75.8 | 74.2 | 67.5 |
+      | UN | 69.2 | 69.2 | 66.7 | **66.7** | 57.5 |
+
+      **Mixing is nearly free.** Every faction has a three-kind plan within 2.5
+      points of its best concentrated one, and two GAIN by it. Adopted:
+
+      | faction | plan | was | is |
+      |---|---|---|---|
+      | USA | 2×abrams 2×humvee 1×javelin | 77.5 | 75.0 |
+      | China | 2×grenadier 1×militia 3×type99 | 65.8 | **82.5** |
+      | Russia | 6×btr 3×demoteam 1×rpg | 66.7 | **76.7** |
+      | KPA | 12×nkrifle 2×rpg7 5×tunneler | 68.3 | **74.2** |
+      | UN | 7×vab 1×unsapper 1×nlaw | 69.2 | 66.7 |
+
+      Read the units: a **sapper's** successor, a **demolition team**, an
+      **RPG**, an **NLAW**. Kinds that measured zero for twenty-two milestones
+      are in the optimum now. And every faction stalls at the same stage —
+      CHARGE, the bodies-on-the-objective gate — which is what a designed
+      bottleneck looks like, against a sponge where the columns did not even
+      fall in order.
+
+      **The bar, honestly.** Carry: USA 59% → **41%**, Russia n/a → **6%**, KPA
+      18% → **42%** — three of five under 50, and Russia essentially carry-free.
+      China 32% → **61%** and the UN n/a → **71%** fail, and no plan fixes them:
+      dropping one Type 99 costs China 16-35 points across six measured
+      alternatives, and dropping two VABs costs the UN 7-14 across seven. Those
+      two rosters put 21 of 26 manpower's worth of value in one unit. **That is
+      a content fact, and the bar cannot be met by choosing a plan** — handed to
+      Phase 4 with the numbers.
+
+      **A defect in the search, found by disagreeing with itself.** Raising the
+      sample from 150 to 260 — a strict SUPERSET of the same seeded stream —
+      moved the USA's three-kind winner from 75.0 DOWN to 65.8. More candidates
+      cannot make the true best worse, so the screen must have promoted worse
+      candidates above the real winner and evicted it before it was ever
+      deep-scored. The finalist cut per bucket went 6 to 10, and the chosen
+      plans were each verified directly on the held-out battles rather than
+      trusted from the search's own report.
+
+      One more thing that cost five points and would have been invisible:
+      `--derive` round-robins units into sectors in ROSTER order, so a plan
+      transcribed in a different key order is a different battle. The emitted
+      source says so; a hand-written literal does not.
+- [x] **Phase 4 — re-tune the ladder.** `docs/BALANCE.md` regenerated against
+      the chain. **Measured, explained, and NOT tuned — the reasons are below
+      and the second one is the important one.**
+
+      **The defence half was still on the sponge.** `defenseMatrix` builds its
+      `SimConfig` by hand rather than through `battleConfig` and was never told
+      about the chain, so every DEFENSE, FORTIFY, HOLDFAST and AA row would
+      have been measured against an HP-sponge post while the game shipped four
+      staged gates. The comment on that config predicted this exact failure
+      when `combatVersion` was added in v1.23 — "the one place that would
+      quietly keep measuring the sim as it was" — and it fired again, a whole
+      milestone later. Fixed before the snapshot was taken.
+
+      **What the chain did to the ladder:**
+
+      | | sponge | chain | |
+      |---|---|---|---|
+      | parity spread | 23.0 | **18.8** | closed 4.2 |
+      | parity mean | 83.8 | **68.2** | the ladder got much harder |
+      | ceiling | China 95.0 | KPA 77.6 | the order inverted |
+      | floor | KPA 72.0 | USA / UN 58.8 | |
+
+      T5 is the wall: 8 / 32 / 12 / 72 / 0 across the five factions. A rung
+      four of five clear under a third of the time, and one clears never, is
+      not a curve.
+
+      **The defence rows split, and the split is the design working.** Bare
+      rows drifted DOWN a few points (China MID L3 35 → 15, KPA 25 → 10): the
+      chain pays for bodies and the AI's assault waves are mass. Every WITH AA
+      COVER row jumped two to three ladder levels — China's MID line went
+      85/0/0/0 to 100/100/100/70, the KPA's 65/0/0/0 to 100/95/95/20. The
+      cause is the suppression gate: the row's mounts are DUAL-PURPOSE flak
+      (`targets: 'both'`), one of them sited 2.24 cells from the post centre,
+      inside the 4-cell cover radius. A tough, long-ranged gun beside the post
+      is now a gate rather than just damage, and it is worth three rungs.
+
+      **A wrong cause, published and then corrected.** The jump was first
+      attributed to air-only mounts being counted as cover, and a fix shipped
+      saying so. Re-running with the fix in place reproduced all fourteen moved
+      rows EXACTLY — it explained nothing. The rule is still right (a Stinger
+      pit cannot suppress infantry standing on the post) but it is LATENT: no
+      row in the snapshot exercises an air-only mount, which is why nothing
+      moved, and `tests/killchain.test.ts` now carries the only thing that
+      exercises it.
+
+      **Why no tuning.** Three levers present themselves — the gun ladder for
+      the 15-point mean drop, the T5 rung, and the cover radius for the AA
+      effect — and all three are the same mistake M33 already made and
+      measured: scaling the gun ladder by frontage overshot so badly that a
+      +45% wall condition measured no difference at all. The numbers here are
+      one snapshot old against a combat model four phases old. A re-tune wants
+      a stable target, and the honest state is that M22 rebuilt what winning
+      is and has not yet been played. Recorded, handed to the next balance
+      milestone with the three levers named.
+
+      **One debt could not be paid and should not be pretended away.** The
+      campaign side is unmeasurable headlessly: 33 missions across five
+      factions were run under both models and returned 0% hold under each,
+      because `newTown()` is an empty yard and a campaign mission is a
+      player-in-the-loop prep phase the harness cannot play. The defence-floor
+      tables are the proxy, and they are in the snapshot. Whether the campaign
+      curve moved is a playtest question.
 
 ## M23 — "Live Fire": make defence the game the GDD claims
 

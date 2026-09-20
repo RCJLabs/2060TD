@@ -258,7 +258,14 @@ try {
   // ---- fight it, walk home, walk back ---------------------------------------------
   await page.keyboard.press('Space'); // LAUNCH
   await wait(2600);
-  check('the raid resolves', await copyHas('COMMAND POST'), '');
+  // Read off the after-action REPORT, not off the verdict. This used to look
+  // for 'COMMAND POST' — the headline a WON raid gets — and broke in v1.41
+  // when the kill chain made this five-unit force lose a fight it used to
+  // win. Nothing about the planner changed. This harness is about a plan
+  // surviving a round trip, and every check after this one still passes on a
+  // repulse, so asserting the verdict was asserting balance by accident.
+  const verdict = (await texts()).flatMap((t) => t.split('\n')).find((t) => /POST DESTROYED|REPELLED|WITHDRAWN/i.test(t));
+  check('the raid resolves', await copyHas('Destruction:'), verdict ?? '(no verdict line)');
   await page.keyboard.press('Escape'); // RETURN TO BASE
   await wait(2200);
   await openPlanner();

@@ -681,6 +681,57 @@ direct-fire weapons shooting "through" walls are an accepted abstraction — bot
 benefit symmetrically, and the readability win beats the realism loss. Revisit only if
 playtesting shows degenerate tactics.
 
+### 5.4a Taking a command post — the kill chain *(v1.41)*
+
+For twenty-two milestones the post was an **HP sponge**, and it decided the game in a way
+nobody designed. Ranged fire is discounted hard against `structure` and `hqDps` only fires
+at adjacency, so there were exactly two ways to win: walk a survivor onto the post, or —
+the one nobody noticed until M22 measured it — **park a tank at range four and shell the
+post down without ever entering the base**. `--carry` read one unit at 99-100% of a raid
+because one unit could do both.
+
+The post is now a **progress bar through a demolition job**, in four stages. Each is gated
+on a different stat, which is the whole design: no unit answers all four.
+
+| Stage | Bar | What moves it | Who is good at it |
+|---|---|---|---|
+| **BREACH** | 1.00 → 0.70 | `wallDps` at the perimeter, plus shells and fire support | sappers (60-80) over heavies (22-35) |
+| **SUPPRESS** | gate at 0.70 | every live gun within 4 cells of the post must be down | AT teams and IFVs — anything with reach |
+| **CHARGE** | 0.70 → 0.55 | `hqDps`, and only with **two bodies** on the perimeter | cheap infantry, per point of manpower |
+| **BURN** | 0.55 → 0.00 | a 20-second clock, while the ground is held | whatever survives, and the medic keeping it alive |
+
+Four rules carry the design, and each of them was a measured correction rather than a guess:
+
+- **A shell opens the post; it does not take it.** Standoff fire works the BREACH share and
+  stops at its floor. Once the post is open it stops being a target for guns at all — which
+  is what sends the troops in, and without it three tanks stand at range four shelling a bar
+  that cannot move, forever.
+- **Two bodies, minimum.** One unit cannot work a demolition charge and provide its own
+  security. This is the one rule that makes a solo heavy impossible rather than merely slow,
+  and it is kept even though dropping it is the single largest gain in clear rate on the board.
+- **An aircraft is not a body on the ground.** It can shell the post open and kill the guns
+  covering it — two of four stages, a real job — but it is never crew and holds nothing while
+  the post burns. Without this, two gunships take a post with no demolition and no infantry.
+- **The burn backs off, it does not reset.** Losing the last holder costs the attacker
+  ground, not the raid.
+
+`KILL_CHAIN_VERSION` names a MODEL, frozen forever — version 0 is the sponge, so every
+archived replay re-fights the battle it recorded. Same discipline as `TERRAIN_VERSION` and
+the combat model. Nothing here draws from an RNG: the chain is accounting, and one source of
+variance per battle is enough.
+
+**What it bought, measured.** Suppression stopped being a formality (97-99% of raids passed
+it; now 64-84%), the stages became monotone where the sponge's were incoherent, and the five
+factions' clear rates tightened from a 23-point spread to 13. DUG IN's inverted sign — the
+M33 finding that thicker wire *raised* destruction — is fixed by it, because wire is now
+stage one of four and nothing past it can be done at range.
+
+**What it did not buy.** The heavy is still the best unit to bring, and M22 Phase 2 named why
+with a number: the binding constraint is not what wins at the post, it is who survives the
+approach, and small arms do 1.0 against `none` and 0.2 against `heavy`. The chain gives
+infantry a job; the approach still denies them the chance to do it. That is an armour-table
+question, and it is where the rest of M22 goes.
+
 ### 5.5 Command Points (siege battle economy)
 
 - Base income: ~1 CP/sec, +CP per kill (scaled by kill value).

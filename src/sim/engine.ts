@@ -3,6 +3,7 @@ import { fnv1a } from './hash';
 import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
 import { COMBAT_NONE, combatModelFor, type CombatModel } from './combat';
+import { chainModelFor, type ChainModel, type ChainStage } from './killchain';
 import {
   FLAT_TERRAIN,
   MIN_MOVE_COST,
@@ -222,6 +223,32 @@ export class Engine {
    */
   private readonly combatRng: Rng;
   private readonly combat: CombatModel;
+  /**
+   * What taking the command post takes (v1.41). The sponge model leaves every
+   * site below on its pre-v1.41 path; see `src/sim/killchain.ts`.
+   */
+  private readonly chain: ChainModel;
+  /**
+   * What the assault put into the post THIS tick, summed over the attackers
+   * standing on its perimeter (and the aircraft holding above it).
+   *
+   * Accumulated during the attacker pass and spent once, after it, by
+   * `advanceChain`. Two passes rather than one because the crew minimum is a
+   * question about the whole assault — "are there two of us here" — and an
+   * attacker updating in isolation cannot answer it.
+   */
+  private chainBreachDps = 0;
+  private chainChargeDps = 0;
+  private chainHolders = 0;
+  /** First holder by id this tick: who gets the credit if the post falls. */
+  private chainWorker: string | null = null;
+  private chainStage: ChainStage = 'breach';
+  /**
+   * Stages of the chain COMPLETED, 0-4 — a high-water mark, because the burn
+   * backs off when the ground is lost and "how far did this raid get" has to
+   * survive that.
+   */
+  private chainDone = 0;
   private nextId = 1;
   private queue: Command[] = [];
   private spawnCursor = 0;
@@ -289,6 +316,7 @@ export class Engine {
     this.grid = new Grid(config.width, config.height);
     this.rng = createRng(config.seed);
     this.combat = combatModelFor(config.combatVersion);
+    this.chain = chainModelFor(config.killChainVersion);
     this.combatRng = createRng((config.combatSeed ?? config.seed ^ 0x9e3779b9) >>> 0);
     // Terrain draws from its OWN stream. Sharing `this.rng` would shift every
     // later roll and re-fight every archived battle on different ground.
@@ -468,6 +496,7 @@ export class Engine {
     this.updateProjectiles(events);
     this.removeDeadAttackers(events);
     this.updateAttackers(events);
+    this.advanceChain();
     this.processStructureDeaths(events);
     this.tick++;
     return events;
@@ -1034,7 +1063,18 @@ export class Engine {
     roll = 1,
   ): void {
     const before = structure.hp;
-    structure.hp -= raw * roll * this.catalog.damage[type]['structure'];
+    const dealt = raw * roll * this.catalog.damage[type]['structure'];
+    if (structure === this.cc && this.chain.staged) {
+      // Under the chain a shell OPENS the post; it does not take it. Fire
+      // support and standoff weapons work the BREACH share and stop at its
+      // floor, so a fire plan is preparation rather than a substitute for a
+      // force. Guarded against raising the bar back to the floor once the
+      // charge has taken it below.
+      const floor = this.chain.breachTo * structure.profile.maxHp;
+      if (structure.hp > floor) structure.hp = Math.max(floor, structure.hp - dealt);
+      return;
+    }
+    structure.hp -= dealt;
     if (structure === this.cc && before > 0 && structure.hp <= 0) {
       this.stats.ccKillerKind ??= source;
     }
@@ -1336,6 +1376,10 @@ export class Engine {
   }
 
   private updateAttackers(events: SimEvent[]): void {
+    this.chainBreachDps = 0;
+    this.chainChargeDps = 0;
+    this.chainHolders = 0;
+    this.chainWorker = null;
     for (const attacker of this.attackers) {
       attacker.prevPos = { ...attacker.pos };
       attacker.lastDir = { x: 0, y: 0 };
@@ -1414,6 +1458,10 @@ export class Engine {
       // (same rule as path-blockers below — wallDps, armor ignored).
       if (attacker.path.length === 1 && attacker.goalCells.includes(attacker.path[0]!)) {
         attacker.state = 'assaulting';
+        if (target === this.cc && this.chain.staged) {
+          this.workTheChain(attacker);
+          continue;
+        }
         const dps =
           (target === this.cc
             ? attacker.profile.hqDps
@@ -1543,6 +1591,10 @@ export class Engine {
     const reach = target.profile.footprint / 2 + AIR_STANDOFF;
     if (dist <= reach) {
       attacker.state = 'assaulting';
+      if (target === this.cc && this.chain.staged) {
+        this.workTheChain(attacker);
+        return;
+      }
       const dps =
         (target === this.cc
           ? attacker.profile.hqDps
@@ -1585,6 +1637,193 @@ export class Engine {
 
   private isEconomyStructure(s: Structure): boolean {
     return structureClass(s.profile) === 'economy';
+  }
+
+  // ---- the kill chain (v1.41) --------------------------------------------------------
+
+  /**
+   * One body on the post's perimeter, for one tick.
+   *
+   * Nothing is applied here. The stage that spends this is decided once, after
+   * every attacker has had its say, because the crew minimum is a property of
+   * the assault — "are there two of us on this thing" — and an attacker
+   * updating in isolation cannot answer that.
+   */
+  private workTheChain(attacker: Attacker): void {
+    // An aircraft is not a body on the ground. It can shell the post open and
+    // it can kill the guns that cover it — two of the four stages, and a real
+    // job — but it cannot be the crew that sets a charge and it holds nothing
+    // while the post burns. Without this rule two gunships take a post with no
+    // demolition and no infantry, which would make air the new carry and
+    // "each stage wants a different unit" false again on the day it shipped.
+    if (attacker.profile.air) return;
+    this.chainHolders++;
+    this.chainBreachDps += attacker.profile.wallDps * attacker.damageMult;
+    this.chainChargeDps += attacker.profile.hqDps * attacker.damageMult;
+    this.chainWorker ??= attacker.profile.name;
+  }
+
+  /**
+   * Which stage the post is at.
+   *
+   * Compared against `fraction * maxHp` rather than against `hp / maxHp`, so
+   * the clamp that ends a stage and the test that reads it are the same
+   * expression and agree exactly. A float division in between would let a
+   * post sit one ulp above a floor it had already been clamped to.
+   */
+  private liveStage(max: number): ChainStage {
+    if (this.cc.hp <= 0) return 'down';
+    if (this.cc.hp > this.chain.breachTo * max) return 'breach';
+    if (this.coveringGuns() > 0) return 'suppress';
+    if (this.cc.hp > this.chain.chargeTo * max) return 'charge';
+    return 'burn';
+  }
+
+  /**
+   * Live guns covering the post — centre to centre, within `coverRadius`.
+   *
+   * Deliberately not a line-of-sight test: "no LoS anywhere" was decided at M2
+   * and the kill chain does not reopen it. A gun that can reach the post
+   * covers it, and the answer is to kill the gun.
+   */
+  private coveringGuns(): number {
+    const r2 = this.chain.coverRadius * this.chain.coverRadius;
+    let n = 0;
+    for (const s of this.structures) {
+      if (s.hp <= 0 || !this.isDefenseStructure(s)) continue;
+      // A mount that cannot engage the ground is not covering the post. Every
+      // faction's dedicated AA site is `targets: 'air'` — the USA's profile
+      // says "it watches the sky and nothing else" — so counting one would
+      // gate a demolition charge on a gun that physically cannot shoot the
+      // men setting it.
+      //
+      // **This is latent, and the record needs to say so.** It was written
+      // after the WITH AA COVER rows of the balance snapshot jumped two to
+      // three ladder levels, and the guess was that this rule caused it. It
+      // did not: re-running with the rule in place reproduced all fourteen
+      // moved rows EXACTLY. The mount those rows add is the dual-purpose
+      // flak (`targets: 'both'`), sited 2.24 cells from the post, and it
+      // gates suppression correctly — that jump is the model working. No row
+      // in the snapshot exercises an air-only mount at all, which is why
+      // nothing moved. The rule is right; it just was not the explanation.
+      //
+      // Edited into version 1 rather than shipped as version 2 on purpose.
+      // The freeze exists so an archived replay re-fights the battle it
+      // recorded, and no build carrying a chain has ever reached a player —
+      // v1.40 is deployed and has no chain at all. Freezing a defect on the
+      // day it is found would protect nothing and cost a version number.
+      if (layerOf(s.profile.weapon!) === 'air') continue;
+      const dx = s.center.x - this.cc.center.x;
+      const dy = s.center.y - this.cc.center.y;
+      if (dx * dx + dy * dy <= r2) n++;
+    }
+    return n;
+  }
+
+  /**
+   * Spend what the assault put into the post this tick.
+   *
+   * Exactly one stage is live, and each spends a different currency: that is
+   * the whole model. A force that brought one kind of unit finds a stage it
+   * cannot pay for.
+   */
+  private advanceChain(): void {
+    if (!this.chain.staged) return;
+    const max = this.cc.profile.maxHp;
+    const stage = this.liveStage(max);
+    this.chainStage = stage;
+    // `liveStage` falls through in order, so the stage that is live names how
+    // many are behind it. A base with no covering guns credits SUPPRESS the
+    // same way a base with no wire credits BREACH: there was nothing to do.
+    const done =
+      stage === 'down' ? 4 : stage === 'burn' ? 3 : stage === 'charge' ? 2 : stage === 'suppress' ? 1 : 0;
+    if (done > this.chainDone) this.chainDone = done;
+    const before = this.cc.hp;
+    switch (stage) {
+      case 'breach':
+        this.cc.hp = Math.max(this.chain.breachTo * max, this.cc.hp - this.chainBreachDps * DT);
+        break;
+      case 'suppress':
+        // The gate. A post its guns still cover cannot be worked, however many
+        // bodies are standing on it. Phase 1 measured suppression as a
+        // formality passed 97-99% of the time; this is what makes it a stage.
+        break;
+      case 'charge':
+        if (this.chainHolders >= this.chain.chargeCrew) {
+          this.cc.hp = Math.max(this.chain.chargeTo * max, this.cc.hp - this.chainChargeDps * DT);
+        }
+        break;
+      case 'burn': {
+        // A clock, not a damage race — this is the window the defender gets to
+        // answer in, and killing the holders is the answer.
+        const rate = (this.chain.chargeTo * max) / this.chain.burnSeconds;
+        this.cc.hp =
+          this.chainHolders > 0
+            ? this.cc.hp - rate * DT
+            : Math.min(this.chain.chargeTo * max, this.cc.hp + rate * this.chain.burnDecay * DT);
+        break;
+      }
+      case 'down':
+        break;
+    }
+    if (before > 0 && this.cc.hp <= 0) {
+      this.stats.ccKillerKind ??= this.chainWorker ?? 'the assault';
+      this.chainStage = 'down';
+      // Stamped here rather than left to the next tick's `liveStage`, because
+      // there is no next tick: `processStructureDeaths` ends the battle in the
+      // same step. Read from the stage that was live when the post fell, a
+      // completed BURN would have looked like a stalled one forever.
+      this.chainDone = 4;
+    }
+  }
+
+  /**
+   * How far the assault has got, or null when this battle is fought on the
+   * sponge. The HUD's honest read on why the bar is not moving.
+   */
+  chainProgress(): {
+    stage: ChainStage;
+    holders: number;
+    crew: number;
+    covering: number;
+    bar: number;
+  } | null {
+    if (!this.chain.staged) return null;
+    const max = this.cc.profile.maxHp;
+    return {
+      stage: this.liveStage(max),
+      holders: this.chainHolders,
+      crew: this.chain.chargeCrew,
+      covering: this.coveringGuns(),
+      bar: Math.max(0, this.cc.hp / max),
+    };
+  }
+
+  /**
+   * Is shelling the post still worth a shot?
+   *
+   * Under the chain a shell OPENS the post and cannot take it, so once the
+   * breach floor is reached, standoff fire against it achieves exactly
+   * nothing — and a ranged unit that keeps firing anyway never closes, because
+   * `updateAttackers` stops a unit with a target in reach. Three tanks would
+   * then stand at range four shelling a bar that cannot move, forever.
+   *
+   * Dropping the post from the target list once it is open is what sends the
+   * troops in. It is also the honest reading of the fiction: you bombard the
+   * bunker until it is open, and then somebody has to walk in.
+   */
+  private postTakesFire(): boolean {
+    if (!this.chain.staged) return true;
+    return this.cc.hp > this.chain.breachTo * this.cc.profile.maxHp;
+  }
+
+  /**
+   * Stages of the chain this battle COMPLETED, 0-4. Always 0 on the sponge,
+   * which has no stages to complete — the war layer knows which model it
+   * asked for and reads this against that.
+   */
+  get chainStagesCleared(): number {
+    return this.chainDone;
   }
 
   private structureById(id: number): Structure | undefined {
@@ -1645,6 +1884,7 @@ export class Engine {
       let bestDistSq = Infinity;
       for (const structure of this.structures) {
         if (structure.hp <= 0 || !structure.profile.targetable) continue;
+        if (structure === this.cc && !this.postTakesFire()) continue;
         if (filter && !filter(structure)) continue;
         const dx = structure.center.x - origin.x;
         const dy = structure.center.y - origin.y;
@@ -1864,6 +2104,8 @@ export class Engine {
           : `i${impact.tick}r${sh.x0.toFixed(6)},${sh.y0.toFixed(6)}`,
       );
     }
+    if (this.chain.staged) parts.push(`kc${this.chainStage}:${this.chainHolders}`);
+
     const cds = [...this.powerCooldowns.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
     for (const [kind, ticks] of cds) parts.push(`cd${kind}:${ticks}`);
     if (this.chargesLeft) {

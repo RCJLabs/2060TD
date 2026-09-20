@@ -88,6 +88,7 @@ import {
   wallJoins,
 } from '../glyphs';
 import { footprintOfKind } from '../../content/catalog';
+import { chainStalledAt } from '../../sim/killchain';
 import { COLORS } from '../palette';
 import { makeSheet } from '../ground';
 import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
@@ -871,7 +872,19 @@ export class RaidScene extends Phaser.Scene {
               (res.withdrew ? ' — withdrew on the objective' : ' — did not fill'),
           ]),
       `Destruction: ${Math.round(res.destructionPct * 100)}%   Duration: ${Math.floor(res.ticks / 20)}s`,
-      ...(res.cleared ? [] : [`Post integrity: ${Math.round(res.ccHpFraction * 100)}%`]),
+      // A repulse used to report one number — how much post was left — which
+      // says how close it was and nothing about why. Under the kill chain the
+      // raid stopped at a named stage, and that is the sentence a player can
+      // act on: a force that stalls at SUPPRESS needs guns, one that stalls at
+      // CHARGE needs bodies.
+      ...(res.cleared
+        ? []
+        : [
+            `Post integrity: ${Math.round(res.ccHpFraction * 100)}%` +
+              (this.lastConfig?.killChainVersion
+                ? `   Stalled at: ${chainStalledAt(res.chainStages)}`
+                : ''),
+          ]),
       `Loot: +${res.loot.supplies} SUP  +${res.loot.fuel} FUEL`,
       lossLine ? `Losses: ${lossLine}` : 'Losses: none',
       ...(this.squadReport ?? []),

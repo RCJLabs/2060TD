@@ -167,9 +167,17 @@ describe('the engine only rolls when asked', () => {
 describe('a replay names the model it was fought under', () => {
   const KIT = CHINA_BASE_KIT;
   const CATALOG = raidCatalogFor('usa');
+  /**
+   * Doubled in v1.41, and the reason is the point of the last test in this
+   * block: under the kill chain the half-strength version of this force no
+   * longer takes a tier-3 post at all, so every raid here ran to the 6000-tick
+   * stop. Three equality assertions passed on two timeouts agreeing with each
+   * other, and the one liveness assertion caught it. A fixture that cannot
+   * finish its battle cannot say anything about the model it was fought under.
+   */
   const squads = (): SquadPlan[] => [
-    { units: { abrams: 1, ranger: 1 }, sector: 'W1', doctrine: 'assault', slot: 0 },
-    { units: { javelin: 2, engineer: 1 }, sector: 'N1', doctrine: 'hunt', slot: 1 },
+    { units: { abrams: 2, ranger: 2 }, sector: 'W1', doctrine: 'assault', slot: 0 },
+    { units: { javelin: 2, engineer: 2 }, sector: 'N1', doctrine: 'hunt', slot: 1 },
   ];
 
   it('round-trips the version and re-fights the identical battle', () => {

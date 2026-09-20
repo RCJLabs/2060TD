@@ -5,6 +5,7 @@ import {
   type TerrainField,
 } from '../sim/terrain';
 import { COMBAT_CURRENT } from '../sim/combat';
+import { CHAIN_CURRENT } from '../sim/killchain';
 import {
   defenseCatalogFor,
   enemyRosterFor,
@@ -1073,6 +1074,11 @@ function battleConfig(
     // probe is a battle the war actually fought while you were away, not a
     // prediction of one, so it is entitled to go the way battles go.
     combatVersion: COMBAT_CURRENT,
+    // A post is a post (v1.41): the same staged objective decides a siege, a
+    // mission, a counterattack and an offline probe as decides a raid. The
+    // seam is the same one terrain and the rolls come through, so a battle
+    // that forgot the chain would be one that skipped this function.
+    killChainVersion: CHAIN_CURRENT,
     ...(defender ? { mods: { defender } } : {}),
     ...(reservedCells && reservedCells.length > 0 ? { reservedCells } : {}),
   };
