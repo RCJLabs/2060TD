@@ -1490,6 +1490,10 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --budget to sweep the action budget past the content, or
                    # -- --verbs to price each defender action ALONE, and the
                    #    shipped presets against them, or
+                   # -- --orders to price the two unadopted order mechanics, or
+                   # -- --cliff for WHY a defence row is a step function —
+                   #    whether clearing the gate and taking the base are the
+                   #    same event, which in most rows they are, or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or

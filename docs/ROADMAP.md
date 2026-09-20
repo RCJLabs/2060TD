@@ -2955,7 +2955,33 @@ premium", which converts idle attrition into sessions.
       phase moved rows between 0% and 100% without ever producing a battle that
       was close. Phase 3's first job is a contested band; the verbs get
       re-judged against it afterwards, not before.
-- [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
+- [ ] **Phase 3 — build the contested band FIRST, then re-judge the verbs
+      against it.** `npm run balance -- --cliff` says exactly where the step
+      function comes from, and it is not where Phase 2 guessed.
+
+      Every row that reads 0% or 100% sums to exactly 100 across "held" and
+      "the attack passed SUPPRESS" — in those battles, clearing the gate and
+      taking the base are the SAME EVENT. Every contested row sums to more,
+      because the attack got through the gate and died afterwards. So the game
+      has two regimes and a seam:
+
+      | regime | passed SUPPRESS | then took it | held |
+      |---|---|---|---|
+      | the gate holds | 0% | — | 100% |
+      | the gate falls, the rest is a formality | 100% | **100%** | 0% |
+      | the seam | 25-90% | **0-40%** | 85-95% |
+
+      The fix is NOT to soften SUPPRESS, which was the obvious reading and the
+      wrong one: softening it just moves rows from the first regime to the
+      second. It is to make CHARGE and BURN decide battles that SUPPRESS
+      currently decides — passing the gate should be routine and holding the
+      post should be hard, which is also the fiction the chain was written for.
+      Every row where "then took it" is 100% is a battle whose last two stages
+      are scenery.
+
+      Then, and only then, the verbs get re-judged: a defender action is worth
+      measuring once there is a band for it to land in.
+- [ ] **Phase 3b — live-defend offers, and a defeat state that costs something
       memorable.**
 
 ## M24 — "The Settlement": from nine buildings to a base builder

@@ -808,3 +808,13 @@ here with the change and its date.
   defence is dominant: the `perWave` variant raises hold rate to 93-100% and
   drops LIVE in every row. "Close" needs hold% near 50 AND live waves, and a
   single number cannot say that. Pairing it was the mistake, not measuring it.
+- 2026-09-20 — **The step function is SUPPRESS being the whole battle.** Every
+  defence row that reads 0% or 100% sums to exactly 100 across "the defence
+  held" and "the attack cleared SUPPRESS": in those battles the gate and the
+  objective are one event. Contested rows sum to MORE, because the attack got
+  through and then failed at CHARGE or BURN — "then took it" is 18-40% there
+  against 100% everywhere else. So the obvious repair, softening the gate, is
+  the wrong one: it moves rows from "never starts" to "always finishes" without
+  creating anything in between. What makes a battle close is the last two
+  stages being able to fail, and in 14 of 15 rows they cannot. M22 built four
+  stages and the ladder only ever uses two of them.

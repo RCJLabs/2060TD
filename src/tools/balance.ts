@@ -654,6 +654,8 @@ interface WaveTrace {
   spent: number;
   banked: number;
   kills: number;
+  /** Chain stages the ATTACK completed, 0-4. >= 2 means SUPPRESS was passed. */
+  stages: number;
 }
 
 /**
@@ -720,6 +722,7 @@ function siegeTrace(
     spent: engine.stats.cpSpent,
     banked: engine.cp,
     kills: engine.stats.kills,
+    stages: engine.chainStagesCleared,
   };
 }
 
@@ -4120,6 +4123,52 @@ function main(): void {
     const arg = process.argv[process.argv.indexOf('--siege') + 1];
     const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 8;
     console.log(siegeTable([2, 3, 4], seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--cliff')) {
+    // Is the kill chain itself the step function?
+    //
+    // SUPPRESS is binary — EVERY live gun within coverRadius must be down — so
+    // a defence either keeps one gun alive and the attack cannot start, or
+    // loses them all and the rest follows. If that is the cliff, then hold%
+    // and "the attack passed SUPPRESS" should be complements, not merely
+    // correlated: the share of runs reaching stage 2 should be 100 minus the
+    // hold rate, row by row, with nothing in between.
+    console.log('CLIFF — is SUPPRESS the step? 20 seeds, no defender policy');
+    console.log('FACTION  | BASE        | LVL | HELD | PASSED SUPPRESS | SUM | THEN TOOK IT');
+    console.log('---------+-------------+-----+------+-----------------+-----+-------------');
+    let worst = 0;
+    for (const faction of FACTION_IDS) {
+      for (const base of referenceBases()) {
+        for (const level of [2, 3, 4]) {
+          const runs = Array.from({ length: 20 }, (_, i) =>
+            siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), null),
+          );
+          const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+          const passed = (runs.filter((r) => r.stages >= 2).length / runs.length) * 100;
+          const sum = held + passed;
+          worst = Math.max(worst, Math.abs(sum - 100));
+          // Of the runs that got PAST the gate, how many went on to take the
+          // post? Where that is 100%, SUPPRESS is the whole battle and the row
+          // is a step. Where it is not, the stages after it are load bearing
+          // and the row has slope — which is where a player could matter.
+          const got = runs.filter((r) => r.stages >= 2);
+          const took = got.length
+            ? (got.filter((r) => r.stages >= 4).length / got.length) * 100
+            : null;
+          console.log(
+            `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+              `${pad(`${held.toFixed(0)}%`, 4)} | ${pad(`${passed.toFixed(0)}%`, 15)} | ${pad(sum.toFixed(0), 4)}` +
+              ` | ${pad(took === null ? '—' : `${took.toFixed(0)}%`, 12)}`,
+          );
+        }
+      }
+    }
+    console.log(
+      `\nWorst departure from 100: ${worst.toFixed(0)} points. A row that sums to 100 is one ` +
+        'where passing SUPPRESS and taking the base are the SAME event.',
+    );
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
