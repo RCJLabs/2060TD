@@ -1543,6 +1543,9 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --slope to dial attacker HP continuously through the
                    #    point a row flips — is the battle bimodal, or is the
                    #    LADDER just coarser than the band? or
+                   # -- --width for how much attacker strength separates
+                   #    always-win from always-lose, PER BASE — the band a
+                   #    ladder rung has to fit inside, or
                    # -- --contested for how many levels of a row land between
                    #    winning every seed and losing every seed, scanned
                    #    across the WHOLE ladder so it survives the ladder

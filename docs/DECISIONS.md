@@ -872,3 +872,14 @@ here with the change and its date.
   flags that adding one should start with grepping for it — a duplicate costs an
   instrument, and an instrument that has quietly stopped running is worse than
   one that was never written.
+- 2026-09-21 — **The contested band is a property of the base, not of the game.**
+  `--width` measures how much attacker strength separates always-win from
+  always-lose, per reference base: EARLY +22%, MID +95%, LATE +59%. v1.42 sized
+  the ladder's rungs at +25% against a board-wide average of ~43%, which is why
+  MID and LATE now ramp and EARLY still does not. A single rung size cannot
+  serve bases whose bands differ four-fold, and the narrow one is narrow because
+  three guns is too small a sample for the outcome to vary — checked by doubling
+  its maze, which moved nothing at any attacker strength. Whether that is a
+  defect depends on an unanswered design question: if CC1 is the onboarding
+  stage, a flat row there is correct and should stop being counted against the
+  step-function total.

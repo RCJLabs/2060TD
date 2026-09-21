@@ -581,7 +581,13 @@ function wallLine(walls: LayoutWall[], u: number, v0: number, v1: number, gaps: 
  * its level (counts and structure levels), funnels facing the entry line.
  */
 function referenceBases(): ReferenceBase[] {
-  // EARLY (CC1): one wall line, one gap, two gun nests. 21 walls of 50.
+  // EARLY (CC1): one wall line, one gap, three guns — two nests and an
+  // autocannon, which is CC1's WHOLE gun allowance. 16 wall segments of the 50
+  // it could lay, and that gap was checked rather than assumed: doubling the
+  // maze to 32 moves level 4 not at all, at any attacker strength from 0.6x to
+  // 1.4x. Three guns cannot hold a level-4 assault however they are arranged,
+  // so EARLY's missing contested band is a question about what CC1 is FOR, not
+  // about this layout.
   const early: ReferenceBase = { name: 'EARLY (CC1)', ccLevel: 1, walls: [], structures: [] };
   wallLine(early.walls, 20, 1, 18, [9, 10]);
   early.structures = [
@@ -4205,6 +4211,71 @@ function main(): void {
         }
       }
     }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--width')) {
+    // How WIDE is the contested band, per base stage?
+    //
+    // v1.42 sized the ladder's rungs against a band measured across the whole
+    // board — ~43% of attacker strength. EARLY (CC1) still has no contested
+    // rung anywhere, and it dies across a +24% step, so its band must be
+    // narrower than that. The obvious suspect is variance: two guns is a
+    // smaller sample than six, so the same matchup lands the same way more
+    // often and the region where seeds disagree is thinner. If that is right
+    // the band is a property of the BASE, not of the game, and no single rung
+    // size can serve all three.
+    const SCALES: number[] = [];
+    for (let x = 0.5; x <= 2.01; x += 0.05) SCALES.push(Math.round(x * 100) / 100);
+    console.log('WIDTH — how much attacker strength separates always-win from always-lose?');
+    console.log('FACTION  | BASE        | LVL | BAND (x attacker HP)      | WIDTH');
+    console.log('---------+-------------+-----+--------------------------+-------');
+    const byStage = new Map<string, number[]>();
+    for (const faction of FACTION_IDS) {
+      for (const ref of referenceBases()) {
+        // Pick the rung where this row actually turns over.
+        let flip = 1;
+        for (let level = 1; level <= 14; level++) {
+          const runs = Array.from({ length: 8 }, (_, i) =>
+            siegeTraceOn(faction, ref, level, seedOf(level, ref.ccLevel, i), null, CHAIN_CURRENT),
+          );
+          if (runs.filter((r) => r.held).length / runs.length < 0.5) {
+            flip = level;
+            break;
+          }
+          flip = level;
+        }
+        const held = (scale: number): number => {
+          const runs = Array.from({ length: 20 }, (_, i) =>
+            siegeTraceOn(faction, ref, flip, seedOf(flip, ref.ccLevel, i), null, CHAIN_CURRENT, scale),
+          );
+          return (runs.filter((r) => r.held).length / runs.length) * 100;
+        };
+        const inBand = SCALES.filter((x) => {
+          const h = held(x);
+          return h >= 5 && h <= 95;
+        });
+        const lo = inBand.length ? inBand[0]! : null;
+        const hi = inBand.length ? inBand[inBand.length - 1]! : null;
+        const width = lo !== null && hi !== null ? (hi / lo - 1) * 100 : 0;
+        if (!byStage.has(ref.name)) byStage.set(ref.name, []);
+        byStage.get(ref.name)!.push(width);
+        console.log(
+          `${pad(faction.toUpperCase(), 8)} | ${pad(ref.name, 11)} | ${pad(String(flip), 3)} | ` +
+            `${pad(lo === null ? 'none' : `${lo.toFixed(2)}x - ${hi!.toFixed(2)}x`, 24)} | ` +
+            `${pad(width ? `+${width.toFixed(0)}%` : '—', 5)}`,
+        );
+      }
+    }
+    console.log('');
+    for (const [stage, widths] of byStage) {
+      const mean = widths.reduce((a, b) => a + b, 0) / widths.length;
+      console.log(`${pad(stage, 12)} mean band width: +${mean.toFixed(0)}%`);
+    }
+    console.log(
+      '\nA rung has to be smaller than the band to land in it. Where these differ by ' +
+        'stage, ONE rung size cannot serve every base.',
+    );
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

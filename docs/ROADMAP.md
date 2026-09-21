@@ -3043,9 +3043,32 @@ premium", which converts idle attrition into sessions.
       earned. The counterattack path, which borrows the assault ladder for a
       raid tier, goes through the same rescale.
 
-      **Still open: EARLY (CC1) has no contested level at any rung** for four
-      factions of five. Two guns and one wall line is outside the band in both
-      directions, which is a base-template question rather than a ladder one.
+      **EARLY (CC1) has no contested rung, and `--width` says why.** The
+      contested band is not one number — it is a property of the BASE:
+
+      | stage | mean band width |
+      |---|---|
+      | EARLY (CC1) | **+22%** |
+      | MID (CC2) | +95% |
+      | LATE (CC3) | +59% |
+
+      v1.42 sized rungs at +25% against a board-wide ~43%, which fits MID and
+      LATE and cannot fit EARLY. Four of five EARLY rows have no measurable
+      band at all. The suspect was the reference layout, and both halves of it
+      were checked rather than assumed: the base already fields CC1's WHOLE gun
+      allowance (two nests and an autocannon, three guns), and doubling its
+      maze from 16 wall segments to 32 moves level 4 not one point, at any
+      attacker strength from 0.6x to 1.4x.
+
+      So three guns cannot hold a level-4 assault however they are arranged,
+      and a three-gun base has too little variance for its outcome to be in
+      doubt at all. That is not a bug to fix with a rung size or a layout. It
+      is a question nobody has answered: **is CC1 supposed to be contested?**
+      A defensible reading is no — it is the onboarding stage, you win easily
+      and then must upgrade, and contested play starts at CC2 where the band is
+      +95% wide. If that is the intent then EARLY's flat rows are correct and
+      should stop being counted as step functions. If it is not, CC1 needs more
+      than three guns, which is a pacing decision about the opening hours.
 - [ ] **Phase 3b — the ramp alone, superseded by 3c. Kept for the record.**
       Waves 4, 5 and 6 unlock at levels 2, 3 and 4 and used to arrive at full
       size, which is where the +67% and +58% steps came from — not from
