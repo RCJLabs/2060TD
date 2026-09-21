@@ -1226,11 +1226,18 @@ closed *without* a change. The single content edit is ten numbers.
       than the watch hurts it. That was left deliberately rather than tuned
       back in the same release that caused it; it belongs in a parity pass.
 
-- [ ] **The v0.6 watch items, still open.** The EARLY L2→L3 cliff on all sides
-      (armor arrives before anti-armor requisitions), China MID vs L5+ (Javelin
-      overwatch), and NK MID vs L4+ (everything kills sentry nests). They have
-      been carried in `docs/BALANCE.md` for eleven releases and they are the
-      same problem this milestone is about.
+- [ ] **The v0.6 watch items — now EXPLAINED, still open.** The EARLY L2→L3
+      cliff on all sides (armor arrives before anti-armor requisitions), China
+      MID vs L5+ (Javelin overwatch), and NK MID vs L4+ (everything kills
+      sentry nests). Carried in `docs/BALANCE.md` for eleven releases as three
+      separate content notes; M23 Phase 2's `--cliff` says they are one
+      structural fact wearing three costumes. Every 0%/100% row sums to exactly
+      100 across "the defence held" and "the attack cleared SUPPRESS", so the
+      gate and the objective are the same event and the row can only be a step.
+      The cliff is not that armour outpaces anti-armour at L3 — it is that
+      nothing in the chain can catch an attack once the gate falls. Three
+      releases of tuning the content either side of it were treating a
+      symptom.
 
 - [x] **A rule can ask what it is shooting at** *(v1.21)* — *`hostiles: 'air'
       | 'ground' | 'any'` on a standing-order rule, so the garrison holds its
@@ -2785,7 +2792,7 @@ premium", which converts idle attrition into sessions.
       on their own command post is close enough to true to be worth the
       simplicity, and a 46-point swing in what a half-failed raid costs is
       the price of it.
-- [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
+- [x] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
       AND against how often the player's input changed the outcome. A verb that
       does not move the second number is decoration.
 
@@ -2866,7 +2873,238 @@ premium", which converts idle attrition into sessions.
       reach the hang, because the most generous preset in the game allows six
       actions and it takes more than that. A defect can be real, severe, and
       completely invisible to every table you own, all at once.
-- [ ] **Phase 3 — live-defend offers, and a defeat state that costs something
+
+      **Then the table the phase exists for: `npm run balance -- --verbs`.** One
+      rule at a time, everything else held fixed — same budget, same hostile
+      threshold, same cooldown, `cpAtLeast` set to the thing's own price so
+      every verb acts the moment it can afford to. Scoped to MID (CC2) levels
+      3-4, because a verb measured on a row that cannot move reads zero for a
+      reason that is not about the verb.
+
+      | verb | HELD vs nothing |
+      |---|---|
+      | `foxhole -> ccApproach` | **+32** |
+      | `depmg -> ccApproach` | **+31** |
+      | `foxhole -> breach` | +6 |
+      | `depmg -> breach` | +4 |
+      | `claymore -> ccApproach` | +2 |
+      | `a10 -> densest` | +0 |
+      | `arty -> densest` | **-3** |
+
+      **The verb barely matters; the AIM does.** A gun at the approach is worth
+      +31. The same gun at the breach is worth +4. A mine on the same cell is
+      +2, and the two fire missions are nothing and worse than nothing. That is
+      the kill chain's own doing and it is geometric: SUPPRESS gates the post on
+      every live gun within `coverRadius`, so a deployed WEAPON inside that
+      radius adds a gate the attacker must clear, and everything else merely
+      does damage. Since M22 the defence's only real lever is adding gates.
+
+      **Which makes two of the three shipped presets pre-chain artifacts.**
+      COUNTERBATTERY is all damage — A-10, claymore, artillery — and scores
+      exactly +0. TRIPWIRE scores -1 while OWNING the +31 verb, and that is the
+      third finding: rules are evaluated in list order and every action spends
+      one of `maxActions`, so a cheap rule at the top with a short cooldown
+      starves everything below it. TRIPWIRE's claymore sits first at
+      `cpAtLeast: 16` on a 100-tick cooldown and eats all five actions before
+      `depmg -> ccApproach` ever fires. Delete that one rule, change nothing
+      else, and the preset goes **65% to 100% on the same action budget.**
+
+      **The uncomfortable part, and what Phase 3 has to decide.** The one verb
+      that works is worth so much that aiming it correctly ends the question —
+      a single correctly-placed gun takes these rows to 97-100%. So the answer
+      to "how often did the player's input change the outcome" is: one move
+      changes everything and the rest change nothing, which is not a verb set
+      with depth. Repairing TRIPWIRE to 100% would flatten the game further,
+      not improve it, so it is deliberately NOT done here. The options are to
+      make the gate cheaper to clear, to give the damage verbs a job the chain
+      can see, or to make rule ORDER a thing the player chooses rather than a
+      trap — and that is a design call, not a tuning one.
+
+      **Two candidate fixes priced, both rejected, and the rejection is the
+      finding.** `npm run balance -- --orders`, MID (CC2) levels 3-4.
+
+      | preset | shipped | fairShare | perWave |
+      |---|---|---|---|
+      | HOLDFAST | 97% | **74%** | 100% |
+      | COUNTERBATTERY | 66% | 66% | **93%** |
+      | TRIPWIRE | 65% | 86% | **100%** |
+
+      `fairShare` — no rule may take more than its share of the budget — fixes
+      TRIPWIRE and BREAKS HOLDFAST, because HOLDFAST's whole strength was
+      placing the SAME good verb three times. It punishes the correctly
+      ordered preset to rescue the wrong one, which is levelling rather than
+      fixing. `perWave` makes all three strong and is therefore not a fix
+      either: it turns the defence dominant rather than making the battles
+      close. Both stay in the type, defaulted off and pinned inert by a test,
+      because the instrument that priced them is what Phase 3 will reach for.
+
+      **And it exposed a flaw in Phase 1's own headline.** LIVE WAVES measures
+      post damage, so it falls both when the attack never arrives AND when the
+      defence is dominant — `perWave` raises hold rate and lowers LIVE in every
+      row. It cannot be read alone. What "close" needs is hold% near 50 AND
+      LIVE high, and nothing measured so far produces both.
+
+      **Which is the real answer to the whole phase: the ladder has no
+      contested band.** Parsed straight out of `BALANCE.md`, counting levels
+      where a defence row lands between 5% and 95%:
+
+      | contested levels in the row | rows |
+      |---|---|
+      | 0 | 6 of 15 (40%) |
+      | 1 | 8 of 15 (53%) |
+      | 3 | 1 of 15 (7%) |
+
+      **93% of defence rows are step functions** — `100 | 85 | 0 | 0 | 0 | 0` —
+      one level of contest and then a cliff. Exactly one row in fifteen is a
+      ramp (`USA MID: 100 100 100 90 75 10`), and it is the exception that
+      proves the shape is achievable. No verb set can matter where the
+      difficulty curve has no slope, which is why every lever priced in this
+      phase moved rows between 0% and 100% without ever producing a battle that
+      was close. Phase 3's first job is a contested band; the verbs get
+      re-judged against it afterwards, not before.
+- [x] **Phase 3a — WHERE the contested band is, measured.** Two sweeps, and
+      the first one failed usefully.
+
+      `npm run balance -- --band` prices every chain constant that could make
+      CHARGE and BURN decide a battle: burn length 20→90s, burn decay, crew
+      minimum, and cover radius. **CONTESTED sits at 12% for every one of
+      them.** Identical results across a whole sweep is a structural cause, not
+      a plateau — the second time that rule has paid this milestone.
+
+      The cover-radius candidate is worth recording because its MECHANISM
+      worked and its outcome did not. `coverRadius` 4 is the same as a deployed
+      gun's weapon range, so the guns that gate SUPPRESS and the guns that can
+      reach the post are one set by construction: clearing the gate
+      necessarily removes everything that could contest the burn. Shrinking it
+      to 2 moves PASSED GATE 44% → 51% and THEN TOOK IT 83% → 73%, so the last
+      two stages really did become load bearing — and CONTESTED does not move
+      at all, because the two effects cancel. A lever can be right about the
+      mechanism and worth nothing.
+
+      `npm run balance -- --slope` dials attacker HP CONTINUOUSLY through the
+      place a row flips, which separates the two remaining explanations:
+
+      ```
+      UN    MID (CC2) L4 | 100 | 85 | 40 | 15 |  0 |  0 |  0 |  0
+      CHINA MID (CC2) L3 | 100 |100 |100 |100 | 85 | 70 | 50 | 30
+      USA   MID (CC2) L4 | 100 |100 |100 |100 | 90 | 75 | 65 | 15
+                    0.6x  0.7x 0.8x 0.9x  1x  1.1x 1.2x 1.4x
+      ```
+
+      **The battle is not bimodal.** Difficulty is continuous and the contested
+      band is real, reachable and about 0.7x-1.0x of attacker HP wide. The step
+      function is therefore neither the chain's nor variance's: **one integer
+      level of the assault ladder is a bigger jump than the whole band.** And
+      the stages sit outside it — EARLY (CC1) still loses level 3 at 0.6x,
+      forty percent weaker attackers, while LATE (CC3) still wins level 4 at
+      1.4x.
+
+      So the fix is the assault ladder's granularity and the spacing of the
+      reference stages, both of which are content. Every chain constant was
+      the wrong place to look, and three sweeps were needed to be sure of it.
+- [x] **Phase 3c — the ladder is LONGER, and that is the fix.** The ramp alone
+      was half of it; the other half was arithmetic. A six-rung ladder spanning
+      this difficulty range has a floor of +33% per rung even when perfectly
+      uniform, and flattening it while holding the mean forces level 1 up by
+      54% — which is not a probing attack any more. Both costs vanish if the
+      ladder simply has more rungs, and `assaultLevel` turned out never to have
+      been capped: it starts at 1, increments on a win, and `buildAssault`
+      takes any number. The six levels were only ever what the tables sampled.
+
+      So growth drops 0.18 → 0.09 with new waves ramping in at 0.15/0.10:
+
+      ```
+      L1  24        L5  50 (+9%)    L9   85 (+8%)
+      L2  30 (+25%) L6  58 (+16%)   L10 100 (+18%)
+      L3  37 (+23%) L7  69 (+19%)   L11 110 (+10%)
+      L4  46 (+24%) L8  79 (+14%)   L12 116 (+5%)
+      ```
+
+      Worst step **+25%**, comfortably inside the 43% band; level 1 untouched
+      at its original size; the old level 6 arrives at level 11.
+
+      | | before | after |
+      |---|---|---|
+      | contested levels per row | 0.73 | **2.20** |
+      | rows with 2 or more | 1 of 15 | **10 of 15** |
+      | worst step | +67% | **+25%** |
+
+      **And the metric had to be rebuilt to see it.** `--band` samples fixed
+      level NUMBERS, so stretching the ladder slid the sample out from under it
+      — it read 3% contested and 82% mean hold, which looks like a catastrophic
+      regression and is an artifact of measuring levels 2-5 that now hold a
+      third of what they used to. `--rungs` counts contested levels across the
+      WHOLE ladder instead, which is what a player climbs through and is
+      invariant to how many rungs it takes.
+
+      Saved towns are rescaled on load by `rescaleLadder` (old 4 → new 9,
+      derived from the curves rather than chosen) and stamped with
+      `ladderVersion`, so a war in progress keeps facing the assault it had
+      earned. The counterattack path, which borrows the assault ladder for a
+      raid tier, goes through the same rescale.
+
+      **Still open: EARLY (CC1) has no contested level at any rung** for four
+      factions of five. Two guns and one wall line is outside the band in both
+      directions, which is a base-template question rather than a ladder one.
+- [ ] **Phase 3b — the ramp alone, superseded by 3c. Kept for the record.**
+      Waves 4, 5 and 6 unlock at levels 2, 3 and 4 and used to arrive at full
+      size, which is where the +67% and +58% steps came from — not from
+      `scaleCount`, which is a gentle +18%. A newly unlocked wave now arrives
+      at 40% and reaches full strength two levels later, so the lesson it
+      teaches still lands on schedule and only the size of the step changes.
+
+      | | before | after |
+      |---|---|---|
+      | CONTESTED rows | 12% | **17%** |
+      | MEAN HOLD | 64% | **71%** |
+      | THEN TOOK IT | 83% | 74% |
+      | worst step, units fielded | +67% | +55% |
+
+      **It works and it is not enough, and the second number says why.** Mean
+      hold moved seven points, so this did not only re-shape the curve, it
+      lowered it — a real difficulty change that wants compensating at the top
+      of the ladder before anything ships.
+
+      And the ramp family has a measured CEILING. Searching start and increment
+      for the flattest ladder that still reaches full strength by level 6 gives
+      +55% at best; flatter shapes exist (+39%) but leave the gunship wave
+      permanently at a third strength, which is not a level 6. The structural
+      reason is that three waves unlock in three consecutive levels, so every
+      early level adds a whole new thing. Getting under the band's ~43% width
+      needs the unlocks SPREAD (waves at 2, 4, 6) or the ladder LENGTHENED —
+      both of which change what a level means in the meta, and neither of which
+      should be decided at the end of a session.
+
+      Left on the branch with its evidence and deliberately not merged: `main`
+      keeps v1.41.2's ladder until the compensating pass is done and the
+      snapshot regenerated.
+- [ ] **Phase 3c — build the contested band FIRST, then re-judge the verbs
+      against it.** `npm run balance -- --cliff` says exactly where the step
+      function comes from, and it is not where Phase 2 guessed.
+
+      Every row that reads 0% or 100% sums to exactly 100 across "held" and
+      "the attack passed SUPPRESS" — in those battles, clearing the gate and
+      taking the base are the SAME EVENT. Every contested row sums to more,
+      because the attack got through the gate and died afterwards. So the game
+      has two regimes and a seam:
+
+      | regime | passed SUPPRESS | then took it | held |
+      |---|---|---|---|
+      | the gate holds | 0% | — | 100% |
+      | the gate falls, the rest is a formality | 100% | **100%** | 0% |
+      | the seam | 25-90% | **0-40%** | 85-95% |
+
+      The fix is NOT to soften SUPPRESS, which was the obvious reading and the
+      wrong one: softening it just moves rows from the first regime to the
+      second. It is to make CHARGE and BURN decide battles that SUPPRESS
+      currently decides — passing the gate should be routine and holding the
+      post should be hard, which is also the fiction the chain was written for.
+      Every row where "then took it" is 100% is a battle whose last two stages
+      are scenery.
+
+      Then, and only then, the verbs get re-judged: a defender action is worth
+      measuring once there is a band for it to land in.
+- [ ] **Phase 3b — live-defend offers, and a defeat state that costs something
       memorable.**
 
 ## M24 — "The Settlement": from nine buildings to a base builder
@@ -3231,17 +3469,14 @@ was being read for.
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
 - Balance numbers are provisional until M5's harness; resist hand-tuning before it exists.
 - Each milestone is pushed to the repo in a runnable state with green tests.
-- The 22 E2E harnesses gate every release, and they are TIMING-based: each step
-  sleeps a fixed number of milliseconds rather than polling for the condition it
-  is about to assert. Under CPU load that is a flake source, and the v1.41.2
-  gate priced it: two full batches of the same suite on the same commit failed
-  `e2e-flow` and `e2e-raid` the first time and `e2e-build` the second. **No
-  harness failed twice, and all three passed alone.** Five different harnesses
-  have flaked this way now (`e2e-build`, `e2e-tutorial`, `e2e-vault`,
-  `e2e-flow`, `e2e-raid`), always a step that needed longer than its sleep — and
-  the second batch was starved by a single harness re-run started alongside it,
-  so the contention is easy to cause by accident. Converting the sleeps to
-  condition polls is the fix, and it is owed. Until then, two rules: run the
-  batch with nothing else going, and treat one harness failing in a batch as
-  evidence of neither a regression nor a flake until it has been re-run by
-  itself.
+- The 22 E2E harnesses gate every release with `npm run e2e`, which runs them
+  in sequence and **re-runs a failure once, alone, before calling it anything**
+  — the rule that came out of the v1.41.2 gate, where two batches on the same
+  commit failed different harnesses and none failed twice. A flake is reported
+  loudly and passes the gate; a real failure fails twice and does not.
+- Sixteen of those harnesses poll for the UI to STOP CHANGING rather than
+  sleeping a constant (v1.42). The six gesture-driven ones keep their sleeps on
+  purpose: their waits are part of the test — a list has to still be COASTING
+  when the next touch lands — so a settle-poll there would buy false passes
+  rather than fewer false failures. `e2e-drawer` is the one that still flakes,
+  and that is the accepted residual rather than an oversight.

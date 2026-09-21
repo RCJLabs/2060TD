@@ -11,7 +11,73 @@ import { entry, series } from './missions';
  */
 
 const scaleCount = (base: number, level: number): number =>
-  Math.max(1, Math.round(base * (1 + 0.18 * (level - 1))));
+  Math.max(1, Math.round(base * (1 + LADDER_GROWTH * (level - 1))));
+
+/**
+ * How much a level adds, and why it is so much smaller than it used to be.
+ *
+ * M23 Phase 3a measured the CONTESTED BAND — the range of attacker strength
+ * over which a defence row lands somewhere between winning every seed and
+ * losing every seed — at roughly 0.7x to 1.0x, about 43% wide. It then
+ * measured what a level actually cost: +67% and +58% at the bottom of the
+ * ladder against +9% at the top. A step bigger than the band jumps clean over
+ * it, which is why 93% of defence rows were step functions with one contested
+ * level or none, and why the single row that ramped was the one whose flip
+ * happened to land in the flat part.
+ *
+ * You cannot fix that inside six levels. A 6-rung ladder spanning this
+ * difficulty range has a floor of +33% per rung even when perfectly uniform,
+ * and holding the mean while flattening forces level 1 up by 54% — which is
+ * not a probing attack any more. So the ladder is LONGER instead: +9% per
+ * level with new waves ramping in gently, giving a worst step of +25%,
+ * comfortably inside the band, with level 1 untouched at its original size
+ * and the old level 6 arriving at level 11.
+ *
+ * `assaultLevel` was never capped, so nothing in the meta had to change for
+ * this — only saved towns, which are rescaled on load by `rescaleLadder`.
+ */
+const LADDER_GROWTH = 0.09;
+
+/**
+ * A newly unlocked wave arrives at a FRACTION of its strength and grows in.
+ *
+ * `scaleCount` is a gentle +18% per level, but that was never what a level
+ * actually cost: waves 4, 5 and 6 unlock at levels 2, 3 and 4 and arrived at
+ * full size, so the real steps were +67%, +58% and +29% in units fielded
+ * against +9-19% once the ladder runs out of waves to add. M23 Phase 3a
+ * measured the contested band — where a defence row lands between 5% and 95%
+ * rather than at one end — at roughly 0.7x to 1.0x of attacker strength, about
+ * 43% wide. A 58% step jumps clean over it, which is why 93% of defence rows
+ * were step functions and the single row that ramped was the one whose flip
+ * landed in the flat part of the ladder.
+ *
+ * So the wave still ARRIVES on schedule — the lesson it teaches is the reason
+ * it exists, and delaying it would cost the ladder its shape — but it arrives
+ * at 40% and reaches full strength two levels later. The teaching order is
+ * untouched; only the size of the step changes.
+ */
+const waveRamp = (level: number, unlockLevel: number): number =>
+  Math.min(1, 0.15 + 0.1 * (level - unlockLevel));
+
+/**
+ * An `assaultLevel` from before the ladder was lengthened, in new levels.
+ *
+ * Derived from the curves rather than chosen: the smallest new level whose
+ * assault is at least as large as the old one's was.
+ *
+ *     old  1   2   3   4    5    6
+ *     new  1   4   7   9   10   11
+ *
+ * Past the table it keeps the same slope, so a town deep into the old ladder
+ * does not suddenly find level 12 easier than the level 6 it just beat.
+ */
+const RESCALE = [1, 1, 4, 7, 9, 10, 11];
+
+export function rescaleLadder(oldLevel: number): number {
+  if (oldLevel <= 1) return 1;
+  if (oldLevel < RESCALE.length) return RESCALE[oldLevel]!;
+  return RESCALE[RESCALE.length - 1]! + (oldLevel - (RESCALE.length - 1)) * 2;
+}
 
 /** Wave-role → attacker kind, per enemy faction (China attacks by default). */
 export interface AssaultRoster {
@@ -77,12 +143,13 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
 
   // Wave 4 (level 2+) — suppression: standoff fire behind a screen.
   if (level >= 2) {
+    const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 2)));
     waves.push({
       entries: [
-        ...series(0, 20, n(4), roster.swarm, [3, 5]),
-        ...series(0, 20, n(4), roster.swarm, [15, 17]),
-        ...series(220, 50, n(2), roster.ranged, [8, 12]),
-        ...(level >= 3 ? series(380, 40, n(1), roster.lightVehicle, [10]) : []),
+        ...series(0, 20, r(4), roster.swarm, [3, 5]),
+        ...series(0, 20, r(4), roster.swarm, [15, 17]),
+        ...series(220, 50, r(2), roster.ranged, [8, 12]),
+        ...(level >= 3 ? series(380, 40, r(1), roster.lightVehicle, [10]) : []),
       ],
     });
   }
@@ -90,12 +157,13 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
   // Wave 5 (level 3+) — the armored hammer.
   if (level >= 3) {
     const tanks = 1 + Math.floor((level - 3) / 2);
+    const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 3)));
     waves.push({
       entries: [
-        ...series(0, 40, n(2), roster.lightVehicle, [7, 13]),
-        ...series(80, 40, n(4), roster.line, [5, 10, 15]),
-        ...series(280, 50, n(2), roster.ranged, [8, 12]),
-        ...series(380, 40, n(2), roster.breacher, [7, 13]),
+        ...series(0, 40, r(2), roster.lightVehicle, [7, 13]),
+        ...series(80, 40, r(4), roster.line, [5, 10, 15]),
+        ...series(280, 50, r(2), roster.ranged, [8, 12]),
+        ...series(380, 40, r(2), roster.breacher, [7, 13]),
         ...series(480, 80, tanks, roster.heavy, [10, 8, 12]),
       ],
     });
@@ -105,11 +173,12 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
   // with no mount that can elevate simply watches them work.
   if (level >= 4) {
     const rotors = 1 + Math.floor((level - 4) / 2);
+    const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 4)));
     waves.push({
       entries: [
-        ...series(0, 40, n(3), roster.line, [5, 10, 15]),
+        ...series(0, 40, r(3), roster.line, [5, 10, 15]),
         ...series(120, 70, rotors, roster.gunship, [7, 13, 10]),
-        ...series(300, 50, n(2), roster.ranged, [8, 12]),
+        ...series(300, 50, r(2), roster.ranged, [8, 12]),
         ...(level >= 6 ? series(420, 90, rotors, roster.gunship, [10, 8]) : []),
       ],
     });

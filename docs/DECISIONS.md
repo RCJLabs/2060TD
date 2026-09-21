@@ -774,3 +774,101 @@ here with the change and its date.
   that found it, `--budget`, was written to test a hypothesis that turned out to
   be wrong; it earned its place by what it found on the way. When a lever is
   cheap to sweep, sweep it past where the content currently sits.
+- 2026-09-20 — **A rule list is a priority list, and nobody said so.** Standing
+  orders evaluate in array order and every action spends one of `maxActions`, so
+  a cheap rule at the top with a short cooldown silently starves an expensive
+  one below it. TRIPWIRE ships with the best verb in the game at position two
+  and scores WORSE THAN DOING NOTHING because a claymore rule at `cpAtLeast: 16`
+  spends the whole budget first; deleting that one rule takes it from 65% to
+  100% on the same five actions. The rule is a trap for whoever authors a preset
+  next, including a player if authoring ever reaches them, and the defect is not
+  in either rule — it is in the fact that ordering carries meaning nothing
+  declares.
+- 2026-09-20 — **The kill chain made the defence geometric, and the presets did
+  not notice.** `--verbs` prices each defender action alone: a gun deployed
+  within the post's cover radius is worth +31 points of hold rate, the same gun
+  at the breach +4, a mine +2, a fire mission 0 or -3. SUPPRESS gates on live
+  guns near the post, so placing a weapon there adds a GATE while everything
+  else merely does damage — and damage is not what decides these battles. Two of
+  the three shipped presets are all damage. They were written for the HP sponge
+  M22 replaced, and nothing re-read them afterwards, which is the same oversight
+  as `defenseMatrix` never being told about the chain, one layer up.
+- 2026-09-20 — **The defence ladder is a step function, and that is why no verb
+  matters.** 93% of the defence rows in `BALANCE.md` have one contested level or
+  none: `100 | 85 | 0 | 0 | 0 | 0`. One row in fifteen is a ramp. Every lever
+  priced in M23 Phase 2 — the action budget, rule order, a per-wave refill, the
+  choice of verb, where it is aimed — moved rows between 0% and 100% and never
+  produced a battle that was close, because a curve with no slope has nowhere
+  for a player's input to land. The instinct at the start of the phase was to
+  add verbs; the measurement says the verbs were never the binding constraint.
+- 2026-09-20 — **A metric that falls for two opposite reasons cannot be read
+  alone.** M23 Phase 1 shipped LIVE WAVES — the share of waves that move the
+  post's margin — as the headline for "is defence an action game". It falls when
+  the attack never arrives, which was the point, and it ALSO falls when the
+  defence is dominant: the `perWave` variant raises hold rate to 93-100% and
+  drops LIVE in every row. "Close" needs hold% near 50 AND live waves, and a
+  single number cannot say that. Pairing it was the mistake, not measuring it.
+- 2026-09-20 — **The step function is SUPPRESS being the whole battle.** Every
+  defence row that reads 0% or 100% sums to exactly 100 across "the defence
+  held" and "the attack cleared SUPPRESS": in those battles the gate and the
+  objective are one event. Contested rows sum to MORE, because the attack got
+  through and then failed at CHARGE or BURN — "then took it" is 18-40% there
+  against 100% everywhere else. So the obvious repair, softening the gate, is
+  the wrong one: it moves rows from "never starts" to "always finishes" without
+  creating anything in between. What makes a battle close is the last two
+  stages being able to fail, and in 14 of 15 rows they cannot. M22 built four
+  stages and the ladder only ever uses two of them.
+- 2026-09-21 — **The step function is the assault ladder's granularity, and
+  three sweeps were needed to rule out everywhere else.** `--band` prices every
+  chain constant that could make the last two stages decide a battle — burn
+  length, burn decay, crew minimum, cover radius — and CONTESTED sits at 12% for
+  all of them. `--slope` then dials attacker HP continuously and the rows move
+  smoothly through every value: 100/85/40/15/0. So difficulty is continuous, the
+  contested band is real and roughly 0.7x-1.0x of attacker HP wide, and one
+  integer level of the ladder is a bigger jump than the entire band. The fix is
+  content, not the chain. Worth the three sweeps: the first two hypotheses were
+  mine and both were wrong, and the only thing that distinguished them was
+  making the difficulty knob continuous.
+- 2026-09-21 — **A lever can be right about the mechanism and worth nothing.**
+  `coverRadius` 4 equals a deployed gun's weapon range, so the guns that gate
+  SUPPRESS and the guns that can reach the post are the same set by
+  construction — clearing the gate necessarily removes everything that could
+  contest the burn. Shrinking it to 2 does exactly what that reasoning predicts:
+  PASSED GATE 44% → 51%, THEN TOOK IT 83% → 73%. And the contested share does
+  not move, because more attacks start and more of them fail, and the two
+  cancel. Predicting a mechanism correctly is not the same as predicting an
+  outcome, and only the outcome was the goal.
+- 2026-09-21 — **A fix that improves the target metric and moves another one is
+  half a fix.** Ramping newly unlocked assault waves in over three levels raises
+  contested rows from 12% to 17% — the number M23 Phase 3 exists to move — and
+  raises mean hold rate from 64% to 71%, because smaller early steps make the
+  early ladder genuinely easier. Reporting only the first number would have been
+  true and misleading. It sits on the branch unshipped until the top of the
+  ladder is re-tuned to pay for it, on the same principle M22 Phase 4 used: a
+  re-tune wants a stable target, and changing two things at once to make one
+  number look good is how a changelog starts lying.
+- 2026-09-21 — **The ladder was too short, and nothing was stopping it being
+  longer.** A six-rung ladder over this difficulty range cannot have steps
+  smaller than +33% even when perfectly uniform, and the contested band is only
+  ~43% wide, so at best a player gets one contested level per base — which is
+  exactly what eleven releases of tables recorded. Flattening inside six rungs
+  costs either a 54% harder level 1 or a much easier middle. Adding rungs costs
+  neither, and `assaultLevel` was never capped: the "six levels" existed only in
+  the balance tables' sampling. Growth 0.18 → 0.09 takes contested levels per
+  row from 0.73 to 2.20.
+- 2026-09-21 — **A metric keyed to level NUMBERS cannot survive changing what a
+  level is.** `--band` samples levels 2-5 and read the lengthened ladder as 3%
+  contested and 82% mean hold — a catastrophic-looking regression that was
+  entirely the sample sliding out from under it, since those rungs now field a
+  third of what they used to. The replacement counts contested levels across the
+  whole ladder, which is what a player actually climbs and is invariant to its
+  length. An instrument that hard-codes a coordinate is measuring the
+  coordinate, not the thing.
+- 2026-09-21 — **A new flag silently shadowed an old instrument.** `--contested`
+  was first written as `--rungs`, which M15 already used for the manpower-demand
+  table; `process.argv.includes` matches the first handler, so the older
+  instrument became unreachable and nothing failed. It was caught because the
+  GDD happened to name the old flag in prose. The balance tool now has enough
+  flags that adding one should start with grepping for it — a duplicate costs an
+  instrument, and an instrument that has quietly stopped running is worse than
+  one that was never written.

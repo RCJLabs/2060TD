@@ -1,3 +1,4 @@
+import { rescaleLadder } from '../src/content/assaults';
 import { describe, expect, it } from 'vitest';
 import {
   ALL_UNLOCK_KEYS,
@@ -221,7 +222,13 @@ describe('save migration', () => {
     expect(town.faction).toBe('usa'); // pre-faction saves fought the USA war
     expect(town.intel).toBe(0);
     expect(town.research).toEqual({ completed: [], active: null });
-    expect(town.assaultLevel).toBe(4);
+    // v1.42 lengthened the assault ladder, so the level is RESCALED rather
+    // than carried: this save had reached an 81-unit assault at level 4, and
+    // the level that fields that same attack now is 9. Carrying the 4 would
+    // have handed a returning player an attack a third the size.
+    expect(town.assaultLevel).toBe(rescaleLadder(4));
+    expect(town.assaultLevel).toBe(9);
+    expect(town.ladderVersion).toBe(1);
     expect(town.campaign.next).toBe(0);
     expect(town.campaign.difficulty).toBe('standard');
     expect(town.frontline.tier).toBe(1);

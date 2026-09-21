@@ -124,6 +124,35 @@ try {
       return { x: (last.x + last.w / 2) / api.dpr, y: (last.y + last.h / 2) / api.dpr };
     });
 
+  /**
+   * Wait for the UI to STOP CHANGING rather than for a fixed number of
+   * milliseconds. Every harness used to tap and then sleep a constant, which is
+   * a bet that the machine is not busy — and under load it is a bet the suite
+   * loses: five different harnesses have failed in a batch and passed alone.
+   * Two identical snapshots in a row means the scene has settled, so this is
+   * also FASTER than the sleep it replaces in the common case.
+   */
+  const settle = async (budgetMs = 2500) => {
+    const deadline = Date.now() + budgetMs;
+    let prev = null;
+    let stable = 0;
+    while (Date.now() < deadline) {
+      const now = await page
+        .evaluate(() => {
+          const api = window.lastline;
+          return JSON.stringify([api.buttons().map((b) => b.label), api.texts()]);
+        })
+        .catch(() => null);
+      if (now !== null && now === prev) {
+        if (++stable >= 2) return true;
+      } else {
+        stable = 0;
+        prev = now;
+      }
+      await wait(60);
+    }
+    return false;
+  };
   const tap = async (needle, settleMs = 900) => {
     for (let attempt = 0; attempt < 24; attempt++) {
       const hit = await findButton(needle);
@@ -133,7 +162,8 @@ try {
           continue;
         }
         await page.mouse.click(hit.x, hit.y);
-        await wait(settleMs);
+        // The caller's number is a PATIENCE HINT now, not a duration.
+        await settle(Math.max(2500, settleMs * 3));
         return hit;
       }
       // Rows scrolled clear of the list leave the display entirely, so a row

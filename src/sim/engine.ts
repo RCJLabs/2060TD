@@ -297,6 +297,8 @@ export class Engine {
   /** Standing orders: per-rule next-allowed tick + the latest wall breach. */
   private orderNextTick: number[] = [];
   private ordersUsed = 0;
+  /** Actions each rule has spent, for `StandingOrders.fairShare`. */
+  private orderUsedBy: number[] = [];
   private lastBreachCell: CellIndex | null = null;
 
   /** How many standing-order actions the garrison executed this battle. */
@@ -586,6 +588,13 @@ export class Engine {
   }
 
   private startWave(index: number, events: SimEvent[]): void {
+    // A per-wave budget refills here, so the defence gets a turn in every wave
+    // rather than spending its whole battle in wave one.
+    const book = this.attackerSide ? this.config.garrison : this.config.standingOrders;
+    if (book?.perWave && index > 0) {
+      this.ordersUsed = 0;
+      this.orderUsedBy = [];
+    }
     this.waveIndex = index;
     this.waveTick = 0;
     this.spawnCursor = 0;
@@ -948,8 +957,15 @@ export class Engine {
     // and the playbook has only so many pages per battle.
     if (this.tick % TICKS_PER_SECOND !== 0) return;
     if (orders.maxActions !== undefined && this.ordersUsed >= orders.maxActions) return;
+    // No rule takes more than its share of the budget. Without it, ordering
+    // does not mean "reach for this first", it means "spend everything here".
+    const share =
+      orders.fairShare && orders.maxActions !== undefined
+        ? Math.ceil(orders.maxActions / Math.max(1, orders.rules.length))
+        : Infinity;
     for (let i = 0; i < orders.rules.length; i++) {
       const rule = orders.rules[i]!;
+      if ((this.orderUsedBy[i] ?? 0) >= share) continue;
       if (this.tick < (this.orderNextTick[i] ?? 0)) continue;
       if (this.cp < rule.cpAtLeast) continue;
       let hostiles = 0;
@@ -995,6 +1011,7 @@ export class Engine {
       }
       if (acted) {
         this.orderNextTick[i] = this.tick + rule.cooldownTicks;
+        this.orderUsedBy[i] = (this.orderUsedBy[i] ?? 0) + 1;
         this.ordersUsed++;
         if (orders.maxActions !== undefined && this.ordersUsed >= orders.maxActions) return;
       }

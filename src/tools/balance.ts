@@ -57,7 +57,13 @@ import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
 import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
-import { CHAIN_CURRENT, CHAIN_NONE, chainModelFor } from '../sim/killchain';
+import {
+  CHAIN_CURRENT,
+  CHAIN_MODELS,
+  CHAIN_NONE,
+  chainModelFor,
+  type ChainModel,
+} from '../sim/killchain';
 import {
   OBJECTIVES,
   OBJECTIVE_FLOOR,
@@ -79,7 +85,24 @@ import type {
 const SEEDS = 20;
 const VARIANTS = 3;
 const RAID_TIERS = [1, 2, 3, 4, 5];
-const ASSAULT_LEVELS = [1, 2, 3, 4, 5, 6];
+/**
+ * The rungs the defence tables sample.
+ *
+ * Six consecutive levels used to span the whole ladder. v1.42 lengthened it —
+ * a level is a +25% step now instead of up to +67%, so today's level 6 is what
+ * used to be level 2 and sampling 1-6 would report 100% holds everywhere and
+ * say nothing. These are the rungs that cover the same DIFFICULTY range the
+ * old six did, which is what keeps a row in this file comparable to the row
+ * above it in the history.
+ *
+ * They are CONSECUTIVE for a reason that cost a snapshot to learn. The first
+ * attempt sampled 1/4/6/8/10/12 — the same difficulty span in six columns —
+ * and reported 80% of rows as step functions while `--contested`, scanning
+ * every rung, measured 2.20 contested levels per row. Both were right: a row
+ * contested at levels 7 and 8 shows up once in a sample that skips 7. A table
+ * read as "the shape of the ladder" must not sample every other rung of it.
+ */
+const ASSAULT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const seedOf = (a: number, b: number, c: number): number =>
   ((a * 7919 + b * 104729 + c * 2654435761 + 977) & 0x7fffffff) >>> 0;
@@ -654,6 +677,10 @@ interface WaveTrace {
   spent: number;
   banked: number;
   kills: number;
+  /** Chain stages the ATTACK completed, 0-4. >= 2 means SUPPRESS was passed. */
+  stages: number;
+  /** Armed defence structures still standing when the battle ended. */
+  gunsLeft: number;
 }
 
 /**
@@ -671,6 +698,19 @@ function siegeTrace(
   seed: number,
   policy: SiegePolicy = null,
 ): WaveTrace {
+  return siegeTraceOn(faction, base, level, seed, policy, CHAIN_CURRENT);
+}
+
+/** The same trace against a NAMED chain version, for sweeping candidates. */
+function siegeTraceOn(
+  faction: FactionId,
+  base: ReferenceBase,
+  level: number,
+  seed: number,
+  policy: SiegePolicy,
+  chainVersion: number,
+  attackerHp = 1,
+): WaveTrace {
   const catalog = defenseCatalogFor(faction);
   const roster = enemyRosterFor(faction);
   const config: SimConfig = {
@@ -682,12 +722,13 @@ function siegeTrace(
     spawnLane: BASE_SPAWN_LANE,
     spawnEdge: BASE_SPAWN_EDGE,
     combatVersion: COMBAT_CURRENT,
-    killChainVersion: CHAIN_CURRENT,
+    killChainVersion: chainVersion,
     siege: { ...buildAssault(level, roster), startingSupplies: 0 },
     layout: {
       walls: base.walls.map((w) => ({ ...w })),
       structures: base.structures.map((st) => ({ ...st })),
     },
+    ...(attackerHp === 1 ? {} : { mods: { attacker: { hp: attackerHp } } }),
     powerCharges: policy ? { a10: 2, arty: 1 } : {},
     ...(policy ? { standingOrders: policy } : {}),
   };
@@ -720,7 +761,171 @@ function siegeTrace(
     spent: engine.stats.cpSpent,
     banked: engine.cp,
     kills: engine.stats.kills,
+    stages: engine.chainStagesCleared,
+    gunsLeft: engine.structures.filter((st) => st.hp > 0 && st.profile.weapon).length,
   };
+}
+
+/**
+ * The verb set, ONE AT A TIME — the table M23 Phase 2 exists to produce.
+ *
+ * The shipped presets each bundle three rules, so `--leverage` can say HOLDFAST
+ * carries all the leverage and cannot say WHICH of its three rules does. This
+ * runs a policy with exactly one rule, and holds everything else fixed: the
+ * same budget, the same hostile threshold, the same cooldown, and a `cpAtLeast`
+ * equal to the thing's own price so every verb acts the moment it can afford
+ * to. What varies is the verb and where it is aimed.
+ *
+ * Scoped to MID (CC2) levels 3-4, because that is where `--leverage` found the
+ * only leverage on the board. A verb measured on a row that cannot move reads
+ * zero for a reason that has nothing to do with the verb.
+ *
+ * The prior worth testing: since M22, SUPPRESS gates the post on every live gun
+ * within `coverRadius`, so a deployed GUN adds a gate the attacker must clear
+ * while a mine or a fire mission only does damage. If that is right, the verbs
+ * that place weapons should beat the ones that deal damage, and two of the
+ * three shipped presets are written for the HP sponge the chain replaced.
+ */
+function verbTable(seeds = 20): string {
+  interface Verb {
+    label: string;
+    action: 'deploy' | 'power';
+    kind: string;
+    target: 'breach' | 'ccApproach' | 'densest';
+    price: number;
+  }
+  const VERBS: Verb[] = [
+    { label: 'depmg -> breach', action: 'deploy', kind: 'depmg', target: 'breach', price: 25 },
+    { label: 'depmg -> ccApproach', action: 'deploy', kind: 'depmg', target: 'ccApproach', price: 25 },
+    { label: 'depmg -> densest', action: 'deploy', kind: 'depmg', target: 'densest', price: 25 },
+    { label: 'foxhole -> breach', action: 'deploy', kind: 'foxhole', target: 'breach', price: 20 },
+    { label: 'foxhole -> ccApproach', action: 'deploy', kind: 'foxhole', target: 'ccApproach', price: 20 },
+    { label: 'claymore -> ccApproach', action: 'deploy', kind: 'claymore', target: 'ccApproach', price: 15 },
+    { label: 'claymore -> densest', action: 'deploy', kind: 'claymore', target: 'densest', price: 15 },
+    { label: 'a10 -> densest', action: 'power', kind: 'a10', target: 'densest', price: 45 },
+    { label: 'arty -> densest', action: 'power', kind: 'arty', target: 'densest', price: 60 },
+  ];
+
+  const mid = referenceBases().find((b) => b.name.startsWith('MID'))!;
+  const CELLS: [FactionId, number][] = [];
+  for (const faction of FACTION_IDS) for (const level of [3, 4]) CELLS.push([faction, level]);
+
+  /** Hold rate and mean low-water mark over every scoped cell. */
+  const score = (policy: SiegePolicy): { held: number; low: number } => {
+    let held = 0;
+    let low = 0;
+    let n = 0;
+    for (const [faction, level] of CELLS) {
+      for (let i = 0; i < seeds; i++) {
+        const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), policy);
+        if (r.held) held++;
+        low += r.low;
+        n++;
+      }
+    }
+    return { held: (held / n) * 100, low: low / n };
+  };
+
+  const bare = score(null);
+  const lines = [
+    `VERBS — one rule at a time, MID (CC2) levels 3-4, ${seeds} seeds x ${CELLS.length} cells`,
+    'VERB                   | HELD | vs NONE |   LOW | vs NONE',
+    '-----------------------+------+---------+-------+--------',
+    `${pad('(nothing)', 22)} | ${pad(`${bare.held.toFixed(0)}%`, 4)} |       — | ` +
+      `${bare.low.toFixed(3)} |       —`,
+  ];
+  for (const verb of VERBS) {
+    const policy = {
+      id: 'probe',
+      maxActions: 3,
+      rules: [
+        {
+          cpAtLeast: verb.price,
+          action: verb.action,
+          kind: verb.kind,
+          target: verb.target,
+          minHostiles: 2,
+          cooldownTicks: 200,
+        },
+      ],
+    } as unknown as StandingOrders;
+    const got = score(policy);
+    const dHeld = got.held - bare.held;
+    const dLow = got.low - bare.low;
+    lines.push(
+      `${pad(verb.label, 22)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
+        `${pad(dHeld >= 0 ? `+${dHeld.toFixed(0)}` : dHeld.toFixed(0), 7)} | ` +
+        `${got.low.toFixed(3)} | ${pad(dLow >= 0 ? `+${dLow.toFixed(3)}` : dLow.toFixed(3), 7)}`,
+    );
+  }
+  lines.push('');
+  lines.push(
+    'One matchup is 1/' +
+      `${CELLS.length * seeds} of a cell here, so treat anything inside ${(100 / (CELLS.length * seeds)).toFixed(0)}% of NONE as noise ` +
+      'and read LOW, which is continuous, when the verdict has not moved.',
+  );
+
+  // ---- and what the SHIPPED presets do with those verbs ------------------------
+  //
+  // Rules are evaluated in list order and every action spends one of
+  // `maxActions`, so a cheap rule at the top with a short cooldown can eat the
+  // whole budget before an expensive rule further down ever gets a turn. The
+  // two repairs below change ONE thing each, to say whether that is what is
+  // happening rather than to fix anything yet.
+  const gunAtApproach = {
+    cpAtLeast: 45,
+    action: 'deploy',
+    kind: 'depmg',
+    target: 'ccApproach',
+    minHostiles: 3,
+    cooldownTicks: 240,
+  };
+  const PRESETS: [string, StandingOrders][] = [
+    ['HOLDFAST (shipped)', STANDING_ORDERS.holdfast],
+    ['COUNTERBATTERY (shipped)', STANDING_ORDERS.counterbattery],
+    ['TRIPWIRE (shipped)', STANDING_ORDERS.tripwire],
+    [
+      'TRIPWIRE less the claymore',
+      {
+        ...STANDING_ORDERS.tripwire,
+        rules: STANDING_ORDERS.tripwire.rules.filter((r) => r.kind !== 'claymore'),
+      } as StandingOrders,
+    ],
+    [
+      'CBTY + a gun at the approach',
+      {
+        ...STANDING_ORDERS.counterbattery,
+        rules: [gunAtApproach, ...STANDING_ORDERS.counterbattery.rules],
+      } as unknown as StandingOrders,
+    ],
+  ];
+  lines.push('');
+  lines.push(`PRESETS — the same cells, the shipped three and two one-line repairs`);
+  lines.push('PRESET                       | HELD | vs NONE |   LOW | ACTS');
+  lines.push('-----------------------------+------+---------+-------+-----');
+  for (const [label, policy] of PRESETS) {
+    let held = 0;
+    let low = 0;
+    let acts = 0;
+    let n = 0;
+    for (const [faction, level] of CELLS) {
+      for (let i = 0; i < seeds; i++) {
+        const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), policy);
+        if (r.held) held++;
+        low += r.low;
+        acts += r.acts;
+        n++;
+      }
+    }
+    const pct = (held / n) * 100;
+    const d = pct - bare.held;
+    lines.push(
+      `${pad(label, 28)} | ${pad(`${pct.toFixed(0)}%`, 4)} | ` +
+        `${pad(d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0), 7)} | ${(low / n).toFixed(3)} | ` +
+        `${pad((acts / n).toFixed(1), 4)}`,
+    );
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -3961,6 +4166,285 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
+  if (process.argv.includes('--slope')) {
+    // Every chain constant leaves CONTESTED at 12%, so the step is not the
+    // chain's. Two explanations remain, and this separates them: dial the
+    // attack's strength CONTINUOUSLY through the place where a row flips.
+    //
+    // Smooth → the ladder's integer levels are simply a bigger step than the
+    // battle's variance, and the fix is a finer ladder. A jump → the battle
+    // is bimodal for a given matchup and no curve-shaping helps; the fix is
+    // variance, which is M13's territory, not content's.
+    const SCALES = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4];
+    console.log('SLOPE — hold% against a CONTINUOUS attacker-HP dial, 20 seeds');
+    console.log(
+      'FACTION  | BASE        | LVL | ' + SCALES.map((x) => pad(`${x}x`, 4)).join(' | '),
+    );
+    console.log('---------+-------------+-----+' + SCALES.map(() => '------').join('+'));
+    for (const faction of FACTION_IDS) {
+      for (const ref of referenceBases()) {
+        for (const level of [3, 4]) {
+          const cells = SCALES.map((scale) => {
+            const runs = Array.from({ length: 20 }, (_, i) =>
+              siegeTraceOn(
+                faction,
+                ref,
+                level,
+                seedOf(level, ref.ccLevel, i),
+                null,
+                CHAIN_CURRENT,
+                scale,
+              ),
+            );
+            return pad(`${((runs.filter((r) => r.held).length / runs.length) * 100).toFixed(0)}%`, 4);
+          });
+          console.log(
+            `${pad(faction.toUpperCase(), 8)} | ${pad(ref.name, 11)} | ${pad(String(level), 3)} | ` +
+              cells.join(' | '),
+          );
+        }
+      }
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--contested')) {
+    // How many rungs of CONTEST does a player actually climb through?
+    //
+    // `--band` samples fixed level numbers, which stops being comparable the
+    // moment the ladder's length changes — stretching it moved levels 2-5 to
+    // a third of their old size and the metric read the drop as a regression.
+    // This scans each (faction, base) across the WHOLE ladder and counts the
+    // levels that land between 5% and 95%, which is what a player experiences
+    // and is invariant to how many rungs it takes to get there.
+    const MAX = 14;
+    console.log(`CONTESTED — contested levels per row, scanning levels 1-${MAX}, 20 seeds`);
+    console.log('FACTION  | BASE        | CONTESTED LEVELS');
+    console.log('---------+-------------+------------------');
+    let total = 0;
+    let rows = 0;
+    for (const faction of FACTION_IDS) {
+      for (const ref of referenceBases()) {
+        const hits: number[] = [];
+        for (let level = 1; level <= MAX; level++) {
+          const runs = Array.from({ length: 20 }, (_, i) =>
+            siegeTraceOn(faction, ref, level, seedOf(level, ref.ccLevel, i), null, CHAIN_CURRENT),
+          );
+          const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+          if (held >= 5 && held <= 95) hits.push(level);
+        }
+        total += hits.length;
+        rows++;
+        console.log(
+          `${pad(faction.toUpperCase(), 8)} | ${pad(ref.name, 11)} | ` +
+            `${pad(String(hits.length), 2)}  ${hits.length ? `(L${hits.join(', L')})` : '—'}`,
+        );
+      }
+    }
+    console.log(
+      `\nCONTESTED LEVELS PER ROW: ${(total / rows).toFixed(2)} across ${rows} rows. ` +
+        'The pre-v1.42 ladder gave 0.73 — 14 rows of 15 had one contested level or none.',
+    );
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--band')) {
+    // M23 Phase 3: can CHARGE and BURN be made to decide battles that SUPPRESS
+    // currently decides?
+    //
+    // `--cliff` says every 0%/100% row is one where clearing the gate and
+    // taking the base are the SAME event, so the only way to a contested band
+    // is for the two stages AFTER the gate to be able to fail. These are the
+    // three constants that could do it, swept one at a time against the number
+    // that matters: the share of rows landing between 5% and 95%.
+    //
+    // Candidate models are registered into CHAIN_MODELS under throwaway
+    // version numbers. That is a tool-local hack and deliberately not a
+    // shipped version: nothing may name these but this sweep.
+    const base = chainModelFor(CHAIN_CURRENT);
+    const CANDIDATES: [string, Partial<ChainModel>][] = [
+      ['shipped', {}],
+      // The real candidate: `coverRadius` 4 is the same as a deployed gun's
+      // weapon range, so the guns that GATE suppression and the guns that can
+      // REACH the post are one set. Clearing the gate necessarily removes
+      // everything that could contest the burn. Shrink the gate below weapon
+      // range and a gun can cover the post without blocking the assault.
+      ['cover 3', { coverRadius: 3 }],
+      ['cover 2', { coverRadius: 2 }],
+      ['cover 1', { coverRadius: 1 }],
+      ['cover 2 + burn 60', { coverRadius: 2, burnSeconds: 60 }],
+      ['cover 1 + burn 60', { coverRadius: 1, burnSeconds: 60 }],
+      ['cover 2 + crew 3', { coverRadius: 2, chargeCrew: 3 }],
+      ['burn 60s', { burnSeconds: 60 }],
+      ['crew 3', { chargeCrew: 3 }],
+    ];
+    console.log('BAND — can the stages AFTER the gate decide a battle? 20 seeds, no policy');
+    console.log('CANDIDATE          | CONTESTED | MEAN HOLD | PASSED GATE | THEN TOOK IT');
+    console.log('-------------------+-----------+-----------+-------------+-------------');
+    CANDIDATES.forEach(([label, over], at) => {
+      const version = 900 + at;
+      CHAIN_MODELS[version] = { ...base, ...over, version };
+      let contested = 0;
+      let rows = 0;
+      let holdSum = 0;
+      let passedSum = 0;
+      let got = 0;
+      let took = 0;
+      for (const faction of FACTION_IDS) {
+        for (const ref of referenceBases()) {
+          for (const level of [2, 3, 4, 5]) {
+            const runs = Array.from({ length: 20 }, (_, i) =>
+              siegeTraceOn(faction, ref, level, seedOf(level, ref.ccLevel, i), null, version),
+            );
+            const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+            if (held >= 5 && held <= 95) contested++;
+            rows++;
+            holdSum += held;
+            const passed = runs.filter((r) => r.stages >= 2);
+            passedSum += (passed.length / runs.length) * 100;
+            got += passed.length;
+            took += passed.filter((r) => r.stages >= 4).length;
+          }
+        }
+      }
+      console.log(
+        `${pad(label, 18)} | ${pad(`${((contested / rows) * 100).toFixed(0)}%`, 9)} | ` +
+          `${pad(`${(holdSum / rows).toFixed(0)}%`, 9)} | ${pad(`${(passedSum / rows).toFixed(0)}%`, 11)} | ` +
+          `${pad(got ? `${((took / got) * 100).toFixed(0)}%` : '—', 12)}`,
+      );
+    });
+    // The question the null result raises: when an attack DOES take the post,
+    // is there any defence left that could have stopped it?
+    {
+      let alive = 0;
+      let n = 0;
+      for (const faction of FACTION_IDS) {
+        for (const ref of referenceBases()) {
+          for (const level of [2, 3, 4, 5]) {
+            for (let i = 0; i < 20; i++) {
+              const r = siegeTraceOn(faction, ref, level, seedOf(level, ref.ccLevel, i), null, 900);
+              if (r.stages >= 4) {
+                alive += r.gunsLeft;
+                n++;
+              }
+            }
+          }
+        }
+      }
+      console.log(
+        `\nWhen the post FELL (${n} battles): ${(alive / Math.max(1, n)).toFixed(2)} armed ` +
+          'defence structures were still standing, on average.',
+      );
+    }
+    console.log(
+      '\nCONTESTED is the number Phase 3 exists to move: rows landing between 5% and 95%. ' +
+        'THEN TOOK IT is the share of attacks that cleared the gate and went on to take the ' +
+        'post — every point below 100 is a battle the last two stages decided.',
+    );
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--cliff')) {
+    // Is the kill chain itself the step function?
+    //
+    // SUPPRESS is binary — EVERY live gun within coverRadius must be down — so
+    // a defence either keeps one gun alive and the attack cannot start, or
+    // loses them all and the rest follows. If that is the cliff, then hold%
+    // and "the attack passed SUPPRESS" should be complements, not merely
+    // correlated: the share of runs reaching stage 2 should be 100 minus the
+    // hold rate, row by row, with nothing in between.
+    console.log('CLIFF — is SUPPRESS the step? 20 seeds, no defender policy');
+    console.log('FACTION  | BASE        | LVL | HELD | PASSED SUPPRESS | SUM | THEN TOOK IT');
+    console.log('---------+-------------+-----+------+-----------------+-----+-------------');
+    let worst = 0;
+    for (const faction of FACTION_IDS) {
+      for (const base of referenceBases()) {
+        for (const level of [2, 3, 4]) {
+          const runs = Array.from({ length: 20 }, (_, i) =>
+            siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), null),
+          );
+          const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+          const passed = (runs.filter((r) => r.stages >= 2).length / runs.length) * 100;
+          const sum = held + passed;
+          worst = Math.max(worst, Math.abs(sum - 100));
+          // Of the runs that got PAST the gate, how many went on to take the
+          // post? Where that is 100%, SUPPRESS is the whole battle and the row
+          // is a step. Where it is not, the stages after it are load bearing
+          // and the row has slope — which is where a player could matter.
+          const got = runs.filter((r) => r.stages >= 2);
+          const took = got.length
+            ? (got.filter((r) => r.stages >= 4).length / got.length) * 100
+            : null;
+          console.log(
+            `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(String(level), 3)} | ` +
+              `${pad(`${held.toFixed(0)}%`, 4)} | ${pad(`${passed.toFixed(0)}%`, 15)} | ${pad(sum.toFixed(0), 4)}` +
+              ` | ${pad(took === null ? '—' : `${took.toFixed(0)}%`, 12)}`,
+          );
+        }
+      }
+    }
+    console.log(
+      `\nWorst departure from 100: ${worst.toFixed(0)} points. A row that sums to 100 is one ` +
+        'where passing SUPPRESS and taking the base are the SAME event.',
+    );
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--orders')) {
+    // Prices the two v1.42 order mechanics against the numbers M23 actually
+    // cares about. A lever that raises hold% while leaving the waves dead has
+    // not helped: LIVE is the share of waves that move the margin at all.
+    const mid = referenceBases().find((b) => b.name.startsWith('MID'))!;
+    const VARIANTS: [string, Partial<StandingOrders>][] = [
+      ['shipped', {}],
+      ['fairShare', { fairShare: true }],
+      ['perWave', { perWave: true }],
+      ['both', { fairShare: true, perWave: true }],
+    ];
+    console.log('ORDERS — the two v1.42 mechanics, MID (CC2) levels 3-4, 20 seeds x 5 factions');
+    console.log('PRESET         | VARIANT   | HELD | ACTS |  LOW  | LIVE');
+    console.log('---------------+-----------+------+------+-------+-----');
+    for (const id of ['holdfast', 'counterbattery', 'tripwire'] as const) {
+      for (const [label, over] of VARIANTS) {
+        const orders = { ...STANDING_ORDERS[id], ...over };
+        let held = 0;
+        let acts = 0;
+        let low = 0;
+        let live = 0;
+        let waves = 0;
+        let n = 0;
+        for (const faction of FACTION_IDS) {
+          for (const level of [3, 4]) {
+            for (let i = 0; i < 20; i++) {
+              const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), orders);
+              if (r.held) held++;
+              acts += r.acts;
+              low += r.low;
+              for (let w = 0; w < r.integrity.length; w++) {
+                const drop = (w === 0 ? 1 : r.integrity[w - 1]!) - r.integrity[w]!;
+                if (drop > 0.005) live++;
+                waves++;
+              }
+              n++;
+            }
+          }
+        }
+        console.log(
+          `${pad(id.toUpperCase(), 14)} | ${pad(label, 9)} | ${pad(`${((held / n) * 100).toFixed(0)}%`, 4)} | ` +
+            `${pad((acts / n).toFixed(1), 4)} | ${(low / n).toFixed(3)} | ` +
+            `${pad(`${((live / waves) * 100).toFixed(0)}%`, 4)}`,
+        );
+      }
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--verbs')) {
+    const arg = process.argv[process.argv.indexOf('--verbs') + 1];
+    console.log(verbTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
   if (process.argv.includes('--budget')) {
     // Prices the action budget, the one lever that costs nothing to test:
     // `maxActions` is the only thing stopping a defender who ends a lost
@@ -4512,6 +4996,21 @@ function main(): void {
       '> ticks. It was invisible to every table in this file, including the two written',
       '> to hunt exactly this: a defender only reaches it by taking more than the three',
       '> actions HOLDFAST allows, and nothing here had ever let one.',
+      '>',
+      '> **v1.42 LENGTHENED the assault ladder, so no defence row here is comparable',
+      '> to the row above it in the history by level number.** A level is a +25% step',
+      '> now instead of up to +67%, and today\'s level 6 is roughly what level 2 used',
+      '> to be. The defence tables sample levels 1, 4, 6, 8, 10 and 12 — the rungs',
+      '> covering the same difficulty range the old six did — so read a cell against',
+      '> its column header, never against its position.',
+      '>',
+      '> The reason is M23 Phase 3. A defence row is CONTESTED when it lands between',
+      '> winning every seed and losing every seed, and the band that does it is about',
+      '> 43% of attacker strength wide. A six-rung ladder over this range has a floor',
+      '> of +33% per rung even when perfectly uniform, so ONE contested level per base',
+      '> was the ceiling — which is what every snapshot in this file had recorded, and',
+      '> what three content notes carried since v0.6 were separately describing.',
+      '> Contested levels per row: 0.73 before, 2.20 after.',
       '',
       '```',
       body,

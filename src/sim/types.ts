@@ -326,6 +326,29 @@ export interface StandingOrders {
    * an unattended defense below a live commander). Omit for unlimited.
    */
   maxActions?: number;
+  /**
+   * Cap each rule at its fair share of `maxActions` (v1.42).
+   *
+   * Rules are evaluated in list order and every action spends the budget, so a
+   * cheap rule at the top with a short cooldown starves everything below it.
+   * TRIPWIRE ships that way: it owns the strongest verb in the game at position
+   * two and scores WORSE THAN DOING NOTHING, because a claymore at
+   * `cpAtLeast: 16` on a 100-tick cooldown spends all five actions first.
+   * With this on, no single rule may take more than `ceil(max / rules)` of the
+   * budget, so ordering still says what to reach for FIRST and no longer says
+   * what to spend everything on. Absent = the pre-v1.42 behaviour, which is
+   * what keeps every archived replay re-fighting the battle it recorded.
+   */
+  fairShare?: boolean;
+  /**
+   * Spend `maxActions` PER WAVE rather than per battle (v1.42).
+   *
+   * A battle-long budget is spent early by whichever rule fires soonest, which
+   * is a large part of why 7 waves in 10 move the margin not at all: the
+   * defence does its whole turn in wave one and watches the rest. Absent = the
+   * pre-v1.42 behaviour.
+   */
+  perWave?: boolean;
 }
 
 /**

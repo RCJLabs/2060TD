@@ -1,7 +1,7 @@
 {
   "name": "2060td",
   "private": true,
-  "version": "1.41.2",
+  "version": "1.42.0",
   "description": "2060TD \u2014 hybrid tower defense / base builder set in a modern alternate-history war",
   "type": "module",
   "scripts": {
@@ -19,7 +19,8 @@
     "zoom": "node scripts/zoom.mjs",
     "catch": "node scripts/catch.mjs",
     "icons": "node scripts/icons.mjs",
-    "fit": "node scripts/fit.mjs"
+    "fit": "node scripts/fit.mjs",
+    "e2e": "node scripts/e2e-all.mjs"
   },
   "dependencies": {
     "phaser": "^3.85.0"

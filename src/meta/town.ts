@@ -1,4 +1,4 @@
-import { buildAssault, assaultLoot, probeAssault } from '../content/assaults';
+import { buildAssault, assaultLoot, probeAssault, rescaleLadder } from '../content/assaults';
 import {
   generateTerrain,
   TERRAIN_VERSION,
@@ -324,6 +324,15 @@ export interface TownState {
    */
   terrainSeed?: number;
   /**
+   * Which assault ladder this town's `assaultLevel` is measured against.
+   *
+   * Absent means the pre-v1.42 ladder, whose levels were up to +67% apart.
+   * `deserialize` rescales the level and stamps this, so a war in progress
+   * keeps facing the assault it had earned rather than an easier one wearing
+   * the same number.
+   */
+  ladderVersion?: number;
+  /**
    * Which board this town's cells are indexed against (v1.40).
    *
    * Absent means 0 — the 32x24 board entered from the west, which is what
@@ -482,6 +491,9 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
     contracts: normalizeContracts(undefined, now),
     terrainSeed: terrainSeedFrom(now),
     assaultLevel: 1,
+    // A town born on the v1.42 ladder is already measured against it; without
+    // this, every save/load would rescale again and inflate the level forever.
+    ladderVersion: 1,
     victories: 0,
     defeats: 0,
     lastSeen: now,
@@ -1106,7 +1118,15 @@ export function missionConfig(town: TownState, mission: MissionDef, seed: number
 
 /** Battle config for a Front Line counterattack on the town. */
 export function counterattackConfig(town: TownState, seed: number): SimConfig {
-  const def = buildAssault(Math.max(2, town.frontline.tier + 1), enemyRosterFor(town.faction));
+  // Tiers are the RAID ladder and levels are the ASSAULT ladder; this line
+  // has always borrowed one for the other. Since v1.42 lengthened the assault
+  // ladder, borrowing it raw would make a tier-5 counterattack about a third
+  // of what it used to be, so the tier's old level goes through the same
+  // rescale a saved town does.
+  const def = buildAssault(
+    rescaleLadder(Math.max(2, town.frontline.tier + 1)),
+    enemyRosterFor(town.faction),
+  );
   return battleConfig(town, seed, {
     ...def,
     name: `COUNTERATTACK — TIER ${town.frontline.tier}`,
