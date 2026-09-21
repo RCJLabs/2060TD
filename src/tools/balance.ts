@@ -4201,7 +4201,7 @@ function main(): void {
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
-  if (process.argv.includes('--rungs')) {
+  if (process.argv.includes('--contested')) {
     // How many rungs of CONTEST does a player actually climb through?
     //
     // `--band` samples fixed level numbers, which stops being comparable the
@@ -4211,7 +4211,7 @@ function main(): void {
     // levels that land between 5% and 95%, which is what a player experiences
     // and is invariant to how many rungs it takes to get there.
     const MAX = 14;
-    console.log(`RUNGS — contested levels per row, scanning levels 1-${MAX}, 20 seeds`);
+    console.log(`CONTESTED — contested levels per row, scanning levels 1-${MAX}, 20 seeds`);
     console.log('FACTION  | BASE        | CONTESTED LEVELS');
     console.log('---------+-------------+------------------');
     let total = 0;
@@ -4989,6 +4989,21 @@ function main(): void {
       '> ticks. It was invisible to every table in this file, including the two written',
       '> to hunt exactly this: a defender only reaches it by taking more than the three',
       '> actions HOLDFAST allows, and nothing here had ever let one.',
+      '>',
+      '> **v1.42 LENGTHENED the assault ladder, so no defence row here is comparable',
+      '> to the row above it in the history by level number.** A level is a +25% step',
+      '> now instead of up to +67%, and today\'s level 6 is roughly what level 2 used',
+      '> to be. The defence tables sample levels 1, 4, 6, 8, 10 and 12 — the rungs',
+      '> covering the same difficulty range the old six did — so read a cell against',
+      '> its column header, never against its position.',
+      '>',
+      '> The reason is M23 Phase 3. A defence row is CONTESTED when it lands between',
+      '> winning every seed and losing every seed, and the band that does it is about',
+      '> 43% of attacker strength wide. A six-rung ladder over this range has a floor',
+      '> of +33% per rung even when perfectly uniform, so ONE contested level per base',
+      '> was the ceiling — which is what every snapshot in this file had recorded, and',
+      '> what three content notes carried since v0.6 were separately describing.',
+      '> Contested levels per row: 0.73 before, 2.20 after.',
       '',
       '```',
       body,

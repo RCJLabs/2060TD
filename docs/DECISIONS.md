@@ -864,3 +864,11 @@ here with the change and its date.
   whole ladder, which is what a player actually climbs and is invariant to its
   length. An instrument that hard-codes a coordinate is measuring the
   coordinate, not the thing.
+- 2026-09-21 — **A new flag silently shadowed an old instrument.** `--contested`
+  was first written as `--rungs`, which M15 already used for the manpower-demand
+  table; `process.argv.includes` matches the first handler, so the older
+  instrument became unreachable and nothing failed. It was caught because the
+  GDD happened to name the old flag in prose. The balance tool now has enough
+  flags that adding one should start with grepping for it — a duplicate costs an
+  instrument, and an instrument that has quietly stopped running is worse than
+  one that was never written.

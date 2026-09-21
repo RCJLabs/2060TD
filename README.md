@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.41.2, in the browser. No install, no account, works on a phone.
+v1.42.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,51 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.41.2: the kill chain
+## Current state — v1.42: a ladder with rungs you can lose on
+
+**93% of the defence rows in `BALANCE.md` were step functions** — `100 | 85 | 0
+| 0 | 0 | 0`, one contested level and then a cliff — and three notes carried
+since v0.6 had been describing that as three separate content problems. It is
+one structural one, and it took three sweeps to find because the first two
+places I looked were wrong.
+
+A defence row is CONTESTED when it lands between winning every seed and losing
+every seed, and the band that does it is about **43% of attacker strength
+wide**. Every constant in the kill chain leaves the contested share at 12% —
+burn length from 20 to 90 seconds, burn decay, the crew minimum, the cover
+radius. Identical results across a whole sweep is a structural cause, not a
+plateau. Dialling attacker HP *continuously* then showed the rows moving
+smoothly (`100 / 85 / 40 / 15 / 0`), so the battle was never bimodal: the band
+was real and the ladder was jumping over it.
+
+Because a level was not the +18% its scaling function claimed. Waves 4, 5 and 6
+unlocked at levels 2, 3 and 4 and arrived at **full size**, making the real
+steps +67% and +58% — bigger than the band. And a six-rung ladder over this
+difficulty range cannot do better than +33% per rung even when perfectly
+uniform, so one contested level per base was the ceiling.
+
+Nothing was stopping the ladder being longer. `assaultLevel` was never capped —
+it starts at 1, increments on a win, and the generator takes any number; the
+six levels existed only in what the tables sampled. Growth is +9% per level now
+with new waves ramping in gently:
+
+| | before | after |
+|---|---|---|
+| contested levels per row | 0.73 | **2.20** |
+| rows with two or more | 1 of 15 | **10 of 15** |
+| worst step per level | +67% | **+25%** |
+
+Level 1 is untouched at 24 units — still the probing attack it was written as —
+and the old level 6 arrives at level 11. A war in progress is rescaled on load
+by the size of assault it had actually reached, so beating level 4 and coming
+back does not hand you a level 4 worth a third as much.
+
+**The metric had to be rebuilt to see any of it.** The first instrument sampled
+fixed level NUMBERS, so stretching the ladder slid the sample out from under it
+and reported a catastrophic regression that was entirely an artifact. What a
+player climbs through is contested RUNGS, and that is what is counted now.
+
+## v1.41.2: the kill chain
 
 For twenty-two milestones the command post was an **HP sponge**, and it decided
 the game in a way nobody designed. Ranged fire is discounted hard against
@@ -1499,8 +1543,10 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --slope to dial attacker HP continuously through the
                    #    point a row flips — is the battle bimodal, or is the
                    #    LADDER just coarser than the band? or
-                   # -- --rungs for how many CONTESTED levels a row has
-                   #    across the whole ladder — the length-invariant one, or
+                   # -- --contested for how many levels of a row land between
+                   #    winning every seed and losing every seed, scanned
+                   #    across the WHOLE ladder so it survives the ladder
+                   #    changing length, or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or

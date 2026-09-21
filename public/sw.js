@@ -24,7 +24,7 @@
  * cache eviction must never cost somebody their campaign.
  */
 
-const VERSION = 'v1.41.2';
+const VERSION = 'v1.42.0';
 const CACHE = `2060td-${VERSION}`;
 
 /**
