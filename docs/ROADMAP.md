@@ -1226,11 +1226,18 @@ closed *without* a change. The single content edit is ten numbers.
       than the watch hurts it. That was left deliberately rather than tuned
       back in the same release that caused it; it belongs in a parity pass.
 
-- [ ] **The v0.6 watch items, still open.** The EARLY L2→L3 cliff on all sides
-      (armor arrives before anti-armor requisitions), China MID vs L5+ (Javelin
-      overwatch), and NK MID vs L4+ (everything kills sentry nests). They have
-      been carried in `docs/BALANCE.md` for eleven releases and they are the
-      same problem this milestone is about.
+- [ ] **The v0.6 watch items — now EXPLAINED, still open.** The EARLY L2→L3
+      cliff on all sides (armor arrives before anti-armor requisitions), China
+      MID vs L5+ (Javelin overwatch), and NK MID vs L4+ (everything kills
+      sentry nests). Carried in `docs/BALANCE.md` for eleven releases as three
+      separate content notes; M23 Phase 2's `--cliff` says they are one
+      structural fact wearing three costumes. Every 0%/100% row sums to exactly
+      100 across "the defence held" and "the attack cleared SUPPRESS", so the
+      gate and the objective are the same event and the row can only be a step.
+      The cliff is not that armour outpaces anti-armour at L3 — it is that
+      nothing in the chain can catch an attack once the gate falls. Three
+      releases of tuning the content either side of it were treating a
+      symptom.
 
 - [x] **A rule can ask what it is shooting at** *(v1.21)* — *`hostiles: 'air'
       | 'ground' | 'any'` on a standing-order rule, so the garrison holds its
@@ -2785,7 +2792,7 @@ premium", which converts idle attrition into sessions.
       on their own command post is close enough to true to be worth the
       simplicity, and a 46-point swing in what a half-failed raid costs is
       the price of it.
-- [ ] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
+- [x] **Phase 2 — the verb set, one at a time.** Each measured against clear rate
       AND against how often the player's input changed the outcome. A verb that
       does not move the second number is decoration.
 
