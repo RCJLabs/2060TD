@@ -1494,6 +1494,11 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --cliff for WHY a defence row is a step function —
                    #    whether clearing the gate and taking the base are the
                    #    same event, which in most rows they are, or
+                   # -- --band to price every chain constant against the
+                   #    share of rows that land CONTESTED, or
+                   # -- --slope to dial attacker HP continuously through the
+                   #    point a row flips — is the battle bimodal, or is the
+                   #    LADDER just coarser than the band? or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or

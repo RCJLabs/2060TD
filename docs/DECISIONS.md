@@ -818,3 +818,23 @@ here with the change and its date.
   creating anything in between. What makes a battle close is the last two
   stages being able to fail, and in 14 of 15 rows they cannot. M22 built four
   stages and the ladder only ever uses two of them.
+- 2026-09-21 — **The step function is the assault ladder's granularity, and
+  three sweeps were needed to rule out everywhere else.** `--band` prices every
+  chain constant that could make the last two stages decide a battle — burn
+  length, burn decay, crew minimum, cover radius — and CONTESTED sits at 12% for
+  all of them. `--slope` then dials attacker HP continuously and the rows move
+  smoothly through every value: 100/85/40/15/0. So difficulty is continuous, the
+  contested band is real and roughly 0.7x-1.0x of attacker HP wide, and one
+  integer level of the ladder is a bigger jump than the entire band. The fix is
+  content, not the chain. Worth the three sweeps: the first two hypotheses were
+  mine and both were wrong, and the only thing that distinguished them was
+  making the difficulty knob continuous.
+- 2026-09-21 — **A lever can be right about the mechanism and worth nothing.**
+  `coverRadius` 4 equals a deployed gun's weapon range, so the guns that gate
+  SUPPRESS and the guns that can reach the post are the same set by
+  construction — clearing the gate necessarily removes everything that could
+  contest the burn. Shrinking it to 2 does exactly what that reasoning predicts:
+  PASSED GATE 44% → 51%, THEN TOOK IT 83% → 73%. And the contested share does
+  not move, because more attacks start and more of them fail, and the two
+  cancel. Predicting a mechanism correctly is not the same as predicting an
+  outcome, and only the outcome was the goal.

@@ -57,7 +57,13 @@ import { STANDING_ORDERS } from '../content/standingOrders';
 import { Engine } from '../sim/engine';
 import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
-import { CHAIN_CURRENT, CHAIN_NONE, chainModelFor } from '../sim/killchain';
+import {
+  CHAIN_CURRENT,
+  CHAIN_MODELS,
+  CHAIN_NONE,
+  chainModelFor,
+  type ChainModel,
+} from '../sim/killchain';
 import {
   OBJECTIVES,
   OBJECTIVE_FLOOR,
@@ -656,6 +662,8 @@ interface WaveTrace {
   kills: number;
   /** Chain stages the ATTACK completed, 0-4. >= 2 means SUPPRESS was passed. */
   stages: number;
+  /** Armed defence structures still standing when the battle ended. */
+  gunsLeft: number;
 }
 
 /**
@@ -673,6 +681,19 @@ function siegeTrace(
   seed: number,
   policy: SiegePolicy = null,
 ): WaveTrace {
+  return siegeTraceOn(faction, base, level, seed, policy, CHAIN_CURRENT);
+}
+
+/** The same trace against a NAMED chain version, for sweeping candidates. */
+function siegeTraceOn(
+  faction: FactionId,
+  base: ReferenceBase,
+  level: number,
+  seed: number,
+  policy: SiegePolicy,
+  chainVersion: number,
+  attackerHp = 1,
+): WaveTrace {
   const catalog = defenseCatalogFor(faction);
   const roster = enemyRosterFor(faction);
   const config: SimConfig = {
@@ -684,12 +705,13 @@ function siegeTrace(
     spawnLane: BASE_SPAWN_LANE,
     spawnEdge: BASE_SPAWN_EDGE,
     combatVersion: COMBAT_CURRENT,
-    killChainVersion: CHAIN_CURRENT,
+    killChainVersion: chainVersion,
     siege: { ...buildAssault(level, roster), startingSupplies: 0 },
     layout: {
       walls: base.walls.map((w) => ({ ...w })),
       structures: base.structures.map((st) => ({ ...st })),
     },
+    ...(attackerHp === 1 ? {} : { mods: { attacker: { hp: attackerHp } } }),
     powerCharges: policy ? { a10: 2, arty: 1 } : {},
     ...(policy ? { standingOrders: policy } : {}),
   };
@@ -723,6 +745,7 @@ function siegeTrace(
     banked: engine.cp,
     kills: engine.stats.kills,
     stages: engine.chainStagesCleared,
+    gunsLeft: engine.structures.filter((st) => st.hp > 0 && st.profile.weapon).length,
   };
 }
 
@@ -4123,6 +4146,144 @@ function main(): void {
     const arg = process.argv[process.argv.indexOf('--siege') + 1];
     const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 8;
     console.log(siegeTable([2, 3, 4], seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--slope')) {
+    // Every chain constant leaves CONTESTED at 12%, so the step is not the
+    // chain's. Two explanations remain, and this separates them: dial the
+    // attack's strength CONTINUOUSLY through the place where a row flips.
+    //
+    // Smooth → the ladder's integer levels are simply a bigger step than the
+    // battle's variance, and the fix is a finer ladder. A jump → the battle
+    // is bimodal for a given matchup and no curve-shaping helps; the fix is
+    // variance, which is M13's territory, not content's.
+    const SCALES = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4];
+    console.log('SLOPE — hold% against a CONTINUOUS attacker-HP dial, 20 seeds');
+    console.log(
+      'FACTION  | BASE        | LVL | ' + SCALES.map((x) => pad(`${x}x`, 4)).join(' | '),
+    );
+    console.log('---------+-------------+-----+' + SCALES.map(() => '------').join('+'));
+    for (const faction of FACTION_IDS) {
+      for (const ref of referenceBases()) {
+        for (const level of [3, 4]) {
+          const cells = SCALES.map((scale) => {
+            const runs = Array.from({ length: 20 }, (_, i) =>
+              siegeTraceOn(
+                faction,
+                ref,
+                level,
+                seedOf(level, ref.ccLevel, i),
+                null,
+                CHAIN_CURRENT,
+                scale,
+              ),
+            );
+            return pad(`${((runs.filter((r) => r.held).length / runs.length) * 100).toFixed(0)}%`, 4);
+          });
+          console.log(
+            `${pad(faction.toUpperCase(), 8)} | ${pad(ref.name, 11)} | ${pad(String(level), 3)} | ` +
+              cells.join(' | '),
+          );
+        }
+      }
+    }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--band')) {
+    // M23 Phase 3: can CHARGE and BURN be made to decide battles that SUPPRESS
+    // currently decides?
+    //
+    // `--cliff` says every 0%/100% row is one where clearing the gate and
+    // taking the base are the SAME event, so the only way to a contested band
+    // is for the two stages AFTER the gate to be able to fail. These are the
+    // three constants that could do it, swept one at a time against the number
+    // that matters: the share of rows landing between 5% and 95%.
+    //
+    // Candidate models are registered into CHAIN_MODELS under throwaway
+    // version numbers. That is a tool-local hack and deliberately not a
+    // shipped version: nothing may name these but this sweep.
+    const base = chainModelFor(CHAIN_CURRENT);
+    const CANDIDATES: [string, Partial<ChainModel>][] = [
+      ['shipped', {}],
+      // The real candidate: `coverRadius` 4 is the same as a deployed gun's
+      // weapon range, so the guns that GATE suppression and the guns that can
+      // REACH the post are one set. Clearing the gate necessarily removes
+      // everything that could contest the burn. Shrink the gate below weapon
+      // range and a gun can cover the post without blocking the assault.
+      ['cover 3', { coverRadius: 3 }],
+      ['cover 2', { coverRadius: 2 }],
+      ['cover 1', { coverRadius: 1 }],
+      ['cover 2 + burn 60', { coverRadius: 2, burnSeconds: 60 }],
+      ['cover 1 + burn 60', { coverRadius: 1, burnSeconds: 60 }],
+      ['cover 2 + crew 3', { coverRadius: 2, chargeCrew: 3 }],
+      ['burn 60s', { burnSeconds: 60 }],
+      ['crew 3', { chargeCrew: 3 }],
+    ];
+    console.log('BAND — can the stages AFTER the gate decide a battle? 20 seeds, no policy');
+    console.log('CANDIDATE          | CONTESTED | MEAN HOLD | PASSED GATE | THEN TOOK IT');
+    console.log('-------------------+-----------+-----------+-------------+-------------');
+    CANDIDATES.forEach(([label, over], at) => {
+      const version = 900 + at;
+      CHAIN_MODELS[version] = { ...base, ...over, version };
+      let contested = 0;
+      let rows = 0;
+      let holdSum = 0;
+      let passedSum = 0;
+      let got = 0;
+      let took = 0;
+      for (const faction of FACTION_IDS) {
+        for (const ref of referenceBases()) {
+          for (const level of [2, 3, 4, 5]) {
+            const runs = Array.from({ length: 20 }, (_, i) =>
+              siegeTraceOn(faction, ref, level, seedOf(level, ref.ccLevel, i), null, version),
+            );
+            const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+            if (held >= 5 && held <= 95) contested++;
+            rows++;
+            holdSum += held;
+            const passed = runs.filter((r) => r.stages >= 2);
+            passedSum += (passed.length / runs.length) * 100;
+            got += passed.length;
+            took += passed.filter((r) => r.stages >= 4).length;
+          }
+        }
+      }
+      console.log(
+        `${pad(label, 18)} | ${pad(`${((contested / rows) * 100).toFixed(0)}%`, 9)} | ` +
+          `${pad(`${(holdSum / rows).toFixed(0)}%`, 9)} | ${pad(`${(passedSum / rows).toFixed(0)}%`, 11)} | ` +
+          `${pad(got ? `${((took / got) * 100).toFixed(0)}%` : '—', 12)}`,
+      );
+    });
+    // The question the null result raises: when an attack DOES take the post,
+    // is there any defence left that could have stopped it?
+    {
+      let alive = 0;
+      let n = 0;
+      for (const faction of FACTION_IDS) {
+        for (const ref of referenceBases()) {
+          for (const level of [2, 3, 4, 5]) {
+            for (let i = 0; i < 20; i++) {
+              const r = siegeTraceOn(faction, ref, level, seedOf(level, ref.ccLevel, i), null, 900);
+              if (r.stages >= 4) {
+                alive += r.gunsLeft;
+                n++;
+              }
+            }
+          }
+        }
+      }
+      console.log(
+        `\nWhen the post FELL (${n} battles): ${(alive / Math.max(1, n)).toFixed(2)} armed ` +
+          'defence structures were still standing, on average.',
+      );
+    }
+    console.log(
+      '\nCONTESTED is the number Phase 3 exists to move: rows landing between 5% and 95%. ' +
+        'THEN TOOK IT is the share of attacks that cleared the gate and went on to take the ' +
+        'post — every point below 100 is a battle the last two stages decided.',
+    );
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

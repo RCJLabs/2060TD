@@ -2962,7 +2962,51 @@ premium", which converts idle attrition into sessions.
       phase moved rows between 0% and 100% without ever producing a battle that
       was close. Phase 3's first job is a contested band; the verbs get
       re-judged against it afterwards, not before.
-- [ ] **Phase 3 — build the contested band FIRST, then re-judge the verbs
+- [x] **Phase 3a — WHERE the contested band is, measured.** Two sweeps, and
+      the first one failed usefully.
+
+      `npm run balance -- --band` prices every chain constant that could make
+      CHARGE and BURN decide a battle: burn length 20→90s, burn decay, crew
+      minimum, and cover radius. **CONTESTED sits at 12% for every one of
+      them.** Identical results across a whole sweep is a structural cause, not
+      a plateau — the second time that rule has paid this milestone.
+
+      The cover-radius candidate is worth recording because its MECHANISM
+      worked and its outcome did not. `coverRadius` 4 is the same as a deployed
+      gun's weapon range, so the guns that gate SUPPRESS and the guns that can
+      reach the post are one set by construction: clearing the gate
+      necessarily removes everything that could contest the burn. Shrinking it
+      to 2 moves PASSED GATE 44% → 51% and THEN TOOK IT 83% → 73%, so the last
+      two stages really did become load bearing — and CONTESTED does not move
+      at all, because the two effects cancel. A lever can be right about the
+      mechanism and worth nothing.
+
+      `npm run balance -- --slope` dials attacker HP CONTINUOUSLY through the
+      place a row flips, which separates the two remaining explanations:
+
+      ```
+      UN    MID (CC2) L4 | 100 | 85 | 40 | 15 |  0 |  0 |  0 |  0
+      CHINA MID (CC2) L3 | 100 |100 |100 |100 | 85 | 70 | 50 | 30
+      USA   MID (CC2) L4 | 100 |100 |100 |100 | 90 | 75 | 65 | 15
+                    0.6x  0.7x 0.8x 0.9x  1x  1.1x 1.2x 1.4x
+      ```
+
+      **The battle is not bimodal.** Difficulty is continuous and the contested
+      band is real, reachable and about 0.7x-1.0x of attacker HP wide. The step
+      function is therefore neither the chain's nor variance's: **one integer
+      level of the assault ladder is a bigger jump than the whole band.** And
+      the stages sit outside it — EARLY (CC1) still loses level 3 at 0.6x,
+      forty percent weaker attackers, while LATE (CC3) still wins level 4 at
+      1.4x.
+
+      So the fix is the assault ladder's granularity and the spacing of the
+      reference stages, both of which are content. Every chain constant was
+      the wrong place to look, and three sweeps were needed to be sure of it.
+- [ ] **Phase 3b — act on it: re-scale the assault ladder so a level is a step
+      the band can hold.** This re-tunes every defence table in `BALANCE.md`,
+      so it wants its own pass with the snapshot regenerated, and a decision
+      first on whether the ladder gains levels or each level gains less.
+- [ ] **Phase 3c — build the contested band FIRST, then re-judge the verbs
       against it.** `npm run balance -- --cliff` says exactly where the step
       function comes from, and it is not where Phase 2 guessed.
 
