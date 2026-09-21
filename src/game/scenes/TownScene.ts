@@ -851,31 +851,50 @@ export class TownScene extends Phaser.Scene {
       this.overlayBuilder = null;
     };
     const { font, gap } = this.layout;
+    // Weight is the argument here. `COLORS.olive` is what the rest of the game
+    // uses on paper for a thing that is SETTLED — a cleared mission, a paid
+    // order, a probe already held — and at 0xc9c9c9 on this sheet it recedes
+    // exactly as it is supposed to. Putting the live choice in it made the
+    // primary action the faintest thing on the page.
     ov.paragraph(
-      'A probe is forming up on the approach. You can take the console yourself, ' +
-        'or leave it to the garrison and read the damage afterwards.',
-      font.body,
-      COLORS.ink,
-      { gapAfter: gap },
-    );
-    ov.paragraph(
-      `DEFEND — you command, and they commit: the whole assault, not the two ` +
-        `waves they send at an empty yard. Hold and nothing is lost: ` +
-        `+${bounty.supplies} SUP +${bounty.fuel} FUEL. Lose and every building ` +
-        'that did not survive is WRECKED, and a wreck costs a repair.',
-      font.body,
-      COLORS.olive,
-      { gapAfter: Math.round(gap / 2) },
-    );
-    ov.paragraph(
-      'GARRISON — standing orders fight the probe. Buildings are never wrecked; ' +
-        'a breach costs 15% of the stockpile and raises the shield.',
+      'A probe is forming up on the approach. Two answers, and they are not ' +
+        'the same battle.',
       font.body,
       COLORS.inkDim,
       { gapAfter: gap },
     );
+    // Air above each heading, the way the service record sets its sections.
+    // Without it the three blocks run together into one paragraph and the
+    // headings stop doing any work.
+    ov.flow(gap, 0);
+    ov.paragraph('DEFEND — TAKE THE CONSOLE', font.label, COLORS.signal, {
+      gapAfter: Math.round(gap / 2),
+    });
     ov.paragraph(
-      'Walking away is the same as GARRISON. The attack lands either way.',
+      'You command, and they commit: the whole assault, not the two waves they ' +
+        `send at an empty yard. Hold it and nothing is lost — the stores pay ` +
+        `+${bounty.supplies} SUP +${bounty.fuel} FUEL. Lose it and every building ` +
+        'that did not survive is WRECKED, and a wreck costs a repair.',
+      font.body,
+      COLORS.ink,
+      { gapAfter: gap },
+    );
+    ov.flow(gap, 0);
+    ov.paragraph('GARRISON — LET THEM PROBE', font.label, COLORS.ink, {
+      gapAfter: Math.round(gap / 2),
+    });
+    ov.paragraph(
+      'Standing orders fight it, two waves, and the crews rebuild afterwards: ' +
+        'buildings are never wrecked. A breach costs 15% of the stockpile and ' +
+        'raises the shield.',
+      font.body,
+      COLORS.inkDim,
+      { gapAfter: gap },
+    );
+    ov.flow(gap, 0);
+    ov.paragraph(
+      'Walking away is the same as GARRISON. The attack lands either way, and ' +
+        'costs the same either way.',
       font.body,
       COLORS.inkDim,
       { gapAfter: gap },
