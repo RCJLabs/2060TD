@@ -883,3 +883,22 @@ here with the change and its date.
   defect depends on an unanswered design question: if CC1 is the onboarding
   stage, a flat row there is correct and should stop being counted against the
   step-function total.
+- 2026-09-21 — **The offered battle is not the battle that was offered, and that
+  is the design.** A live-defence offer that hands the player the probe the
+  garrison would have fought is a decision on paper only: a probe is the first
+  two waves of its rung with `startingCp: 0, cpPerSecond: 0`, so the player gets
+  no CP and therefore no verbs, and a built town holds it in 100% of eight-seed
+  runs at every level from 1 to 24. Accepting means standing to fight, so they
+  commit the whole rung with the town's own siege economy — 100/88/75/0 percent
+  held across levels 4/5/6/8 with nobody acting, which is Phase 3c's contested
+  band. The fiction is the mechanic rather than a coat of paint on it: a probe
+  is what they send when nobody is home. Declining still fights the probe, so
+  the player who cannot play right now loses nothing by saying so.
+- 2026-09-21 — **A full unit suite and a green E2E harness cannot tell you the
+  feature is worth using.** The first live-defence offer passed twenty-two unit
+  tests and an eleven-check browser harness. Both asked whether the loop closed
+  — offer, claim, battle, fold, log — and it did, exactly as specified. Neither
+  could ask whether the battle was worth fighting, because that is a question
+  about a DISTRIBUTION and every test in the repo runs one battle at a time. A
+  twenty-minute sweep over two towns and eight seeds changed the design. Tests
+  pin behaviour; only a sweep prices it.

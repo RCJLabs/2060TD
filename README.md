@@ -1626,6 +1626,7 @@ node scripts/e2e-build.mjs           # moving the map with a tool in hand, and p
 node scripts/e2e-terrain.mjs         # the sheet on the board, and a river that refuses a wall
 node scripts/e2e-garrison.mjs        # the watch counting down while a raid walks in
 node scripts/e2e-gesture.mjs         # one finger moves one thing: map or drawer, never both
+node scripts/e2e-defend.mjs          # an attack offered, the trade read, and both answers taken
 
 # Harnesses wait for STATE, never for a stopwatch (v1.21). A tap followed by a
 # fixed sleep followed by a read reports the harness's own timing rather than
