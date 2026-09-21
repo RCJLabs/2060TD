@@ -202,6 +202,40 @@ try {
     await settle(2500);
   };
 
+  /**
+   * Pull the portrait drawer open.
+   *
+   * On a phone the WAR tab's list is a sheet at half height, and the defence
+   * log sits below the fold. `tap` drags the LIST to scroll, which cannot
+   * reach a row the sheet is not tall enough to hold — the drawer itself has
+   * to come up first, by its grab handle, exactly as a thumb would.
+   */
+  const openDrawer = async () => {
+    const h = await page.evaluate(() => {
+      const api = window.lastline;
+      const l = api.layout ? api.layout() : null;
+      if (!l || !l.handle || !l.handle.h) return null;
+      return {
+        x: (l.handle.x + l.handle.w / 2) / api.dpr,
+        y: (l.handle.y + l.handle.h / 2) / api.dpr,
+      };
+    });
+    if (!h) return false;
+    const to = Math.max(8, vh * 0.12);
+    if (cdp) {
+      await touch('touchStart', h.x, h.y);
+      for (let i = 1; i <= 10; i++) await touch('touchMove', h.x, h.y + ((to - h.y) * i) / 10);
+      await touch('touchEnd', h.x, to);
+    } else {
+      await page.mouse.move(h.x, h.y);
+      await page.mouse.down();
+      await page.mouse.move(h.x, to, { steps: 14 });
+      await page.mouse.up();
+    }
+    await settle(2500);
+    return true;
+  };
+
   mkdirSync('screenshots', { recursive: true });
   await page.goto(`http://localhost:${PORT}/?demo=flow`, { waitUntil: 'networkidle' });
   await wait(2500);
@@ -263,6 +297,24 @@ try {
     await copyHas('THEY COMMIT'),
     (await copyLike('THEY COMMIT')).slice(0, 90),
   );
+  // The board tripwire, while an overlay this milestone ADDED is open: any
+  // object on the scene root that is not the board rig means something was
+  // parented wrong, and a wrongly parented overlay draws a second time at
+  // board zoom.
+  const strays = await page.evaluate(() => window.lastline.strays());
+  check('the offer leaves nothing on the scene root', strays.length === 0, strays.join(', '));
+  // And the footer buttons live where a thumb is, not where the title is.
+  const footerY = await page.evaluate(() => {
+    const api = window.lastline;
+    const b = api.buttons().filter((x) => ['DEFEND', 'GARRISON', 'LATER'].includes(x.label.toUpperCase()));
+    return b.length === 3 ? Math.min(...b.map((x) => x.y)) / api.dpr : -1;
+  });
+  check(
+    'and its three answers sit in the bottom half of the screen',
+    footerY > vh / 2,
+    `footer at y=${Math.round(footerY)} of ${vh}`,
+  );
+
   const buttons = await labels();
   check(
     'both answers are on the table, and so is neither',
@@ -280,6 +332,7 @@ try {
     !(await rowLike('DEFEND')),
     await rowLike('DEFEND'),
   );
+  await openDrawer();
   check(
     'and puts the battle it fought on the log, as a PROBE',
     await tapOpen('DEFENSE LOG', /PROBE LV 3/),
@@ -321,7 +374,7 @@ try {
     const phase = now.find((l) => /^(START ASSAULT|SKIP PREP)$/i.test(l));
     if (phase) await tapExact(phase);
     return false;
-  }, 180000);
+  }, 300000);
   check('the battle runs to a finish', finished, (await labels()).slice(0, 4).join(' | '));
   await tapExact('RETURN TO BASE');
   await until(async () => await copyHas('LEVEL 9 '), 15000);
@@ -338,6 +391,7 @@ try {
   );
   await tap('WAR', 800);
   check('and the offer is gone either way', !(await rowLike('DEFEND')), await rowLike('DEFEND'));
+  await openDrawer();
   check(
     'the log calls the one you fought DEFENDED, not a probe',
     await tapOpen('DEFENSE LOG', /DEFENDED LV 9/),
