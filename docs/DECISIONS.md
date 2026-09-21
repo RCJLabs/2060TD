@@ -847,3 +847,20 @@ here with the change and its date.
   ladder is re-tuned to pay for it, on the same principle M22 Phase 4 used: a
   re-tune wants a stable target, and changing two things at once to make one
   number look good is how a changelog starts lying.
+- 2026-09-21 — **The ladder was too short, and nothing was stopping it being
+  longer.** A six-rung ladder over this difficulty range cannot have steps
+  smaller than +33% even when perfectly uniform, and the contested band is only
+  ~43% wide, so at best a player gets one contested level per base — which is
+  exactly what eleven releases of tables recorded. Flattening inside six rungs
+  costs either a 54% harder level 1 or a much easier middle. Adding rungs costs
+  neither, and `assaultLevel` was never capped: the "six levels" existed only in
+  the balance tables' sampling. Growth 0.18 → 0.09 takes contested levels per
+  row from 0.73 to 2.20.
+- 2026-09-21 — **A metric keyed to level NUMBERS cannot survive changing what a
+  level is.** `--band` samples levels 2-5 and read the lengthened ladder as 3%
+  contested and 82% mean hold — a catastrophic-looking regression that was
+  entirely the sample sliding out from under it, since those rungs now field a
+  third of what they used to. The replacement counts contested levels across the
+  whole ladder, which is what a player actually climbs and is invariant to its
+  length. An instrument that hard-codes a coordinate is measuring the
+  coordinate, not the thing.

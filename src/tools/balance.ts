@@ -85,7 +85,17 @@ import type {
 const SEEDS = 20;
 const VARIANTS = 3;
 const RAID_TIERS = [1, 2, 3, 4, 5];
-const ASSAULT_LEVELS = [1, 2, 3, 4, 5, 6];
+/**
+ * The rungs the defence tables sample.
+ *
+ * Six consecutive levels used to span the whole ladder. v1.42 lengthened it —
+ * a level is a +25% step now instead of up to +67%, so today's level 6 is what
+ * used to be level 2 and sampling 1-6 would report 100% holds everywhere and
+ * say nothing. These are the rungs that cover the same DIFFICULTY range the
+ * old six did, which is what keeps a row in this file comparable to the row
+ * above it in the history.
+ */
+const ASSAULT_LEVELS = [1, 4, 6, 8, 10, 12];
 
 const seedOf = (a: number, b: number, c: number): number =>
   ((a * 7919 + b * 104729 + c * 2654435761 + 977) & 0x7fffffff) >>> 0;
@@ -4188,6 +4198,46 @@ function main(): void {
         }
       }
     }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--rungs')) {
+    // How many rungs of CONTEST does a player actually climb through?
+    //
+    // `--band` samples fixed level numbers, which stops being comparable the
+    // moment the ladder's length changes — stretching it moved levels 2-5 to
+    // a third of their old size and the metric read the drop as a regression.
+    // This scans each (faction, base) across the WHOLE ladder and counts the
+    // levels that land between 5% and 95%, which is what a player experiences
+    // and is invariant to how many rungs it takes to get there.
+    const MAX = 14;
+    console.log(`RUNGS — contested levels per row, scanning levels 1-${MAX}, 20 seeds`);
+    console.log('FACTION  | BASE        | CONTESTED LEVELS');
+    console.log('---------+-------------+------------------');
+    let total = 0;
+    let rows = 0;
+    for (const faction of FACTION_IDS) {
+      for (const ref of referenceBases()) {
+        const hits: number[] = [];
+        for (let level = 1; level <= MAX; level++) {
+          const runs = Array.from({ length: 20 }, (_, i) =>
+            siegeTraceOn(faction, ref, level, seedOf(level, ref.ccLevel, i), null, CHAIN_CURRENT),
+          );
+          const held = (runs.filter((r) => r.held).length / runs.length) * 100;
+          if (held >= 5 && held <= 95) hits.push(level);
+        }
+        total += hits.length;
+        rows++;
+        console.log(
+          `${pad(faction.toUpperCase(), 8)} | ${pad(ref.name, 11)} | ` +
+            `${pad(String(hits.length), 2)}  ${hits.length ? `(L${hits.join(', L')})` : '—'}`,
+        );
+      }
+    }
+    console.log(
+      `\nCONTESTED LEVELS PER ROW: ${(total / rows).toFixed(2)} across ${rows} rows. ` +
+        'The pre-v1.42 ladder gave 0.73 — 14 rows of 15 had one contested level or none.',
+    );
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

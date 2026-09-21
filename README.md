@@ -1499,6 +1499,8 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --slope to dial attacker HP continuously through the
                    #    point a row flips — is the battle bimodal, or is the
                    #    LADDER just coarser than the band? or
+                   # -- --rungs for how many CONTESTED levels a row has
+                   #    across the whole ladder — the length-invariant one, or
                    # -- --mix [ver] for what one heavy buys against the
                    #    specialists the same manpower would have bought, or
                    # -- --seed [ver] for how much of a raid the seed decides, or

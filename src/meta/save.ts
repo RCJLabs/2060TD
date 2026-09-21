@@ -1,3 +1,4 @@
+import { rescaleLadder } from '../content/assaults';
 import { campaignFor, type FactionId } from '../content/factions';
 import { LEAGUES, seasonAt } from '../content/leagues';
 import { normalizeHistory, PLACEMENT_CAP } from './ladder';
@@ -262,6 +263,15 @@ export function deserialize(json: string): TownState | null {
     // to the same sheet. Buildings already on the board become a constraint
     // on the generator rather than a casualty of it.
     town.terrainSeed = normalizeTerrain(town, town.log?.startedAt ?? town.lastSeen);
+    // The ladder was LENGTHENED in v1.42: a level is a +25% step now instead
+    // of up to +67%, so the same number means a much smaller attack. A town
+    // saved before that has its level rescaled once, by the size of assault it
+    // had actually reached — otherwise beating level 6 and then loading the
+    // save would hand the player a level 6 worth about a third as much.
+    if (town.ladderVersion === undefined) {
+      town.assaultLevel = rescaleLadder(town.assaultLevel);
+      town.ladderVersion = 1;
+    }
     // The coach ledger arrived in v1.5; an older file has simply read nothing.
     town.seen = Array.isArray(town.seen)
       ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)

@@ -3002,7 +3002,51 @@ premium", which converts idle attrition into sessions.
       So the fix is the assault ladder's granularity and the spacing of the
       reference stages, both of which are content. Every chain constant was
       the wrong place to look, and three sweeps were needed to be sure of it.
-- [ ] **Phase 3b — the ladder ramps now, and it is HALF a fix. Not shipped.**
+- [x] **Phase 3c — the ladder is LONGER, and that is the fix.** The ramp alone
+      was half of it; the other half was arithmetic. A six-rung ladder spanning
+      this difficulty range has a floor of +33% per rung even when perfectly
+      uniform, and flattening it while holding the mean forces level 1 up by
+      54% — which is not a probing attack any more. Both costs vanish if the
+      ladder simply has more rungs, and `assaultLevel` turned out never to have
+      been capped: it starts at 1, increments on a win, and `buildAssault`
+      takes any number. The six levels were only ever what the tables sampled.
+
+      So growth drops 0.18 → 0.09 with new waves ramping in at 0.15/0.10:
+
+      ```
+      L1  24        L5  50 (+9%)    L9   85 (+8%)
+      L2  30 (+25%) L6  58 (+16%)   L10 100 (+18%)
+      L3  37 (+23%) L7  69 (+19%)   L11 110 (+10%)
+      L4  46 (+24%) L8  79 (+14%)   L12 116 (+5%)
+      ```
+
+      Worst step **+25%**, comfortably inside the 43% band; level 1 untouched
+      at its original size; the old level 6 arrives at level 11.
+
+      | | before | after |
+      |---|---|---|
+      | contested levels per row | 0.73 | **2.20** |
+      | rows with 2 or more | 1 of 15 | **10 of 15** |
+      | worst step | +67% | **+25%** |
+
+      **And the metric had to be rebuilt to see it.** `--band` samples fixed
+      level NUMBERS, so stretching the ladder slid the sample out from under it
+      — it read 3% contested and 82% mean hold, which looks like a catastrophic
+      regression and is an artifact of measuring levels 2-5 that now hold a
+      third of what they used to. `--rungs` counts contested levels across the
+      WHOLE ladder instead, which is what a player climbs through and is
+      invariant to how many rungs it takes.
+
+      Saved towns are rescaled on load by `rescaleLadder` (old 4 → new 9,
+      derived from the curves rather than chosen) and stamped with
+      `ladderVersion`, so a war in progress keeps facing the assault it had
+      earned. The counterattack path, which borrows the assault ladder for a
+      raid tier, goes through the same rescale.
+
+      **Still open: EARLY (CC1) has no contested level at any rung** for four
+      factions of five. Two guns and one wall line is outside the band in both
+      directions, which is a base-template question rather than a ladder one.
+- [ ] **Phase 3b — the ramp alone, superseded by 3c. Kept for the record.**
       Waves 4, 5 and 6 unlock at levels 2, 3 and 4 and used to arrive at full
       size, which is where the +67% and +58% steps came from — not from
       `scaleCount`, which is a gentle +18%. A newly unlocked wave now arrives

@@ -11,7 +11,32 @@ import { entry, series } from './missions';
  */
 
 const scaleCount = (base: number, level: number): number =>
-  Math.max(1, Math.round(base * (1 + 0.18 * (level - 1))));
+  Math.max(1, Math.round(base * (1 + LADDER_GROWTH * (level - 1))));
+
+/**
+ * How much a level adds, and why it is so much smaller than it used to be.
+ *
+ * M23 Phase 3a measured the CONTESTED BAND — the range of attacker strength
+ * over which a defence row lands somewhere between winning every seed and
+ * losing every seed — at roughly 0.7x to 1.0x, about 43% wide. It then
+ * measured what a level actually cost: +67% and +58% at the bottom of the
+ * ladder against +9% at the top. A step bigger than the band jumps clean over
+ * it, which is why 93% of defence rows were step functions with one contested
+ * level or none, and why the single row that ramped was the one whose flip
+ * happened to land in the flat part.
+ *
+ * You cannot fix that inside six levels. A 6-rung ladder spanning this
+ * difficulty range has a floor of +33% per rung even when perfectly uniform,
+ * and holding the mean while flattening forces level 1 up by 54% — which is
+ * not a probing attack any more. So the ladder is LONGER instead: +9% per
+ * level with new waves ramping in gently, giving a worst step of +25%,
+ * comfortably inside the band, with level 1 untouched at its original size
+ * and the old level 6 arriving at level 11.
+ *
+ * `assaultLevel` was never capped, so nothing in the meta had to change for
+ * this — only saved towns, which are rescaled on load by `rescaleLadder`.
+ */
+const LADDER_GROWTH = 0.09;
 
 /**
  * A newly unlocked wave arrives at a FRACTION of its strength and grows in.
@@ -32,7 +57,27 @@ const scaleCount = (base: number, level: number): number =>
  * untouched; only the size of the step changes.
  */
 const waveRamp = (level: number, unlockLevel: number): number =>
-  Math.min(1, 0.4 + 0.3 * (level - unlockLevel));
+  Math.min(1, 0.15 + 0.1 * (level - unlockLevel));
+
+/**
+ * An `assaultLevel` from before the ladder was lengthened, in new levels.
+ *
+ * Derived from the curves rather than chosen: the smallest new level whose
+ * assault is at least as large as the old one's was.
+ *
+ *     old  1   2   3   4    5    6
+ *     new  1   4   7   9   10   11
+ *
+ * Past the table it keeps the same slope, so a town deep into the old ladder
+ * does not suddenly find level 12 easier than the level 6 it just beat.
+ */
+const RESCALE = [1, 1, 4, 7, 9, 10, 11];
+
+export function rescaleLadder(oldLevel: number): number {
+  if (oldLevel <= 1) return 1;
+  if (oldLevel < RESCALE.length) return RESCALE[oldLevel]!;
+  return RESCALE[RESCALE.length - 1]! + (oldLevel - (RESCALE.length - 1)) * 2;
+}
 
 /** Wave-role → attacker kind, per enemy faction (China attacks by default). */
 export interface AssaultRoster {
