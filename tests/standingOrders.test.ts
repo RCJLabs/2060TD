@@ -353,15 +353,47 @@ describe('the live-defence offer', () => {
     expect(ran.some((e) => e.at === pending.at)).toBe(true);
   });
 
-  it('claiming takes it off the board so it cannot also resolve offline', () => {
+  it('accepting does not make the attack disappear if you walk out on it', () => {
     const t = town();
     runOfflineProbes(t, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    const offered = t.pendingDefense!;
     const claimed = claimLiveDefense(t)!;
-    expect(claimed).not.toBeNull();
+    expect(claimed.seed).toBe(offered.seed);
+
+    // The offer is still on the board, with its window shut. A player who
+    // accepts and then closes the tab mid-battle has not ducked anything:
+    // the next sweep lands it at the full offline price. Ducking it would
+    // beat BOTH of the answers actually on offer.
+    expect(t.pendingDefense).toBeDefined();
+    expect(t.pendingDefense!.expiresAt).toBeLessThanOrEqual(T + 2 * PROBE_INTERVAL_MS);
+    t.lastSeen = T + 2 * PROBE_INTERVAL_MS + 60_000;
+    const ran = runOfflineProbes(t, t.lastSeen + 60_000);
+    expect(ran.some((e) => e.at === offered.at)).toBe(true);
     expect(t.pendingDefense).toBeUndefined();
-    expect(liveDefenseConfig(t)).toBeNull();
-    // A second claim has nothing to give.
-    expect(claimLiveDefense(t)).toBeNull();
+
+    // And a result coming back clears it, so the normal path bills once.
+    const b = town();
+    runOfflineProbes(b, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    const fought = claimLiveDefense(b)!;
+    applyLiveDefense(
+      b,
+      { level: fought.level, at: fought.at, config: defenseConfig(b, fought.level, fought.seed) },
+      {
+        victory: true,
+        supplies: b.supplies,
+        chargesLeft: { ...b.charges },
+        walls: b.walls.map((w) => ({ ...w })),
+        survivors: b.structures
+          .filter((st) => st.kind !== 'cc' && !st.wrecked)
+          .map((st) => ({ cell: st.cell, kind: st.kind, level: st.level })),
+        stats: {} as never,
+        ccHpFraction: 1,
+      },
+      T + 3 * PROBE_INTERVAL_MS,
+    );
+    expect(b.pendingDefense).toBeUndefined();
+    expect(liveDefenseConfig(b)).toBeNull();
+    expect(claimLiveDefense(b)).toBeNull();
   });
 
   it('only one offer stands at a time', () => {

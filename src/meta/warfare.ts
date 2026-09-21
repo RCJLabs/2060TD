@@ -1088,6 +1088,9 @@ export function applyLiveDefense(
   outcome: SiegeOutcome,
   now: number,
 ): DefenseLogEntry {
+  // The result is in, so the attack is answered: clear the offer that
+  // `claimLiveDefense` deliberately left standing.
+  delete town.pendingDefense;
   const cost = applyDefenseResult(town, outcome, liveDefenseBounty(fought.level), now);
   return logDefense(
     town,
@@ -1126,11 +1129,23 @@ export function liveDefenseConfig(town: TownState): SimConfig | null {
  */
 export const liveDefenseBounty = defenseBounty;
 
-/** Take the offer off the board; the battle is being fought now. */
+/**
+ * Commit to the offer: the battle is being fought now.
+ *
+ * This does NOT take the attack off the board, and that is the point. The
+ * offer is saved with its window already closed, so a player who accepts and
+ * then closes the tab mid-battle finds it landed at the full offline price on
+ * their next load rather than having made it disappear. `applyLiveDefense`
+ * clears it when a result actually comes back.
+ *
+ * Quitting a SKIRMISH to dodge a loss is an old property of the game and not
+ * this function's business. An attack you have been told is coming is
+ * different: ducking it would beat both of the answers on offer.
+ */
 export function claimLiveDefense(town: TownState): PendingDefense | null {
   const pending = town.pendingDefense;
   if (!pending) return null;
-  delete town.pendingDefense;
+  town.pendingDefense = { ...pending, expiresAt: pending.at };
   return pending;
 }
 
@@ -1140,8 +1155,12 @@ export function claimLiveDefense(town: TownState): PendingDefense | null {
  * player who cannot play right now is not doing anything wrong.
  */
 export function declineLiveDefense(town: TownState, now: number): DefenseLogEntry | null {
-  const pending = claimLiveDefense(town);
+  const pending = town.pendingDefense;
   if (!pending) return null;
+  // Deleted outright rather than committed: declining IS an answer, and the
+  // probe resolves on the next line. Only accepting leaves the attack on the
+  // board, because only accepting can be walked out on.
+  delete town.pendingDefense;
   return resolveProbe(town, pending.level, pending.seed, pending.at, now);
 }
 
