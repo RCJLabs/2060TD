@@ -1,4 +1,4 @@
-# Balance snapshot (v1.41.2)
+# Balance snapshot (v1.42.0)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -52,6 +52,21 @@ an active player defends one to two ladder levels above their probe floor.
 > ticks. It was invisible to every table in this file, including the two written
 > to hunt exactly this: a defender only reaches it by taking more than the three
 > actions HOLDFAST allows, and nothing here had ever let one.
+>
+> **v1.42 LENGTHENED the assault ladder, so no defence row here is comparable
+> to the row above it in the history by level number.** A level is a +25% step
+> now instead of up to +67%, and today's level 6 is roughly what level 2 used
+> to be. The defence tables sample levels 1, 4, 6, 8, 10 and 12 — the rungs
+> covering the same difficulty range the old six did — so read a cell against
+> its column header, never against its position.
+>
+> The reason is M23 Phase 3. A defence row is CONTESTED when it lands between
+> winning every seed and losing every seed, and the band that does it is about
+> 43% of attacker strength wide. A six-rung ladder over this range has a floor
+> of +33% per rung even when perfectly uniform, so ONE contested level per base
+> was the ceiling — which is what every snapshot in this file had recorded, and
+> what three content notes carried since v0.6 were separately describing.
+> Contested levels per row: 0.73 before, 2.20 after.
 
 ```
 RAID — UNITED STATES strike force (25 MP) vs PLA Front Line
@@ -796,165 +811,165 @@ VETERAN | 1.09 |   86 |   63 |   43 |   31 |    0 |  44.6 |     68
 CADRE   | 1.15 |   87 |   71 |   57 |   38 |    0 |  50.6 |     71
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%)
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |   90 |   75 |   10
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   40 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   90
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — HOLDFAST standing orders
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   70
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   25 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — WITH AA COVER
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   75
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    5 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   50 |    5 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — FORTIFY doctrine
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |   85 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   85 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95
 
 DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%)
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   85 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |   95
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   70 |    5 |    0 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   45 |   25
 
 DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |   95 |   75 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   80 |   30 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   45
 
 DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%) — WITH AA COVER
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   70
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   75 |   45 |   65 |   30 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   45 |   35
 
 DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   95 |    0 |    5 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   40 |   10 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   90
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%)
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |   95 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   55 |   55 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   40 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   95
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — WITH AA COVER
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   80
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   90 |   65 |   60 |   50
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   85
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |   15
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   80 |   15 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%)
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |   85 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   85 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |   85
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |   40 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |   95 |   95 |   40 |   10 |    0 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   40 |   10
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |   75 |   20 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |   55 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   60 |   15 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   80 |   40
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — WITH AA COVER
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |   95 |   95 |   20
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   30 |   20 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   60 |   35
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — COUNTERBATTERY standing orders
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   90 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |   95
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |   35 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   40 |    0 |    0 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   35 |   15
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — TRIPWIRE standing orders
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   85 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |   65 |   15 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   70 |   10 |    0 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   80 |   50
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   85 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |   90
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |   65 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   30 |    5 |    5 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   60 |   35
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%)
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   95 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |   80
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   55 |   10 |    5 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   75 |   15 |    0
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — HOLDFAST standing orders
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |   90 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |   15 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   60 |   40
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — WITH AA COVER
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |   95 |  100 |   50
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |   95
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |   45 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   65 |   15 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   20 |    0
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — Engineer Corps HQ on the line
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |   95 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |   80
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   55 |   10 |    5 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   75 |   15 |    0
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — FORTIFY doctrine
-STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6
-------------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |   10 |    5 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100
+STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
+------------+------+------+------+------+------+------+------+------+------+------+------+------
+EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   55 |   30 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   60 |   25
 ```
 
 ## Reading the tables (v0.8 pass)
