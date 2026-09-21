@@ -300,13 +300,18 @@ export class TownScene extends Phaser.Scene {
         }
       } else if (data.battle?.type === 'defense') {
         const fought = data.battle;
+        // Count the wrecks THIS battle made. A town can walk into a defence
+        // with a wreck already standing, and reporting the total would bill
+        // the player for the same building twice.
+        const wreckedBefore = this.town.structures.filter((st) => st.wrecked).length;
         const entry = applyLiveDefense(this.town, fought, data.outcome, now);
+        const lost = this.town.structures.filter((st) => st.wrecked).length - wreckedBefore;
         const bounty = liveDefenseBounty(fought.level);
         this.setBanner(
           entry.held
             ? `LEVEL ${fought.level} HELD IN PERSON. +${bounty.supplies} SUP +${bounty.fuel} FUEL.`
             : `LEVEL ${fought.level} BROKE THROUGH. ` +
-              `${this.town.structures.filter((st) => st.wrecked).length} WRECKED — REPAIR AND DIG IN.`,
+              `${lost} WRECKED — REPAIR AND DIG IN.`,
           16,
         );
       } else if (data.battle?.type === 'counter') {
@@ -764,10 +769,14 @@ export class TownScene extends Phaser.Scene {
   /**
    * Take the offer: stand and fight the attack the garrison was going to meet.
    *
-   * The config is built BEFORE the claim, because `liveDefenseConfig` reads
-   * the offer off the town and claiming takes it off. It is built from the
-   * live town rather than snapshotted at offer time, which is deliberate —
-   * an attack you have been warned about is one you get to prepare for.
+   * The config is built from the LIVE town rather than snapshotted at offer
+   * time, which is deliberate: an attack you have been warned about is one
+   * you get to prepare for.
+   *
+   * `claimLiveDefense` commits to the battle without taking the attack off
+   * the board — it shuts the window instead — so closing the tab mid-fight
+   * lands it at the offline price rather than making it vanish.
+   * `applyLiveDefense` clears it when a result comes back.
    */
   private launchLiveDefense(): void {
     const pending = this.town.pendingDefense;

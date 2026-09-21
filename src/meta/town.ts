@@ -340,7 +340,7 @@ export interface TownState {
   ladderVersion?: number;
   /**
    * A probe held back from offline resolution and OFFERED to the player
-   * (v1.43, M23 Phase 3b).
+   * (v1.43, M23 Phase 4).
    *
    * The war fought while nobody was watching is most of the war, and until
    * now all of it resolved before the player saw a pixel of it: they came

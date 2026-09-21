@@ -1180,7 +1180,7 @@ export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[
   const level = probeLevel(town);
 
   // The LAST probe of an absence is held back and OFFERED rather than
-  // resolved (M23 Phase 3b). Everything before it already happened while
+  // resolved (M23 Phase 4). Everything before it already happened while
   // nobody was watching; this one has not happened yet.
   const offering = town.pendingDefense === undefined;
   const resolveCount = offering ? count - 1 : count;
