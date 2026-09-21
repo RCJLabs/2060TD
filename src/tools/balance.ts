@@ -94,8 +94,15 @@ const RAID_TIERS = [1, 2, 3, 4, 5];
  * say nothing. These are the rungs that cover the same DIFFICULTY range the
  * old six did, which is what keeps a row in this file comparable to the row
  * above it in the history.
+ *
+ * They are CONSECUTIVE for a reason that cost a snapshot to learn. The first
+ * attempt sampled 1/4/6/8/10/12 — the same difficulty span in six columns —
+ * and reported 80% of rows as step functions while `--contested`, scanning
+ * every rung, measured 2.20 contested levels per row. Both were right: a row
+ * contested at levels 7 and 8 shows up once in a sample that skips 7. A table
+ * read as "the shape of the ladder" must not sample every other rung of it.
  */
-const ASSAULT_LEVELS = [1, 4, 6, 8, 10, 12];
+const ASSAULT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 const seedOf = (a: number, b: number, c: number): number =>
   ((a * 7919 + b * 104729 + c * 2654435761 + 977) & 0x7fffffff) >>> 0;
