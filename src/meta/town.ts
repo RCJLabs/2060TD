@@ -239,6 +239,12 @@ export interface DefenseLogEntry {
   killer?: string;
   /** Standing orders that fought this probe (v0.8). */
   orders?: string;
+  /**
+   * The commander fought this one in person (v1.43). It matters to the reader
+   * because a live defence is the WHOLE rung and a probe is its first two
+   * waves, so the same level means two different battles.
+   */
+  live?: boolean;
   /** Full battle config — every offline probe is replayable. */
   config: SimConfig;
 }
@@ -1151,6 +1157,45 @@ export function counterattackConfig(town: TownState, seed: number): SimConfig {
 }
 
 /** Headless battle config for one offline probe raid. */
+/**
+ * The battle behind an accepted live-defence offer (v1.43).
+ *
+ * NOT `probeConfig`. A probe is the first two waves of its rung with the
+ * defender economy switched off — `startingCp: 0, cpPerSecond: 0` — which is
+ * right for a battle nobody is watching and wrong twice over for one somebody
+ * is: the player would have no CP to spend, so no verbs at all, and measurement
+ * says a built town holds a probe 100% of the time at every level from 1 to 24.
+ * An offer you cannot lose and cannot act in is not a decision.
+ *
+ * So standing to fight is a different battle from letting them probe. The
+ * fiction is the mechanic: a probe is what they send when nobody is home, and
+ * meeting them at the wire is what makes them commit. Same rung, same seed,
+ * the whole assault — which the same measurement puts at 100/88/75/0 percent
+ * held across levels 4/5/6/8 with nobody acting, so what the player does with
+ * the CP is what decides it.
+ */
+export function defenseConfig(town: TownState, level: number, seed: number): SimConfig {
+  const def = buildAssault(level, enemyRosterFor(town.faction));
+  return battleConfig(town, seed, {
+    ...def,
+    name: `DEFENCE — LEVEL ${level}`,
+    startingSupplies: Math.floor(town.supplies),
+  });
+}
+
+/**
+ * What holding the line in person pays.
+ *
+ * Half a skirmish's loot at the same level, and derived from it rather than
+ * written out, so the two cannot drift. Half because a skirmish is a fight you
+ * went looking for and this one came to you: the real reward for holding is
+ * the 15% of the stockpile a breach would have cost.
+ */
+export function defenseBounty(level: number): { supplies: number; fuel: number } {
+  const loot = assaultLoot(level);
+  return { supplies: Math.round(loot.supplies / 2), fuel: Math.round(loot.fuel / 2) };
+}
+
 export function probeConfig(town: TownState, level: number, seed: number): SimConfig {
   const config = battleConfig(town, seed, {
     ...probeAssault(level, enemyRosterFor(town.faction)),

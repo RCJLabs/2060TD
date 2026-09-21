@@ -12,7 +12,14 @@ import {
 } from '../../content/factions';
 import { TECHS, TECH_BY_ID } from '../../content/research';
 import { activeSlot, clearSave, loadSlot, saveTown } from '../../meta/save';
-import { runOfflineProbes } from '../../meta/warfare';
+import {
+  applyLiveDefense,
+  claimLiveDefense,
+  declineLiveDefense,
+  liveDefenseBounty,
+  liveDefenseConfig,
+  runOfflineProbes,
+} from '../../meta/warfare';
 import { fileCode, openEntry, vaultOf, VAULT_CAP } from '../../meta/vault';
 import { replayFingerprint, type ReplayKind } from '../../meta/replaycode';
 import { contractsAt, contractsEndAt } from '../../content/contracts';
@@ -78,6 +85,7 @@ import {
   townTerrain,
   TOWN_GRID,
   onSpawnLane,
+  type DefenseLogEntry,
   type PlacedStructure,
   type SiegeOutcome,
   type TownState,
@@ -236,6 +244,19 @@ export class TownScene extends Phaser.Scene {
           18,
         );
         saveTown(town);
+      } else if (town.pendingDefense) {
+        // An offer outranks the after-action report: one of them is a thing
+        // that already happened, and the other is about to.
+        const offered = town.pendingDefense;
+        const fought = probes.length > 0
+          ? `${probes.length} PROBE${probes.length > 1 ? 'S' : ''} WHILE AWAY. `
+          : '';
+        this.setBanner(
+          `${fought}ANOTHER IS INBOUND — LEVEL ${offered.level}. ` +
+            'DEFEND IT YOURSELF OR LEAVE IT TO THE GARRISON. [SPACE]',
+          20,
+        );
+        saveTown(town);
       } else if (probes.length > 0) {
         const held = probes.filter((p) => p.held).length;
         const taken = probes.reduce((n, p) => n + p.suppliesLost + p.fuelLost, 0);
@@ -277,6 +298,17 @@ export class TownScene extends Phaser.Scene {
             14,
           );
         }
+      } else if (data.battle?.type === 'defense') {
+        const fought = data.battle;
+        const entry = applyLiveDefense(this.town, fought, data.outcome, now);
+        const bounty = liveDefenseBounty(fought.level);
+        this.setBanner(
+          entry.held
+            ? `LEVEL ${fought.level} HELD IN PERSON. +${bounty.supplies} SUP +${bounty.fuel} FUEL.`
+            : `LEVEL ${fought.level} BROKE THROUGH. ` +
+              `${this.town.structures.filter((st) => st.wrecked).length} WRECKED — REPAIR AND DIG IN.`,
+          16,
+        );
       } else if (data.battle?.type === 'counter') {
         applyCounterResult(this.town, data.outcome, now);
         this.setBanner(
@@ -721,9 +753,52 @@ export class TownScene extends Phaser.Scene {
   }
 
   private launchPrimary(): void {
-    if (this.town.frontline.pendingCounterattack) this.launchCounterattack();
+    // The offer goes first because it is the only one of these with a clock
+    // on it. A counterattack waits; an offered defence lands.
+    if (this.town.pendingDefense) this.launchLiveDefense();
+    else if (this.town.frontline.pendingCounterattack) this.launchCounterattack();
     else if (this.nextMission()) this.launchMission();
     else this.launchSkirmish();
+  }
+
+  /**
+   * Take the offer: stand and fight the attack the garrison was going to meet.
+   *
+   * The config is built BEFORE the claim, because `liveDefenseConfig` reads
+   * the offer off the town and claiming takes it off. It is built from the
+   * live town rather than snapshotted at offer time, which is deliberate —
+   * an attack you have been warned about is one you get to prepare for.
+   */
+  private launchLiveDefense(): void {
+    const pending = this.town.pendingDefense;
+    const config = liveDefenseConfig(this.town);
+    if (this.demoMode || !pending || !config) return;
+    claimLiveDefense(this.town);
+    saveTown(this.town);
+    this.scene.start('siege', {
+      config,
+      fromTown: true,
+      battle: { type: 'defense', level: pending.level, at: pending.at, config },
+      faction: this.town.faction,
+      ...(this.claimCoach() ? { coach: true } : {}),
+    });
+  }
+
+  /** Hand it back to the garrison. It resolves now, at the offline price. */
+  private declineLiveDefense(): void {
+    if (this.demoMode || !this.town.pendingDefense) return;
+    const entry = declineLiveDefense(this.town, Date.now());
+    if (entry) this.setBanner(TownScene.probeLine(entry), 14);
+    this.saveSoon();
+  }
+
+  /** One line of after-action for a probe the garrison fought. */
+  private static probeLine(entry: DefenseLogEntry): string {
+    const taken = entry.suppliesLost + entry.fuelLost;
+    return entry.held
+      ? `GARRISON HELD LV ${entry.level}${taken > 0 ? ` — −${taken} RESOURCES` : ' CLEAN'}.`
+      : `GARRISON BREACHED AT LV ${entry.level}` +
+          `${entry.killer ? ` BY ${entry.killer.toUpperCase()}` : ''} — −${taken} RESOURCES.`;
   }
 
   private launchCounterattack(): void {
@@ -746,6 +821,74 @@ export class TownScene extends Phaser.Scene {
     }
     saveTown(this.town);
     this.scene.start('raid', { town: this.town });
+  }
+
+  /**
+   * The live-defence offer (v1.43): an attack that has not happened yet.
+   *
+   * This screen exists because the trade is not obvious from a row, and
+   * because the two answers are not the same battle. Hand it to the garrison
+   * and they meet a PROBE — two waves, no defender economy, a formality for
+   * any built town. Stand and fight and the enemy commits the whole rung,
+   * which is a real fight with real CP to spend on it. Both answers are
+   * legitimate; a player who cannot play right now is not doing anything
+   * wrong. It is worth a paragraph, once.
+   */
+  private showDefenseOffer(): void {
+    if (this.overlay) return;
+    const pending = this.town.pendingDefense;
+    if (!pending) return;
+    const bounty = liveDefenseBounty(pending.level);
+    const ov = new Overlay(this, this.layout, {
+      title: `INBOUND — LEVEL ${pending.level}`,
+      subtitle: `Contact in ${untilLabel(Math.max(0, pending.expiresAt - Date.now()))}.`,
+      container: this.board.ui,
+    });
+    this.overlay = ov;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    const { font, gap } = this.layout;
+    ov.paragraph(
+      'A probe is forming up on the approach. You can take the console yourself, ' +
+        'or leave it to the garrison and read the damage afterwards.',
+      font.body,
+      COLORS.ink,
+      { gapAfter: gap },
+    );
+    ov.paragraph(
+      `DEFEND — you command, and they commit: the whole assault, not the two ` +
+        `waves they send at an empty yard. Hold and nothing is lost: ` +
+        `+${bounty.supplies} SUP +${bounty.fuel} FUEL. Lose and every building ` +
+        'that did not survive is WRECKED, and a wreck costs a repair.',
+      font.body,
+      COLORS.olive,
+      { gapAfter: Math.round(gap / 2) },
+    );
+    ov.paragraph(
+      'GARRISON — standing orders fight the probe. Buildings are never wrecked; ' +
+        'a breach costs 15% of the stockpile and raises the shield.',
+      font.body,
+      COLORS.inkDim,
+      { gapAfter: gap },
+    );
+    ov.paragraph(
+      'Walking away is the same as GARRISON. The attack lands either way.',
+      font.body,
+      COLORS.inkDim,
+      { gapAfter: gap },
+    );
+    ov.footer('DEFEND', () => {
+      close();
+      this.launchLiveDefense();
+    }, 0, 3);
+    ov.footer('GARRISON', () => {
+      close();
+      this.declineLiveDefense();
+    }, 1, 3);
+    ov.footer('LATER', close, 2, 3);
   }
 
   /** Defense log overlay: offline probe history with replays. */
@@ -774,24 +917,31 @@ export class TownScene extends Phaser.Scene {
       const when = new Date(entry.at).toISOString().slice(5, 16).replace('T', ' ');
       this.overlayEntry(
         ov,
-        `${when}Z · PROBE LV ${entry.level} — ${entry.held ? 'HELD' : 'BREACHED'}` +
+        `${when}Z · ${entry.live ? 'DEFENDED' : 'PROBE'} LV ${entry.level} — ` +
+          `${entry.held ? 'HELD' : 'BREACHED'}` +
           `${!entry.held && entry.killer ? ` (CC LOST TO ${entry.killer.toUpperCase()})` : ''}` +
           `\n−${entry.suppliesLost} SUP · −${entry.fuelLost} FUEL` +
           `${entry.orders ? ` · ORDERS: ${entry.orders.toUpperCase()}` : ''}`,
         entry.held ? COLORS.olive : COLORS.alarm,
-        {
-          label: 'WATCH',
-          onTap: () => {
-            close();
-            this.scene.start('replay', {
-              config: entry.config,
-              kind: 'defense',
-              title: `PROBE LV ${entry.level}`,
-              faction: this.town.faction,
-              backTo: 'town',
-            });
-          },
-        },
+        // No WATCH on a battle the commander fought. A probe resolves from
+        // its config, so re-running it IS the battle; a live defence was made
+        // of commands the config never held, and replaying it would show the
+        // garrison fighting a battle nobody fought. Same rule as the vault.
+        entry.live
+          ? undefined
+          : {
+              label: 'WATCH',
+              onTap: () => {
+                close();
+                this.scene.start('replay', {
+                  config: entry.config,
+                  kind: 'defense',
+                  title: `PROBE LV ${entry.level}`,
+                  faction: this.town.faction,
+                  backTo: 'town',
+                });
+              },
+            },
       );
     }
     ov.footer('CLOSE', close);
@@ -1442,6 +1592,17 @@ export class TownScene extends Phaser.Scene {
       saveTown(this.town);
     }
 
+    // An offer can lapse with the game open — thirty minutes is easily a
+    // session. `tick()` above has already moved lastSeen to now, so this
+    // sweep resolves the lapsed offer and nothing else.
+    const inbound = this.town.pendingDefense;
+    if (inbound && now >= inbound.expiresAt && !this.demoMode) {
+      const landed = runOfflineProbes(this.town, now);
+      const entry = landed.find((e) => e.at === inbound.at);
+      if (entry) this.setBanner(`OFFER LAPSED — ${TownScene.probeLine(entry)}`, 14);
+      saveTown(this.town);
+    }
+
     this.saveTimer += deltaMs;
     if (this.saveTimer > 5000) {
       this.saveTimer = 0;
@@ -1949,7 +2110,24 @@ export class TownScene extends Phaser.Scene {
 
   private warRows(): PanelRow[] {
     const town = this.town;
-    const rows: PanelRow[] = [{ id: 'h', label: 'THE FRONT LINE', heading: true }];
+    const rows: PanelRow[] = [];
+
+    // The offer goes above everything, because everything else on this tab
+    // will still be here in an hour and this will not.
+    const pending = town.pendingDefense;
+    if (pending) {
+      rows.push(
+        { id: 'hdef', label: 'INBOUND', heading: true },
+        {
+          id: 'defend',
+          label: `⚠ DEFEND — LEVEL ${pending.level}`,
+          sub: untilLabel(Math.max(0, pending.expiresAt - Date.now())),
+          enabled: !this.demoMode,
+          onTap: () => this.openOverlay(() => this.showDefenseOffer()),
+        },
+      );
+    }
+    rows.push({ id: 'h', label: 'THE FRONT LINE', heading: true });
 
     if (!isUnlocked(town, 'frontline')) {
       const at = this.unlockAt('frontline');

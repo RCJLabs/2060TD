@@ -4,10 +4,12 @@ import { defenseCatalogFor, enemyRosterFor, FACTION_IDS } from '../src/content/f
 import { STANDING_ORDERS, STANDING_ORDER_IDS } from '../src/content/standingOrders';
 import { deserialize, serialize } from '../src/meta/save';
 import {
+  caps,
+  defenseConfig,
+  probeConfig,
   newTown,
   onSpawnLane,
   outcomeFromEngine,
-  probeConfig,
   place,
   placeWall,
   tick,
@@ -403,17 +405,34 @@ describe('the live-defence offer', () => {
     expect(liveDefenseConfig(t)!.standingOrders).toBeUndefined();
   });
 
+  it('standing to fight makes them commit: the whole rung, and CP to spend it', () => {
+    const t = town();
+    runOfflineProbes(t, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    const pending = t.pendingDefense!;
+    const probe = probeConfig(t, pending.level, pending.seed);
+    const live = liveDefenseConfig(t)!;
+
+    // A probe is the first two waves with the defender economy switched off.
+    // Offering THAT as a live battle would hand the player a fight with no
+    // verbs in it — no CP means no deployments, no powers, nothing to do but
+    // watch — and one a built town holds 100% of the time at every level.
+    expect(probe.siege!.waves.length).toBeLessThan(live.siege!.waves.length);
+    expect(probe.siege!.cpPerSecond).toBe(0);
+    expect(live.siege!.cpPerSecond).toBeGreaterThan(0);
+    expect(live.siege!.startingCp).toBeGreaterThan(0);
+    // Same rung, same seed: it is still the attack that was coming.
+    expect(live.seed).toBe(pending.seed);
+  });
+
   it('a live defeat wrecks buildings where an offline one only bills', () => {
     const live = town();
     runOfflineProbes(live, T + 2 * PROBE_INTERVAL_MS + 60_000);
     const fought = claimLiveDefense(live)!;
-    // A probe is the first TWO waves of its ladder rung, so a garrison that
-    // can be built at all rarely loses one. To reach the state this test is
-    // about, give it the whole rung — a real engine run that really ends in
-    // defeat, rather than a hand-written outcome asserting itself.
+    // Far over this garrison's head, fought with nobody at the console — a
+    // real engine run that really ends in defeat, rather than a hand-written
+    // outcome asserting itself.
     const level = 12;
-    const base = probeConfig(live, level, fought.seed);
-    const config = { ...base, siege: buildAssault(level, enemyRosterFor('usa')) };
+    const config = defenseConfig(live, level, fought.seed);
     const engine = new Engine(config, defenseCatalogFor('usa'));
     engine.enqueue({ tick: 0, type: 'startAssault' });
     while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) engine.step();
@@ -442,9 +461,10 @@ describe('the live-defence offer', () => {
     const t = town();
     runOfflineProbes(t, T + 2 * PROBE_INTERVAL_MS + 60_000);
     const fought = claimLiveDefense(t)!;
-    const config = probeConfig(t, fought.level, fought.seed);
+    const config = defenseConfig(t, fought.level, fought.seed);
     const before = { supplies: t.supplies, fuel: t.fuel };
     const bounty = liveDefenseBounty(fought.level);
+    const cap = caps(t);
 
     // A hold, stated rather than fought: what this test is about is the fold,
     // not whether this particular garrison wins.
@@ -467,8 +487,11 @@ describe('the live-defence offer', () => {
     expect(entry.held).toBe(true);
     expect(entry.suppliesLost).toBe(0);
     expect(entry.fuelLost).toBe(0);
-    expect(t.supplies).toBe(before.supplies + bounty.supplies);
-    expect(t.fuel).toBe(before.fuel + bounty.fuel);
+    // Capped, like every other payout in the game: half a skirmish's loot can
+    // overflow a small town's stores, and a full one takes what fits.
+    expect(t.supplies).toBe(Math.min(cap.supplies, before.supplies + bounty.supplies));
+    expect(t.fuel).toBe(Math.min(cap.fuel, before.fuel + bounty.fuel));
+    expect(t.supplies).toBeGreaterThan(before.supplies);
     expect(t.structures.some((st) => st.wrecked)).toBe(false);
     // It counts on the record exactly like a probe the garrison held.
     expect(t.log!.probesHeld).toBeGreaterThan(0);

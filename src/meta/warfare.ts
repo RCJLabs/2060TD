@@ -44,6 +44,8 @@ import {
 } from './ladder';
 import {
   applyDefenseResult,
+  defenseBounty,
+  defenseConfig,
   probeConfig,
   researchEffects,
   warLog,
@@ -1096,6 +1098,7 @@ export function applyLiveDefense(
       suppliesLost: cost.suppliesLost,
       fuelLost: cost.fuelLost,
       ...(outcome.stats.ccKillerKind ? { killer: outcome.stats.ccKillerKind } : {}),
+      live: true,
       config: fought.config,
     },
     now,
@@ -1112,33 +1115,16 @@ export function applyLiveDefense(
  */
 export function liveDefenseConfig(town: TownState): SimConfig | null {
   const pending = town.pendingDefense;
-  if (!pending) return null;
-  // Strip the standing orders. They are the garrison's CP policy for a battle
-  // nobody is watching, and in a battle somebody IS watching they would spend
-  // the player's CP out from under them. Accepting the offer means taking
-  // command, which means taking the CP with it.
-  const config = { ...probeConfig(town, pending.level, pending.seed) };
-  delete config.standingOrders;
-  return config;
+  return pending ? defenseConfig(town, pending.level, pending.seed) : null;
 }
 
 /**
  * What holding the line live pays over letting the garrison handle it.
  *
- * The offer has to be worth taking or it is just a chore with extra steps, and
- * it has to cost something or there is no decision in it. Both halves already
- * existed and only needed connecting: declining resolves offline, which costs
- * a slice of the stockpile and wrecks nothing, while ACCEPTING runs the battle
- * through `applySiegeOutcome` — the played-siege path, which wrecks every
- * structure that did not survive and bills a repair to put it back. So a live
- * defeat already costs buildings where an offline one costs a percentage.
- *
- * This is the other side of that trade: a live hold loses nothing at all and
- * pays a bounty on top, scaled by what was coming.
+ * Priced in `town.ts` beside the battle it pays for. Re-exported here because
+ * this module is where the offer lives and every caller already imports it.
  */
-export function liveDefenseBounty(level: number): { supplies: number; fuel: number } {
-  return { supplies: 40 + 25 * level, fuel: 20 + 12 * level };
-}
+export const liveDefenseBounty = defenseBounty;
 
 /** Take the offer off the board; the battle is being fought now. */
 export function claimLiveDefense(town: TownState): PendingDefense | null {
