@@ -3043,9 +3043,32 @@ premium", which converts idle attrition into sessions.
       earned. The counterattack path, which borrows the assault ladder for a
       raid tier, goes through the same rescale.
 
-      **Still open: EARLY (CC1) has no contested level at any rung** for four
-      factions of five. Two guns and one wall line is outside the band in both
-      directions, which is a base-template question rather than a ladder one.
+      **EARLY (CC1) has no contested rung, and `--width` says why.** The
+      contested band is not one number — it is a property of the BASE:
+
+      | stage | mean band width |
+      |---|---|
+      | EARLY (CC1) | **+22%** |
+      | MID (CC2) | +95% |
+      | LATE (CC3) | +59% |
+
+      v1.42 sized rungs at +25% against a board-wide ~43%, which fits MID and
+      LATE and cannot fit EARLY. Four of five EARLY rows have no measurable
+      band at all. The suspect was the reference layout, and both halves of it
+      were checked rather than assumed: the base already fields CC1's WHOLE gun
+      allowance (two nests and an autocannon, three guns), and doubling its
+      maze from 16 wall segments to 32 moves level 4 not one point, at any
+      attacker strength from 0.6x to 1.4x.
+
+      So three guns cannot hold a level-4 assault however they are arranged,
+      and a three-gun base has too little variance for its outcome to be in
+      doubt at all. That is not a bug to fix with a rung size or a layout. It
+      is a question nobody has answered: **is CC1 supposed to be contested?**
+      A defensible reading is no — it is the onboarding stage, you win easily
+      and then must upgrade, and contested play starts at CC2 where the band is
+      +95% wide. If that is the intent then EARLY's flat rows are correct and
+      should stop being counted as step functions. If it is not, CC1 needs more
+      than three guns, which is a pacing decision about the opening hours.
 - [ ] **Phase 3b — the ramp alone, superseded by 3c. Kept for the record.**
       Waves 4, 5 and 6 unlock at levels 2, 3 and 4 and used to arrive at full
       size, which is where the +67% and +58% steps came from — not from
@@ -3104,8 +3127,53 @@ premium", which converts idle attrition into sessions.
 
       Then, and only then, the verbs get re-judged: a defender action is worth
       measuring once there is a band for it to land in.
-- [ ] **Phase 3b — live-defend offers, and a defeat state that costs something
-      memorable.**
+- [x] **Phase 4 — live-defend offers, and a defeat state that costs something
+      memorable.** The last probe of an absence is no longer resolved. It is
+      held back and OFFERED, with a thirty-minute window, and the two answers
+      are deliberately different battles.
+
+      The meta was the easy half and mostly already existed. `applySiegeOutcome`
+      has always WRECKED every structure that did not survive a played siege,
+      while `runOfflineProbes` takes a flat slice of the stockpile and wrecks
+      nothing — the memorable defeat was sitting there needing to be connected,
+      not invented. Declining resolves the probe exactly as never being offered
+      would have, and an offer walked away from lands at the same price on the
+      next sweep, so there is no penalty for a player who cannot play right now.
+
+      **The first version was wrong, and measurement is what said so.** Eight
+      seeds, two reference towns:
+
+      | battle | thin (2 guns) | full (CC2, 6 guns + wire) |
+      |---|---|---|
+      | probe, 2 waves | L1-6 100%, L8 88%, L16 38% | **100% at every level 1-24** |
+      | full assault | L1-2 100%, L3 13%, L4+ 0% | L4 100%, L5 88%, L6 75%, L8+ 0% |
+
+      A probe is the first two waves of its rung with the defender economy
+      switched OFF — `startingCp: 0, cpPerSecond: 0`. Offering that as a live
+      battle was wrong twice over: the player has no CP, so no verbs at all,
+      nothing to do but watch; and a built town holds it regardless. An offer
+      you cannot lose and cannot act in is not a decision, it is a chore that
+      pays.
+
+      So standing to fight is a DIFFERENT battle from letting them probe, and
+      the fiction is the mechanic: a probe is what they send when nobody is
+      home, and meeting them at the wire is what makes them commit. Same rung,
+      same seed, the whole assault, the town's own siege economy — which the
+      same table puts at 100/88/75/0 across levels 4/5/6/8 with nobody acting.
+      That is Phase 3c's contested band, which is the point: the offer lands
+      the player in the one place on the curve where what they do decides it.
+
+      The bounty is half a skirmish's loot at the same level, derived from
+      `assaultLoot` so the two cannot drift. Half because a skirmish is a fight
+      you went looking for and this one came to you — the real reward for
+      holding is the 15% of the stockpile a breach would have cost.
+
+      **What it cost to find**: the first version passed its whole unit suite
+      and an eleven-check E2E harness. Both were asking whether the loop
+      closed, and it did. Neither could ask whether the battle was worth
+      fighting, because that is a question about a distribution and every test
+      in the repo runs one battle at a time. The sweep took twenty minutes and
+      changed the design.
 
 ## M24 — "The Settlement": from nine buildings to a base builder
 

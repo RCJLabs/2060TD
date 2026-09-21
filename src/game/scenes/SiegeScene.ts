@@ -20,7 +20,14 @@ import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 export type BattleTag =
   | { type: 'mission'; missionId: string }
   | { type: 'skirmish' }
-  | { type: 'counter' };
+  | { type: 'counter' }
+  /**
+   * A live defence (v1.43): an offered probe the player stood and fought
+   * rather than leaving to the garrison. It carries its own config because
+   * the town it was built from is about to change underneath it — this
+   * battle's identity has to survive the fold that wrecks half of it.
+   */
+  | { type: 'defense'; level: number; at: number; config: SimConfig };
 
 export interface SiegeLaunchData {
   /** Battle built from the town (meta/town). Absent = standalone. */

@@ -13,6 +13,7 @@ import {
   normalizeTerrain,
   normalizeWarLog,
   unlockAll,
+  type PendingDefense,
   type TownState,
   TOWN_GRID,
 } from './town';
@@ -194,6 +195,26 @@ function normalizeLadder(town: TownState): void {
     : [];
 }
 
+/**
+ * The live-defence offer arrived in v1.43. It is four numbers, and every one
+ * of them is load-bearing: a junk `expiresAt` is a free shield, because an
+ * offer that can never lapse is an attack that never lands. Drop anything
+ * that is not a whole, finite offer rather than carry a broken one.
+ */
+function normalizePendingDefense(raw: unknown): PendingDefense | undefined {
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const p = raw as Record<string, unknown>;
+  const num = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isFinite(value) ? value : null;
+  const at = num(p['at']);
+  const level = num(p['level']);
+  const seed = num(p['seed']);
+  const expiresAt = num(p['expiresAt']);
+  if (at === null || level === null || seed === null || expiresAt === null) return undefined;
+  if (level < 1) return undefined;
+  return { at, level: Math.round(level), seed: seed >>> 0, expiresAt };
+}
+
 export function deserialize(json: string): TownState | null {
   try {
     const data = JSON.parse(json) as { schema?: number; town?: TownState };
@@ -272,6 +293,10 @@ export function deserialize(json: string): TownState | null {
       town.assaultLevel = rescaleLadder(town.assaultLevel);
       town.ladderVersion = 1;
     }
+    // The live-defence offer arrived in v1.43; an older file has none.
+    const pending = normalizePendingDefense(town.pendingDefense);
+    if (pending) town.pendingDefense = pending;
+    else delete town.pendingDefense;
     // The coach ledger arrived in v1.5; an older file has simply read nothing.
     town.seen = Array.isArray(town.seen)
       ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)

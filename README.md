@@ -1543,6 +1543,9 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --slope to dial attacker HP continuously through the
                    #    point a row flips — is the battle bimodal, or is the
                    #    LADDER just coarser than the band? or
+                   # -- --width for how much attacker strength separates
+                   #    always-win from always-lose, PER BASE — the band a
+                   #    ladder rung has to fit inside, or
                    # -- --contested for how many levels of a row land between
                    #    winning every seed and losing every seed, scanned
                    #    across the WHOLE ladder so it survives the ladder
@@ -1623,6 +1626,7 @@ node scripts/e2e-build.mjs           # moving the map with a tool in hand, and p
 node scripts/e2e-terrain.mjs         # the sheet on the board, and a river that refuses a wall
 node scripts/e2e-garrison.mjs        # the watch counting down while a raid walks in
 node scripts/e2e-gesture.mjs         # one finger moves one thing: map or drawer, never both
+node scripts/e2e-defend.mjs          # an attack offered, the trade read, and both answers taken
 
 # Harnesses wait for STATE, never for a stopwatch (v1.21). A tap followed by a
 # fixed sleep followed by a read reports the harness's own timing rather than

@@ -839,6 +839,27 @@ second and inherit a stranger's record.
 - Full-loss defeat grants a 12h shield. Probes scale to your Front Line tier, slightly soft.
 - Every probe produces a replay — offline losses must always be explainable.
 
+**The last one is offered, not resolved** *(v1.43)*. Coming back to a full
+after-action report is a report about a game you did not play, so the final probe
+of an absence is held back with a thirty-minute window on it and two answers:
+
+- **GARRISON** resolves it exactly as never being offered would have — the probe,
+  under standing orders, a slice of the stockpile on a breach and no buildings
+  wrecked. Walking away is the same answer; the attack lands either way. There is
+  no penalty for declining, because a player who cannot play right now is not
+  doing anything wrong.
+- **DEFEND** is a different battle. A probe is two waves with the defender economy
+  switched off, which makes it unloseable for a built town and unplayable for the
+  commander — no CP means no verbs. Standing to fight makes them commit: the same
+  rung, the same seed, the whole assault, with the town's own siege economy. Hold
+  it and nothing is lost and half a skirmish's loot is paid; lose it and it is a
+  played siege, so every structure that did not survive is wrecked and costs a
+  repair.
+
+A defence you fought is logged as DEFENDED rather than PROBE and carries no replay,
+under the same rule as the vault (§5.9): a played battle was made of commands the
+config never held.
+
 ### 5.8 Leagues and field conditions *(v1.3)*
 
 The tier is how far up the ladder you have climbed; **standing** is whether you are still

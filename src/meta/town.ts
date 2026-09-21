@@ -239,6 +239,12 @@ export interface DefenseLogEntry {
   killer?: string;
   /** Standing orders that fought this probe (v0.8). */
   orders?: string;
+  /**
+   * The commander fought this one in person (v1.43). It matters to the reader
+   * because a live defence is the WHOLE rung and a probe is its first two
+   * waves, so the same level means two different battles.
+   */
+  live?: boolean;
   /** Full battle config — every offline probe is replayable. */
   config: SimConfig;
 }
@@ -332,6 +338,22 @@ export interface TownState {
    * the same number.
    */
   ladderVersion?: number;
+  /**
+   * A probe held back from offline resolution and OFFERED to the player
+   * (v1.43, M23 Phase 4).
+   *
+   * The war fought while nobody was watching is most of the war, and until
+   * now all of it resolved before the player saw a pixel of it: they came
+   * back to a number that had gone down. One probe per return is intercepted
+   * instead and offered live — the same battle, the same seed, fought rather
+   * than reported.
+   *
+   * It carries its own seed so accepting fights exactly the attack that was
+   * coming, and an expiry so declining by walking away is still an answer:
+   * an unclaimed offer resolves offline on the next return like any other
+   * probe. Absent on every town that has not been offered one.
+   */
+  pendingDefense?: PendingDefense;
   /**
    * Which board this town's cells are indexed against (v1.40).
    *
@@ -1135,6 +1157,45 @@ export function counterattackConfig(town: TownState, seed: number): SimConfig {
 }
 
 /** Headless battle config for one offline probe raid. */
+/**
+ * The battle behind an accepted live-defence offer (v1.43).
+ *
+ * NOT `probeConfig`. A probe is the first two waves of its rung with the
+ * defender economy switched off — `startingCp: 0, cpPerSecond: 0` — which is
+ * right for a battle nobody is watching and wrong twice over for one somebody
+ * is: the player would have no CP to spend, so no verbs at all, and measurement
+ * says a built town holds a probe 100% of the time at every level from 1 to 24.
+ * An offer you cannot lose and cannot act in is not a decision.
+ *
+ * So standing to fight is a different battle from letting them probe. The
+ * fiction is the mechanic: a probe is what they send when nobody is home, and
+ * meeting them at the wire is what makes them commit. Same rung, same seed,
+ * the whole assault — which the same measurement puts at 100/88/75/0 percent
+ * held across levels 4/5/6/8 with nobody acting, so what the player does with
+ * the CP is what decides it.
+ */
+export function defenseConfig(town: TownState, level: number, seed: number): SimConfig {
+  const def = buildAssault(level, enemyRosterFor(town.faction));
+  return battleConfig(town, seed, {
+    ...def,
+    name: `DEFENCE — LEVEL ${level}`,
+    startingSupplies: Math.floor(town.supplies),
+  });
+}
+
+/**
+ * What holding the line in person pays.
+ *
+ * Half a skirmish's loot at the same level, and derived from it rather than
+ * written out, so the two cannot drift. Half because a skirmish is a fight you
+ * went looking for and this one came to you: the real reward for holding is
+ * the 15% of the stockpile a breach would have cost.
+ */
+export function defenseBounty(level: number): { supplies: number; fuel: number } {
+  const loot = assaultLoot(level);
+  return { supplies: Math.round(loot.supplies / 2), fuel: Math.round(loot.fuel / 2) };
+}
+
 export function probeConfig(town: TownState, level: number, seed: number): SimConfig {
   const config = battleConfig(town, seed, {
     ...probeAssault(level, enemyRosterFor(town.faction)),
@@ -1144,6 +1205,18 @@ export function probeConfig(town: TownState, level: number, seed: number): SimCo
   // the orders ride the config, so the defense log replays them exactly.
   const orders = standingOrdersFor(town.standingOrders);
   return orders ? { ...config, standingOrders: orders } : config;
+}
+
+/** A probe intercepted before it resolved, waiting on the player. */
+export interface PendingDefense {
+  /** When the attack would have landed. */
+  at: number;
+  /** Assault level, so the offer can say what is coming. */
+  level: number;
+  /** The battle's seed — accepting fights this exact attack. */
+  seed: number;
+  /** Past this, the offer lapses and resolves offline on the next return. */
+  expiresAt: number;
 }
 
 export interface SiegeOutcome {
@@ -1255,6 +1328,45 @@ export function applySiegeResult(town: TownState, outcome: SiegeOutcome, now: nu
     applyDefeat(town);
   }
   clampToCaps(town);
+}
+
+/**
+ * Fold a LIVE DEFENCE — an offline probe the player chose to fight in person
+ * — back into the persistent town.
+ *
+ * This is where the offer gets its teeth. `foldBattle` WRECKS every structure
+ * that did not survive, and a wreck costs a repair to put back; the offline
+ * path takes a flat slice of the stockpile and leaves the buildings standing.
+ * So the trade the offer actually offers is: fight it and a bad night costs
+ * you buildings, or hand it to the garrison and it costs you a percentage.
+ * Holding in person costs nothing at all and pays the bounty on top.
+ *
+ * The bounty is passed in rather than computed here because it is priced in
+ * `warfare.ts`, which imports this module and cannot be imported back.
+ *
+ * Returns what the battle cost, for the defense log — which reports a number
+ * lost, not a number spent, so a hold that paid out reports zero.
+ */
+export function applyDefenseResult(
+  town: TownState,
+  outcome: SiegeOutcome,
+  bounty: { supplies: number; fuel: number },
+  now: number,
+): { suppliesLost: number; fuelLost: number } {
+  const before = { supplies: town.supplies, fuel: town.fuel };
+  foldBattle(town, outcome, now);
+  if (outcome.victory) {
+    town.supplies += bounty.supplies;
+    town.fuel += bounty.fuel;
+    town.victories++;
+  } else {
+    applyDefeat(town);
+  }
+  clampToCaps(town);
+  return {
+    suppliesLost: Math.max(0, Math.floor(before.supplies - town.supplies)),
+    fuelLost: Math.max(0, Math.floor(before.fuel - town.fuel)),
+  };
 }
 
 /** Fold a fought-off (or lost) Front Line counterattack into the town. */
