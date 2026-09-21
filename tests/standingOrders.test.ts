@@ -302,6 +302,34 @@ describe('the live-defence offer', () => {
     expect(t.pendingDefense!.level).toBe(probeLevel(t));
   });
 
+  it('a bare town gets the offer too — one interval away is always an offer', () => {
+    // The garrisoned bed above is what the rest of these need, but it is not
+    // what a new player has. A bare `newTown` BREACHES on the first probe at
+    // every level, which ends the sweep — so if the offer were the last of
+    // several, the players most in need of it would never see one.
+    //
+    // One interval away holds exactly one probe, and the one probe is the one
+    // held back. Nothing resolves, so nothing can breach first.
+    const t = unlockAll(newTown(T, 'usa'));
+    t.assaultLevel = 4;
+    t.lastSeen = T;
+    const ran = runOfflineProbes(t, T + PROBE_INTERVAL_MS + 60_000);
+    expect(ran).toEqual([]);
+    expect(t.pendingDefense).toBeDefined();
+    expect(liveDefenseConfig(t)).not.toBeNull();
+
+    // And a LONGER absence on the same undefended town does not: the first
+    // probe gets through, the shield goes up, and nothing is inbound to
+    // defend. Being overrun is an answer to "what happened while I was gone".
+    const overrun = unlockAll(newTown(T, 'usa'));
+    overrun.assaultLevel = 4;
+    overrun.lastSeen = T;
+    const swept = runOfflineProbes(overrun, T + 3 * PROBE_INTERVAL_MS + 60_000);
+    expect(swept.some((e) => !e.held)).toBe(true);
+    expect(overrun.pendingDefense).toBeUndefined();
+    expect(overrun.shieldUntil).toBeGreaterThan(T);
+  });
+
   it('offers the attack that was actually coming, not a fresh one', () => {
     const a = town();
     runOfflineProbes(a, T + 2 * PROBE_INTERVAL_MS + 60_000);
