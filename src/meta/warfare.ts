@@ -43,12 +43,14 @@ import {
   scoutingBlocked,
 } from './ladder';
 import {
+  applyDefenseResult,
   probeConfig,
   researchEffects,
   warLog,
   type DefenseLogEntry,
-  type TownState,
   type PendingDefense,
+  type SiegeOutcome,
+  type TownState,
 } from './town';
 import { recordBattle } from './vault';
 import { creditContracts } from './contracts';
@@ -998,43 +1000,107 @@ function resolveProbe(
   const ordersCost = engine.ordersExecuted * ORDERS_UPKEEP_SUPPLIES;
   if (ordersCost > 0) town.supplies = Math.max(0, town.supplies - ordersCost);
 
-  const entry: DefenseLogEntry = {
-    at,
-    level,
-    held,
-    suppliesLost,
-    fuelLost,
-    ...(engine.stats.ccKillerKind ? { killer: engine.stats.ccKillerKind } : {}),
-    ...(config.standingOrders ? { orders: config.standingOrders.id } : {}),
-    config,
-  };
+  return logDefense(
+    town,
+    {
+      at,
+      level,
+      held,
+      suppliesLost,
+      fuelLost,
+      ...(engine.stats.ccKillerKind ? { killer: engine.stats.ccKillerKind } : {}),
+      ...(config.standingOrders ? { orders: config.standingOrders.id } : {}),
+      config,
+    },
+    now,
+    false,
+  );
+}
+
+/**
+ * Everything a finished defence does to the record, whichever way it was
+ * fought: the log entry, the war counts, the contract credit, the standing,
+ * and the shield a breach buys.
+ *
+ * Split out in v1.43 so a defence the player took in person is the SAME event
+ * in the record as the one the garrison would have fought. `live` changes two
+ * things and nothing else — a played battle resets the decay grace, and it
+ * does not go to the vault, because the vault stores a config and replaying a
+ * played battle's config would show the garrison fighting it rather than what
+ * the player actually did.
+ */
+function logDefense(
+  town: TownState,
+  entry: DefenseLogEntry,
+  now: number,
+  live: boolean,
+): DefenseLogEntry {
   town.defenseLog.unshift(entry);
   // The defense log keeps four entries; the record keeps the count, because
   // the war fought while nobody was watching is most of the war.
   const log = warLog(town);
-  if (held) log.probesHeld++;
+  if (entry.held) log.probesHeld++;
   else log.probesBreached++;
-  if (held) creditContracts(town, 'probesHeld', 1, entry.at);
-  // The defense log keeps four; the vault keeps ten, and keeps them as
-  // codes — so the probe that got through is still watchable next week.
-  recordBattle(town, {
-    kind: 'probe',
-    faction: town.faction,
-    title: `PROBE — LEVEL ${level}`,
-    won: held,
-    at: entry.at,
-    detail: held
-      ? `held · ${suppliesLost} SUP lost`
-      : `BREACHED · ${engine.stats.ccKillerKind ?? 'command post lost'}`,
-    config,
-  });
+  if (entry.held) creditContracts(town, 'probesHeld', 1, entry.at);
+  if (!live) {
+    // The defense log keeps four; the vault keeps ten, and keeps them as
+    // codes — so the probe that got through is still watchable next week.
+    recordBattle(town, {
+      kind: 'probe',
+      faction: town.faction,
+      title: `PROBE — LEVEL ${entry.level}`,
+      won: entry.held,
+      at: entry.at,
+      detail: entry.held
+        ? `held · ${entry.suppliesLost} SUP lost`
+        : `BREACHED · ${entry.killer ?? 'command post lost'}`,
+      config: entry.config,
+    });
+  }
   // A garrison holding the wire keeps you on the board; a breach is read as
-  // exactly what it is. Neither counts as the commander playing, so this
-  // buys no quiet time against the decay clock.
-  awardStanding(town, probeAward(held), entry.at, false);
-  if (!held) town.shieldUntil = now + PROBE_SHIELD_MS;
+  // exactly what it is. Only a defence fought in person counts as the
+  // commander playing, and so only that one buys quiet time against the
+  // decay clock.
+  awardStanding(town, probeAward(entry.held), entry.at, live);
+  if (!entry.held) town.shieldUntil = now + PROBE_SHIELD_MS;
   town.defenseLog.length = Math.min(town.defenseLog.length, DEFENSE_LOG_CAP);
   return entry;
+}
+
+/** What the scene needs to hand back after a live defence is fought. */
+export interface FoughtDefense {
+  level: number;
+  at: number;
+  config: SimConfig;
+}
+
+/**
+ * Fold a live defence — the offer, accepted and played — back into the town,
+ * and put it on the record beside the probes the garrison fought.
+ *
+ * The economics are in `applyDefenseResult`; this is the bookkeeping half.
+ */
+export function applyLiveDefense(
+  town: TownState,
+  fought: FoughtDefense,
+  outcome: SiegeOutcome,
+  now: number,
+): DefenseLogEntry {
+  const cost = applyDefenseResult(town, outcome, liveDefenseBounty(fought.level), now);
+  return logDefense(
+    town,
+    {
+      at: fought.at,
+      level: fought.level,
+      held: outcome.victory,
+      suppliesLost: cost.suppliesLost,
+      fuelLost: cost.fuelLost,
+      ...(outcome.stats.ccKillerKind ? { killer: outcome.stats.ccKillerKind } : {}),
+      config: fought.config,
+    },
+    now,
+    true,
+  );
 }
 
 /**
@@ -1046,7 +1112,14 @@ function resolveProbe(
  */
 export function liveDefenseConfig(town: TownState): SimConfig | null {
   const pending = town.pendingDefense;
-  return pending ? probeConfig(town, pending.level, pending.seed) : null;
+  if (!pending) return null;
+  // Strip the standing orders. They are the garrison's CP policy for a battle
+  // nobody is watching, and in a battle somebody IS watching they would spend
+  // the player's CP out from under them. Accepting the offer means taking
+  // command, which means taking the CP with it.
+  const config = { ...probeConfig(town, pending.level, pending.seed) };
+  delete config.standingOrders;
+  return config;
 }
 
 /**

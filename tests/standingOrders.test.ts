@@ -6,6 +6,8 @@ import { deserialize, serialize } from '../src/meta/save';
 import {
   newTown,
   onSpawnLane,
+  outcomeFromEngine,
+  probeConfig,
   place,
   placeWall,
   tick,
@@ -15,6 +17,7 @@ import {
 } from '../src/meta/town';
 import { yardTown } from './helpers';
 import {
+  applyLiveDefense,
   claimLiveDefense,
   declineLiveDefense,
   liveDefenseBounty,
@@ -279,8 +282,11 @@ describe('the live-defence offer', () => {
     tick(t, T);
     t.assaultLevel = 4;
     t.lastSeen = T;
+    // Inside the caps (1200 / 350 at CC2, no bunker). Only the live-defence
+    // path clamps to caps, so stores parked above them would come back as
+    // battle damage in a test that is measuring battle damage.
     t.supplies = 1000;
-    t.fuel = 1000;
+    t.fuel = 200;
     return t;
   };
 
@@ -383,6 +389,89 @@ describe('the live-defence offer', () => {
     const raw = JSON.parse(serialize(t)) as { town: Record<string, unknown> };
     raw.town['pendingDefense'] = { at: T, level: 2, seed: 7, expiresAt: 'soon' };
     expect(deserialize(JSON.stringify(raw))!.pendingDefense).toBeUndefined();
+  });
+
+  it('the offer takes command: the garrison orders do not fight it', () => {
+    const t = town();
+    t.standingOrders = 'holdfast';
+    runOfflineProbes(t, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    // The probe the GARRISON would have fought carries the orders...
+    expect(t.defenseLog[0]!.config.standingOrders?.id).toBe('holdfast');
+    // ...and the one the player is being offered does not. Orders are a CP
+    // policy for a battle nobody is watching; in a live battle they would
+    // spend the player's CP.
+    expect(liveDefenseConfig(t)!.standingOrders).toBeUndefined();
+  });
+
+  it('a live defeat wrecks buildings where an offline one only bills', () => {
+    const live = town();
+    runOfflineProbes(live, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    const fought = claimLiveDefense(live)!;
+    // A probe is the first TWO waves of its ladder rung, so a garrison that
+    // can be built at all rarely loses one. To reach the state this test is
+    // about, give it the whole rung — a real engine run that really ends in
+    // defeat, rather than a hand-written outcome asserting itself.
+    const level = 12;
+    const base = probeConfig(live, level, fought.seed);
+    const config = { ...base, siege: buildAssault(level, enemyRosterFor('usa')) };
+    const engine = new Engine(config, defenseCatalogFor('usa'));
+    engine.enqueue({ tick: 0, type: 'startAssault' });
+    while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) engine.step();
+    expect(engine.phase).toBe('defeat');
+
+    const entry = applyLiveDefense(
+      live,
+      { level, at: fought.at, config },
+      outcomeFromEngine(engine),
+      T + 3 * PROBE_INTERVAL_MS,
+    );
+    expect(entry.held).toBe(false);
+    // THE POINT: a defeat you were present for costs buildings. Nothing the
+    // offline sweep does can wreck a structure.
+    expect(live.structures.some((st) => st.wrecked)).toBe(true);
+    expect(live.defenseLog[0]).toBe(entry);
+    expect(live.shieldUntil).toBeGreaterThan(T);
+
+    const offline = town();
+    runOfflineProbes(offline, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    declineLiveDefense(offline, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    expect(offline.structures.some((st) => st.wrecked)).toBe(false);
+  });
+
+  it('a live hold pays the bounty and loses nothing', () => {
+    const t = town();
+    runOfflineProbes(t, T + 2 * PROBE_INTERVAL_MS + 60_000);
+    const fought = claimLiveDefense(t)!;
+    const config = probeConfig(t, fought.level, fought.seed);
+    const before = { supplies: t.supplies, fuel: t.fuel };
+    const bounty = liveDefenseBounty(fought.level);
+
+    // A hold, stated rather than fought: what this test is about is the fold,
+    // not whether this particular garrison wins.
+    const entry = applyLiveDefense(
+      t,
+      { level: fought.level, at: fought.at, config },
+      {
+        victory: true,
+        supplies: before.supplies,
+        chargesLeft: { ...t.charges },
+        walls: t.walls.map((w) => ({ ...w })),
+        survivors: t.structures
+          .filter((st) => st.kind !== 'cc' && !st.wrecked)
+          .map((st) => ({ cell: st.cell, kind: st.kind, level: st.level })),
+        stats: {} as never,
+        ccHpFraction: 1,
+      },
+      T + 3 * PROBE_INTERVAL_MS,
+    );
+    expect(entry.held).toBe(true);
+    expect(entry.suppliesLost).toBe(0);
+    expect(entry.fuelLost).toBe(0);
+    expect(t.supplies).toBe(before.supplies + bounty.supplies);
+    expect(t.fuel).toBe(before.fuel + bounty.fuel);
+    expect(t.structures.some((st) => st.wrecked)).toBe(false);
+    // It counts on the record exactly like a probe the garrison held.
+    expect(t.log!.probesHeld).toBeGreaterThan(0);
   });
 
   it('the bounty rises with what is coming', () => {

@@ -1285,6 +1285,45 @@ export function applySiegeResult(town: TownState, outcome: SiegeOutcome, now: nu
   clampToCaps(town);
 }
 
+/**
+ * Fold a LIVE DEFENCE — an offline probe the player chose to fight in person
+ * — back into the persistent town.
+ *
+ * This is where the offer gets its teeth. `foldBattle` WRECKS every structure
+ * that did not survive, and a wreck costs a repair to put back; the offline
+ * path takes a flat slice of the stockpile and leaves the buildings standing.
+ * So the trade the offer actually offers is: fight it and a bad night costs
+ * you buildings, or hand it to the garrison and it costs you a percentage.
+ * Holding in person costs nothing at all and pays the bounty on top.
+ *
+ * The bounty is passed in rather than computed here because it is priced in
+ * `warfare.ts`, which imports this module and cannot be imported back.
+ *
+ * Returns what the battle cost, for the defense log — which reports a number
+ * lost, not a number spent, so a hold that paid out reports zero.
+ */
+export function applyDefenseResult(
+  town: TownState,
+  outcome: SiegeOutcome,
+  bounty: { supplies: number; fuel: number },
+  now: number,
+): { suppliesLost: number; fuelLost: number } {
+  const before = { supplies: town.supplies, fuel: town.fuel };
+  foldBattle(town, outcome, now);
+  if (outcome.victory) {
+    town.supplies += bounty.supplies;
+    town.fuel += bounty.fuel;
+    town.victories++;
+  } else {
+    applyDefeat(town);
+  }
+  clampToCaps(town);
+  return {
+    suppliesLost: Math.max(0, Math.floor(before.supplies - town.supplies)),
+    fuelLost: Math.max(0, Math.floor(before.fuel - town.fuel)),
+  };
+}
+
 /** Fold a fought-off (or lost) Front Line counterattack into the town. */
 export function applyCounterResult(town: TownState, outcome: SiegeOutcome, now: number): void {
   foldBattle(town, outcome, now);
