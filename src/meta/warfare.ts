@@ -48,6 +48,7 @@ import {
   warLog,
   type DefenseLogEntry,
   type TownState,
+  type PendingDefense,
 } from './town';
 import { recordBattle } from './vault';
 import { creditContracts } from './contracts';
@@ -940,92 +941,191 @@ export function probeLevel(town: TownState): number {
  * tick() on load. Structures are never wrecked by probes (crews rebuild
  * between skirmishes); walls lost stay lost and every probe is replayable.
  */
-export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[] {
-  const away = now - town.lastSeen;
-  if (now < town.shieldUntil || away < PROBE_INTERVAL_MS) return [];
-  const count = Math.min(PROBE_MAX, Math.floor(away / PROBE_INTERVAL_MS));
-  const level = probeLevel(town);
-  const ran: DefenseLogEntry[] = [];
+/** The seed a probe `i` steps into an absence fights under. */
+const probeSeedAt = (lastSeen: number, i: number): number =>
+  ((Math.floor(lastSeen / 60_000) + i * 7919) * 2654435761) >>> 0;
 
-  for (let i = 0; i < count; i++) {
-    const seed = ((Math.floor(town.lastSeen / 60_000) + i * 7919) * 2654435761) >>> 0;
-    const config = probeConfig(town, level, seed);
-    const engine = new Engine(config, defenseCatalogFor(town.faction));
-    engine.enqueue({ tick: 0, type: 'startAssault' });
-    while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) {
-      engine.step();
-    }
+/** How long an offered defence waits before the attack simply lands. */
+export const DEFENSE_OFFER_MS = 30 * 60_000;
 
-    const held = engine.phase === 'victory';
-    // Walls chewed during the probe stay chewed.
-    const walls: { cell: CellIndex; kind: string }[] = [];
-    for (const [cell, wall] of engine.grid.walls) {
-      if (engine.catalog.walls[wall.kind]?.supplyCost !== undefined) {
-        walls.push({ cell, kind: wall.kind });
-      }
-    }
-    town.walls = walls;
+/**
+ * One probe, fought headless and billed to the town.
+ *
+ * Extracted in v1.43 because a probe can now arrive down two roads — the
+ * offline sweep, and an offer the player walked away from — and what a breach
+ * costs must not depend on which road it came down.
+ */
+function resolveProbe(
+  town: TownState,
+  level: number,
+  seed: number,
+  at: number,
+  now: number,
+): DefenseLogEntry {
 
-    const lossFraction = held
-      ? Math.min(0.03 * engine.stats.structuresLost, 0.1)
-      : 0.15;
-    const suppliesLost = Math.floor(town.supplies * lossFraction);
-    const fuelLost = Math.floor(town.fuel * lossFraction);
-    town.supplies -= suppliesLost;
-    town.fuel -= fuelLost;
-
-    // Standing orders spend real stock: ordnance the garrison fired offline
-    // is gone from the shared charges, exactly like raid fire support —
-    // and every executed order bills its supplies upkeep.
-    for (const [kind, stocked] of Object.entries(config.powerCharges ?? {})) {
-      const used = stocked - (engine.powerChargesLeft(kind) ?? stocked);
-      if (used > 0) town.charges[kind] = Math.max(0, (town.charges[kind] ?? 0) - used);
-    }
-    const ordersCost = engine.ordersExecuted * ORDERS_UPKEEP_SUPPLIES;
-    if (ordersCost > 0) town.supplies = Math.max(0, town.supplies - ordersCost);
-
-    const entry: DefenseLogEntry = {
-      at: town.lastSeen + (i + 1) * PROBE_INTERVAL_MS,
-      level,
-      held,
-      suppliesLost,
-      fuelLost,
-      ...(engine.stats.ccKillerKind ? { killer: engine.stats.ccKillerKind } : {}),
-      ...(config.standingOrders ? { orders: config.standingOrders.id } : {}),
-      config,
-    };
-    town.defenseLog.unshift(entry);
-    ran.push(entry);
-    // The defense log keeps four entries; the record keeps the count, because
-    // the war fought while nobody was watching is most of the war.
-    const log = warLog(town);
-    if (held) log.probesHeld++;
-    else log.probesBreached++;
-    if (held) creditContracts(town, 'probesHeld', 1, entry.at);
-    // The defense log keeps four; the vault keeps ten, and keeps them as
-    // codes — so the probe that got through is still watchable next week.
-    recordBattle(town, {
-      kind: 'probe',
-      faction: town.faction,
-      title: `PROBE — LEVEL ${level}`,
-      won: held,
-      at: entry.at,
-      detail: held
-        ? `held · ${suppliesLost} SUP lost`
-        : `BREACHED · ${engine.stats.ccKillerKind ?? 'command post lost'}`,
-      config,
-    });
-    // A garrison holding the wire keeps you on the board; a breach is read as
-    // exactly what it is. Neither counts as the commander playing, so this
-    // buys no quiet time against the decay clock.
-    awardStanding(town, probeAward(held), entry.at, false);
-
-    if (!held) {
-      town.shieldUntil = now + PROBE_SHIELD_MS;
-      break;
-    }
+  const config = probeConfig(town, level, seed);
+  const engine = new Engine(config, defenseCatalogFor(town.faction));
+  engine.enqueue({ tick: 0, type: 'startAssault' });
+  while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) {
+    engine.step();
   }
 
+  const held = engine.phase === 'victory';
+  // Walls chewed during the probe stay chewed.
+  const walls: { cell: CellIndex; kind: string }[] = [];
+  for (const [cell, wall] of engine.grid.walls) {
+    if (engine.catalog.walls[wall.kind]?.supplyCost !== undefined) {
+      walls.push({ cell, kind: wall.kind });
+    }
+  }
+  town.walls = walls;
+
+  const lossFraction = held
+    ? Math.min(0.03 * engine.stats.structuresLost, 0.1)
+    : 0.15;
+  const suppliesLost = Math.floor(town.supplies * lossFraction);
+  const fuelLost = Math.floor(town.fuel * lossFraction);
+  town.supplies -= suppliesLost;
+  town.fuel -= fuelLost;
+
+  // Standing orders spend real stock: ordnance the garrison fired offline
+  // is gone from the shared charges, exactly like raid fire support —
+  // and every executed order bills its supplies upkeep.
+  for (const [kind, stocked] of Object.entries(config.powerCharges ?? {})) {
+    const used = stocked - (engine.powerChargesLeft(kind) ?? stocked);
+    if (used > 0) town.charges[kind] = Math.max(0, (town.charges[kind] ?? 0) - used);
+  }
+  const ordersCost = engine.ordersExecuted * ORDERS_UPKEEP_SUPPLIES;
+  if (ordersCost > 0) town.supplies = Math.max(0, town.supplies - ordersCost);
+
+  const entry: DefenseLogEntry = {
+    at,
+    level,
+    held,
+    suppliesLost,
+    fuelLost,
+    ...(engine.stats.ccKillerKind ? { killer: engine.stats.ccKillerKind } : {}),
+    ...(config.standingOrders ? { orders: config.standingOrders.id } : {}),
+    config,
+  };
+  town.defenseLog.unshift(entry);
+  // The defense log keeps four entries; the record keeps the count, because
+  // the war fought while nobody was watching is most of the war.
+  const log = warLog(town);
+  if (held) log.probesHeld++;
+  else log.probesBreached++;
+  if (held) creditContracts(town, 'probesHeld', 1, entry.at);
+  // The defense log keeps four; the vault keeps ten, and keeps them as
+  // codes — so the probe that got through is still watchable next week.
+  recordBattle(town, {
+    kind: 'probe',
+    faction: town.faction,
+    title: `PROBE — LEVEL ${level}`,
+    won: held,
+    at: entry.at,
+    detail: held
+      ? `held · ${suppliesLost} SUP lost`
+      : `BREACHED · ${engine.stats.ccKillerKind ?? 'command post lost'}`,
+    config,
+  });
+  // A garrison holding the wire keeps you on the board; a breach is read as
+  // exactly what it is. Neither counts as the commander playing, so this
+  // buys no quiet time against the decay clock.
+  awardStanding(town, probeAward(held), entry.at, false);
+  if (!held) town.shieldUntil = now + PROBE_SHIELD_MS;
   town.defenseLog.length = Math.min(town.defenseLog.length, DEFENSE_LOG_CAP);
+  return entry;
+}
+
+/**
+ * The battle behind a pending offer, or null when nothing is inbound.
+ *
+ * Same seed, same level, same layout the offline sweep would have used — so
+ * accepting fights the attack that was actually coming rather than a fresh
+ * one rolled for the occasion.
+ */
+export function liveDefenseConfig(town: TownState): SimConfig | null {
+  const pending = town.pendingDefense;
+  return pending ? probeConfig(town, pending.level, pending.seed) : null;
+}
+
+/**
+ * What holding the line live pays over letting the garrison handle it.
+ *
+ * The offer has to be worth taking or it is just a chore with extra steps, and
+ * it has to cost something or there is no decision in it. Both halves already
+ * existed and only needed connecting: declining resolves offline, which costs
+ * a slice of the stockpile and wrecks nothing, while ACCEPTING runs the battle
+ * through `applySiegeOutcome` — the played-siege path, which wrecks every
+ * structure that did not survive and bills a repair to put it back. So a live
+ * defeat already costs buildings where an offline one costs a percentage.
+ *
+ * This is the other side of that trade: a live hold loses nothing at all and
+ * pays a bounty on top, scaled by what was coming.
+ */
+export function liveDefenseBounty(level: number): { supplies: number; fuel: number } {
+  return { supplies: 40 + 25 * level, fuel: 20 + 12 * level };
+}
+
+/** Take the offer off the board; the battle is being fought now. */
+export function claimLiveDefense(town: TownState): PendingDefense | null {
+  const pending = town.pendingDefense;
+  if (!pending) return null;
+  delete town.pendingDefense;
+  return pending;
+}
+
+/**
+ * Hand it to the garrison instead. It resolves exactly as it would have if the
+ * player had never been offered it — no penalty for declining, because a
+ * player who cannot play right now is not doing anything wrong.
+ */
+export function declineLiveDefense(town: TownState, now: number): DefenseLogEntry | null {
+  const pending = claimLiveDefense(town);
+  if (!pending) return null;
+  return resolveProbe(town, pending.level, pending.seed, pending.at, now);
+}
+
+export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[] {
+  const ran: DefenseLogEntry[] = [];
+  // An offer the player walked away from is still an attack. It lands, at the
+  // full cost of a probe nobody was there for.
+  const pending = town.pendingDefense;
+  if (pending && now >= pending.expiresAt) {
+    delete town.pendingDefense;
+    ran.push(resolveProbe(town, pending.level, pending.seed, pending.at, now));
+  }
+
+  const away = now - town.lastSeen;
+  if (now < town.shieldUntil || away < PROBE_INTERVAL_MS) return ran;
+  const count = Math.min(PROBE_MAX, Math.floor(away / PROBE_INTERVAL_MS));
+  const level = probeLevel(town);
+
+  // The LAST probe of an absence is held back and OFFERED rather than
+  // resolved (M23 Phase 3b). Everything before it already happened while
+  // nobody was watching; this one has not happened yet.
+  const offering = town.pendingDefense === undefined;
+  const resolveCount = offering ? count - 1 : count;
+  for (let i = 0; i < resolveCount; i++) {
+    const entry = resolveProbe(
+      town,
+      level,
+      probeSeedAt(town.lastSeen, i),
+      town.lastSeen + (i + 1) * PROBE_INTERVAL_MS,
+      now,
+    );
+    ran.push(entry);
+    // A breach raises the shield, and a raised shield ends the sweep — and
+    // takes the offer with it: there is nothing left inbound to defend.
+    if (!entry.held) return ran;
+  }
+  if (offering) {
+    town.pendingDefense = {
+      at: town.lastSeen + count * PROBE_INTERVAL_MS,
+      level,
+      seed: probeSeedAt(town.lastSeen, count - 1),
+      expiresAt: now + DEFENSE_OFFER_MS,
+    };
+  }
   return ran;
 }

@@ -333,6 +333,22 @@ export interface TownState {
    */
   ladderVersion?: number;
   /**
+   * A probe held back from offline resolution and OFFERED to the player
+   * (v1.43, M23 Phase 3b).
+   *
+   * The war fought while nobody was watching is most of the war, and until
+   * now all of it resolved before the player saw a pixel of it: they came
+   * back to a number that had gone down. One probe per return is intercepted
+   * instead and offered live — the same battle, the same seed, fought rather
+   * than reported.
+   *
+   * It carries its own seed so accepting fights exactly the attack that was
+   * coming, and an expiry so declining by walking away is still an answer:
+   * an unclaimed offer resolves offline on the next return like any other
+   * probe. Absent on every town that has not been offered one.
+   */
+  pendingDefense?: PendingDefense;
+  /**
    * Which board this town's cells are indexed against (v1.40).
    *
    * Absent means 0 — the 32x24 board entered from the west, which is what
@@ -1144,6 +1160,18 @@ export function probeConfig(town: TownState, level: number, seed: number): SimCo
   // the orders ride the config, so the defense log replays them exactly.
   const orders = standingOrdersFor(town.standingOrders);
   return orders ? { ...config, standingOrders: orders } : config;
+}
+
+/** A probe intercepted before it resolved, waiting on the player. */
+export interface PendingDefense {
+  /** When the attack would have landed. */
+  at: number;
+  /** Assault level, so the offer can say what is coming. */
+  level: number;
+  /** The battle's seed — accepting fights this exact attack. */
+  seed: number;
+  /** Past this, the offer lapses and resolves offline on the next return. */
+  expiresAt: number;
 }
 
 export interface SiegeOutcome {
