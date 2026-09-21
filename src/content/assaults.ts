@@ -13,6 +13,27 @@ import { entry, series } from './missions';
 const scaleCount = (base: number, level: number): number =>
   Math.max(1, Math.round(base * (1 + 0.18 * (level - 1))));
 
+/**
+ * A newly unlocked wave arrives at a FRACTION of its strength and grows in.
+ *
+ * `scaleCount` is a gentle +18% per level, but that was never what a level
+ * actually cost: waves 4, 5 and 6 unlock at levels 2, 3 and 4 and arrived at
+ * full size, so the real steps were +67%, +58% and +29% in units fielded
+ * against +9-19% once the ladder runs out of waves to add. M23 Phase 3a
+ * measured the contested band — where a defence row lands between 5% and 95%
+ * rather than at one end — at roughly 0.7x to 1.0x of attacker strength, about
+ * 43% wide. A 58% step jumps clean over it, which is why 93% of defence rows
+ * were step functions and the single row that ramped was the one whose flip
+ * landed in the flat part of the ladder.
+ *
+ * So the wave still ARRIVES on schedule — the lesson it teaches is the reason
+ * it exists, and delaying it would cost the ladder its shape — but it arrives
+ * at 40% and reaches full strength two levels later. The teaching order is
+ * untouched; only the size of the step changes.
+ */
+const waveRamp = (level: number, unlockLevel: number): number =>
+  Math.min(1, 0.4 + 0.3 * (level - unlockLevel));
+
 /** Wave-role → attacker kind, per enemy faction (China attacks by default). */
 export interface AssaultRoster {
   swarm: string;
@@ -77,12 +98,13 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
 
   // Wave 4 (level 2+) — suppression: standoff fire behind a screen.
   if (level >= 2) {
+    const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 2)));
     waves.push({
       entries: [
-        ...series(0, 20, n(4), roster.swarm, [3, 5]),
-        ...series(0, 20, n(4), roster.swarm, [15, 17]),
-        ...series(220, 50, n(2), roster.ranged, [8, 12]),
-        ...(level >= 3 ? series(380, 40, n(1), roster.lightVehicle, [10]) : []),
+        ...series(0, 20, r(4), roster.swarm, [3, 5]),
+        ...series(0, 20, r(4), roster.swarm, [15, 17]),
+        ...series(220, 50, r(2), roster.ranged, [8, 12]),
+        ...(level >= 3 ? series(380, 40, r(1), roster.lightVehicle, [10]) : []),
       ],
     });
   }
@@ -90,12 +112,13 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
   // Wave 5 (level 3+) — the armored hammer.
   if (level >= 3) {
     const tanks = 1 + Math.floor((level - 3) / 2);
+    const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 3)));
     waves.push({
       entries: [
-        ...series(0, 40, n(2), roster.lightVehicle, [7, 13]),
-        ...series(80, 40, n(4), roster.line, [5, 10, 15]),
-        ...series(280, 50, n(2), roster.ranged, [8, 12]),
-        ...series(380, 40, n(2), roster.breacher, [7, 13]),
+        ...series(0, 40, r(2), roster.lightVehicle, [7, 13]),
+        ...series(80, 40, r(4), roster.line, [5, 10, 15]),
+        ...series(280, 50, r(2), roster.ranged, [8, 12]),
+        ...series(380, 40, r(2), roster.breacher, [7, 13]),
         ...series(480, 80, tanks, roster.heavy, [10, 8, 12]),
       ],
     });
@@ -105,11 +128,12 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
   // with no mount that can elevate simply watches them work.
   if (level >= 4) {
     const rotors = 1 + Math.floor((level - 4) / 2);
+    const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 4)));
     waves.push({
       entries: [
-        ...series(0, 40, n(3), roster.line, [5, 10, 15]),
+        ...series(0, 40, r(3), roster.line, [5, 10, 15]),
         ...series(120, 70, rotors, roster.gunship, [7, 13, 10]),
-        ...series(300, 50, n(2), roster.ranged, [8, 12]),
+        ...series(300, 50, r(2), roster.ranged, [8, 12]),
         ...(level >= 6 ? series(420, 90, rotors, roster.gunship, [10, 8]) : []),
       ],
     });

@@ -3002,10 +3002,38 @@ premium", which converts idle attrition into sessions.
       So the fix is the assault ladder's granularity and the spacing of the
       reference stages, both of which are content. Every chain constant was
       the wrong place to look, and three sweeps were needed to be sure of it.
-- [ ] **Phase 3b — act on it: re-scale the assault ladder so a level is a step
-      the band can hold.** This re-tunes every defence table in `BALANCE.md`,
-      so it wants its own pass with the snapshot regenerated, and a decision
-      first on whether the ladder gains levels or each level gains less.
+- [ ] **Phase 3b — the ladder ramps now, and it is HALF a fix. Not shipped.**
+      Waves 4, 5 and 6 unlock at levels 2, 3 and 4 and used to arrive at full
+      size, which is where the +67% and +58% steps came from — not from
+      `scaleCount`, which is a gentle +18%. A newly unlocked wave now arrives
+      at 40% and reaches full strength two levels later, so the lesson it
+      teaches still lands on schedule and only the size of the step changes.
+
+      | | before | after |
+      |---|---|---|
+      | CONTESTED rows | 12% | **17%** |
+      | MEAN HOLD | 64% | **71%** |
+      | THEN TOOK IT | 83% | 74% |
+      | worst step, units fielded | +67% | +55% |
+
+      **It works and it is not enough, and the second number says why.** Mean
+      hold moved seven points, so this did not only re-shape the curve, it
+      lowered it — a real difficulty change that wants compensating at the top
+      of the ladder before anything ships.
+
+      And the ramp family has a measured CEILING. Searching start and increment
+      for the flattest ladder that still reaches full strength by level 6 gives
+      +55% at best; flatter shapes exist (+39%) but leave the gunship wave
+      permanently at a third strength, which is not a level 6. The structural
+      reason is that three waves unlock in three consecutive levels, so every
+      early level adds a whole new thing. Getting under the band's ~43% width
+      needs the unlocks SPREAD (waves at 2, 4, 6) or the ladder LENGTHENED —
+      both of which change what a level means in the meta, and neither of which
+      should be decided at the end of a session.
+
+      Left on the branch with its evidence and deliberately not merged: `main`
+      keeps v1.41.2's ladder until the compensating pass is done and the
+      snapshot regenerated.
 - [ ] **Phase 3c — build the contested band FIRST, then re-judge the verbs
       against it.** `npm run balance -- --cliff` says exactly where the step
       function comes from, and it is not where Phase 2 guessed.

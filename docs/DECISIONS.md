@@ -838,3 +838,12 @@ here with the change and its date.
   not move, because more attacks start and more of them fail, and the two
   cancel. Predicting a mechanism correctly is not the same as predicting an
   outcome, and only the outcome was the goal.
+- 2026-09-21 — **A fix that improves the target metric and moves another one is
+  half a fix.** Ramping newly unlocked assault waves in over three levels raises
+  contested rows from 12% to 17% — the number M23 Phase 3 exists to move — and
+  raises mean hold rate from 64% to 71%, because smaller early steps make the
+  early ladder genuinely easier. Reporting only the first number would have been
+  true and misleading. It sits on the branch unshipped until the top of the
+  ladder is re-tuned to pay for it, on the same principle M22 Phase 4 used: a
+  re-tune wants a stable target, and changing two things at once to make one
+  number look good is how a changelog starts lying.
