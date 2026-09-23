@@ -387,6 +387,15 @@ export interface SimConfig {
   /** Which edge that lane runs along. Absent means 'west'. */
   spawnEdge?: SpawnEdge;
   /**
+   * How many physical units one cell of this board is (M34). Absent means 1,
+   * which is every battle fought before M34. The catalog is written in physical
+   * units and the engine divides every distance in it by this once, at
+   * construction — see `sim/scale.ts`. The config's OWN coordinates are not
+   * scaled: a layout, a CC origin or a spawn column is a place on this board,
+   * already in its cells. Physics is scaled; the map is authored.
+   */
+  cellSize?: number;
+  /**
    * Seed for the terrain field. Ignored unless `terrainVersion` names a real
    * generator. Kept separate from `seed` because the engine's RNG is a single
    * stream consumed in tick order — drawing terrain from it would shift every

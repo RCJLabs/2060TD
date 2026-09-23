@@ -4,6 +4,7 @@ import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
 import { COMBAT_NONE, combatModelFor, type CombatModel } from './combat';
 import { chainModelFor, type ChainModel, type ChainStage } from './killchain';
+import { cellSizeOf, scaleCatalog, scaleChain } from './scale';
 import {
   FLAT_TERRAIN,
   MIN_MOVE_COST,
@@ -54,7 +55,9 @@ function occupiedCellsOf(config: SimConfig, catalog: Catalog): CellIndex[] {
     }
   };
 
-  footprint(config.ccOrigin, 2);
+  // From the catalog, not a literal 2: the constructor hands this the scaled
+  // catalog, and on a half-size board the Command Center is one cell.
+  footprint(config.ccOrigin, catalog.structures['cc']?.footprint ?? 2);
   for (const wall of config.layout?.walls ?? []) out.push(wall.cell);
   for (const structure of config.layout?.structures ?? []) {
     footprint(structure.cell, catalog.structures[structure.kind]?.footprint ?? 1);
@@ -187,6 +190,8 @@ interface PendingImpact {
 export class Engine {
   readonly config: SimConfig;
   readonly catalog: Catalog;
+  /** `AIR_STANDOFF` in cells of this board (M34). */
+  private readonly airStandoff: number;
   readonly grid: Grid;
   readonly attackers: Attacker[] = [];
   readonly structures: Structure[] = [];
@@ -336,11 +341,16 @@ export class Engine {
 
   constructor(config: SimConfig, catalog: Catalog) {
     this.config = config;
-    this.catalog = catalog;
+    // Every range, speed and radius the engine reads goes through this field,
+    // so scaling it here is scaling the battle (M34). At cell size 1 — every
+    // config written before M34 — it is the catalog it was handed.
+    const cellSize = cellSizeOf(config.cellSize);
+    this.catalog = scaleCatalog(catalog, cellSize);
+    this.airStandoff = AIR_STANDOFF / cellSize;
     this.grid = new Grid(config.width, config.height);
     this.rng = createRng(config.seed);
     this.combat = combatModelFor(config.combatVersion);
-    this.chain = chainModelFor(config.killChainVersion);
+    this.chain = scaleChain(chainModelFor(config.killChainVersion), cellSize);
     this.combatRng = createRng((config.combatSeed ?? config.seed ^ 0x9e3779b9) >>> 0);
     // Terrain draws from its OWN stream. Sharing `this.rng` would shift every
     // later roll and re-fight every archived battle on different ground.
@@ -352,7 +362,7 @@ export class Engine {
             config.terrainVersion!,
             config.width,
             config.height,
-            occupiedCellsOf(config, catalog),
+            occupiedCellsOf(config, this.catalog),
             config.spawnLane,
             config.spawnEdge ?? 'west',
           );
@@ -1628,7 +1638,7 @@ export class Engine {
     const dx = target.center.x - attacker.pos.x;
     const dy = target.center.y - attacker.pos.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const reach = target.profile.footprint / 2 + AIR_STANDOFF;
+    const reach = target.profile.footprint / 2 + this.airStandoff;
     if (dist <= reach) {
       attacker.state = 'assaulting';
       if (target === this.cc && this.chain.staged) {
