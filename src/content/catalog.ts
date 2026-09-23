@@ -1,6 +1,6 @@
 import { scaleFootprint } from '../sim/scale';
-import type { Catalog } from '../sim/types';
-import { MAP_CELL_SIZE } from './bases';
+import type { Catalog, CellIndex, LayoutStructure, LayoutWall } from '../sim/types';
+import { MAP_CELL_SIZE, MAP_W } from './bases';
 import { ECONOMY_STRUCTURES } from './buildings';
 import { CHINA_ATTACKERS } from './china';
 import { CHINA_BASE, CHINA_WALLS } from './chinaBase';
@@ -50,4 +50,27 @@ export function footprintOfKind(kind: string, cellSize: number = MAP_CELL_SIZE):
   // On a board of bigger cells a 2x2 building is one cell (M34), and the
   // engine fights it at that size — so the board draws it at that size too.
   return scaleFootprint(ALL_STRUCTURES[kind]?.footprint === 2 ? 2 : 1, cellSize);
+}
+
+/**
+ * Every cell a base stands on — the post, its walls, its buildings — as the
+ * engine counts them when it keeps water and woods off them. The same set is
+ * what a view of the base has to hand the terrain generator, or it draws
+ * ground the battle is not fought on.
+ */
+export function baseOccupied(base: {
+  ccOrigin: CellIndex;
+  walls: readonly LayoutWall[];
+  structures: readonly LayoutStructure[];
+}): CellIndex[] {
+  const out: CellIndex[] = [];
+  const add = (origin: CellIndex, size: number): void => {
+    for (let dy = 0; dy < size; dy++) {
+      for (let dx = 0; dx < size; dx++) out.push(origin + dy * MAP_W + dx);
+    }
+  };
+  add(base.ccOrigin, footprintOfKind('cc'));
+  for (const w of base.walls) out.push(w.cell);
+  for (const s of base.structures) add(s.cell, footprintOfKind(s.kind));
+  return out;
 }

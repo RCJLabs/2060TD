@@ -910,6 +910,7 @@ export function generateBase(
     ccBox,
     BASE_SPAWN_LANE,
     BASE_SPAWN_EDGE,
+    MAP_CELL_SIZE,
   );
   const water: CellIndex[] = [];
   for (let cell = 0; cell < MAP_W * MAP_H; cell++) {

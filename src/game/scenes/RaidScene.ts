@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { music } from '../music';
 import {
   ARCHETYPE_BY_ID,
+  BASE_SPAWN_EDGE,
+  BASE_SPAWN_LANE,
   MAP_CELL_SIZE,
   MAP_H,
   MAP_W,
@@ -88,7 +90,7 @@ import {
   drawWallGlyph,
   wallJoins,
 } from '../glyphs';
-import { footprintOfKind } from '../../content/catalog';
+import { baseOccupied, footprintOfKind } from '../../content/catalog';
 import { chainStalledAt } from '../../sim/killchain';
 import { scaleCatalog } from '../../sim/scale';
 import { COLORS } from '../palette';
@@ -231,11 +233,21 @@ export class RaidScene extends Phaser.Scene {
     this.board = new BoardView(this, { cols: MAP_W, rows: MAP_H, cell: CELL });
     this.baseLayer = this.add.graphics();
     this.dynLayer = this.add.graphics();
+    // The ground the battle will be fought on, which the engine generates
+    // around everything the base has built and from the base's own entry
+    // edge. This preview used to pass neither, and drew different ground on
+    // every base the ladder deals — about 53 cells of 600 each, mostly woods
+    // under walls and guns where the battle has none, and water on the entry
+    // edge. A plan made against that map was made against the wrong one.
     const raidGround = generateTerrain(
       this.base.terrainSeed,
       this.base.terrainSeed > 0 ? TERRAIN_VERSION : TERRAIN_NONE,
       MAP_W,
       MAP_H,
+      baseOccupied(this.base),
+      BASE_SPAWN_LANE,
+      BASE_SPAWN_EDGE,
+      MAP_CELL_SIZE,
     );
     const sheet = makeSheet(this, {
       width: MAP_W,
