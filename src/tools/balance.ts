@@ -60,6 +60,7 @@ import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
 import {
   CHAIN_CURRENT,
+  CHAIN_ENGAGE,
   CHAIN_MODELS,
   CHAIN_NONE,
   chainModelFor,
@@ -631,6 +632,171 @@ function referenceBases(): ReferenceBase[] {
   ];
 
   return [early, mid, late];
+}
+
+// ---- M34: the reference bases, drawn for 10x15 ------------------------------------
+
+/** The 10x15 board, in its own cells, and where its command post stands. */
+const NATIVE_W = 10;
+const NATIVE_H = 15;
+const nidx = (u: number, v: number): CellIndex => u * NATIVE_W + v;
+const NATIVE_CC = nidx(13, 4);
+
+/** `wallLine` on the 10x15 board. */
+function nativeLine(walls: LayoutWall[], u: number, v0: number, v1: number, gaps: number[]): void {
+  for (let v = v0; v <= v1; v++) {
+    if (!gaps.includes(v)) walls.push({ cell: nidx(u, v), kind: 'wall' });
+  }
+}
+
+/**
+ * The three reference bases DRAWN for the 10x15 board (M34), not mapped onto it.
+ *
+ * Mapping by the one rule is what Phase 4 measured, and it costs a base two
+ * thirds of its wall: a one-thick line keeps only the blocks it fills half of,
+ * so line ends and two-cell stubs vanish. These keep each base's DESIGN at the
+ * new resolution — the same lines, with the same openings in the same order,
+ * and the same guns in the same roles — and give up its coordinates, which a
+ * board this coarse cannot express. Guns are one cell on both boards, so here
+ * each stands on twice the ground it did; the post is one cell at (4, 13).
+ *
+ * Every line spans columns 1-8 and leaves both edge columns open, as the 20x30
+ * lines leave columns 0 and 19. A gap is one cell: two physical units, the
+ * width of the two-cell gaps it replaces. A pocket between lines is two rows
+ * where guns stand in it, and one where it only carries attackers across —
+ * a gun in a one-row pocket is a wall across it.
+ *
+ * What covers the post is kept too. Today's MID has one gun within the cover
+ * radius and LATE has four; so do these, and none sits exactly ON the radius,
+ * the knife-edge Phase 4 found deciding battles.
+ */
+function nativeReferenceBases(): ReferenceBase[] {
+  // EARLY: one line, its gap on the post's column, two nests flanking the gap
+  // from behind and the autocannon out to the left.
+  const early: ReferenceBase = { name: 'EARLY (CC1)', ccLevel: 1, walls: [], structures: [] };
+  nativeLine(early.walls, 10, 1, 8, [4]);
+  early.structures = [
+    { cell: nidx(11, 3), kind: 'm2nest', level: 1 },
+    { cell: nidx(11, 5), kind: 'm2nest', level: 1 },
+    { cell: nidx(11, 1), kind: 'autocannon', level: 1 },
+  ];
+
+  // MID: the serpentine. In at the centre past two nests, across the pocket,
+  // out near an edge past an autocannon, and back to the post under the mortar.
+  const mid: ReferenceBase = { name: 'MID (CC2)', ccLevel: 2, walls: [], structures: [] };
+  nativeLine(mid.walls, 8, 1, 8, [4]);
+  nativeLine(mid.walls, 11, 1, 8, [1, 8]);
+  mid.structures = [
+    { cell: nidx(9, 3), kind: 'm2nest', level: 2 },
+    { cell: nidx(9, 5), kind: 'm2nest', level: 2 },
+    { cell: nidx(14, 1), kind: 'm2nest', level: 2 },
+    { cell: nidx(12, 2), kind: 'autocannon', level: 2 },
+    { cell: nidx(12, 7), kind: 'autocannon', level: 2 },
+    { cell: nidx(14, 3), kind: 'mortar', level: 1 },
+  ];
+
+  // LATE: three lines, centre / edges / centre, so the way in crosses the
+  // board twice. Two nests in the first pocket, the second pocket left clear
+  // because it is one row, and the post ringed by four covering guns.
+  const late: ReferenceBase = { name: 'LATE (CC3)', ccLevel: 3, walls: [], structures: [] };
+  nativeLine(late.walls, 6, 1, 8, [4]);
+  nativeLine(late.walls, 9, 1, 8, [1, 8]);
+  nativeLine(late.walls, 11, 1, 8, [4]);
+  late.structures = [
+    { cell: nidx(8, 2), kind: 'm2nest', level: 3 },
+    { cell: nidx(8, 7), kind: 'm2nest', level: 3 },
+    { cell: nidx(12, 1), kind: 'm2nest', level: 3 },
+    { cell: nidx(12, 8), kind: 'm2nest', level: 3 },
+    { cell: nidx(12, 3), kind: 'autocannon', level: 3 },
+    { cell: nidx(12, 5), kind: 'autocannon', level: 3 },
+    { cell: nidx(8, 4), kind: 'autocannon', level: 3 },
+    { cell: nidx(14, 3), kind: 'mortar', level: 2 },
+    { cell: nidx(14, 5), kind: 'mortar', level: 2 },
+  ];
+
+  return [early, mid, late];
+}
+
+/**
+ * A native base as a battle: today's config with no layout, mapped by the one
+ * rule for everything a base does not decide — the waves, the entry lane, the
+ * post, the cell size — and then the drawn layout put on it.
+ */
+function nativeDefenseConfigFor(
+  faction: FactionId,
+  base: ReferenceBase,
+  level: number,
+  seed: number,
+  chainVersion: number,
+): SimConfig {
+  const bare = defenseConfigFor(faction, { ...base, walls: [], structures: [] }, level, seed, {
+    chainVersion,
+  });
+  const { config } = coarsenConfig(bare, defenseCatalogFor(faction), 2);
+  if (config.width !== NATIVE_W || config.height !== NATIVE_H || config.ccOrigin !== NATIVE_CC) {
+    throw new Error(`native board mismatch: ${config.width}x${config.height}, post ${config.ccOrigin}`);
+  }
+  return {
+    ...config,
+    layout: {
+      walls: base.walls.map((w) => ({ ...w })),
+      structures: base.structures.map((s) => ({ ...s })),
+    },
+  };
+}
+
+/**
+ * Is there a way from the entry row to the post that breaks nothing? Walls and
+ * structures block, four-connected — stricter than the pathfinder, so a base
+ * that passes this is open to it too.
+ */
+function nativeOpenPath(base: ReferenceBase): boolean {
+  const blocked = new Set<number>([NATIVE_CC]);
+  for (const w of base.walls) blocked.add(w.cell);
+  for (const s of base.structures) blocked.add(s.cell);
+  const seen = new Set<number>();
+  const queue: number[] = [];
+  for (let v = 0; v < NATIVE_W; v++) {
+    if (!blocked.has(v)) {
+      seen.add(v);
+      queue.push(v);
+    }
+  }
+  const cu = Math.floor(NATIVE_CC / NATIVE_W);
+  const cv = NATIVE_CC % NATIVE_W;
+  while (queue.length > 0) {
+    const c = queue.shift()!;
+    const u = Math.floor(c / NATIVE_W);
+    const v = c % NATIVE_W;
+    if (Math.abs(u - cu) + Math.abs(v - cv) === 1) return true;
+    for (const [du, dv] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nu = u + du;
+      const nv = v + dv;
+      if (nu < 0 || nu >= NATIVE_H || nv < 0 || nv >= NATIVE_W) continue;
+      const n = nidx(nu, nv);
+      if (blocked.has(n) || seen.has(n)) continue;
+      seen.add(n);
+      queue.push(n);
+    }
+  }
+  return false;
+}
+
+/** How a gun is drawn on a native map: n nest, a autocannon, o mortar. */
+const NATIVE_GLYPH: Record<string, string> = { m2nest: 'n', autocannon: 'a', mortar: 'o' };
+
+/** A native base as text: # wall, P post, and each gun by its glyph. */
+function nativeMap(base: ReferenceBase): string[] {
+  const at = new Map<number, string>([[NATIVE_CC, 'P']]);
+  for (const w of base.walls) at.set(w.cell, '#');
+  for (const s of base.structures) at.set(s.cell, NATIVE_GLYPH[s.kind] ?? s.kind[0]!);
+  const rows: string[] = [];
+  for (let u = 0; u < NATIVE_H; u++) {
+    let line = '';
+    for (let v = 0; v < NATIVE_W; v++) line += at.get(nidx(u, v)) ?? '.';
+    rows.push(line);
+  }
+  return rows;
 }
 
 /**
@@ -1519,6 +1685,135 @@ function similarity(chainVersion: number = CHAIN_CURRENT): void {
     `defender wins that include a stall wipe-out: fine ${share('fine')}, null ${share('null')}, ` +
       `refined ${share('refined')}, coarse ${share('coarse')}`,
   );
+  console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+}
+
+/**
+ * The reference bases drawn for 10x15, against today's published curves
+ * (M34, `--native`).
+ *
+ * Phase 4 established that a 10x15 board is a different game, so what is left
+ * to measure is how different, with content made FOR it rather than mapped onto
+ * it. Each native base is fought on both chains — v3, today's, and v4, the one
+ * whose crews go after the guns covering the post — and every row is compared
+ * with the published 20x30 row where the defence first holds under half.
+ * That level is the number a re-tune has to move.
+ */
+function nativeCheck(): void {
+  const started = Date.now();
+  const bases = nativeReferenceBases();
+  console.log('NATIVE — the reference bases drawn for 10x15 (M34)\n');
+  const maps = bases.map(nativeMap);
+  console.log(bases.map((b) => b.name.padEnd(NATIVE_W + 4)).join(''));
+  for (let u = 0; u < NATIVE_H; u++) {
+    console.log(maps.map((m) => m[u]!.padEnd(NATIVE_W + 4)).join(''));
+  }
+  const open = bases.map((b) => `${b.name}: ${nativeOpenPath(b) ? 'open' : 'SEALED'}, ${b.walls.length} walls`);
+  console.log(`\n${open.join(' · ')}`);
+  if (bases.some((b) => !nativeOpenPath(b))) throw new Error('a native base has no way in');
+
+  // Today's rows, as published: the instrument reads the snapshot rather than
+  // re-fighting it, and `--similar` is what checks the snapshot is reproducible.
+  const published: number[][] = [];
+  const md = readFileSync('docs/BALANCE.md', 'utf8').split('\n');
+  for (let i = 0; i < md.length; i++) {
+    if (!/^DEFENSE — .+ permanent layer vs .+ assault ladder \(hold%\)$/.test(md[i]!)) continue;
+    for (let r = 0; r < 3; r++) {
+      published.push(md[i + 3 + r]!.split('|').slice(1).map((v) => Number(v.trim())));
+    }
+  }
+
+  type Row = { faction: FactionId; base: string; today: number[]; v3: number[]; v4: number[] };
+  const rows: Row[] = [];
+  const stalls = { v3: { wins: 0, stalled: 0 }, v4: { wins: 0, stalled: 0 } };
+  const pct = (n: number) => Math.round((n / SEEDS) * 100);
+  let r = 0;
+  for (const faction of FACTION_IDS) {
+    const catalog = defenseCatalogFor(faction);
+    const fine = referenceBases();
+    for (const [b, base] of bases.entries()) {
+      const v3: number[] = [];
+      const v4: number[] = [];
+      for (const level of ASSAULT_LEVELS) {
+        let held3 = 0;
+        let held4 = 0;
+        for (let i = 0; i < SEEDS; i++) {
+          // Seeded exactly as the published table's cell, so a row differs
+          // from today's by the board and the chain and nothing else.
+          const seed = seedOf(level, fine[b]!.ccLevel, i);
+          for (const [chain, tally] of [
+            [CHAIN_CURRENT, stalls.v3],
+            [CHAIN_ENGAGE, stalls.v4],
+          ] as const) {
+            const e = fightDefense(nativeDefenseConfigFor(faction, base, level, seed, chain), catalog);
+            if (e.phase !== 'victory') continue;
+            tally.wins++;
+            if (e.stallWipes > 0) tally.stalled++;
+            if (chain === CHAIN_CURRENT) held3++;
+            else held4++;
+          }
+        }
+        v3.push(pct(held3));
+        v4.push(pct(held4));
+      }
+      rows.push({ faction, base: base.name, today: published[r] ?? [], v3, v4 });
+      r++;
+    }
+  }
+
+  console.log(`\nHOLD% BY LEVEL — TODAY (20x30, v3, published) / NATIVE 10x15 on v3 / on v4, ${SEEDS} seeds`);
+  console.log(`FACTION | BASE        | BOARD     | ${ASSAULT_LEVELS.map((l) => pad(`L${l}`, 4)).join(' ')}`);
+  for (const row of rows) {
+    for (const which of ['today', 'v3', 'v4'] as const) {
+      console.log(
+        `${pad(which === 'today' ? row.faction.toUpperCase() : '', 7)} | ${
+          which === 'today' ? row.base.padEnd(11) : ''.padEnd(11)
+        } | ${(which === 'today' ? 'today' : `native ${which}`).padEnd(9)} | ${row[which]
+          .map((c) => pad(c, 4))
+          .join(' ')}`,
+      );
+    }
+  }
+
+  // Where each row first holds under half — the level a re-tune has to move.
+  const falls = (cells: number[]) => {
+    const at = cells.findIndex((c) => c < 50);
+    return at < 0 ? ASSAULT_LEVELS.length + 1 : at + 1;
+  };
+  const show = (l: number) => (l > ASSAULT_LEVELS.length ? `>${ASSAULT_LEVELS.length}` : `L${l}`);
+  const rises = (cells: number[]) => cells.slice(1).some((c, i) => c > cells[i]! + 15);
+  console.log('\nWHERE EACH ROW FIRST HOLDS UNDER HALF');
+  console.log('FACTION | BASE        | TODAY | NATIVE v3    | NATIVE v4');
+  const shifts = { v3: [] as number[], v4: [] as number[] };
+  for (const row of rows) {
+    const t = falls(row.today);
+    const cell = (k: 'v3' | 'v4') => {
+      const n = falls(row[k]);
+      shifts[k].push(n - t);
+      return `${show(n).padEnd(4)} (${n - t >= 0 ? '+' : ''}${n - t})${rises(row[k]) ? ' RISES' : ''}`;
+    };
+    console.log(
+      `${pad(row.faction.toUpperCase(), 7)} | ${row.base.padEnd(11)} | ${show(t).padEnd(5)} | ${cell('v3').padEnd(12)} | ${cell('v4')}`,
+    );
+  }
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  const contested = (k: 'today' | 'v3' | 'v4') =>
+    mean(rows.map((row) => row[k].filter((c) => c >= 5 && c <= 95).length));
+  console.log(
+    `\nmean shift of that level: v3 ${mean(shifts.v3).toFixed(2)}, v4 ${mean(shifts.v4).toFixed(2)} ` +
+      `(mean |shift| ${mean(shifts.v3.map(Math.abs)).toFixed(2)} / ${mean(shifts.v4.map(Math.abs)).toFixed(2)})`,
+  );
+  console.log(
+    `rows that rise by more than 15 points: v3 ${rows.filter((x) => rises(x.v3)).length}, ` +
+      `v4 ${rows.filter((x) => rises(x.v4)).length} of ${rows.length}`,
+  );
+  console.log(
+    `contested levels per row: today ${contested('today').toFixed(2)}, native v3 ${contested('v3').toFixed(2)}, ` +
+      `native v4 ${contested('v4').toFixed(2)}`,
+  );
+  const share = (k: 'v3' | 'v4') =>
+    `${stalls[k].stalled}/${stalls[k].wins} (${((100 * stalls[k].stalled) / Math.max(1, stalls[k].wins)).toFixed(1)}%)`;
+  console.log(`defender wins that include a stall wipe-out: v3 ${share('v3')}, v4 ${share('v4')}`);
   console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
 
@@ -4518,6 +4813,10 @@ function main(): void {
         'stage, ONE rung size cannot serve every base.',
     );
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--native')) {
+    nativeCheck();
     return;
   }
   if (process.argv.includes('--similar')) {
