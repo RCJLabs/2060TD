@@ -97,6 +97,25 @@ try {
 
   await page.goto(`http://localhost:${PORT}/?demo=town`, { waitUntil: 'networkidle' });
   await wait(2500);
+
+  // Open the drawer to HALF, by its handle, the way a player reading a long
+  // list would. Since M34 it rests on exactly what the board leaves, which on
+  // this phone is a header and two rows, and the swipes below are 60-260px
+  // strokes inside a list that has to be taller than they are.
+  {
+    const at = await page.evaluate(() => {
+      const a = window.lastline;
+      const l = a.layout();
+      const h = l.handle;
+      return {
+        x: (h.x + h.w / 2) / a.dpr,
+        y: (h.y + h.h / 2) / a.dpr,
+        by: (0.42 * (l.height - l.safe.top - l.safe.bottom) - l.drawerH) / a.dpr,
+      };
+    });
+    await swipe(at.x, at.y, at.y - at.by);
+    await wait(300);
+  }
   const X = 206;
 
   // Short swipes, so the row being measured stays on screen throughout.

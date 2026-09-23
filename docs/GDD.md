@@ -1024,10 +1024,17 @@ different input:
 | **hold a row** | its spec card: what the thing is, costs and does |
 | drag up/down in the list | scroll |
 | **drag sideways in the list** | previous/next tab *(portrait only)* |
-| drag the handle | resize the drawer; release snaps to shut/half/full |
-| tap the handle | collapse or restore |
+| drag the handle | resize the drawer; release snaps to shut/rest/half/full |
+| tap the handle | collapse, or back to rest |
 | **a finger on a coasting list** | stops it, and activates nothing |
 | **drag a row's silhouette to the map** | arms the tool and aims it, in one stroke |
+
+**Rest** is where the drawer opens *(M34)*: exactly the room the board leaves below the
+world at its fit zoom, so the whole map is in view with the drawer open. It is never less
+than two rows of list and never more than half. It is a name rather than a height,
+resolved on every layout, because the right height depends on the world's shape as well
+as the phone's, and a rotation has to re-measure it. Where the world fills the height
+first — a browser tab, a tablet — there is nothing to leave, and rest is the two-row floor.
 
 The carry is the one gesture that does not share a finger with the list, and
 it is the only one that could not: in portrait the drawer sits BELOW the board,

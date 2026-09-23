@@ -1519,6 +1519,13 @@ export class Panel {
         // a touch release can synthesize a compatibility mouse-down: stopping
         // on the press kills every flick at the moment of the lift.
         this.stopFling();
+        // A press the handle owns is never the list's too. The test below
+        // reads the list rect as it is NOW, and a handle drag has already
+        // grown the drawer by the time the first move reaches here — so the
+        // list's top has slid up past the finger that is dragging it, and the
+        // press looked like it had landed in the list. It scrolled and flung
+        // the list under every handle drag, which `e2e-drawer` now checks.
+        if (this.handlePress === pointer.downTime) return;
         if (!this.inListAt(pointer.downX, pointer.downY)) return;
         this.dragPress = pointer.downTime;
         this.dragMoved = 0;

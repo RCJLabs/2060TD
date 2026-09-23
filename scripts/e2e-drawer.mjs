@@ -164,6 +164,7 @@ try {
   {
     const from = start.handle.y + start.handle.h / 2;
     const x = start.handle.x + start.handle.w / 2;
+    const scrollBefore = await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1);
     await touch('touchStart', x, from);
     for (let i = 1; i <= 8; i++) {
       await touch('touchMove', x, from - (120 * i) / 8);
@@ -178,6 +179,15 @@ try {
       'a dragged handle stays under the finger',
       Math.abs(moved - 120) <= 2,
       `finger moved 120px, the handle ${moved.toFixed(0)}px`,
+    );
+    // One finger, one thing. A handle drag grows the drawer, and the list's
+    // top slides up past the finger doing it: the list used to read that as a
+    // press that had landed on it, and scrolled and flung under every drag.
+    const scrollAfter = await page.evaluate(() => window.lastline.scroll()?.scrollY ?? -1);
+    check(
+      'and the list under it does not scroll',
+      scrollBefore >= 0 && Math.abs(scrollAfter - scrollBefore) < 1,
+      `scrollY ${Math.round(scrollBefore)} → ${Math.round(scrollAfter)}`,
     );
     // Rest is a detent like the others, from above as well as from below. On
     // this phone 120px up from rest is past halfway to HALF, so that release
