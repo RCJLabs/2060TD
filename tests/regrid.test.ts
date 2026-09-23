@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { decodeBase } from '../src/meta/sharecode';
 import { deserialize } from '../src/meta/save';
-import { LEGACY_GRID, regridCell } from '../src/meta/regrid';
+import { LEGACY_GRID, regridCell, regridTown, V1_GRID } from '../src/meta/regrid';
 import { newTown, onSpawnLane, TOWN_GRID, footprintCells } from '../src/meta/town';
-import type { TownState } from '../src/meta/town';
+import type { PlacedStructure, TownState } from '../src/meta/town';
+import { defenseCatalogFor } from '../src/content/factions';
 
 /**
  * Carrying a war across the turn of the board (v1.40).
@@ -19,6 +20,9 @@ const T0 = 1_700_000_000_000;
 const oldIdx = (x: number, y: number): number => y * LEGACY_GRID.width + x;
 const xOf = (cell: number): number => cell % TOWN_GRID.width;
 const yOf = (cell: number): number => Math.floor(cell / TOWN_GRID.width);
+/** Where a cell is on the 20x30 board the v1.40 move landed on. */
+const v1x = (cell: number): number => cell % V1_GRID.width;
+const v1y = (cell: number): number => Math.floor(cell / V1_GRID.width);
 
 /**
  * A save as v1.39 wrote one: the post at (27, 11), a wall line two cells in
@@ -51,6 +55,14 @@ const loaded = (): TownState => {
   return town!;
 };
 
+/** The legacy save's town taken through the v1.40 move ALONE, onto 20x30. */
+const turned = (): { structures: PlacedStructure[]; walls: { cell: number; kind: string }[] } => {
+  const town = JSON.parse(legacySave()).town as TownState;
+  const target = { structures: town.structures, walls: town.walls };
+  regridTown(target, 0, () => true, Infinity, 1);
+  return target;
+};
+
 describe('a saved town rotates rather than scrambles', () => {
   it('lands every cell on the board, off the entry lane, with nothing overlapping', () => {
     const town = loaded();
@@ -59,7 +71,12 @@ describe('a saved town rotates rather than scrambles', () => {
       ...town.structures.flatMap((s) => footprintCells(s.kind, s.cell)),
       ...town.walls.map((w) => w.cell),
     ];
-    expect(cells.length).toBeGreaterThan(15);
+    // Six buildings and what is left of the line. After both moves the line's
+    // middle is under the two guns that stood behind it on 32x24 — a gun and
+    // a wall cannot share a two-unit cell — so most of it is refunded, and
+    // the migration tests below M34's say what the refund is.
+    expect(town.structures).toHaveLength(6);
+    expect(town.walls.length).toBeGreaterThan(0);
     for (const cell of cells) {
       expect(cell).toBeGreaterThanOrEqual(0);
       expect(cell).toBeLessThan(TOWN_GRID.width * TOWN_GRID.height);
@@ -81,8 +98,9 @@ describe('a saved town rotates rather than scrambles', () => {
     // three cells in FRONT of the post — three cells towards the old western
     // entry — must end up three cells in front of it on the new board, which
     // is three cells north. A base that funnelled attackers into a crossfire
-    // still funnels them into it.
-    const town = loaded();
+    // still funnels them into it. Checked on the 20x30 board this move landed
+    // on; M34's move after it is pinned below.
+    const town = turned();
     const cc = town.structures.find((s) => s.kind === 'cc')!;
     const pairs: [number, string][] = [
       [oldIdx(25, 9), 'm2nest'],
@@ -97,15 +115,15 @@ describe('a saved town rotates rather than scrambles', () => {
       const now = town.structures.find((s) => s.cell === regridCell(was));
       expect(now, `${kind} at ${was} went missing`).toBeDefined();
       // Depth becomes depth, across becomes across: (dx, dy) -> (dy, dx).
-      expect(xOf(now!.cell) - xOf(cc.cell)).toBe(oldDY);
-      expect(yOf(now!.cell) - yOf(cc.cell)).toBe(oldDX);
+      expect(v1x(now!.cell) - v1x(cc.cell)).toBe(oldDY);
+      expect(v1y(now!.cell) - v1y(cc.cell)).toBe(oldDX);
     }
   });
 
   it('walks a building off the vanished corner instead of destroying it', () => {
     // (30, 22) is outside the 20x30 board however you rotate it. The player
     // paid for that dump; it gets a cell, not a refund it never asked for.
-    const town = loaded();
+    const town = turned();
     expect(regridCell(oldIdx(30, 22))).toBeNull();
     const dump = town.structures.find((s) => s.kind === 'fuelDump');
     expect(dump).toBeDefined();
@@ -115,7 +133,12 @@ describe('a saved town rotates rather than scrambles', () => {
     // was. The first draft of the walk fell back to cell 0 when the transpose
     // had no answer, which put a fuel dump on the enemy's doorstep: still
     // present, still counted, and a gift.
-    expect(yOf(dump!.cell)).toBeGreaterThan(yOf(TOWN_GRID.ccOrigin));
+    expect(v1y(dump!.cell)).toBeGreaterThan(v1y(V1_GRID.ccOrigin));
+    // And it is still there, and still deep, after the second move too.
+    const now = loaded();
+    const still = now.structures.find((s) => s.kind === 'fuelDump');
+    expect(now.structures).toHaveLength(6);
+    expect(yOf(still!.cell)).toBeGreaterThanOrEqual(yOf(TOWN_GRID.ccOrigin));
   });
 
   it('migrates the same save the same way every time', () => {
@@ -155,7 +178,10 @@ describe('a share code written before the turn', () => {
     expect(out.base.name).toBe('ARCHIVE');
     expect(out.base.ccOrigin).toBe(TOWN_GRID.ccOrigin);
     expect(out.base.structures).toHaveLength(4);
-    expect(out.base.walls).toHaveLength(10);
+    // Ten segments of one line on 32x24, turned onto 20x30 and halved onto
+    // 10x15: a line of two-unit cells, fewer of them, still a line.
+    expect(out.base.walls.length).toBeGreaterThan(0);
+    expect(out.base.walls.length).toBeLessThan(10);
     const cells = [
       out.base.ccOrigin,
       ...out.base.structures.map((s) => s.cell),
@@ -178,5 +204,102 @@ describe('a share code written before the turn', () => {
     if (!a.ok || !b.ok) return;
     expect(a.base.terrainSeed).toBe(b.base.terrainSeed);
     expect(a.base.terrainSeed).toBeGreaterThan(0);
+  });
+});
+
+describe('a 20x30 town moves onto 10x15 by the one rule (M34)', () => {
+  const at1 = (u: number, v: number): number => u * V1_GRID.width + v;
+  const at2 = (u: number, v: number): number => u * TOWN_GRID.width + v;
+
+  /**
+   * A save as v1.44 wrote one: the post at (9, 27), a wall line across the
+   * approach with a gap over the post, guns behind it, stores behind them.
+   */
+  function v1Save(wallRows: number[] = [19]): string {
+    const town = newTown(T0, 'usa') as TownState;
+    town.gridVersion = 1;
+    delete town.terrainSeed;
+    town.supplies = 100;
+    town.structures = [
+      { id: 1, kind: 'cc', cell: V1_GRID.ccOrigin, level: 1, wrecked: false },
+      { id: 2, kind: 'm2nest', cell: at1(21, 7), level: 1, wrecked: false },
+      { id: 3, kind: 'm2nest', cell: at1(21, 12), level: 1, wrecked: false },
+      { id: 4, kind: 'supplyDepot', cell: at1(24, 4), level: 1, wrecked: false },
+      // Two 2x2 stores side by side: at two units a cell both want the same one.
+      { id: 5, kind: 'supplyDepot', cell: at1(24, 14), level: 1, wrecked: false },
+      { id: 6, kind: 'fuelDepot', cell: at1(25, 15), level: 1, wrecked: false },
+    ];
+    town.walls = [];
+    for (const u of wallRows) {
+      for (let v = 1; v <= 18; v++) if (v < 8 || v > 11) town.walls.push({ cell: at1(u, v), kind: 'wall' });
+    }
+    town.nextId = 7;
+    return JSON.stringify({ schema: 6, savedAt: T0, town });
+  }
+
+  const load = (rows?: number[]): TownState => {
+    const town = deserialize(v1Save(rows));
+    expect(town).not.toBeNull();
+    return town!;
+  };
+
+  it('lands every cell on the board, off the entry lane, with nothing overlapping', () => {
+    const town = load();
+    expect(town.gridVersion).toBe(TOWN_GRID.version);
+    const seen = new Set<number>();
+    for (const cell of [
+      ...town.structures.flatMap((s) => footprintCells(s.kind, s.cell)),
+      ...town.walls.map((w) => w.cell),
+    ]) {
+      expect(cell).toBeGreaterThanOrEqual(0);
+      expect(cell).toBeLessThan(TOWN_GRID.width * TOWN_GRID.height);
+      expect(onSpawnLane(cell), `cell ${cell} on the entry lane`).toBe(false);
+      expect(seen.has(cell), `cell ${cell} claimed twice`).toBe(false);
+      seen.add(cell);
+    }
+    expect(town.structures.find((s) => s.kind === 'cc')!.cell).toBe(TOWN_GRID.ccOrigin);
+  });
+
+  it('puts every building at floor(p / 2), and walks the one that collided', () => {
+    const town = load();
+    const cellOf = (id: number): number => town.structures.find((s) => s.id === id)!.cell;
+    expect(cellOf(2)).toBe(at2(10, 3));
+    expect(cellOf(3)).toBe(at2(10, 6));
+    expect(cellOf(4)).toBe(at2(12, 2));
+    expect(cellOf(5)).toBe(at2(12, 7));
+    // (25, 15) wants (12, 7) too, which the depot at (24, 14) took first.
+    expect(cellOf(6)).not.toBe(at2(12, 7));
+    expect(town.structures).toHaveLength(6);
+  });
+
+  it('keeps a wall line a line with its gap, and pays back what it merged', () => {
+    const town = load();
+    const row9 = town.walls.filter((w) => yOf(w.cell) === 9).map((w) => xOf(w.cell)).sort((a, b) => a - b);
+    // Columns 1-7 and 12-18 of 20x30 are 1-3 and 6-8 here; the gap over the
+    // post, 8-11, is 4-5 — two units wider, never closed.
+    expect(row9).toEqual([1, 2, 3, 6, 7, 8]);
+    // Fourteen segments went in and six came out: eight are refunded at cost.
+    const cost = defenseCatalogFor('usa').walls['wall']!.supplyCost!;
+    expect(town.supplies).toBe(100 + 8 * cost);
+  });
+
+  it('refunds walls past the smaller budget, the ones furthest from the post first', () => {
+    // Six lines of fourteen at CC1: 84 segments, a budget of 50 on 20x30. On
+    // 10x15 they are six lines of six, and CC1 allows 25.
+    const town = load([3, 5, 7, 9, 11, 19]);
+    expect(town.walls.length).toBe(25);
+    // The line nearest the post is whole; what was cut came off the far rows.
+    const near = town.walls.filter((w) => yOf(w.cell) === 9);
+    expect(near).toHaveLength(6);
+  });
+
+  it('migrates the same save the same way every time', () => {
+    const a = load();
+    const b = load();
+    expect(a.structures.map((s) => `${s.kind}@${s.cell}`)).toEqual(
+      b.structures.map((s) => `${s.kind}@${s.cell}`),
+    );
+    expect(a.walls.map((w) => w.cell)).toEqual(b.walls.map((w) => w.cell));
+    expect(a.supplies).toBe(b.supplies);
   });
 });

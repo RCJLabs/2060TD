@@ -74,10 +74,13 @@ describe('town state', () => {
   it('enforces CC gating: counts, forbidden kinds, and footprint overlap', () => {
     const town = rich(yardTown(T0));
     expect(place(town, 'supplyDepot', idx(5, 5), T0)).toBe(true);
-    expect(canPlace(town, 'supplyDepot', idx(6, 6))).toBe('occupied'); // overlaps
-    expect(place(town, 'supplyDepot', idx(8, 5), T0)).toBe(true);
-    expect(canPlace(town, 'supplyDepot', idx(8, 8))).toBe('count'); // CC1 allows 2
-    expect(canPlace(town, 'mortar', idx(12, 12))).toBe('count'); // CC1 allows 0
+    // One cell on this board (M34): the overlap is the cell itself now, and
+    // the cell beside it, which a 2x2 depot used to cover, is free.
+    expect(canPlace(town, 'supplyDepot', idx(5, 5))).toBe('occupied');
+    expect(canPlace(town, 'm2nest', idx(6, 6))).toBe(null);
+    expect(place(town, 'supplyDepot', idx(7, 5), T0)).toBe(true);
+    expect(canPlace(town, 'supplyDepot', idx(7, 8))).toBe('count'); // CC1 allows 2
+    expect(canPlace(town, 'mortar', idx(3, 12))).toBe('count'); // CC1 allows 0
     expect(canPlace(town, 'm2nest', idx(5, 0))).toBe('spawnLane'); // the north entry line
   });
 
@@ -126,20 +129,20 @@ describe('town state', () => {
     town.lastSeen = T0;
     rich(town);
 
-    place(town, 'm2nest', idx(10, 10), T0); // 10s base, −15%
-    const nest = structureAt(town, idx(10, 10))!;
+    place(town, 'm2nest', idx(6, 10), T0); // 10s base, −15%
+    const nest = structureAt(town, idx(6, 10))!;
     expect(nest.buildEndsAt).toBe(T0 + 8500);
   });
 
   it('move respects occupancy; sell refunds half; wreck repair costs 30%', () => {
     const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0);
-    place(town, 'm2nest', idx(10, 10), T0);
+    place(town, 'm2nest', idx(6, 10), T0);
     const depot = structureAt(town, idx(5, 5))!;
-    const nest = structureAt(town, idx(10, 10))!;
+    const nest = structureAt(town, idx(6, 10))!;
 
-    expect(move(town, nest.id, idx(5, 6))).toBe(false); // inside the depot footprint
-    expect(move(town, nest.id, idx(12, 12))).toBe(true);
+    expect(move(town, nest.id, idx(5, 5))).toBe(false); // the depot's cell
+    expect(move(town, nest.id, idx(7, 12))).toBe(true);
 
     const before = town.supplies;
     expect(sell(town, nest.id)).toBe(true);
@@ -165,7 +168,7 @@ describe('town state', () => {
   it('round-trips through the save format', () => {
     const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0);
-    placeWall(town, idx(9, 9));
+    placeWall(town, idx(3, 9));
     const restored = deserialize(serialize(town));
     expect(restored).toEqual(town);
     expect(deserialize('{"schema":99}')).toBeNull();
@@ -177,30 +180,33 @@ describe('the siege bridge', () => {
   it('builds a battle config from the town: layout, limits, charges, stockpile', () => {
     const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0); // still under construction
-    place(town, 'm2nest', idx(10, 10), T0);
+    place(town, 'm2nest', idx(6, 10), T0);
     tick(town, T0 + minutes(1));
     town.lastSeen = T0;
-    place(town, 'autocannon', idx(12, 12), T0); // freshly started: inert in battle
-    placeWall(town, idx(9, 9));
+    place(town, 'autocannon', idx(7, 12), T0); // freshly started: inert in battle
+    placeWall(town, idx(3, 9));
     town.supplies = 432.7;
 
     const config = siegeConfig(town, 7);
     expect(config.siege!.startingSupplies).toBe(432);
     expect(config.ccLevel).toBe(1);
-    expect(config.layout!.walls).toEqual([{ cell: idx(9, 9), kind: 'wall' }]);
+    expect(config.layout!.walls).toEqual([{ cell: idx(3, 9), kind: 'wall' }]);
     expect(config.layout!.structures.some((s) => s.kind === 'cc')).toBe(false);
     const cannon = config.layout!.structures.find((s) => s.kind === 'autocannon')!;
     expect(cannon.inert).toBe(true);
     expect(cannon.hpFraction).toBeCloseTo(0.35);
     const nest = config.layout!.structures.find((s) => s.kind === 'm2nest')!;
     expect(nest.inert).toBe(false);
-    expect(config.buildLimits!.walls).toBe(50);
+    // Halved with the board (M34): a line is half as many cells.
+    expect(config.buildLimits!.walls).toBe(25);
+    // And the battle is fought on this board's cell.
+    expect(config.cellSize).toBe(TOWN_GRID.cellSize);
     expect(config.powerCharges).toEqual(town.charges);
 
     // And the engine accepts it wholesale.
     const engine = new Engine(config, TEST_CATALOG);
     expect(engine.phase).toBe('setup');
-    expect(engine.structureAt(idx(10, 10))?.profile.kind).toBe('m2nest');
+    expect(engine.structureAt(idx(6, 10))?.profile.kind).toBe('m2nest');
   });
 
   it('victory: wrecks the fallen, adopts battle-bought guns, pays loot, advances the ladder', () => {
@@ -209,17 +215,17 @@ describe('the siege bridge', () => {
     town.fuel = 100;
     place(town, 'supplyDepot', idx(5, 5), T0);
     tick(town, T0 + minutes(1));
-    place(town, 'm2nest', idx(10, 10), T0 + minutes(1));
+    place(town, 'm2nest', idx(6, 10), T0 + minutes(1));
     tick(town, T0 + minutes(2));
 
     const outcome: SiegeOutcome = {
       victory: true,
       supplies: 120,
       chargesLeft: { a10: 0, arty: 0 },
-      walls: [{ cell: idx(9, 9), kind: 'wall' }],
+      walls: [{ cell: idx(3, 9), kind: 'wall' }],
       survivors: [
-        { cell: idx(10, 10), kind: 'm2nest', level: 1 }, // held
-        { cell: idx(14, 14), kind: 'autocannon', level: 1 }, // bought during setup
+        { cell: idx(6, 10), kind: 'm2nest', level: 1 }, // held
+        { cell: idx(2, 12), kind: 'autocannon', level: 1 }, // bought during setup
         // the supply depot is absent: destroyed
       ],
       stats: {
@@ -231,9 +237,9 @@ describe('the siege bridge', () => {
     applySiegeResult(town, outcome, T0 + minutes(10));
 
     expect(structureAt(town, idx(5, 5))!.wrecked).toBe(true);
-    expect(structureAt(town, idx(10, 10))!.wrecked).toBe(false);
-    expect(structureAt(town, idx(14, 14))!.kind).toBe('autocannon');
-    expect(town.walls).toEqual([{ cell: idx(9, 9), kind: 'wall' }]);
+    expect(structureAt(town, idx(6, 10))!.wrecked).toBe(false);
+    expect(structureAt(town, idx(2, 12))!.kind).toBe('autocannon');
+    expect(town.walls).toEqual([{ cell: idx(3, 9), kind: 'wall' }]);
     expect(town.assaultLevel).toBe(2);
     expect(town.victories).toBe(1);
     // 120 from the battle + 400 loot, clamped by CC1 storage (800).

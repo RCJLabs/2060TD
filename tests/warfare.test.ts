@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { yardTown, makeResolution } from './helpers';
 import { CHINA_BASE_KIT, generateBase, lootFor, MAP_H, MAP_W } from '../src/content/bases';
+import { footprintOfKind } from '../src/content/catalog';
 import { deserialize, serialize } from '../src/meta/save';
 import {
   applyCounterResult,
@@ -67,8 +68,10 @@ describe('base generator', () => {
         for (const w of a.walls) check(w.cell);
         for (const s of a.structures) {
           check(s.cell);
-          const big = ['supplyCache', 'fuelDump'].includes(s.kind);
-          if (big) {
+          // The board's footprint, not the catalog's: a 2x2 store is one cell
+          // on a board of two-unit cells (M34), and reserving four for it
+          // reported its neighbours as overlaps.
+          if (footprintOfKind(s.kind) === 2) {
             check(s.cell + 1);
             check(s.cell + MAP_W);
             check(s.cell + MAP_W + 1);
@@ -153,7 +156,8 @@ describe('reopening the last plan', () => {
     const base = generateBase(2, 0);
     const ccCol = base.ccOrigin % MAP_W;
     const ccRow = Math.floor(base.ccOrigin / MAP_W);
-    const mouth = ccRow * MAP_W + ccCol + 5;
+    // Three cells east of the post: six units, clear of its standoff.
+    const mouth = ccRow * MAP_W + ccCol + 3;
     expect(tunnelSiteValid(base, mouth)).toBe(true);
     const stored = storePlan([
       { units: { ranger: 1 }, sector: 'W1', doctrine: 'assault', slot: 0, tunnel: mouth, delay: 30 },
@@ -310,7 +314,9 @@ describe('raid planning and resolution', () => {
     const javelins = wave.entries.filter((e) => e.kind === 'javelin');
     expect(javelins.every((e) => e.row === 0 && e.doctrine === 'hunt')).toBe(true);
     expect(javelins[0]!.atTick).toBeGreaterThanOrEqual(120); // squad 2 launches later
-    for (const id of SECTOR_IDS) expect(sectorCells(id).length).toBeGreaterThan(6);
+    // Every sector is a real span of its edge: four cells or more at two
+    // units a cell, where the short edges were seven at one.
+    for (const id of SECTOR_IDS) expect(sectorCells(id).length).toBeGreaterThanOrEqual(4);
   });
 
   it('resolves a heavy raid deterministically and pays loot for the damage', () => {

@@ -25,7 +25,11 @@ import type { AirReadTarget } from '../src/meta/airread';
 
 const CAT = raidCatalogFor('usa'); // USA raids the PLA, so PLA structures
 
-/** A bare target with one gun placed where the test wants it. */
+/**
+ * A bare target with one gun placed where the test wants it, in cells of the
+ * raid board. Since M34 that board is 10x15 at two units a cell, so these are
+ * the old 20x30 positions halved: the same ground, the same geometry.
+ */
 const target = (ccCol: number, ccRow: number, guns: [string, number, number][]): AirReadTarget => ({
   ccOrigin: ccRow * MAP_W + ccCol,
   structures: guns.map(([kind, col, row]) => ({ kind, cell: row * MAP_W + col, level: 1 })),
@@ -55,13 +59,13 @@ describe('chordInside', () => {
 describe('airTransit', () => {
   it('counts nothing when no gun can elevate', () => {
     // hmgTower is ground-only in the PLA kit; it must not price a flight.
-    const flat = target(16, 12, [['hmgTower', 8, 12]]);
+    const flat = target(8, 6, [['hmgTower', 4, 6]]);
     expect(airTransit(flat, CAT, AIR_READ_SECTORS, 2.6)).toBe(0);
   });
 
   it('counts a gun that can, and more of it the closer to the run in', () => {
-    const near = target(16, 12, [['aaSite', 8, 12]]);
-    const far = target(16, 12, [['aaSite', 8, 2]]);
+    const near = target(8, 6, [['aaSite', 4, 6]]);
+    const far = target(8, 6, [['aaSite', 4, 1]]);
     const onTheLine = airTransit(near, CAT, ['W1'], 2.6);
     const offToTheSide = airTransit(far, CAT, ['W1'], 2.6);
     expect(onTheLine).toBeGreaterThan(0);
@@ -69,10 +73,10 @@ describe('airTransit', () => {
   });
 
   it('scales with the number of guns and inversely with speed', () => {
-    const one = target(16, 12, [['aaSite', 8, 12]]);
-    const two = target(16, 12, [
-      ['aaSite', 8, 12],
-      ['aaSite', 10, 12],
+    const one = target(8, 6, [['aaSite', 4, 6]]);
+    const two = target(8, 6, [
+      ['aaSite', 4, 6],
+      ['aaSite', 5, 6],
     ]);
     expect(airTransit(two, CAT, ['W1'], 2.6)).toBeGreaterThan(airTransit(one, CAT, ['W1'], 2.6));
     // Half the speed is twice as long inside the envelope.
@@ -83,7 +87,7 @@ describe('airTransit', () => {
   });
 
   it('ignores a structure that is still inert', () => {
-    const live = target(16, 12, [['aaSite', 8, 12]]);
+    const live = target(8, 6, [['aaSite', 4, 6]]);
     const scaffolding: AirReadTarget = {
       ccOrigin: live.ccOrigin,
       structures: live.structures.map((s) => ({ ...s, inert: true })),
@@ -95,14 +99,14 @@ describe('airTransit', () => {
   it('is an average over sectors, so adding a safe approach lowers it', () => {
     // A mount on the western run in only. Reading W1 alone is the worst case;
     // averaging in an approach it does not cover has to come out lower.
-    const west = target(16, 12, [['aaSite', 6, 12]]);
+    const west = target(8, 6, [['aaSite', 3, 6]]);
     const alone = airTransit(west, CAT, ['W1'], 2.6);
     const averaged = airTransit(west, CAT, ['W1', 'N1', 'S1'], 2.6);
     expect(alone).toBeGreaterThan(averaged);
   });
 
   it('degrades safely rather than dividing by zero', () => {
-    const t = target(16, 12, [['aaSite', 8, 12]]);
+    const t = target(8, 6, [['aaSite', 4, 6]]);
     expect(airTransit(t, CAT, [], 2.6)).toBe(0);
     expect(airTransit(t, CAT, ['W1'], 0)).toBe(0);
   });

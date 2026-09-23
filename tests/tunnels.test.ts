@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateBase, MAP_H, MAP_W } from '../src/content/bases';
+import { generateBase, MAP_CELL_SIZE, MAP_H, MAP_W } from '../src/content/bases';
 import { baseKitFor, canTunnel, raidCatalogFor, trainableFor, FACTION_IDS } from '../src/content/factions';
 import { SILENT_TUNNELS } from '../src/content/silentTunnels';
 import { ALL_UNLOCK_KEYS } from '../src/content/campaign';
@@ -23,12 +23,15 @@ import {
 const T0 = 1_700_000_000_000;
 const cellOf = (col: number, row: number) => row * MAP_W + col;
 
-/** A tier-2 target and a mouth 5 cells east of its command post. */
+/** The tunnel standoff in this board's cells (it is written in physical units). */
+const STANDOFF = TUNNEL_MIN_CC_DIST / MAP_CELL_SIZE;
+
+/** A tier-2 target and a mouth three cells east of its command post. */
 const target = () => {
   const base = generateBase(2, 0, baseKitFor('nk'));
   const ccCol = base.ccOrigin % MAP_W;
   const ccRow = Math.floor(base.ccOrigin / MAP_W);
-  const mouth = cellOf(ccCol + 5, ccRow);
+  const mouth = cellOf(ccCol + 3, ccRow);
   expect(tunnelSiteValid(base, mouth)).toBe(true);
   return { base, mouth };
 };
@@ -52,16 +55,16 @@ describe('tunnel doctrine', () => {
     const ccRow = Math.floor(base.ccOrigin / MAP_W);
     // Too close to the command post (its own footprint most of all).
     expect(tunnelSiteValid(base, base.ccOrigin)).toBe(false);
-    expect(tunnelSiteValid(base, cellOf(ccCol + 2, ccRow))).toBe(false);
+    expect(tunnelSiteValid(base, cellOf(ccCol + 1, ccRow))).toBe(false);
     // The map margin is off limits.
     expect(tunnelSiteValid(base, cellOf(0, 5))).toBe(false);
     expect(tunnelSiteValid(base, cellOf(MAP_W - 1, 5))).toBe(false);
-    expect(tunnelSiteValid(base, cellOf(10, MAP_H - 1))).toBe(false);
+    expect(tunnelSiteValid(base, cellOf(5, MAP_H - 1))).toBe(false);
     // Wall cells refuse the dig; the cell beside a far wall accepts it.
     const farWall = base.walls.find((w) => {
       const dc = (w.cell % MAP_W) - (ccCol + 0.5);
       const dr = Math.floor(w.cell / MAP_W) - (ccRow + 0.5);
-      return dc * dc + dr * dr >= TUNNEL_MIN_CC_DIST * TUNNEL_MIN_CC_DIST;
+      return dc * dc + dr * dr >= STANDOFF * STANDOFF;
     });
     expect(farWall).toBeDefined();
     expect(tunnelSiteValid(base, farWall!.cell)).toBe(false);
@@ -127,18 +130,27 @@ describe('tunnel doctrine', () => {
   it('tunneled infantry hurt an enclosed base far beyond what the walk-in manages', () => {
     // A sealed compound: full wall ring, no gates, one gun inside. The
     // conventional squad must chew the wall; the tunneled one starts inside.
+    // Four cells out from the post, where a compound's walls stand on this
+    // board, cut where it runs off the edge. At three the ring is so close to
+    // the edge that a squad is breaking it before a gallery could be dug, and
+    // the eight-second dig is the slower way in.
     const base = generateBase(2, 0, baseKitFor('nk'));
     const ccCol = base.ccOrigin % MAP_W;
     const ccRow = Math.floor(base.ccOrigin / MAP_W);
     const ring: { cell: number; kind: string }[] = [];
-    for (let d = -4; d <= 5; d++) {
-      ring.push({ cell: cellOf(ccCol + d, ccRow - 4), kind: 'wall' });
-      ring.push({ cell: cellOf(ccCol + d, ccRow + 5), kind: 'wall' });
-      ring.push({ cell: cellOf(ccCol - 4, ccRow + d), kind: 'wall' });
-      ring.push({ cell: cellOf(ccCol + 5, ccRow + d), kind: 'wall' });
+    const R = 4;
+    for (let d = -R; d <= R; d++) {
+      for (const [c, r] of [
+        [ccCol + d, ccRow - R],
+        [ccCol + d, ccRow + R],
+        [ccCol - R, ccRow + d],
+        [ccCol + R, ccRow + d],
+      ] as const) {
+        if (c >= 0 && c < MAP_W) ring.push({ cell: cellOf(c, r), kind: 'wall' });
+      }
     }
     const sealed = { ...base, walls: ring, structures: base.structures.slice(0, 2) };
-    const mouth = cellOf(ccCol + 3, ccRow + 3);
+    const mouth = cellOf(ccCol + 2, ccRow + 2);
 
     const infantry: SquadPlan[] = [
       { units: { nkrifle: 4, tunneler: 1 }, sector: 'W1', doctrine: 'assault' },

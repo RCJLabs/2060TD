@@ -186,15 +186,18 @@ describe('cell size (M34)', () => {
     upgrade(town, 1, T - 900_000);
     tick(town, T - 800_000);
     const at = (u: number, v: number) => u * TOWN_GRID.width + v;
-    place(town, 'm2nest', at(21, 7), T - 700_000);
-    place(town, 'm2nest', at(21, 11), T - 700_000);
-    place(town, 'autocannon', at(21, 9), T - 700_000);
-    place(town, 'mortar', at(24, 9), T - 700_000);
-    for (let v = 1; v <= 7; v++) placeWall(town, at(19, v));
-    for (let v = 12; v <= 18; v++) placeWall(town, at(19, v));
+    place(town, 'm2nest', at(10, 3), T - 700_000);
+    place(town, 'm2nest', at(10, 6), T - 700_000);
+    place(town, 'autocannon', at(10, 4), T - 700_000);
+    place(town, 'mortar', at(12, 3), T - 700_000);
+    for (let v = 1; v <= 3; v++) placeWall(town, at(9, v));
+    for (let v = 6; v <= 7; v++) placeWall(town, at(9, v));
     tick(town, T);
     town.assaultLevel = 4;
+    // A battle that names no cell size — what every replay before M34 is —
+    // against the same battle naming a cell of one.
     const config = siegeConfig(town, 4242);
+    delete config.cellSize;
     const catalog = defenseCatalogFor('usa');
     const absent = new Engine(config, catalog);
     const explicit = new Engine({ ...config, cellSize: 1 }, catalog);
@@ -215,7 +218,8 @@ describe('cell size (M34)', () => {
 
 describe('the board sizes a thing the way the battle will (M34)', () => {
   it('draws a 2x2 building as one cell on a board of cell size 2, and as it is written at 1', () => {
-    expect(footprintOfKind('supplyDepot')).toBe(2);
+    // The map's own cell is two units, so that is the default.
+    expect(footprintOfKind('supplyDepot')).toBe(1);
     expect(footprintOfKind('supplyDepot', 1)).toBe(2);
     expect(footprintOfKind('supplyDepot', 2)).toBe(1);
     // A one-cell gun cannot shrink, on any board.

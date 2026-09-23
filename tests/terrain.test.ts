@@ -10,6 +10,7 @@ import {
 } from '../src/content/bases';
 import { baseOccupied, RAID_CATALOG } from '../src/content/catalog';
 import { raidConfig } from '../src/meta/warfare';
+import { footprintCells, TOWN_GRID } from '../src/meta/town';
 import { encodeReplay, decodeReplay } from '../src/meta/replaycode';
 import { encodeBase, decodeBase } from '../src/meta/sharecode';
 import type { Catalog, SimConfig } from '../src/sim/types';
@@ -494,22 +495,29 @@ describe('the seed the other suites lean on', () => {
     // break them for reasons unrelated to what they test. If a future
     // generator stops honouring the promise, this is the test that says so —
     // rather than a dozen confusing failures in the shop and the yard.
+    // On the board the suites actually build on — the TOWN's, generated the
+    // way `townTerrain` generates it. This read the 32x24 board until M34.
+    const TW = TOWN_GRID.width;
     const t = generateTerrain(
       CLEAR_YARD_SEED,
       TERRAIN_VERSION,
-      W,
-      H,
-      [11 * W + 27, 11 * W + 28, 12 * W + 27, 12 * W + 28],
-      SPAWN,
+      TW,
+      TOWN_GRID.height,
+      footprintCells('cc', TOWN_GRID.ccOrigin),
+      TOWN_GRID.spawnLane,
+      TOWN_GRID.spawnEdge,
+      TOWN_GRID.cellSize,
     );
     for (let y = CLEAR_YARD.y0; y <= CLEAR_YARD.y1; y++) {
       for (let x = CLEAR_YARD.x0; x <= CLEAR_YARD.x1; x++) {
-        expect(t.passable(y * W + x), `yard cell (${x}, ${y}) is under water`).toBe(true);
+        expect(t.passable(y * TW + x), `yard cell (${x}, ${y}) is under water`).toBe(true);
       }
     }
     // And it must still be a real map, or the suites leaning on it would be
     // quietly testing flat ground.
-    expect(cells((c) => !t.passable(c)).length).toBeGreaterThan(10);
+    let wet = 0;
+    for (let c = 0; c < TW * TOWN_GRID.height; c++) if (!t.passable(c)) wet++;
+    expect(wet).toBeGreaterThan(3);
   });
 });
 

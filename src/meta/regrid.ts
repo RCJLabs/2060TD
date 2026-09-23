@@ -328,16 +328,18 @@ function v1ToBoard(
  * in rather than read here so the caller decides whether the river is known
  * yet. The entry lane is refused regardless, since nothing may ever be built
  * on it. `wallCap` is the wall budget the town's command centre allows on the
- * current board; absent, no wall is refunded for want of room.
+ * current board; absent, no wall is refunded for want of room. `to` stops the
+ * chain early, which only the tests of a single move need.
  */
 export function regridTown(
   town: RegridTarget,
   from = 0,
   clear: (cell: CellIndex) => boolean = () => true,
   wallCap = Infinity,
+  to: number = TOWN_GRID.version,
 ): RegridReport {
   const report: RegridReport = { carried: 0, rehomed: 0, wallsDropped: {} };
-  if (from < 1) legacyToV1(town, report);
-  if (from < 2) v1ToBoard(town, clear, wallCap, report);
+  if (from < 1 && to >= 1) legacyToV1(town, report);
+  if (from < 2 && to >= 2) v1ToBoard(town, clear, wallCap, report);
   return report;
 }

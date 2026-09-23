@@ -28,6 +28,7 @@ import {
   runOfflineProbes,
   PROBE_INTERVAL_MS,
 } from '../src/meta/warfare';
+import { siegeOnBoard } from '../src/sim/board';
 import { Engine } from '../src/sim/engine';
 import type { SimConfig, StandingOrders } from '../src/sim/types';
 
@@ -37,29 +38,37 @@ const H = TOWN_GRID.height;
 /** Approach space, as the balance harness writes it: depth, then across. */
 const idx = (u: number, v: number) => u * W + v;
 
-/** The balance harness's MID reference base, the standing-orders test bed. */
+/**
+ * The balance harness's MID reference base, the standing-orders test bed —
+ * drawn for 10x15 as `--native` draws it: in at the centre past two nests,
+ * out near an edge past the autocannons.
+ */
 function midConfig(seed: number, orders?: StandingOrders, level = 5): SimConfig {
   const walls: { cell: number; kind: string }[] = [];
-  for (let v = 1; v <= 18; v++) {
-    if (v !== 9 && v !== 10) walls.push({ cell: idx(20, v), kind: 'wall' });
-    if (![3, 4, 15, 16].includes(v)) walls.push({ cell: idx(24, v), kind: 'wall' });
+  for (let v = 1; v <= 8; v++) {
+    if (v !== 4) walls.push({ cell: idx(8, v), kind: 'wall' });
+    if (v !== 1 && v !== 8) walls.push({ cell: idx(11, v), kind: 'wall' });
   }
   return {
     width: W,
     height: H,
+    cellSize: TOWN_GRID.cellSize,
     seed,
     ccOrigin: TOWN_GRID.ccOrigin,
     ccLevel: 2,
     spawnLane: TOWN_GRID.spawnLane,
     spawnEdge: TOWN_GRID.spawnEdge,
-    siege: { ...buildAssault(level, enemyRosterFor('usa')), startingSupplies: 0 },
+    siege: siegeOnBoard(
+      { ...buildAssault(level, enemyRosterFor('usa')), startingSupplies: 0 },
+      TOWN_GRID.cellSize,
+    ),
     layout: {
       walls,
       structures: [
-        { cell: idx(22, 8), kind: 'm2nest', level: 2 },
-        { cell: idx(22, 11), kind: 'm2nest', level: 2 },
-        { cell: idx(25, 6), kind: 'autocannon', level: 2 },
-        { cell: idx(25, 13), kind: 'autocannon', level: 2 },
+        { cell: idx(9, 3), kind: 'm2nest', level: 2 },
+        { cell: idx(9, 5), kind: 'm2nest', level: 2 },
+        { cell: idx(12, 2), kind: 'autocannon', level: 2 },
+        { cell: idx(12, 7), kind: 'autocannon', level: 2 },
       ],
     },
     powerCharges: { a10: 2, arty: 1 },
@@ -236,7 +245,8 @@ describe('standing orders in the meta', () => {
       ...config.layout!.walls.map((w) => w.cell),
       ...config.layout!.structures.map((st) => st.cell),
     ];
-    expect(cells.length).toBeGreaterThan(20);
+    // The post, thirteen walls and four guns: a base, not an empty board.
+    expect(cells.length).toBe(18);
     for (const cell of cells) {
       expect(cell).toBeGreaterThanOrEqual(0);
       expect(cell).toBeLessThan(W * H);
@@ -275,12 +285,14 @@ describe('the live-defence offer', () => {
     t.fuel = 50_000;
     upgrade(t, 1, T - 900_000);
     tick(t, T - 800_000);
-    place(t, 'm2nest', at(21, 7), T - 700_000);
-    place(t, 'm2nest', at(21, 11), T - 700_000);
-    place(t, 'autocannon', at(21, 9), T - 700_000);
-    place(t, 'mortar', at(24, 9), T - 700_000);
-    for (let v = 1; v <= 7; v++) placeWall(t, at(19, v));
-    for (let v = 12; v <= 18; v++) placeWall(t, at(19, v));
+    // A line with its gap over the post, three guns behind it and a mortar
+    // behind them — drawn for 10x15.
+    place(t, 'm2nest', at(10, 3), T - 700_000);
+    place(t, 'm2nest', at(10, 6), T - 700_000);
+    place(t, 'autocannon', at(10, 4), T - 700_000);
+    place(t, 'mortar', at(12, 3), T - 700_000);
+    for (let v = 1; v <= 3; v++) placeWall(t, at(9, v));
+    for (let v = 6; v <= 8; v++) placeWall(t, at(9, v));
     tick(t, T);
     t.assaultLevel = 4;
     t.lastSeen = T;

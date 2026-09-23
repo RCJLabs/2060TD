@@ -10,6 +10,7 @@ import {
 import { M1_CATALOG } from '../src/content/catalog';
 import { TOWN_META } from '../src/content/buildings';
 import { deserialize, serialize } from '../src/meta/save';
+import { onBoard } from '../src/sim/board';
 import {
   applyMissionResult,
   canPlace,
@@ -86,6 +87,11 @@ describe('campaign content', () => {
     // declared tunnel mouth. That reading is what makes this survive the
     // board turning upright in v1.40 — before, "has a col" meant "is a
     // tunnel", which is now what every ordinary arrival has.
+    //
+    // Positions are authored in physical units (M34) and reach the board by
+    // the one rule, so the bound that matters is where that rule puts them;
+    // the tunnel match is between two authored things, in the same units.
+    const cs = TOWN_GRID.cellSize;
     for (const mission of CAMPAIGN) {
       const tunnelSet = new Set((mission.tunnels ?? []).map((t) => `${t.col},${t.row}`));
       for (const wave of mission.waves) {
@@ -93,11 +99,11 @@ describe('campaign content', () => {
           expect(e.col ?? e.row, `${mission.id} entry names no position`).toBeDefined();
           if (e.col !== undefined) {
             expect(e.col).toBeGreaterThanOrEqual(0);
-            expect(e.col).toBeLessThan(TOWN_GRID.width);
+            expect(onBoard(e.col, cs), `${mission.id} col ${e.col}`).toBeLessThan(TOWN_GRID.width);
           }
           if (e.row !== undefined) {
             expect(e.row).toBeGreaterThanOrEqual(0);
-            expect(e.row).toBeLessThan(TOWN_GRID.height);
+            expect(onBoard(e.row, cs), `${mission.id} row ${e.row}`).toBeLessThan(TOWN_GRID.height);
           }
           expect(M1_CATALOG.attackers[e.kind], `unknown attacker ${e.kind}`).toBeDefined();
           if (e.col !== undefined && e.row !== undefined) {
@@ -180,7 +186,14 @@ describe('campaign progression', () => {
     expect(config.buildLimits!.structures!['autocannon']).toBe(0); // locked
     expect(config.buildLimits!.structures!['depmg']).toBe(0); // locked
     expect(config.buildLimits!.structures!['m2nest']).toBeGreaterThan(0); // baseline
-    expect(config.reservedCells).toEqual([idx(6, 18), idx(13, 18)]);
+    // Declared at (6,18) and (13,18) in physical units; on a board of 2-unit
+    // cells those mouths are (3,9) and (6,9).
+    expect(infiltration.tunnels).toEqual([
+      { col: 6, row: 18 },
+      { col: 13, row: 18 },
+    ]);
+    expect(TOWN_GRID.cellSize).toBe(2);
+    expect(config.reservedCells).toEqual([idx(3, 9), idx(6, 9)]);
     expect(config.siege!.name).toContain('INFILTRATION');
   });
 

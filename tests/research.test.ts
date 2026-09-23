@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateBase } from '../src/content/bases';
+import { generateBase, MAP_W } from '../src/content/bases';
 import {
   baseKitFor,
   defenseCatalogFor,
@@ -152,7 +152,7 @@ describe('raid fire support', () => {
       tier: 1,
       variant: 0,
       name: 'TEST POST',
-      ccOrigin: 10 * 32 + 15,
+      ccOrigin: 7 * MAP_W + 4,
       ccLevel: 1,
       walls: [],
       structures: [],
@@ -180,7 +180,7 @@ describe('research program', () => {
     town.supplies = 9000;
     town.fuel = 2000;
     town.structures.find((s) => s.kind === 'cc')!.level = 2; // radar gate: CC2
-    place(town, 'radar', idx(20, 5), T0);
+    place(town, 'radar', idx(2, 5), T0);
     tick(town, T0 + 60_000); // built (35s)
     return town;
   }
@@ -211,7 +211,7 @@ describe('research program', () => {
 
   it('radar generates and caps intel; effects reshape the economy', () => {
     const town = radarTown();
-    place(town, 'supplyDepot', idx(20, 15), T0 + 60_000);
+    place(town, 'supplyDepot', idx(5, 5), T0 + 60_000);
     tick(town, T0 + 120_000); // depot built
     expect(ratesPerMinute(town).intel).toBe(4);
     expect(ratesPerMinute(town).supplies).toBe(40);
@@ -228,7 +228,7 @@ describe('research program', () => {
     expect(scoutPrice(town, 1)).toBe(Math.ceil(45 * 0.6));
 
     // Faster training: the queue head lands at 75% of book time.
-    place(town, 'barracks', idx(20, 10), T0 + 700_000);
+    place(town, 'barracks', idx(6, 9), T0 + 700_000);
     tick(town, T0 + 800_000);
     const barracks = town.structures.find((s) => s.kind === 'barracks')!;
     town.supplies = 5000;

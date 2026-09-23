@@ -12,20 +12,29 @@ import { newTown, place, tick, unlockAll, TOWN_GRID, type TownState } from '../s
 import { raidConfig, resolveRaid, type SquadPlan } from '../src/meta/warfare';
 
 const T0 = 1_700_000_000_000;
-const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
+/** Approach space: `u` is depth from the entry line, `v` runs across it. */
+const at = (u: number, v: number) => u * TOWN_GRID.width + v;
 
-/** A town with a real layout: two lines of wire and a handful of guns. */
+/**
+ * A town with a real layout: two lines of wire and a handful of guns.
+ *
+ * Written in approach space for the 10x15 board (M34). It used to be written
+ * in the 32x24 board's x and y, and on the 20x30 board half of its cells had
+ * wrapped onto the next row without anything noticing — a round trip only
+ * asks whether what went in comes out, and a wrapped cell comes out wrapped.
+ * On 10x15 they wrapped off the end of the board, and the decoder refused it.
+ */
 function fortified(faction: 'usa' | 'china' = 'usa'): TownState {
   const town = unlockAll(newTown(T0, faction));
   town.supplies = 99_999;
   town.fuel = 99_999;
-  place(town, 'm2nest', idx(22, 10), T0);
-  place(town, 'm2nest', idx(22, 13), T0);
-  place(town, 'autocannon', idx(25, 8), T0);
-  place(town, 'aa', idx(25, 15), T0);
-  place(town, 'barracks', idx(20, 5), T0);
-  for (let y = 2; y < 22; y++) town.walls.push({ cell: idx(20, y), kind: 'wall' });
-  for (let x = 21; x < 28; x++) town.walls.push({ cell: idx(x, 2), kind: 'wall' });
+  place(town, 'm2nest', at(10, 3), T0);
+  place(town, 'm2nest', at(10, 6), T0);
+  place(town, 'autocannon', at(12, 2), T0);
+  place(town, 'aa', at(12, 7), T0);
+  place(town, 'barracks', at(11, 5), T0);
+  for (let v = 1; v <= 8; v++) if (v !== 4) town.walls.push({ cell: at(9, v), kind: 'wall' });
+  for (let u = 10; u <= 13; u++) town.walls.push({ cell: at(u, 0), kind: 'wall' });
   tick(town, T0 + 600_000);
   return town;
 }
@@ -55,9 +64,11 @@ describe('share codes', () => {
   });
 
   it('stays short enough to paste into a chat window', () => {
+    // A full CC3 wall budget and more: every row from 2 to 7 walled across.
     const town = fortified();
-    for (let y = 2; y < 22; y++) town.walls.push({ cell: idx(24, y), kind: 'wall' });
-    for (let y = 2; y < 22; y++) town.walls.push({ cell: idx(28, y), kind: 'wall' });
+    for (let u = 2; u <= 7; u++) {
+      for (let v = 0; v < TOWN_GRID.width; v++) town.walls.push({ cell: at(u, v), kind: 'wall' });
+    }
     const code = encodeBase(town, 'THE LONG NIGHT');
     expect(town.walls.length).toBeGreaterThan(60);
     expect(code.length, `code was ${code.length} chars`).toBeLessThan(400);
