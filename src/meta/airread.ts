@@ -51,7 +51,8 @@
  * one does not. A term that cannot vary cannot predict.
  */
 import type { Catalog, CellIndex, LayoutStructure } from '../sim/types';
-import { MAP_W } from '../content/bases';
+import { MAP_CELL_SIZE, MAP_W } from '../content/bases';
+import { scaleFootprint } from '../sim/scale';
 import { sectorCells, type SectorId } from './warfare';
 
 /** What the target list says. Three words is the whole budget it has. */
@@ -143,26 +144,35 @@ export function airTransit(
   cat: Catalog,
   sectors: readonly SectorId[] = AIR_READ_SECTORS,
   speed = 2.6,
+  cellSize: number = MAP_CELL_SIZE,
 ): number {
   if (sectors.length === 0 || speed <= 0) return 0;
-  // The command post is footprint 2, so its centre is the far corner of its
-  // origin cell rather than that cell's middle.
-  const ccX = (target.ccOrigin % MAP_W) + 1;
-  const ccY = Math.floor(target.ccOrigin / MAP_W) + 1;
+  // Measured in PHYSICAL units (M34). The catalog's ranges and speeds are
+  // written in them, so the board's cells are scaled up to meet the catalog
+  // rather than the catalog down to meet the board — and the answer is a
+  // time, which does not care which unit a distance and a speed agreed on.
+  const u = cellSize;
+  // The command post's centre: the far corner of its origin cell while it is
+  // two cells wide, that cell's middle once a board's cells are big enough to
+  // make it one.
+  const ccHalf = scaleFootprint(2, cellSize) / 2;
+  const ccX = ((target.ccOrigin % MAP_W) + ccHalf) * u;
+  const ccY = (Math.floor(target.ccOrigin / MAP_W) + ccHalf) * u;
   let total = 0;
   for (const st of target.structures) {
     if (st.inert) continue;
     const w = weaponOf(cat, st.kind, st.level ?? 1);
     if (!w) continue;
     const dps = w.damage * w.shotsPerSecond;
-    const foot = cat.structures[st.kind]?.footprint ?? 1;
-    const sx = (st.cell % MAP_W) + (foot === 2 ? 1 : 0.5);
-    const sy = Math.floor(st.cell / MAP_W) + (foot === 2 ? 1 : 0.5);
+    const half = scaleFootprint(cat.structures[st.kind]?.footprint === 2 ? 2 : 1, cellSize) / 2;
+    const sx = ((st.cell % MAP_W) + half) * u;
+    const sy = (Math.floor(st.cell / MAP_W) + half) * u;
     for (const sector of sectors) {
       const cells = sectorCells(sector);
       const from = cells[Math.floor(cells.length / 2)]!;
       total +=
-        (dps * chordInside(from.col + 0.5, from.row + 0.5, ccX, ccY, sx, sy, w.range)) / speed;
+        (dps * chordInside((from.col + 0.5) * u, (from.row + 0.5) * u, ccX, ccY, sx, sy, w.range)) /
+        speed;
     }
   }
   return total / sectors.length;

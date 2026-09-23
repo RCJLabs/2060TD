@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { DT, Engine, TICKS_PER_SECOND } from '../src/sim/engine';
-import { generateBase } from '../src/content/bases';
-import { RAID_CATALOG } from '../src/content/catalog';
+import {
+  BASE_SPAWN_EDGE,
+  BASE_SPAWN_LANE,
+  generateBase,
+  MAP_CELL_SIZE,
+  MAP_H,
+  MAP_W,
+} from '../src/content/bases';
+import { baseOccupied, RAID_CATALOG } from '../src/content/catalog';
 import { raidConfig } from '../src/meta/warfare';
 import { encodeReplay, decodeReplay } from '../src/meta/replaycode';
 import { encodeBase, decodeBase } from '../src/meta/sharecode';
@@ -19,6 +26,7 @@ import {
   Ground,
   MIN_MOVE_COST,
   TERRAIN_NONE,
+  TERRAIN_SIZED,
   TERRAIN_VERSION,
   WOOD_COVER,
   generateTerrain,
@@ -578,5 +586,79 @@ describe('codes carry the ground, without refusing the old ones', () => {
       return back.ok ? back.base.terrainSeed : -1;
     };
     expect(seedOf(a)).not.toBe(seedOf(b));
+  });
+});
+
+describe('the raid planner draws the ground the raid is fought on', () => {
+  it('matches the engine cell for cell on every base it previews', () => {
+    // The planner used to generate the target's ground with no buildings on
+    // it and from the wrong edge: every one of these bases came out different,
+    // by about 53 cells of 600, mostly woods under walls and guns.
+    for (let tier = 1; tier <= 5; tier++) {
+      for (let variant = 0; variant < 6; variant++) {
+        const base = generateBase(tier, variant);
+        const battle = new Engine(raidConfig(base, [], 1234), RAID_CATALOG).terrain;
+        const preview = generateTerrain(
+          base.terrainSeed,
+          TERRAIN_VERSION,
+          MAP_W,
+          MAP_H,
+          baseOccupied(base),
+          BASE_SPAWN_LANE,
+          BASE_SPAWN_EDGE,
+          MAP_CELL_SIZE,
+        );
+        for (let cell = 0; cell < MAP_W * MAP_H; cell++) {
+          expect(preview.groundAt(cell), `tier ${tier}-${variant}, cell ${cell}`).toBe(
+            battle.groundAt(cell),
+          );
+        }
+      }
+    }
+  });
+});
+
+describe('terrain version 2: the same ground on a board of bigger cells (M34)', () => {
+  /** Share of each ground kind over many seeds, of the land only. */
+  const shares = (version: number, w: number, h: number, cellSize: number) => {
+    const counts = [0, 0, 0, 0, 0, 0];
+    for (let s = 1; s <= 120; s++) {
+      const t = generateTerrain(s * 7919, version, w, h, [], 0, 'north', cellSize);
+      for (let c = 0; c < w * h; c++) counts[t.groundAt(c)]!++;
+    }
+    const land = counts[Ground.Open]! + counts[Ground.Rough]! + counts[Ground.Steep]! + counts[Ground.Wood]!;
+    return { steep: counts[Ground.Steep]! / land, rough: counts[Ground.Rough]! / land };
+  };
+
+  it('is version 1 exactly, at a cell of one', () => {
+    for (let s = 1; s <= 20; s++) {
+      const a = generateTerrain(s * 131, 1, 20, 30, [549], 0, 'north');
+      const b = generateTerrain(s * 131, TERRAIN_SIZED, 20, 30, [549], 0, 'north', 1);
+      for (let c = 0; c < 600; c++) expect(b.groundAt(c)).toBe(a.groundAt(c));
+    }
+  });
+
+  it('does not steepen a smaller board the way version 1 does', () => {
+    // Version 1's tilt is written per BOARD, so on half the cells every step
+    // doubles: 15.6% of a 10x15 board came out steep against 6.1% of 20x30.
+    const today = shares(1, 20, 30, 1);
+    const squeezed = shares(1, 10, 15, 2);
+    const sized = shares(TERRAIN_SIZED, 10, 15, 2);
+    expect(squeezed.steep).toBeGreaterThan(today.steep * 2);
+    expect(sized.steep).toBeLessThan(today.steep * 1.2);
+    expect(Math.abs(sized.rough - today.rough)).toBeLessThan(0.03);
+  });
+
+  it('never ignores the cell size it is handed, and version 1 always does', () => {
+    const v1a = generateTerrain(77, 1, 10, 15, [], 0, 'north', 1);
+    const v1b = generateTerrain(77, 1, 10, 15, [], 0, 'north', 2);
+    for (let c = 0; c < 150; c++) expect(v1b.groundAt(c)).toBe(v1a.groundAt(c));
+    let differs = 0;
+    for (let s = 1; s <= 10; s++) {
+      const a = generateTerrain(s, TERRAIN_SIZED, 10, 15, [], 0, 'north', 1);
+      const b = generateTerrain(s, TERRAIN_SIZED, 10, 15, [], 0, 'north', 2);
+      for (let c = 0; c < 150; c++) if (a.groundAt(c) !== b.groundAt(c)) differs++;
+    }
+    expect(differs).toBeGreaterThan(0);
   });
 });

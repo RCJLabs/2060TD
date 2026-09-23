@@ -19,6 +19,16 @@ import type { CellIndex, LayoutStructure, LayoutWall, SpawnEdge } from '../sim/t
  */
 export const MAP_W = 20;
 export const MAP_H = 30;
+/**
+ * How many physical units one cell of the board spans (M34).
+ *
+ * The catalog is written in physical units — a range of 7 is seven of today's
+ * cells — and a battle's `cellSize` says how many of those a cell of ITS board
+ * is. This is the board the game is played on now, so it is what every helper
+ * that sizes a thing on the map defaults to: a footprint, a range ring, the
+ * air read. A replay of a battle on another board carries its own.
+ */
+export const MAP_CELL_SIZE = 1;
 export const TARGETS_PER_TIER = 3;
 
 /**
@@ -900,6 +910,7 @@ export function generateBase(
     ccBox,
     BASE_SPAWN_LANE,
     BASE_SPAWN_EDGE,
+    MAP_CELL_SIZE,
   );
   const water: CellIndex[] = [];
   for (let cell = 0; cell < MAP_W * MAP_H; cell++) {

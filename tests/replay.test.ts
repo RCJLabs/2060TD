@@ -6,6 +6,7 @@ import { defenseCatalogFor } from '../src/content/factions';
 import { Engine } from '../src/sim/engine';
 import type { Catalog, SimConfig } from '../src/sim/types';
 import { deserialize, serialize } from '../src/meta/save';
+import { coarsenConfig } from '../src/sim/board';
 import {
   place,
   placeWall,
@@ -121,6 +122,43 @@ describe('a replay code is the battle', () => {
     );
     expect(back.replay.faction).toBe('nk');
     expect(back.replay.won).toBe(false);
+  });
+
+  it('carries the size of a cell, and re-fights a coarse battle on its own board (M34)', () => {
+    // A probe on the 10x15 board: the one rule maps today's probe onto it, with
+    // the ground taken off because a coarser board needs its own terrain.
+    const fine = { ...probeFixture(), terrainSeed: undefined, terrainVersion: undefined };
+    const catalog = defenseCatalogFor('usa');
+    const config = coarsenConfig(fine, catalog, 2).config;
+    expect(config.cellSize).toBe(2);
+    const code = encodeReplay({ kind: 'probe', faction: 'usa', title: 'P', won: false, config });
+    const back = decodeReplay(code);
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.cellSize).toBe(2);
+    expect(outcome(back.replay.config, catalog)).toBe(outcome(config, catalog));
+    // And the block is what makes it that battle: the same code with the cell
+    // size dropped is a battle fought at the wrong scale.
+    const unscaled = { ...config };
+    delete unscaled.cellSize;
+    expect(outcome(unscaled, catalog)).not.toBe(outcome(config, catalog));
+  });
+
+  it('writes no cell-size block for a battle at a cell of one', () => {
+    const config = raidFixture();
+    const code = encodeReplay({ kind: 'raid', faction: 'usa', title: 'X', won: true, config });
+    const withOne = encodeReplay({
+      kind: 'raid',
+      faction: 'usa',
+      title: 'X',
+      won: true,
+      config: { ...config, cellSize: 1 },
+    });
+    // Byte-identical, so every code written before M34 is still what the
+    // writer produces for the battle it records.
+    expect(withOne).toBe(code);
+    const back = decodeReplay(code);
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.cellSize).toBeUndefined();
   });
 
   it('keeps the title as written, curly quotes and em dashes included', () => {

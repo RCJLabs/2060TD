@@ -295,6 +295,10 @@ export class BattleRenderer {
       const py = s.center.y * c;
       const aim = this.barrelDirs.get(s.id);
       drawStructureGlyph(g, s.profile.kind, px, py, c, {
+        // The battle's own footprint, which is the one it was fought at: a
+        // replay from a board of another cell size draws its buildings at
+        // the size they had, not at the size today's board would give them.
+        footprint: s.profile.footprint === 2 ? 2 : 1,
         level: s.level,
         inert: s.inert,
         hostile: this.hostileStructures,

@@ -1,9 +1,9 @@
 import { FACTION_IDS, type FactionId } from '../content/factions';
 import { garrisonById, isGarrisonId } from '../content/garrison';
 import { standingOrdersFor, isStandingOrdersId } from '../content/standingOrders';
-import { TERRAIN_VERSION } from '../sim/terrain';
+import { TERRAIN_SIZED } from '../sim/terrain';
 import { COMBAT_CURRENT, COMBAT_NONE } from '../sim/combat';
-import { CHAIN_CURRENT, CHAIN_NONE } from '../sim/killchain';
+import { CHAIN_MODELS, CHAIN_NONE } from '../sim/killchain';
 import { OBJECTIVE_IDS, isObjectiveId } from './objectives';
 import type {
   AutoPowerRule,
@@ -49,6 +49,16 @@ import {
 
 /** Bumped only when the byte layout changes; old codes are then refused. */
 const FORMAT = 1;
+
+/** The coarsest board a code may name: a cell of eight physical units. */
+const MAX_CELL_SIZE = 8;
+
+/**
+ * The newest chain a code may name. Not `CHAIN_CURRENT`: a code names the
+ * chain its battle was fought on, and a candidate that has been measured but
+ * not shipped is still a chain a battle can be fought on.
+ */
+const CHAIN_LATEST = Math.max(...Object.keys(CHAIN_MODELS).map(Number));
 
 export type ReplayKind = 'raid' | 'duel' | 'probe';
 const REPLAY_KINDS: ReplayKind[] = ['raid', 'duel', 'probe'];
@@ -306,7 +316,14 @@ export function encodeReplay(replay: Replay): string {
   // this release means, so it is the "no block" value and a battle fought on
   // it costs nothing to record.
   const chainVersion = c.killChainVersion ?? CHAIN_NONE;
-  const needEdge = edgeIndex > 0 || chainVersion > CHAIN_NONE;
+  // The size of a cell (M34). 1 is every code before this release, so it is
+  // the "no block" value; the engine reads an absent field the same way.
+  const cellSize = c.cellSize ?? 1;
+  if (!Number.isInteger(cellSize) || cellSize < 1 || cellSize > MAX_CELL_SIZE) {
+    throw new Error(`replay codes carry a whole cell size from 1 to ${MAX_CELL_SIZE}, not ${cellSize}`);
+  }
+  const needChain = chainVersion > CHAIN_NONE || cellSize > 1;
+  const needEdge = edgeIndex > 0 || needChain;
   const needObjective = objectiveIndex > 0 || needEdge;
   const needCombat = combatVersion > COMBAT_NONE || needObjective;
   const garrisonId = c.garrison?.id ?? '';
@@ -347,10 +364,15 @@ export function encodeReplay(replay: Replay): string {
   // The entry edge (v1.40), optional like every block above it.
   if (needEdge) writeVarint(body, edgeIndex);
 
-  // The kill chain (v1.41), last. A replay is a RECORD of a battle, so it has
-  // to name what taking the post took at the time: a raid recorded against
-  // the sponge re-fights the sponge forever, even once a staged model ships.
-  if (chainVersion > CHAIN_NONE) writeVarint(body, chainVersion);
+  // The kill chain (v1.41). A replay is a RECORD of a battle, so it has to
+  // name what taking the post took at the time: a raid recorded against the
+  // sponge re-fights the sponge forever, even once a staged model ships.
+  if (needChain) writeVarint(body, chainVersion);
+
+  // The cell size (M34), last. A battle on the 10x15 board is fought in
+  // physical units two to a cell, and without this a code would re-fight it
+  // at today's scale: every range, speed and radius doubled against its board.
+  if (cellSize > 1) writeVarint(body, cellSize);
 
   // Header, dictionary, then the body — the reader needs the names first.
   const head: number[] = [FORMAT, REPLAY_KINDS.indexOf(replay.kind)];
@@ -635,7 +657,7 @@ export function decodeReplay(raw: string): ReplayDecode {
     const version = readVarint(cur);
     const terrainSeed = readVarint(cur);
     if (version === null || terrainSeed === null) return bad('truncated');
-    if (version > TERRAIN_VERSION) return bad('version');
+    if (version > TERRAIN_SIZED) return bad('version');
     if (version > 0) {
       config.terrainVersion = version;
       config.terrainSeed = terrainSeed;
@@ -699,8 +721,17 @@ export function decodeReplay(raw: string): ReplayDecode {
   if (cur.at < body.length) {
     const version = readVarint(cur);
     if (version === null) return bad('truncated');
-    if (version > CHAIN_CURRENT) return bad('version');
+    if (version > CHAIN_LATEST) return bad('version');
     if (version > CHAIN_NONE) config.killChainVersion = version;
+  }
+
+  // The cell size, if this code was written after M34. Older codes end here
+  // and re-fight at a cell of one, which is the board they recorded.
+  if (cur.at < body.length) {
+    const size = readVarint(cur);
+    if (size === null) return bad('truncated');
+    if (size < 1 || size > MAX_CELL_SIZE) return bad('content');
+    if (size > 1) config.cellSize = size;
   }
 
   return {

@@ -203,6 +203,7 @@ export function buildStructureSpec(
   const box = layout.px(72);
   ov.sketch(box, (g, x, y, size) => {
     drawStructureGlyph(g, kind, x + size / 2, y + size / 2, size / (span * 0.9), {
+      footprint: span,
       onDark: true,
     });
   });

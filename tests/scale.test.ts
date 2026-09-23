@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { M1_CATALOG, RAID_CATALOG } from '../src/content/catalog';
+import { footprintOfKind, M1_CATALOG, RAID_CATALOG } from '../src/content/catalog';
 import { defenseCatalogFor, FACTION_IDS } from '../src/content/factions';
 import {
   place,
@@ -210,6 +210,21 @@ describe('cell size (M34)', () => {
     expect(absent.stats.spawned).toBeGreaterThan(20);
     expect(absent.stats.kills).toBeGreaterThan(10);
     expect(absent.tick).toBeGreaterThan(3000);
+  });
+});
+
+describe('the board sizes a thing the way the battle will (M34)', () => {
+  it('draws a 2x2 building as one cell on a board of cell size 2, and as it is written at 1', () => {
+    expect(footprintOfKind('supplyDepot')).toBe(2);
+    expect(footprintOfKind('supplyDepot', 1)).toBe(2);
+    expect(footprintOfKind('supplyDepot', 2)).toBe(1);
+    // A one-cell gun cannot shrink, on any board.
+    expect(footprintOfKind('m2nest', 2)).toBe(1);
+    // And the board's answer IS the engine's: the scaled catalog says the same.
+    const scaled = scaleCatalog(M1_CATALOG, 2);
+    for (const [kind, profile] of Object.entries(scaled.structures)) {
+      expect(footprintOfKind(kind, 2), kind).toBe(profile.footprint);
+    }
   });
 });
 
