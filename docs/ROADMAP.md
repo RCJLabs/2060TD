@@ -3582,15 +3582,36 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
 
 - [x] **Phase 1 — an instrument.** `npm run fit` now marks the touch floor beside the
       readability one. The table above is its output.
-- [ ] **Phase 2 — `cellSize` in the engine, inert at 1.** Scales ranges, splash,
-      trigger, heal and aura radii, speeds, `coverRadius`, strike geometry,
-      `AIR_STANDOFF`, and footprints (2 → 1). At 1 every determinism checkpoint must
-      hash identically to v1.43, with a liveness assertion beside each, because a hash
-      that agrees because nothing happened is not a passing test.
-- [ ] **Phase 3 — content stops assuming a width.** Spawn positions become fractions of
-      the line (they are hard-coded 3-17 on a 20-wide one today). Terrain gets a new
-      version with its features sized to the board; version 1 stays frozen for the
-      battles that were fought on it. Wall budgets 50/80/120 → 25/40/60.
+- [x] **Phase 2 — `cellSize` in the engine, inert at 1.** `sim/scale.ts` divides
+      ranges, splash, trigger, heal and aura radii, speeds, `coverRadius`, strike
+      geometry and `AIR_STANDOFF`, and a 2x2 becomes one cell. At 1 it returns the
+      catalog it was handed — the same object, so a pre-M34 battle re-fights on its
+      own numbers by construction rather than by arithmetic.
+
+      Three things the tests turned up. Upgrade levels merge SHALLOWLY onto a base
+      profile, so a level's weapon replaces the base weapon outright; an unscaled
+      override would have put every levelled gun back at its big-board reach. The
+      terrain generator's avoidance set took the Command Center as a literal 2x2.
+      And the determinism test's liveness check failed on its first run, correctly:
+      the bare yard's post fell by tick 1500, so half its checkpoints were comparing
+      two dead battles. It runs on a garrisoned town now.
+
+      A classification walk over every shipped catalog fails on any numeric field
+      declared neither a distance nor not one — a radius added next year cannot slip
+      past the scaler. And the claim the milestone rests on is pinned directly: at
+      cell size 2 a unit covers the same ground in the same time.
+- [ ] **Phase 3 — content stops assuming a width, through one rule.** Spawn positions,
+      base plans and saved towns all have to move from a 20-wide board to a 10-wide
+      one, and they can share a single mapping. The centre-preserving map for a
+      column, `round((c + 0.5) / 2 - 0.5)`, is exactly `floor(c / 2)` for every
+      integer — checked, not assumed — so content stays authored in today's
+      coordinates as PHYSICAL positions, the way the catalog stays in physical units,
+      and a board of cell size 2 maps position `p` to cell `floor(p / 2)`. Symmetric
+      spawn pairs stay symmetric (3/17 → 1/8, 7/13 → 3/6 about a centre of 4.5).
+      What the rule cannot do is put two things in one cell: two guns in one 2x2 block
+      collide, and every place that maps a plan has to say what happens then. Terrain
+      gets a new version sized to the board; version 1 stays frozen for the battles
+      fought on it. Wall budgets 50/80/120 → 25/40/60.
 - [ ] **Phase 4 — the similarity check, and the go/no-go.** The balance harness runs
       identical matchups at `cellSize` 1 on 20x30 and 2 on 10x15, plans downsampled,
       and reports the drift in every table. Inside the noise floor, the transform is
