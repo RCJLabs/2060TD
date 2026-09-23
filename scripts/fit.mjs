@@ -49,6 +49,13 @@ const DEVICES = [
 
 /** A cell smaller than this cannot carry a silhouette that reads. */
 const READABLE = 18;
+/**
+ * A cell smaller than this cannot be hit with a thumb without zooming first
+ * (M34). The game's own row height, and Apple's floor. M33 cleared READABLE
+ * on every phone; M34's bar is this one, which is a different question — a
+ * silhouette you can read is not a cell you can tap.
+ */
+const TOUCH = 44;
 
 const PORT = 5296;
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
@@ -126,7 +133,7 @@ try {
   // nothing about it.
   const CANDIDATES = (grids.length > 0 ? grids : [shipped ?? '32x24']).map(asGrid);
 
-  const mark = (c) => (c >= READABLE ? ' ' : '!');
+  const mark = (c) => (c < READABLE ? '!' : c < TOUCH ? '~' : ' ');
 
   for (const grid of CANDIDATES) {
     const cells = grid.w * grid.h;
@@ -151,7 +158,8 @@ try {
       );
     }
   }
-  console.log(`\n  ! = under the ${READABLE}px a silhouette needs.\n`);
+  console.log(`\n  ! = under the ${READABLE}px a silhouette needs.`);
+  console.log(`  ~ = readable, but under the ${TOUCH}px a thumb needs without zooming.\n`);
 } finally {
   try {
     process.kill(-vite.pid, 'SIGTERM');
