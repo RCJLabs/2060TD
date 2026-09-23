@@ -367,6 +367,7 @@ export class Engine {
             occupiedCellsOf(config, this.catalog),
             config.spawnLane,
             config.spawnEdge ?? 'west',
+            cellSize,
           );
     this.phase = config.siege ? 'setup' : 'sandbox';
     this.supplies = config.siege?.startingSupplies ?? 0;

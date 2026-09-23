@@ -423,6 +423,7 @@ export function townTerrain(town: TownState): TerrainField {
       TOWN_KEEP_DRY,
       TOWN_GRID.spawnLane,
       TOWN_GRID.spawnEdge,
+      TOWN_GRID.cellSize,
     );
     TERRAIN_CACHE.set(seed, field);
   }
@@ -452,6 +453,7 @@ export function fitTerrainSeed(town: TownState, startedAt: number): number {
       TOWN_KEEP_DRY,
       TOWN_GRID.spawnLane,
       TOWN_GRID.spawnEdge,
+      TOWN_GRID.cellSize,
     );
     if (occupied.every((cell) => field.passable(cell))) {
       TERRAIN_CACHE.set(seed, field);

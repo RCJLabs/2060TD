@@ -31,6 +31,12 @@ import { createRng, type Rng } from './rng';
  */
 export const TERRAIN_VERSION = 1;
 
+/**
+ * Version 2 (M34): version 1 sized to a board of bigger cells. A CANDIDATE
+ * until the boards move, which is when it becomes `TERRAIN_VERSION`.
+ */
+export const TERRAIN_SIZED = 2;
+
 /** Version 0 means "this config predates terrain": flat ground, no effects. */
 export const TERRAIN_NONE = 0;
 
@@ -245,8 +251,20 @@ export function generateTerrain(
   occupied: Iterable<CellIndex> = [],
   spawnLane = 0,
   spawnEdge: SpawnEdge = 'west',
+  cellSize = 1,
 ): TerrainField {
   if (version === TERRAIN_NONE) return FLAT_TERRAIN;
+  // Version 2 (M34) is version 1 on a board of bigger cells, with ONE term
+  // corrected: the board-wide tilt. Everything else in this generator is
+  // written per cell — the noise, the woods, a road or a river one cell wide —
+  // so on a board with half as many cells it lays the same ground at the same
+  // rate. The tilt is written per BOARD, so squeezed into half the cells it
+  // made every step twice as steep: 15.6% of a 10x15 board came out steep
+  // against 6.1% of a 20x30 one, and steep ground is 1.6x the walk. Dividing
+  // it by the cell size puts the same climb in each cell as version 1 does.
+  // Version 1 ignores the cell size, because its battles were fought without
+  // one.
+  const tiltScale = version >= 2 ? 1 / Math.max(1, cellSize) : 1;
 
   const size = width * height;
   const rng = createRng(seed >>> 0);
@@ -283,9 +301,9 @@ export function generateTerrain(
       freq *= 2.3;
     }
     n /= total;
-    const tilt = (x / width) * 0.3 + ((height - y) / height) * 0.34;
+    const tilt = ((x / width) * 0.3 + ((height - y) / height) * 0.34) * tiltScale;
     const d2 = distSq(riverPts, x, y);
-    return (n * 0.74 + tilt) * 190 + 20 - 46 * Math.exp(-d2 / 20);
+    return (n * 0.74 + tilt) * 190 + 20 - 46 * tiltScale * Math.exp(-d2 / 20);
   };
 
   // --- the ground array --------------------------------------------------

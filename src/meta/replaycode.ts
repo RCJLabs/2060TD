@@ -1,7 +1,7 @@
 import { FACTION_IDS, type FactionId } from '../content/factions';
 import { garrisonById, isGarrisonId } from '../content/garrison';
 import { standingOrdersFor, isStandingOrdersId } from '../content/standingOrders';
-import { TERRAIN_VERSION } from '../sim/terrain';
+import { TERRAIN_SIZED } from '../sim/terrain';
 import { COMBAT_CURRENT, COMBAT_NONE } from '../sim/combat';
 import { CHAIN_MODELS, CHAIN_NONE } from '../sim/killchain';
 import { OBJECTIVE_IDS, isObjectiveId } from './objectives';
@@ -657,7 +657,7 @@ export function decodeReplay(raw: string): ReplayDecode {
     const version = readVarint(cur);
     const terrainSeed = readVarint(cur);
     if (version === null || terrainSeed === null) return bad('truncated');
-    if (version > TERRAIN_VERSION) return bad('version');
+    if (version > TERRAIN_SIZED) return bad('version');
     if (version > 0) {
       config.terrainVersion = version;
       config.terrainSeed = terrainSeed;
