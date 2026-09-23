@@ -3,7 +3,7 @@ import { isBoardWorld } from './BoardView';
 import { audio } from './audio';
 import { haptic } from './haptics';
 import { music } from './music';
-import { DRAWER_FULL, snapDrawer, type Layout, type Rect } from './layout';
+import { DRAWER_FULL, snapDrawer, type DrawerState, type Layout, type Rect } from './layout';
 import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
 
@@ -1051,29 +1051,39 @@ export class Panel {
       }
       const room = this.dragRoom();
       const at = room > 0 ? this.handleFrom - (p.y - p.downY) / room : this.handleFrom;
-      this.onDrawerShare?.(snapDrawer(Math.min(DRAWER_FULL, Math.max(0, at))));
+      this.onDrawerShare?.(snapDrawer(Math.min(DRAWER_FULL, Math.max(0, at)), this.layout?.rest ?? 0));
       haptic('tap');
     };
     input.on(Phaser.Input.Events.POINTER_UP, release);
     input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, release);
   }
 
-  /** Height the drawer can travel through, in device px. */
+  /**
+   * What one share of drawer is in device px: the SAFE height, because that is
+   * what `computeLayout` multiplies a share by.
+   *
+   * It was the height the drawer can travel through until M34, which is about
+   * 15% less, and a finger's pixels were divided by one and multiplied back by
+   * the other. So the handle ran ahead of the finger that was dragging it by a
+   * sixth of every move, and jumped up to 66px on the first pixel of a drag,
+   * because the share it started from was read in one unit and replayed in the
+   * other. `e2e-drawer` now holds a drag to within a pixel of the finger.
+   */
   private dragRoom(): number {
     const l = this.layout;
     if (!l || l.mode !== 'portrait') return 0;
-    return Math.max(1, l.height - l.safe.top - l.safe.bottom - l.status.h - l.tabs.h - l.handle.h);
+    return Math.max(1, l.height - l.safe.top - l.safe.bottom);
   }
 
-  /** What share the drawer is currently at, derived from the rects. */
+  /** What share the drawer is currently at, in the layout's own unit. */
   private drawerShare(): number {
     const l = this.layout;
     if (!l || l.mode !== 'portrait') return 0;
-    return (l.list.h + l.gap) / this.dragRoom();
+    return l.drawerH / this.dragRoom();
   }
 
-  /** Live drawer share during a drag, and the snapped one on release. */
-  onDrawerShare?: (share: number) => void;
+  /** Live drawer share during a drag, and the snapped detent on release. */
+  onDrawerShare?: (share: DrawerState) => void;
 
   /** Test seam: the layout this panel was last given, for `panelLayout`. */
   liveLayout(): Layout | null {
@@ -1509,6 +1519,13 @@ export class Panel {
         // a touch release can synthesize a compatibility mouse-down: stopping
         // on the press kills every flick at the moment of the lift.
         this.stopFling();
+        // A press the handle owns is never the list's too. The test below
+        // reads the list rect as it is NOW, and a handle drag has already
+        // grown the drawer by the time the first move reaches here — so the
+        // list's top has slid up past the finger that is dragging it, and the
+        // press looked like it had landed in the list. It scrolled and flung
+        // the list under every handle drag, which `e2e-drawer` now checks.
+        if (this.handlePress === pointer.downTime) return;
         if (!this.inListAt(pointer.downX, pointer.downY)) return;
         this.dragPress = pointer.downTime;
         this.dragMoved = 0;

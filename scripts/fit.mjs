@@ -10,8 +10,9 @@
  * world they bind in turn:
  *
  *   - the GRID, which decides how many cells the short axis is divided into;
- *   - the DRAWER, which on a phone is holding 42% of the height and makes the
- *     board refit every time it moves.
+ *   - the DRAWER, which covers the foot of the board. It held 42% of the height
+ *     until M34 and rests on exactly what the world leaves now, so the last
+ *     column is how much of the map a player sees without touching anything.
  *
  * An earlier version of this file asserted that the drawer could not matter
  * because "width is what binds". That is true only of the shipped 4:3 world.
@@ -45,10 +46,26 @@ const DEVICES = [
   ['iPhone 15 Pro Max', 430, 932, 3, true],
   ['iPad portrait', 820, 1180, 2, true],
   ['desktop', 1300, 800, 1, false],
+  // The same phones as they are actually held (M34). Every row above is the
+  // whole screen, which is only what the game gets in fullscreen. From the
+  // home screen an iPhone keeps its notch and home bar out of the layout; in a
+  // browser tab the address bar and toolbar take a slice off the top and
+  // bottom. The heights are the commonly reported inner heights; the insets
+  // are the iPhone 13's.
+  ['iPhone 13, home screen', 390, 844, 3, true, [47, 0, 34, 0]],
+  ['iPhone 13, Safari tab', 390, 664, 3, true],
+  ['small Android, Chrome', 360, 656, 3, true],
 ];
 
 /** A cell smaller than this cannot carry a silhouette that reads. */
 const READABLE = 18;
+/**
+ * A cell smaller than this cannot be hit with a thumb without zooming first
+ * (M34). The game's own row height, and Apple's floor. M33 cleared READABLE
+ * on every phone; M34's bar is this one, which is a different question — a
+ * silhouette you can read is not a cell you can tap.
+ */
+const TOUCH = 44;
 
 const PORT = 5296;
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
@@ -84,35 +101,67 @@ try {
   // computeLayout, whatever share the drawer is currently holding.
   const rects = [];
   let shipped = null;
-  for (const [name, w, h, dpr, mobile] of DEVICES) {
+  for (const [name, w, h, dpr, mobile, insets] of DEVICES) {
     const page = await browser.newPage({
       viewport: { width: w, height: h },
       deviceScaleFactor: dpr,
       isMobile: mobile,
       hasTouch: mobile,
     });
+    // Headless Chromium has no notch, so `env(safe-area-inset-*)` is zero. The
+    // game reads its insets off one probe element whose padding IS those env()
+    // values, and a rule that outranks the probe's inline style hands it the
+    // phone's instead. It goes into <head> the moment the parser makes one:
+    // an init script runs before there is a document element to put it in,
+    // and the first attempt, appended to nothing, measured a notch of zero —
+    // which the check below exists to catch.
+    if (insets) {
+      const [t, r, b, l] = insets;
+      await page.addInitScript((css) => {
+        const tag = document.createElement('style');
+        tag.textContent = css;
+        const install = () => {
+          if (!document.head) return false;
+          document.head.appendChild(tag);
+          return true;
+        };
+        if (!install()) {
+          const watch = new MutationObserver(() => {
+            if (install()) watch.disconnect();
+          });
+          watch.observe(document, { childList: true, subtree: true });
+        }
+      }, `div[style*="safe-area-inset"]{padding:${t}px ${r}px ${b}px ${l}px !important}`);
+    }
     await page.goto(`http://localhost:${PORT}/?demo=town`, { waitUntil: 'networkidle' });
     await wait(2600);
     const r = await page.evaluate(() => {
       const l = window.lastline.layout();
       if (!l) return { board: null };
       const grid = window.lastline.grid?.() ?? null;
-      const band = l.primary.h > 0 ? l.primary.h + l.gap : 0;
       return {
         board: l.board,
-        shutH: l.board.h + l.list.h + l.gap + band,
+        // The whole drawer comes back out of the board when it shuts, and the
+        // layout says how tall the drawer is. In landscape there is no drawer
+        // and `drawerH` is zero, so the rail's list is not mistaken for one,
+        // which reported a 1300x800 desktop at 45px a cell and 18 rows of 30.
+        shutH: l.board.h + l.drawerH,
         mode: l.mode,
         grid,
+        safe: l.safe,
         dpr: window.lastline.dpr,
       };
     });
     await page.close();
     if (!r.board) throw new Error(`no layout on ${name}`);
+    if (insets && r.safe.top / r.dpr !== insets[0]) {
+      throw new Error(`${name}: asked for a ${insets[0]}px top inset, the game saw ${r.safe.top / r.dpr}`);
+    }
     rects.push({
       name,
       mode: r.mode,
       w: r.board.w / r.dpr,
-      open: r.board.h / r.dpr,
+      rest: r.board.h / r.dpr,
       shut: r.shutH / r.dpr,
     });
     if (r.grid) shipped = `${r.grid.cols}x${r.grid.rows}`;
@@ -126,7 +175,7 @@ try {
   // nothing about it.
   const CANDIDATES = (grids.length > 0 ? grids : [shipped ?? '32x24']).map(asGrid);
 
-  const mark = (c) => (c >= READABLE ? ' ' : '!');
+  const mark = (c) => (c < READABLE ? '!' : c < TOUCH ? '~' : ' ');
 
   for (const grid of CANDIDATES) {
     const cells = grid.w * grid.h;
@@ -135,7 +184,7 @@ try {
     console.log(
       `\n${grid.label} — ${cells} cells${grid.label === shipped ? ' (shipped)' : ` (${share}% of the shipped ${shipped})`}, aspect ${(grid.w / grid.h).toFixed(2)}`,
     );
-    console.log('  device             board w   cell      rows in view (shut / open)');
+    console.log('  device                   board w   cell      rows in view (shut / at rest)');
     for (const rect of rects) {
       // ONE cell size, because since v1.40 there is only one: the fit zoom is
       // measured against the rect a SHUT drawer leaves and does not change when
@@ -144,14 +193,20 @@ try {
       // removed — an instrument is not allowed to keep measuring the old one.
       //
       // What an open drawer costs is VIEW, so that is what the last column is.
+      // Floored rather than rounded: a row the drawer covers half of is not a
+      // row in view, and rounding reported a board missing half a row as whole.
+      //
+      // The resting drawer is sized from the SHIPPED world's shape, so for a
+      // candidate grid of another aspect the rest column is only indicative.
       const cell = Math.min(rect.w / (grid.w * CELL), rect.shut / (grid.h * CELL)) * CELL;
-      const rows = (h) => Math.min(grid.h, h / cell).toFixed(0);
+      const rows = (h) => Math.floor(Math.min(grid.h, h / cell + 1e-6));
       console.log(
-        `  ${rect.name.padEnd(18)} ${`${Math.round(rect.w)}`.padEnd(9)} ${`${cell.toFixed(1)}px${mark(cell)}`.padEnd(9)} ${rows(rect.shut)} / ${rows(rect.open)} of ${grid.h}`,
+        `  ${rect.name.padEnd(24)} ${`${Math.round(rect.w)}`.padEnd(9)} ${`${cell.toFixed(1)}px${mark(cell)}`.padEnd(9)} ${rows(rect.shut)} / ${rows(rect.rest)} of ${grid.h}`,
       );
     }
   }
-  console.log(`\n  ! = under the ${READABLE}px a silhouette needs.\n`);
+  console.log(`\n  ! = under the ${READABLE}px a silhouette needs.`);
+  console.log(`  ~ = readable, but under the ${TOUCH}px a thumb needs without zooming.\n`);
 } finally {
   try {
     process.kill(-vite.pid, 'SIGTERM');

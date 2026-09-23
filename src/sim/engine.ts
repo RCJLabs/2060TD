@@ -4,6 +4,7 @@ import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
 import { COMBAT_NONE, combatModelFor, type CombatModel } from './combat';
 import { chainModelFor, type ChainModel, type ChainStage } from './killchain';
+import { cellSizeOf, scaleCatalog, scaleChain } from './scale';
 import {
   FLAT_TERRAIN,
   MIN_MOVE_COST,
@@ -54,7 +55,9 @@ function occupiedCellsOf(config: SimConfig, catalog: Catalog): CellIndex[] {
     }
   };
 
-  footprint(config.ccOrigin, 2);
+  // From the catalog, not a literal 2: the constructor hands this the scaled
+  // catalog, and on a half-size board the Command Center is one cell.
+  footprint(config.ccOrigin, catalog.structures['cc']?.footprint ?? 2);
   for (const wall of config.layout?.walls ?? []) out.push(wall.cell);
   for (const structure of config.layout?.structures ?? []) {
     footprint(structure.cell, catalog.structures[structure.kind]?.footprint ?? 1);
@@ -187,6 +190,8 @@ interface PendingImpact {
 export class Engine {
   readonly config: SimConfig;
   readonly catalog: Catalog;
+  /** `AIR_STANDOFF` in cells of this board (M34). */
+  private readonly airStandoff: number;
   readonly grid: Grid;
   readonly attackers: Attacker[] = [];
   readonly structures: Structure[] = [];
@@ -269,6 +274,8 @@ export class Engine {
    * not end.
    */
   private chainIdle = 0;
+  /** Stall wipe-outs so far; see `stallWipes`. */
+  private assaultsSpent = 0;
   /** The board fingerprint the idle counter is measured against. */
   private chainStill = '';
   private nextId = 1;
@@ -336,11 +343,16 @@ export class Engine {
 
   constructor(config: SimConfig, catalog: Catalog) {
     this.config = config;
-    this.catalog = catalog;
+    // Every range, speed and radius the engine reads goes through this field,
+    // so scaling it here is scaling the battle (M34). At cell size 1 — every
+    // config written before M34 — it is the catalog it was handed.
+    const cellSize = cellSizeOf(config.cellSize);
+    this.catalog = scaleCatalog(catalog, cellSize);
+    this.airStandoff = AIR_STANDOFF / cellSize;
     this.grid = new Grid(config.width, config.height);
     this.rng = createRng(config.seed);
     this.combat = combatModelFor(config.combatVersion);
-    this.chain = chainModelFor(config.killChainVersion);
+    this.chain = scaleChain(chainModelFor(config.killChainVersion), cellSize);
     this.combatRng = createRng((config.combatSeed ?? config.seed ^ 0x9e3779b9) >>> 0);
     // Terrain draws from its OWN stream. Sharing `this.rng` would shift every
     // later roll and re-fight every archived battle on different ground.
@@ -352,7 +364,7 @@ export class Engine {
             config.terrainVersion!,
             config.width,
             config.height,
-            occupiedCellsOf(config, catalog),
+            occupiedCellsOf(config, this.catalog),
             config.spawnLane,
             config.spawnEdge ?? 'west',
           );
@@ -1433,6 +1445,26 @@ export class Engine {
         attacker.path = null;
       }
 
+      // A covered post, and this attacker is standing on it with nothing it can
+      // shoot (chain v4). Standing there achieves nothing — the stage cannot
+      // move while a gun covers it — so go and get the gun. When the gun falls
+      // the block above sends it back to the post. `chainStage` is last tick's,
+      // which is when the attacker learned the post would not move.
+      if (
+        this.chain.engageCover &&
+        target === this.cc &&
+        attacker.state === 'assaulting' &&
+        this.chainStage === 'suppress' &&
+        !attacker.profile.air
+      ) {
+        const gun = this.coverTargetFor(attacker);
+        if (gun) {
+          target = gun;
+          attacker.targetId = gun.id;
+          attacker.path = null;
+        }
+      }
+
       // Flying units skip the grid entirely — no path, no walls, no blockers.
       if (attacker.profile.air) {
         this.updateAirAttacker(attacker, target, events);
@@ -1628,7 +1660,7 @@ export class Engine {
     const dx = target.center.x - attacker.pos.x;
     const dy = target.center.y - attacker.pos.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const reach = target.profile.footprint / 2 + AIR_STANDOFF;
+    const reach = target.profile.footprint / 2 + this.airStandoff;
     if (dist <= reach) {
       attacker.state = 'assaulting';
       if (target === this.cc && this.chain.staged) {
@@ -1763,6 +1795,37 @@ export class Engine {
   }
 
   /**
+   * The covering gun an attacker on the post should go after, or null (chain v4).
+   *
+   * Null when a covering gun is already in this attacker's reach: it will be
+   * shot from where the attacker stands, by the ordinary engage pass. Otherwise
+   * the NEAREST covering gun, because the one that is closest is the one that
+   * is quickest to reach and the post cannot move until every one is dead.
+   * Same test as `coveringGuns`, so what an attacker hunts is exactly what is
+   * holding the post shut.
+   */
+  private coverTargetFor(attacker: Attacker): Structure | null {
+    const r2 = this.chain.coverRadius * this.chain.coverRadius;
+    const reach = attacker.profile.weapon?.range ?? 0;
+    let best: Structure | null = null;
+    let bestD = Infinity;
+    for (const s of this.structures) {
+      if (s.hp <= 0 || !this.isDefenseStructure(s) || !s.profile.targetable) continue;
+      if (layerOf(s.profile.weapon!) === 'air') continue;
+      const cx = s.center.x - this.cc.center.x;
+      const cy = s.center.y - this.cc.center.y;
+      if (cx * cx + cy * cy > r2) continue;
+      const d = Math.hypot(s.center.x - attacker.pos.x, s.center.y - attacker.pos.y);
+      if (d <= reach) return null;
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  /**
    * Spend what the assault put into the post this tick.
    *
    * Exactly one stage is live, and each spends a different currency: that is
@@ -1861,9 +1924,24 @@ export class Engine {
     }
     if (++this.chainIdle < this.chain.stallSeconds * TICKS_PER_SECOND) return;
     this.chainIdle = 0;
+    let wiped = 0;
     for (const attacker of this.attackers) {
-      if (attacker.hp > 0 && attacker.state === 'assaulting') attacker.hp = 0;
+      if (attacker.hp > 0 && attacker.state === 'assaulting') {
+        attacker.hp = 0;
+        wiped++;
+      }
     }
+    if (wiped > 0) this.assaultsSpent++;
+  }
+
+  /**
+   * How many times this battle's assault was spent — its holders wiped by the
+   * stall rule rather than stopped by the defence (M34). Read-only, outside the
+   * stats and the state hash: it is for the instruments, which need to tell a
+   * defence that held from an assault that timed out.
+   */
+  get stallWipes(): number {
+    return this.assaultsSpent;
   }
 
   /**

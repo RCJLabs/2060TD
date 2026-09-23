@@ -94,7 +94,7 @@ import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standin
 import { BoardView } from '../BoardView';
 import { drawFactionMark, drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
 import { haptic } from '../haptics';
-import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
+import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
 import { buildStructureSpec, buildWallSpec } from '../spec';
@@ -199,7 +199,7 @@ export class TownScene extends Phaser.Scene {
   private panel!: Panel;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
-  private drawer: number = DRAWER_HALF;
+  private drawer: DrawerState = DRAWER_REST;
   /** Research project id seen last frame — completion flips it to a banner. */
   private lastActiveResearch: string | null = null;
   private overlay: Overlay | null = null;
@@ -374,7 +374,7 @@ export class TownScene extends Phaser.Scene {
 
     this.panel = new Panel(this, this.board.ui, TABS);
     this.panel.onDrawerToggle = () => {
-      this.drawer = this.drawer > 0 ? DRAWER_SHUT : DRAWER_HALF;
+      this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
     };
     // The handle reports a live share while it is being dragged and a snapped
@@ -452,7 +452,7 @@ export class TownScene extends Phaser.Scene {
     const wantBar = this.pendingCell !== null && !this.overlay;
     const primaryH = wantBar ? layoutOf(this, this.drawer).rowH : 0;
     this.barReserved = wantBar;
-    this.layout = layoutOf(this, this.drawer, primaryH);
+    this.layout = layoutOf(this, this.drawer, primaryH, 1, this.board.cols / this.board.rows);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     this.layoutConfirmBar();

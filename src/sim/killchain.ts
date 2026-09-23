@@ -74,6 +74,13 @@ export const CHAIN_SPENT = 2;
 
 /** The shipped model. New configs name this; nothing else should. */
 export const CHAIN_CURRENT = 3;
+/**
+ * A CANDIDATE, not current (M34): version 3, plus an assault that goes after
+ * the guns covering its post instead of standing on it. See
+ * `ChainModel.engageCover`. It becomes current only if the measurements that
+ * motivated it say it should.
+ */
+export const CHAIN_ENGAGE = 4;
 
 /** Where a raid has got to. `down` means the post has fallen. */
 export type ChainStage = 'breach' | 'suppress' | 'charge' | 'burn' | 'down';
@@ -170,6 +177,28 @@ export interface ChainModel {
    * do and what a repair aura turns into a livelock.
    */
   readonly latchOpen: boolean;
+  /**
+   * While the post is gated at SUPPRESS, does an attacker standing on it with
+   * no covering gun in its own reach go and get one? (M34)
+   *
+   * The chain's own design line is "a gun that can reach the post covers it,
+   * and the answer is to kill the gun" — and through version 3 nothing makes an
+   * attacker do that. An assault on a covered post keeps whatever guns it
+   * happened to kill on the way in, stands on the post, and if the last
+   * covering guns are out of reach of the cell it is standing on, it stands
+   * there until `stallSeconds` wipes it. On the shipped board that decides
+   * almost nothing: 43.7% of the defence matrix's defender wins include a stall
+   * wipe-out, and every one of them fired with nobody else alive and removed
+   * at most one unit on the ground — cleanup, not a stuck crew. A board with
+   * bigger cells crosses the knife-edge for real: at 10x15 four tanks on one
+   * perimeter cell sat 0.24 cells out of range of the gun that kept them off
+   * the post, for 90 seconds, twice. Hunting the guns is not neutral on the
+   * shipped board either: it takes contested MID and LATE levels the standing
+   * crews lost.
+   *
+   * False is every version before this field existed.
+   */
+  readonly engageCover: boolean;
 }
 
 const sponge: ChainModel = {
@@ -184,6 +213,7 @@ const sponge: ChainModel = {
   burnDecay: 0,
   stallSeconds: 0,
   latchOpen: false,
+  engageCover: false,
 };
 
 /**
@@ -234,6 +264,7 @@ const theBreach: ChainModel = {
   // No stall rule, which is the defect this version is frozen with.
   stallSeconds: 0,
   latchOpen: false,
+  engageCover: false,
 };
 
 /**
@@ -286,12 +317,20 @@ const latched: ChainModel = {
   latchOpen: true,
 };
 
+const huntTheCover: ChainModel = {
+  ...latched,
+  version: CHAIN_ENGAGE,
+  label: 'breach, suppress, charge, burn; a covered post sends its crew after the guns',
+  engageCover: true,
+};
+
 /** The version registry. A version is frozen: a new model is a new number. */
 export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_NONE]: sponge,
   [CHAIN_BREACH]: theBreach,
   [CHAIN_SPENT]: spentAssault,
   [CHAIN_CURRENT]: latched,
+  [CHAIN_ENGAGE]: huntTheCover,
 };
 
 /**

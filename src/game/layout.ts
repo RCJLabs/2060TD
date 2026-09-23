@@ -32,15 +32,53 @@ export type LayoutMode = 'portrait' | 'landscape';
 export const DRAWER_SHUT = 0;
 export const DRAWER_HALF = 0.42;
 export const DRAWER_FULL = 0.72;
-export const DRAWER_DETENTS = [DRAWER_SHUT, DRAWER_HALF, DRAWER_FULL];
 
-/** The detent a release lands on, by nearest. */
-export function snapDrawer(share: number): number {
-  let best = DRAWER_DETENTS[0]!;
-  for (const detent of DRAWER_DETENTS) {
-    if (Math.abs(share - detent) < Math.abs(share - best)) best = detent;
+/**
+ * Where the drawer RESTS (M34): exactly the room the board leaves under the
+ * world, so the whole map is in view with the drawer open.
+ *
+ * Not a fraction, because the right height is not a share of the screen. It is
+ * whatever is left once the world is drawn at its fit zoom, which depends on the
+ * world's shape as well as the phone's. So it is a name, resolved by
+ * `computeLayout` every time the layout is, and a rotation or a URL bar sliding
+ * away re-measures it rather than keeping a height that was right for the old
+ * viewport. `Layout.rest` is what it resolved to, as a share, for snapping.
+ *
+ * Until M34 the drawer opened to HALF, which kept 42% of the height whatever
+ * the board needed. `npm run fit` measured 16-19 of 30 rows in view that way
+ * on every phone and tablet in its table. The map was a third hidden while the
+ * sheet over it was mostly empty list.
+ */
+export const DRAWER_REST = 'rest';
+
+/** A drawer position: a share of the safe height, or the resting detent. */
+export type DrawerState = number | typeof DRAWER_REST;
+
+/** The state a tap on the handle, or on the open tab, toggles to. */
+export function toggleDrawer(state: DrawerState): DrawerState {
+  return state === DRAWER_SHUT ? DRAWER_REST : DRAWER_SHUT;
+}
+
+/**
+ * The detent a release lands on, by nearest.
+ *
+ * `rest` is the resting detent's share for the layout being dragged, since only
+ * the layout knows it. REST is listed before HALF, so on a screen tall enough
+ * for REST to reach HALF's height a release lands on the one that follows the
+ * board.
+ */
+export function snapDrawer(share: number, rest: number): DrawerState {
+  const detents: [DrawerState, number][] = [
+    [DRAWER_SHUT, DRAWER_SHUT],
+    [DRAWER_REST, rest],
+    [DRAWER_HALF, DRAWER_HALF],
+    [DRAWER_FULL, DRAWER_FULL],
+  ];
+  let best = detents[0]!;
+  for (const detent of detents) {
+    if (Math.abs(share - detent[1]) < Math.abs(share - best[1])) best = detent;
   }
-  return best;
+  return best[0];
 }
 
 export interface Rect {
@@ -104,6 +142,16 @@ export interface Layout {
   primary: Rect;
   /** Scrolling row list inside the panel. */
   list: Rect;
+  /**
+   * The drawer's height in device px, below the handle and above the tabs.
+   * Zero when it is shut, and in landscape, where there is no drawer.
+   */
+  drawerH: number;
+  /**
+   * The share of the safe height `DRAWER_REST` resolves to on this viewport,
+   * for snapping a release. Zero in landscape.
+   */
+  rest: number;
   /** Row height, gaps and padding, in device px. */
   rowH: number;
   gap: number;
@@ -158,16 +206,21 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
  * @param cssWidth  viewport width in CSS px
  * @param cssHeight viewport height in CSS px
  * @param dpr       capped device pixel ratio
- * @param drawer portrait only: the drawer's share of the safe height, 0..1.
+ * @param drawer portrait only: the drawer's share of the safe height, 0..1,
+ *               or `DRAWER_REST`.
+ * @param aspect the world's width over its height, which is what the resting
+ *               detent is sized from. A screen with no board passes nothing,
+ *               and its rest is HALF.
  */
 export function computeLayout(
   cssWidth: number,
   cssHeight: number,
   dpr: number,
-  drawer: number = DRAWER_HALF,
+  drawer: DrawerState = DRAWER_REST,
   insets: SafeArea = { top: 0, right: 0, bottom: 0, left: 0 },
   primaryH = 0,
   statusLines = 1,
+  aspect = 0,
 ): Layout {
   const mode: LayoutMode = cssHeight > cssWidth ? 'portrait' : 'landscape';
   // Phones and small tablets get thumb-sized controls; big screens stay tight.
@@ -196,6 +249,8 @@ export function computeLayout(
   let list: Rect;
   let primary: Rect;
   let handle: Rect;
+  let drawerH = 0;
+  let rest = 0;
   let cols = 1;
   // The band plus the gutter under it, or nothing at all.
   const primaryBand = primaryH > 0 ? primaryH + gap : 0;
@@ -237,12 +292,38 @@ export function computeLayout(
     // the floor subtracted and a full drawer then leaves nothing.
     const available = sh - statusH - tabsH - handleH;
     const room = Math.max(px(140), available - minBoard);
+    // The smallest drawer that is still a list: two rows, the gutter above the
+    // tabs, and the scene's primary band if it asked for one. Below this a
+    // drawer is a strip you cannot compare two options in, and the way to hand
+    // the board those last pixels is to shut it.
+    const floorH = Math.min(room, rowH * 2 + gap * 2 + primaryBand);
+    // The resting detent: what the world leaves below itself at the fit zoom.
+    // Same arithmetic as `BoardView`'s fit, which is measured against this
+    // rect's SHUT height — the world is `sw` wide over its aspect, unless the
+    // height binds first, in which case it is all of `available` and there is
+    // nothing left to give. Floored so the map is never cut by a rounding: a
+    // sub-pixel short, a 30-row board shows 29.99 rows. Never above HALF,
+    // which is the most any release before this one kept.
+    const worldH = aspect > 0 ? Math.min(available, sw / aspect) : available;
+    const halfH = clamp(Math.round(sh * DRAWER_HALF), floorH, room);
+    const restH =
+      aspect > 0 ? clamp(Math.floor(available - worldH), floorH, halfH) : halfH;
+    rest = sh > 0 ? restH / sh : 0;
     // The share is of the SAFE HEIGHT, not of `room`. Measuring it against the
     // leftovers looks equivalent and is not: it silently shrank the drawer by
     // 115px the moment the handle took its 44, which cost the SYS tab its last
     // row and broke `e2e-touch`. The handle's height comes out of the board,
     // which had the majority to give.
-    const drawerH = drawer <= 0 ? 0 : clamp(Math.round(sh * drawer), px(140), room);
+    //
+    // Floored at `floorH` rather than the flat 140px it was until M34, so a
+    // drag that starts at a resting drawer shorter than 140 tracks the finger
+    // instead of jumping up to the floor on its first pixel.
+    drawerH =
+      drawer === DRAWER_REST
+        ? restH
+        : drawer <= 0
+          ? 0
+          : clamp(Math.round(sh * drawer), floorH, room);
     status = { x: sx, y: sy, w: sw, h: statusH };
     board = { x: sx, y: sy + statusH, w: sw, h: available - drawerH };
     boardFull = { x: sx, y: sy + statusH, w: sw, h: available };
@@ -313,6 +394,8 @@ export function computeLayout(
     primary,
     handle,
     list,
+    drawerH,
+    rest,
     rowH,
     gap,
     pad,
@@ -328,12 +411,17 @@ export function computeLayout(
   };
 }
 
-/** Layout for a scene's current canvas size. */
+/**
+ * Layout for a scene's current canvas size.
+ *
+ * `aspect` is the scene's world, width over height; see `computeLayout`.
+ */
 export function layoutOf(
   scene: Phaser.Scene,
-  drawer = DRAWER_HALF,
+  drawer: DrawerState = DRAWER_REST,
   primaryH = 0,
   statusLines = 1,
+  aspect = 0,
 ): Layout {
   const dpr = devicePixelRatioCapped();
   const size = scene.scale.gameSize;
@@ -345,6 +433,7 @@ export function layoutOf(
     safeAreaInsets(),
     primaryH,
     statusLines,
+    aspect,
   );
 }
 

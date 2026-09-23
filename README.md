@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.42.0, in the browser. No install, no account, works on a phone.
+v1.44.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,48 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.42: a ladder with rungs you can lose on
+## Current state — v1.44: the whole board, with the drawer open
+
+**The drawer used to hide a third of the board.** It opened to 42% of the screen
+whatever the map needed, so a phone showed 18 or 19 of the board's 30 rows under
+a sheet that was mostly empty list. It now opens onto exactly the room the board
+leaves below it:
+
+| | drawer at 42% | drawer at rest |
+|---|---|---|
+| Pixel 7, iPhone 13, 15 Pro Max, small Android | 18-19 of 30 rows | **30 of 30** |
+| iPhone from the home screen | 15 | 26 |
+| a phone in a browser tab | 14 | 24 |
+
+Where the board fills the screen's height first there is nothing left over, and
+the drawer rests at two rows of list; one tap on its handle shows every row. Drag
+it up for half or full, as before.
+
+Two defects in the handle, both there since it shipped in v1.27, came out on the
+way. The drawer ran ahead of the finger dragging it — 208px for a 120px drag —
+and every drag on the handle also scrolled the list underneath. Both were
+invisible to a harness that only asked where a drag landed, because a release
+snaps to a detent and looks right however wrong the drag was. Both are now
+checked with the finger held still halfway.
+
+This is Phase 6 of M34, a board sized for thumbs. Phase 4 measured whether a
+10x15 board would play like today's drawn twice as big, and it does not: the
+difficulty ladder moves about two levels at mid and late game, by a different
+amount for every faction. The drawer never depended on that answer, so it
+shipped first. The measurements are in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+## v1.43: stand and fight
+
+The last probe of an absence is no longer resolved while you are away. It is
+held and **offered**, with thirty minutes to answer. Let the garrison take it,
+and it is the probe it always was. Stand and fight, and they commit the whole
+assault against the town's own economy. That is a different battle on purpose:
+a probe is what they send when nobody is home, and it has no command points in
+it, so you could not act and a built town held it every time. The full assault
+at the offer's level sits in the band where what you do decides it. Holding
+pays half a skirmish's loot. A breach wrecks what fell.
+
+## v1.42: a ladder with rungs you can lose on
 
 **93% of the defence rows in `BALANCE.md` were step functions** — `100 | 85 | 0
 | 0 | 0 | 0`, one contested level and then a cliff — and three notes carried
@@ -1570,7 +1611,9 @@ npm run balance    # headless balance matrices (add -- --md to rewrite docs/BALA
                    # -- --airread to score the shipped air read against the
                    #    measured clear rate, and against the shape, which is
                    #    what a player already gets for free)
-node scripts/e2e-drawer.mjs  # the grab handle: drag, snap, tap-to-toggle, that a
+node scripts/e2e-drawer.mjs  # the grab handle: the whole board in view at rest,
+                   # a handle that stays under the finger and scrolls nothing
+                   # while it is dragged, snap, tap-to-toggle, that a
                    # row drag still scrolls instead of resizing, the tab swipe
                    # and its axis lock, the long press that opens a spec card
                    # without also firing the row's tap, and that a finger on a
@@ -1598,10 +1641,12 @@ npm run catch -- "KRRAK|WHUMP|BLAM"
 npm run icons      # regenerate the four PWA icons from one drawing function
 npm run fit -- 20x30 18x28
                    # what size is a cell on the device this is played on? Scores
-                   # a candidate grid against the real board rect on six
-                   # devices, with the drawer open and shut, because on a
-                   # portrait world the two bind in turn
-npm run e2e        # THE GATE: all 22 harnesses in sequence, and a failure
+                   # a candidate grid against the real board rect on nine
+                   # viewports — six whole screens, and three phones as they
+                   # are held, in a browser tab or from the home screen with
+                   # the notch emulated — and counts the rows in view with the
+                   # drawer shut and at rest
+npm run e2e        # THE GATE: all 23 harnesses in sequence, and a failure
                    # re-run once ALONE before it is called anything — a flake
                    # is reported loudly and passes, a real failure fails twice
                    # and does not. Run it with nothing else going; the
