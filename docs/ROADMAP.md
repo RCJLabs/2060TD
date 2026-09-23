@@ -3723,9 +3723,57 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       `gridVersion` 2; saved towns downsample 2:1 on load. That is lossy where two guns
       shared a 2x2 block, and whatever does not fit is refunded rather than dropped.
       Generated bases, share codes and replay codes carry their grid, as M33's did.
-- [ ] **Phase 6 — the drawer gets what the board leaves.** Its resting height is sized
+- [x] **Phase 6 — the drawer gets what the board leaves.** Its resting height is sized
       from the grid instead of a fixed 42%, never less than the handle and the tabs, so
       the whole board is in view at rest. Target: 15 of 15 rows.
+
+      **Done on today's 20x30, since it never depended on the grid.** The drawer
+      opens onto `DRAWER_REST`: the room the world leaves below itself at the fit
+      zoom. It is never less than two rows of list, because a drawer with less is a
+      strip you cannot compare two options in, and never more than HALF. It is a
+      name rather than a share, resolved on every layout, because the right height
+      depends on the world's shape as well as the phone's, and a rotation or a URL
+      bar has to re-measure it. HALF and FULL stay as drag detents, and a tap on the
+      handle toggles between rest and shut. Rows in view, from `npm run fit`, before
+      and after:
+
+      | viewport | cell | drawer at 42% | at rest |
+      |---|---|---|---|
+      | small Android 360x800 | 18.0px | 18 of 30 | **30 of 30** |
+      | iPhone 13 390x844 | 19.5px | 18 | **30** |
+      | Pixel 7 412x915 | 20.6px | 19 | **30** |
+      | iPhone 15 Pro Max 430x932 | 21.5px | 18 | **30** |
+      | iPad portrait | 35.0px | 15 | 28 |
+      | iPhone 13 from the home screen | 19.5px | 15 | 26 |
+      | iPhone 13 in a Safari tab | 17.6px | 14 | 24 |
+      | small Android in Chrome | 17.3px | 14 | 24 |
+
+      Full-screen phones show the whole board. Elsewhere the world leaves less than
+      two rows of list below it, and the drawer rests on its floor. In a browser tab
+      or on a tablet the world fills the height outright; on a notched phone from
+      the home screen it leaves 42px. That still shows 24-28 rows where the old
+      drawer showed 14-15, and one tap on the handle shows all 30. The last three rows of the table are new. Every earlier row was
+      a whole screen, which is only what the game gets in fullscreen, so the
+      instrument now also measures phones as they are actually held. It emulates
+      the notch through the game's own inset probe, and checks the game saw it.
+      The first attempt didn't, and measured a notch of zero.
+
+      **Two defects in the handle, both older than this phase, found by holding the
+      finger still.** The handle converted a finger's pixels to a share using the
+      height the drawer can travel, and `computeLayout` multiplied the share back by
+      the safe height, about 17% more. So the drawer jumped on the first pixel of a
+      drag and then ran ahead of the finger: on the build before this phase, a 120px
+      drag moved it 208px. And the list claimed its press by testing the press point
+      against the list rect as it was NOW. A handle drag had already grown the
+      drawer by then, so the list's top slid up past the finger and read the press
+      as its own: the same 120px drag scrolled the list 372px. Every check
+      `e2e-drawer` had asked where a drag LANDED, and a release snaps to a detent,
+      which is right however far off the drag was. Both are now checked mid-drag,
+      and both checks were seen failing on the old build first.
+
+      The instrument had a defect of its own too. It rebuilt the shut board from
+      the list height, so in landscape it took the rail's list for a drawer, and
+      reported a desktop at 45px a cell and 18 rows of 30. It is 26.7px and all 30.
 - [ ] **Phase 7 — the ~330 hard-coded cells**, across 25 test, harness and tool files,
       move onto the board's own seams. Plus the milestone's acceptance test: on the
       360-wide phone, at fit zoom, place on a named cell first try with a real touch.

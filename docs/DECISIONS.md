@@ -902,3 +902,29 @@ here with the change and its date.
   about a DISTRIBUTION and every test in the repo runs one battle at a time. A
   twenty-minute sweep over two towns and eight seeds changed the design. Tests
   pin behaviour; only a sweep prices it.
+- 2026-09-23 — **The similarity transform failed its own test, and the suspect
+  named in advance was the wrong one.** M34 was picked as the overhaul that
+  changes no rule: halve every length and every speed, and a 10x15 board plays
+  like 20x30 drawn twice as big. The check fought the whole defence matrix both
+  ways against a noise floor it measured rather than assumed, and missed by
+  eight times. Crowding was the suspect written down beforehand; the mapped
+  bases came out with LESS wall, not more. The cause was geometry at the post.
+  On a board of half-cells three things land on knife-edges: where the post's
+  centre sits, which cell an attacker stops on, and a range against the cover
+  radius. Four tanks sat 0.24 cells out of reach of the gun holding the post
+  shut, for 90 seconds, twice. When a rule's outcome turns on `<` versus `<=`,
+  it is sitting on a quantisation boundary, and two structural fixes each broke
+  a different tier. So a smaller board is a new game rather than a port, and
+  building it is a design decision, not a drift to correct.
+- 2026-09-23 — **A gesture checked only where it lands can be wrong all the way
+  there.** Since the drawer's handle shipped in v1.27 it has run about 17% ahead
+  of the finger dragging it, after jumping on the first pixel, and every handle
+  drag has also scrolled the list underneath: a 120px drag moved the drawer
+  208px and scrolled the list 372. Neither was visible to a harness that only
+  asked where a drag LANDED, because a release snaps to a detent, and a snapped
+  drawer is right however wrong the drag that got it there was. Holding the
+  finger still halfway and asking where the handle was found both on the first
+  run. The unit error was a share read against one height and replayed against
+  another. The scroll was a press tested against the rect as it was after the
+  press had moved it. Both are the same shape: state read in one frame of
+  reference and acted on in another.
