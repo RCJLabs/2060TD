@@ -3513,6 +3513,111 @@ not static text running off the screen.
 
 ---
 
+## M34 — "Thumb Scale": a board you never have to zoom
+
+Picked from a brainstorm of five phone overhauls, as the one that improves the game
+that exists today without changing a rule. M33 made the board READABLE on a phone;
+this makes it TOUCHABLE. They are different bars: a silhouette reads at 18px, a thumb
+needs about 44.
+
+**What `npm run fit` says** — CSS px per cell with the whole board in view, and rows
+still visible above the drawer at rest:
+
+| grid | 360 wide | 390 | 412 | 430 | rows in view, drawer at rest |
+|---|---|---|---|---|---|
+| 20x30 (shipped) | 18.0 | 19.5 | 20.6 | 21.5 | 18-19 of 30 |
+| 10x15 | 36.0 | 39.0 | 41.2 | 43.0 | 9-10 of 15 |
+| 9x14 | 40.0 | 43.3 | 45.8 | 47.8 | 8-9 of 14 |
+| 8x12 | 45.0 | 48.8 | 51.5 | 53.8 | 7-8 of 12 |
+
+Checked twice: a second, independent instrument written for this milestone agreed
+with `fit.mjs` to the decimal, and it had itself been checked against the live board
+camera at 0.0% off on six viewports. It was then deleted, because it duplicated an
+instrument M33 already shipped.
+
+**Two findings that shape the milestone, both before any design work:**
+
+1. **No grid that keeps this game reaches 44px on every phone.** Width binds in
+   portrait, so the 360-wide phone decides for everyone: 10 columns is 36px there
+   whatever else changes.
+2. **The drawer hides a third of the board at every grid size.** Rows in view drop to
+   about 60% with the drawer at rest, for every shape in the table. A smaller grid
+   alone does not make the board visible — it is half the fix, and the drawer is the
+   other half. That is M33's finding again, one level down.
+
+**The size is 10x15, and discreteness chose it rather than pixels.** Things that are
+already one cell cannot shrink — a wall, a gun — so a smaller board is more crowded,
+and the question is by how much. A fully built CC3 base, walls scaled with length:
+
+| grid | scale | a 2x2 becomes | built at full CC3 |
+|---|---|---|---|
+| 20x30 | 1 | 2x2 | 33% |
+| 10x15 | 1/2 | **1x1 exactly** | 59% |
+| 8x12 | 2/5 | 1x1 (rounded) | **80%** |
+
+8x12 clears 44px on every phone and is not a board a maxed base fits on, once the
+spawn lane and a legal path are counted. 9x14 is not a uniform scale of 20x30 at all
+(20 → 9 is 0.45, 30 → 14 is 0.47), so distance along the approach and across it would
+mean different things. 10x15 is the only candidate that is a clean half: every 2x2
+building becomes exactly one cell, a saved town downsamples 2:1, and nothing rounds.
+It lands at 36-43px — twice today's cell on every phone, and short of 44 by the width
+of the smallest screen. Placement is aim-then-confirm, which absorbs a near miss, and
+Phase 7 holds that assumption to a real test rather than leaving it assumed.
+
+**The principle: a similarity transform, not a redesign.** Every length halves —
+ranges, splash, cover radius, aura and trigger radii, strike strips, spawn positions.
+Every speed halves too, in cells per second, so a unit crosses the board in exactly the
+time it does today: waves, prep and the battle's length are unchanged. Wall budgets
+halve, because walls work as LINES across the approach and a line is half as many
+segments. The game should play as it does now, drawn twice as big. What it cannot
+preserve is the one-cell things, and **balance is judged as drift from v1.43**, which
+is the cost of discreteness and nothing else.
+
+**The architecture is one parameter.** The engine takes its catalog once, in its
+constructor, and all 29 reads of a range, speed or radius go through it. So
+`SimConfig.cellSize` — absent meaning 1, meaning today — scales the catalog once at
+construction, and the catalog's numbers become physical units that never change. A
+replay minted before M34 has no field and re-fights exactly the battle it recorded.
+It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already follow.
+
+- [x] **Phase 1 — an instrument.** `npm run fit` now marks the touch floor beside the
+      readability one. The table above is its output.
+- [ ] **Phase 2 — `cellSize` in the engine, inert at 1.** Scales ranges, splash,
+      trigger, heal and aura radii, speeds, `coverRadius`, strike geometry,
+      `AIR_STANDOFF`, and footprints (2 → 1). At 1 every determinism checkpoint must
+      hash identically to v1.43, with a liveness assertion beside each, because a hash
+      that agrees because nothing happened is not a passing test.
+- [ ] **Phase 3 — content stops assuming a width.** Spawn positions become fractions of
+      the line (they are hard-coded 3-17 on a 20-wide one today). Terrain gets a new
+      version with its features sized to the board; version 1 stays frozen for the
+      battles that were fought on it. Wall budgets 50/80/120 → 25/40/60.
+- [ ] **Phase 4 — the similarity check, and the go/no-go.** The balance harness runs
+      identical matchups at `cellSize` 1 on 20x30 and 2 on 10x15, plans downsampled,
+      and reports the drift in every table. Inside the noise floor, the transform is
+      sound and the milestone proceeds. Outside it, the drift is named — crowding is
+      the prime suspect — before anything moves.
+- [ ] **Phase 5 — the boards move.** `TOWN_GRID` and the raid map to 10x15;
+      `gridVersion` 2; saved towns downsample 2:1 on load. That is lossy where two guns
+      shared a 2x2 block, and whatever does not fit is refunded rather than dropped.
+      Generated bases, share codes and replay codes carry their grid, as M33's did.
+- [ ] **Phase 6 — the drawer gets what the board leaves.** Its resting height is sized
+      from the grid instead of a fixed 42%, never less than the handle and the tabs, so
+      the whole board is in view at rest. Target: 15 of 15 rows.
+- [ ] **Phase 7 — the ~330 hard-coded cells**, across 25 test, harness and tool files,
+      move onto the board's own seams. Plus the milestone's acceptance test: on the
+      360-wide phone, at fit zoom, place on a named cell first try with a real touch.
+- [ ] **Phase 8 — re-tune from the drift report, regenerate the snapshot, ship.**
+- [ ] **Later, and optional — landscape rotates the VIEW, not the sim.** A deep board
+      in a short screen is 27px in phone landscape; the same board turned sideways is
+      41px. The sim keeps its edge; only the camera turns.
+
+**Risks, named before they are met.** A maxed base goes from 33% to 59% of the board,
+and whether it still leaves a legal path is a measurement, not an assumption. Saved-town
+migration is lossy by construction. And the open CC1 question — whether the onboarding
+stage is meant to be contested — gets harder on a coarser board, not easier.
+
+---
+
 ## Sequencing — and the one rule that is not negotiable
 
 **M32 is done and out of the way.** It was taken first at the owner's request and
