@@ -3719,10 +3719,54 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       every grid size, and because the width binds in portrait, a 20x30 board and a
       10x15 board stand exactly as tall on screen. **Phases 5, 7 and 8 wait on that
       decision.**
+- [x] **The decision (2026-09-23): build it, as a redesign.** Phase 4 said a 10x15
+      board is a different game; the owner chose to build that game. First, the
+      three reference bases were drawn FOR the board rather than mapped onto it
+      (`npm run balance -- --native`): the same lines with the same openings in
+      the same order, the same guns in the same roles, and the same number of
+      guns covering the post, none of them on the cover radius's knife-edge.
+      Fought against today's published rows, seeded cell for cell:
+
+      | where a row first holds under half | EARLY | MID | LATE |
+      |---|---|---|---|
+      | today, 20x30, chain v3 | L3-4 | L7-10 | L11 to past L12 |
+      | native 10x15, chain v3 | L3-4 | plateaus at 40-55% and never falls | mostly past L12 |
+      | native 10x15, chain v4 | L3-4, unchanged | 1-3 levels sooner, a cliff at L7 | 1-2 sooner |
+
+      On v3 the bases are held by the stall rule rather than the guns: 54% of
+      defender wins include a stall wipe-out, and the plateau is that rule
+      catching crews stuck on a covered post. So the new board fights **chain
+      v4**, and v4's constants stay open until it ships. The re-tune starts at
+      MID, where v4 is harder than today and steeper.
+
+      Drawn content is also what the rest of the move needs. The eight
+      generator plans, the terrain and the assault spawns are authored at 20x30
+      precision, and the mapping rule cannot carry a one-cell line or a
+      two-cell gap. Replays do not need the old generator, because a replay
+      code IS its config, layout included; terrain does need its old version,
+      because a config carries only a terrain seed.
+
 - [ ] **Phase 5 — the boards move.** `TOWN_GRID` and the raid map to 10x15;
       `gridVersion` 2; saved towns downsample 2:1 on load. That is lossy where two guns
       shared a 2x2 block, and whatever does not fit is refunded rather than dropped.
       Generated bases, share codes and replay codes carry their grid, as M33's did.
+
+      Done as each piece made board-agnostic while the game is still on 20x30,
+      identical there, and then one flip:
+      1. Replay codes carry `cellSize`; share codes already carry the grid.
+      2. The UI draws footprints, ranges, radii and strike geometry from the
+         catalog as the board scales it, not as it is written.
+      3. Terrain version 2, sized to the board; version 1 frozen.
+      4. The eight generator plans drawn for a 15-deep, 10-wide approach.
+      5. Assault spawns, missions and the garrison checked for board
+         coordinates.
+      6. The town: grid version 2, wall budgets 25/40/60, placement, the demo
+         towns.
+      7. Saved towns migrate by the one rule. What collides walks to the
+         nearest free cell, as M33's did; walls past the new budget are
+         refunded.
+      8. The flip: `TOWN_GRID` and `MAP_W`/`MAP_H` to 10x15 at cell size 2,
+         `CHAIN_CURRENT` to 4.
 - [x] **Phase 6 — the drawer gets what the board leaves.** Its resting height is sized
       from the grid instead of a fixed 42%, never less than the handle and the tabs, so
       the whole board is in view at rest. Target: 15 of 15 rows.
