@@ -186,7 +186,8 @@ export const EASTERN_TIDE: MissionDef[] = [
       },
       {
         entries: [
-          ...series(0, 100, 2, 'abrams', [8, 12]),
+          // Two heavies, not three, since the 10x15 board (`--missions fit`).
+          entry(100, 'abrams', 12),
           ...series(70, 55, 2, 'humvee', [7, 13]),
           ...series(160, 55, 3, 'javelin', [8, 10, 12]),
         ],
@@ -241,7 +242,8 @@ export const EASTERN_TIDE: MissionDef[] = [
       },
       {
         entries: [
-          ...series(0, 110, 2, 'abrams', [8, 12]),
+          // Two heavies, not four, since the 10x15 board (`--missions fit`):
+          // the late pair stays.
           entry(170, 'humvee', 12),
           ...series(220, 45, 5, 'ranger', [5, 8, 12, 15]),
           ...series(340, 70, 2, 'engineer', [7, 13]),

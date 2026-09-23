@@ -327,7 +327,8 @@ export const CAMPAIGN: MissionDef[] = [
       },
       {
         entries: [
-          ...series(0, 90, 2, 't72', [8, 12]),
+          // Two heavies, not three, since the 10x15 board (`--missions fit`).
+          entry(0, 't72', 8),
           ...series(60, 50, 3, 'zbd', [7, 10, 13]),
           ...series(160, 50, 3, 'grenadier', [8, 10, 12]),
         ],
