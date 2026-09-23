@@ -2482,40 +2482,40 @@ function makeShowcaseTown(now: number): TownState {
   town.fuel = 50_000;
   // Approach space, as the base generator and the balance harness both write
   // it: `u` is depth from the line the enemy comes down, `v` runs across it.
-  // The numbers are the ones this showcase has had since v1.4; the board
-  // turned upright underneath them in v1.40.
+  // Drawn for the 10x15 board (M34) from the showcase this has been since
+  // v1.4: the same line with its gap on the post's column, the same two
+  // flanks, guns behind the gap and the stores behind the guns.
   const at = (u: number, v: number) => u * TOWN_GRID.width + v;
 
   // Grow the CC to 2 instantly.
   upgrade(town, 1, now - 600_000);
   tick(town, now - 500_000);
 
-  place(town, 'supplyDepot', at(23, 4), now - 400_000);
-  place(town, 'supplyDepot', at(23, 14), now - 400_000);
-  place(town, 'fuelDepot', at(26, 3), now - 400_000);
-  place(town, 'storageBunker', at(26, 14), now - 400_000);
-  place(town, 'engBay', at(23, 9), now - 400_000);
-  // One cell shallower than the rest: a 2x2 at depth 29 runs off the back.
-  place(town, 'radar', at(28, 3), now - 400_000);
+  place(town, 'supplyDepot', at(11, 1), now - 400_000);
+  place(town, 'supplyDepot', at(11, 8), now - 400_000);
+  place(town, 'fuelDepot', at(13, 1), now - 400_000);
+  place(town, 'storageBunker', at(13, 7), now - 400_000);
+  place(town, 'engBay', at(12, 3), now - 400_000);
+  place(town, 'radar', at(14, 2), now - 400_000);
   tick(town, now - 300_000);
 
-  place(town, 'm2nest', at(21, 7), now - 200_000);
-  place(town, 'autocannon', at(21, 11), now - 200_000);
+  place(town, 'm2nest', at(10, 3), now - 200_000);
+  place(town, 'autocannon', at(10, 6), now - 200_000);
   tick(town, now - 100_000);
 
-  for (let v = 1; v <= 7; v++) placeWall(town, at(19, v));
-  for (let v = 12; v <= 18; v++) placeWall(town, at(19, v));
-  for (let u = 19; u <= 24; u++) {
-    placeWall(town, at(u, 1));
-    placeWall(town, at(u, 18));
+  for (let v = 1; v <= 3; v++) placeWall(town, at(9, v));
+  for (let v = 6; v <= 8; v++) placeWall(town, at(9, v));
+  for (let u = 9; u <= 12; u++) {
+    placeWall(town, at(u, 0));
+    placeWall(town, at(u, 9));
   }
 
   // Showcase states: one wreck, one upgrade in flight, one build in flight.
-  const depot = structureAt(town, at(23, 14))!;
+  const depot = structureAt(town, at(11, 8))!;
   depot.wrecked = true;
-  const nest = structureAt(town, at(21, 7))!;
+  const nest = structureAt(town, at(10, 3))!;
   upgrade(town, nest.id, now);
-  place(town, 'm2nest', at(21, 9), now);
+  place(town, 'm2nest', at(10, 2), now);
 
   town.charges = { a10: 2, arty: 1 };
   town.assaultLevel = 3;

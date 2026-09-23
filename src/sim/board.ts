@@ -212,6 +212,29 @@ function blockKind(walls: LayoutWall[], isGate: (kind: string) => boolean): stri
 }
 
 /** A wave's spawn points, by the same rule as every other point. */
+/**
+ * An authored siege on a board of `cellSize` (M34).
+ *
+ * Waves are written in PHYSICAL positions — the column an arrival enters at on
+ * the 20-unit entry line, the row a tunnel surfaces on — the way the catalog
+ * is written in physical units. The board maps them by the one rule, so the
+ * hundreds of authored arrivals across the campaign never had to be rewritten
+ * and cannot drift from each other. A cell of one returns the siege it was
+ * handed.
+ */
+export function siegeOnBoard<T extends { waves: WaveDef[] }>(siege: T, cellSize: number): T {
+  if (cellSize === 1) return siege;
+  if (!Number.isInteger(cellSize) || cellSize < 1) {
+    throw new Error(`an authored siege maps onto a board of whole cells, not ${cellSize}`);
+  }
+  return { ...siege, waves: siege.waves.map((w) => coarsenWave(w, cellSize)) };
+}
+
+/** A physical point on a board of `cellSize`, by the one rule. */
+export function onBoard(p: number, cellSize: number): number {
+  return cellOf(p, cellSize);
+}
+
 function coarsenWave(wave: WaveDef, f: number): WaveDef {
   return {
     ...wave,

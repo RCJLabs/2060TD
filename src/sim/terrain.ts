@@ -29,13 +29,12 @@ import { createRng, type Rng } from './rng';
  * The generator's identity. Bump this ONLY by adding a new branch in
  * `generateTerrain` — never by editing an existing one.
  */
-export const TERRAIN_VERSION = 1;
-
 /**
- * Version 2 (M34): version 1 sized to a board of bigger cells. A CANDIDATE
- * until the boards move, which is when it becomes `TERRAIN_VERSION`.
+ * Version 2 (M34): version 1 sized to a board of bigger cells. See the note
+ * in `generateTerrain`.
  */
 export const TERRAIN_SIZED = 2;
+export const TERRAIN_VERSION = TERRAIN_SIZED;
 
 /** Version 0 means "this config predates terrain": flat ground, no effects. */
 export const TERRAIN_NONE = 0;

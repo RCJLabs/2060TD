@@ -1327,22 +1327,22 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
             : 'reaper';
   town.army[flier] = 1;
   // Approach space, like every other layout in the codebase: `u` is depth from
-  // the line the attack comes down, `v` runs across it.
+  // the line the attack comes down, `v` runs across it. On the 10x15 board.
   const at = (u: number, v: number) => u * TOWN_GRID.width + v;
-  place(town, 'barracks', at(20, 3), now - 600_000);
+  place(town, 'barracks', at(10, 1), now - 600_000);
   town.structures.find((s) => s.kind === 'cc')!.level = 2;
-  place(town, 'motorpool', at(20, 15), now - 600_000);
+  place(town, 'motorpool', at(10, 7), now - 600_000);
   // A strip, and something on it (v1.34). The showcase called itself a mustered
   // mid-game town and had never owned an aircraft, which is why nothing here
   // exercised the air layer — including the read that says whether a target is
   // worth flying at. Sited clear of the wall line and the two training halls.
-  place(town, 'airfield', at(14, 9), now - 600_000);
+  place(town, 'airfield', at(7, 4), now - 600_000);
   tick(town, now - 500_000);
   // Placements can fail — a cell in the river, a footprint off the board — so
   // these read what actually went down rather than asserting it did. A `!`
   // here threw on one faction and took the whole scene with it.
-  const barracks = structureAt(town, at(20, 3));
-  const pool = structureAt(town, at(20, 15));
+  const barracks = structureAt(town, at(10, 1));
+  const pool = structureAt(town, at(10, 7));
   if (barracks) barracks.level = 3; // veteran garrison
   if (pool) pool.level = 2;
   if (barracks) {

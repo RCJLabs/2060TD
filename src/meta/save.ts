@@ -1,5 +1,5 @@
 import { rescaleLadder } from '../content/assaults';
-import { campaignFor, type FactionId } from '../content/factions';
+import { campaignFor, defenseCatalogFor, type FactionId } from '../content/factions';
 import { LEAGUES, seasonAt } from '../content/leagues';
 import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { isStandingOrdersId } from '../content/standingOrders';
@@ -9,6 +9,7 @@ import { regridTown } from './regrid';
 import { normalizePlan } from './warfare';
 import { normalizeContracts } from './contracts';
 import {
+  gating,
   newTown,
   normalizeTerrain,
   normalizeWarLog,
@@ -272,7 +273,14 @@ export function deserialize(json: string): TownState | null {
     // this would have thrown on it.
     if (!Array.isArray(town.structures) || !Array.isArray(town.walls)) return null;
     if ((town.gridVersion ?? 0) < TOWN_GRID.version) {
-      regridTown(town);
+      // Every move the file missed, in order (M34 added the second). Walls
+      // with no cell on the new board, or past its smaller budget, are paid
+      // back at what they cost — the player bought them, and the move is ours.
+      const report = regridTown(town, town.gridVersion ?? 0, () => true, gating(town).walls);
+      const walls = defenseCatalogFor(town.faction).walls;
+      for (const [kind, n] of Object.entries(report.wallsDropped)) {
+        town.supplies += n * ((walls[kind] ?? walls['wall'])?.supplyCost ?? 0);
+      }
       town.gridVersion = TOWN_GRID.version;
       // Whatever ground the old board had described is about ground that is
       // no longer there. Dropping it sends the seed back through the fitting

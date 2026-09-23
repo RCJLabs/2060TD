@@ -53,6 +53,7 @@ export class PlaygroundScene extends Phaser.Scene {
       {
         width: GRID_W,
         height: GRID_H,
+        cellSize: TOWN_GRID.cellSize,
         seed: Date.now() >>> 0,
         ccOrigin: TOWN_GRID.ccOrigin,
         spawnLane: TOWN_GRID.spawnLane,

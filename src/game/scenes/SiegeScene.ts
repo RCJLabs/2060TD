@@ -12,6 +12,7 @@ import { audio } from '../audio';
 import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
 import { TERRAIN_VERSION } from '../../sim/terrain';
+import { siegeOnBoard } from '../../sim/board';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import { Overlay } from '../overlay';
@@ -157,11 +158,13 @@ export class SiegeScene extends Phaser.Scene {
     const config: SimConfig = this.launchConfig ?? {
       width: GRID_W,
       height: GRID_H,
+      cellSize: TOWN_GRID.cellSize,
       seed: this.demoMode ? 1337 : Date.now() >>> 0,
       ccOrigin: TOWN_GRID.ccOrigin,
       spawnLane: TOWN_GRID.spawnLane,
       spawnEdge: TOWN_GRID.spawnEdge,
-      siege: standaloneSiege,
+      // Authored in physical positions, like every siege (M34).
+      siege: siegeOnBoard(standaloneSiege, TOWN_GRID.cellSize),
       // The sandbox is fought on ground like everything else. Pinned in demo
       // mode so a screenshot run is comparable to the last one.
       terrainSeed: this.demoMode ? 4242 : Date.now() >>> 0,
@@ -242,15 +245,17 @@ export class SiegeScene extends Phaser.Scene {
     const wall = (u: number, v: number) =>
       e.enqueue({ tick: 0, type: 'placeWall', cell: at(u, v), kind: 'wall' });
 
-    for (let v = 0; v <= 8; v++) wall(20, v);
-    for (let v = 12; v <= 18; v++) wall(20, v);
-    for (let v = 6; v <= 8; v++) wall(24, v);
-    for (let v = 12; v <= 14; v++) wall(24, v);
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(22, 8), kind: 'm2nest' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(22, 11), kind: 'm2nest' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(25, 10), kind: 'autocannon' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(26, 7), kind: 'mortar' });
-    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(25, 13), kind: 'aa' });
+    // Drawn for 10x15 (M34): the outer line with its gap over the post, the
+    // inner line split around the post's column, two nests flanking the gap.
+    for (let v = 0; v <= 3; v++) wall(10, v);
+    for (let v = 6; v <= 8; v++) wall(10, v);
+    for (let v = 2; v <= 3; v++) wall(12, v);
+    for (let v = 6; v <= 7; v++) wall(12, v);
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(11, 3), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(11, 6), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(14, 5), kind: 'autocannon' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(14, 3), kind: 'mortar' });
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: at(13, 7), kind: 'aa' });
     e.enqueue({ tick: 0, type: 'startAssault' });
 
     // Jump into mid-wave-2 so screenshots land on the action even when the
@@ -264,10 +269,10 @@ export class SiegeScene extends Phaser.Scene {
     }
     // Live-window actions: field defenses drop in and a fire mission lands
     // on the gate while the first frames render.
-    e.command({ tick: e.tick + 3, type: 'placeStructure', cell: at(21, 9), kind: 'depmg' });
-    e.command({ tick: e.tick + 5, type: 'placeStructure', cell: at(19, 10), kind: 'claymore' });
-    // The fire mission lands on the gap in the line, in world coordinates.
-    e.command({ tick: e.tick + 10, type: 'castPower', kind: 'arty', target: { x: 10.5, y: 19.5 } });
+    e.command({ tick: e.tick + 3, type: 'placeStructure', cell: at(11, 4), kind: 'depmg' });
+    e.command({ tick: e.tick + 5, type: 'placeStructure', cell: at(9, 5), kind: 'claymore' });
+    // The fire mission lands on the gap in the line, in board coordinates.
+    e.command({ tick: e.tick + 10, type: 'castPower', kind: 'arty', target: { x: 5, y: 10.5 } });
 
 
   }
