@@ -220,3 +220,82 @@ function coarsenWave(wave: WaveDef, f: number): WaveDef {
     })),
   };
 }
+
+/**
+ * The inverse of `coarsenConfig`: put a coarse config back on a board `factor`
+ * times finer, at a cell size `factor` times smaller.
+ *
+ * This is an INSTRUMENT, not a content path, and it exists to split one
+ * question into two. When a mapped base plays differently on the coarse board,
+ * the drift has two possible sources — what the mapping did to the PLAN (a stub
+ * that vanished, a gun that lost its cell, a post that moved) and what the
+ * coarser GRID does to the battle (coarser paths, a smaller post, scaled
+ * physics). Refining the coarse plan keeps its shape exactly and hands it back
+ * to the fine grid, so:
+ *
+ *   fine -> refined    is what the mapping did,
+ *   refined -> coarse  is what the grid did,
+ *
+ * one variable each. A coarse cell becomes a whole block: a wall is a solid
+ * `factor x factor` wall, the post fills its block because it is 2x2 again at
+ * the finer cell size, and a one-cell thing sits in the block's top-left
+ * corner, half a cell from the block's centre — the one place this is not
+ * exact. `coarsenConfig(refineConfig(c))` is `c`, which the tests hold.
+ */
+export function refineConfig(config: SimConfig, factor: number): SimConfig {
+  const f = Math.round(factor);
+  if (f !== factor || f < 1) throw new Error(`refineConfig: factor must be a whole number >= 1, got ${factor}`);
+  if (f === 1) return config;
+  const cellSize = (config.cellSize ?? 1) / f;
+  if (cellSize < 1 || cellSize !== Math.round(cellSize)) {
+    throw new Error(`refineConfig: a board at cell size ${config.cellSize ?? 1} cannot be refined ${f}x`);
+  }
+  const w = config.width;
+  const W = w * f;
+  const origin = (cell: CellIndex): CellIndex => Math.floor(cell / w) * f * W + (cell % w) * f;
+  const block = (cell: CellIndex): CellIndex[] => {
+    const o = origin(cell);
+    const out: CellIndex[] = [];
+    for (let dy = 0; dy < f; dy++) for (let dx = 0; dx < f; dx++) out.push(o + dy * W + dx);
+    return out;
+  };
+  // Back at cell size 1 the field is left off entirely, the way every config
+  // written before M34 has it, rather than set to a 1 nothing else ever carried.
+  const rest: SimConfig = { ...config };
+  delete rest.cellSize;
+  return {
+    ...rest,
+    ...(cellSize === 1 ? {} : { cellSize }),
+    width: W,
+    height: config.height * f,
+    ccOrigin: origin(config.ccOrigin),
+    spawnLane: config.spawnLane * f,
+    ...(config.siege
+      ? {
+          siege: {
+            ...config.siege,
+            waves: config.siege.waves.map((wv) => ({
+              ...wv,
+              entries: wv.entries.map((e) => ({
+                ...e,
+                ...(e.col !== undefined ? { col: e.col * f } : {}),
+                ...(e.row !== undefined ? { row: e.row * f } : {}),
+              })),
+            })),
+          },
+        }
+      : {}),
+    ...(config.layout
+      ? {
+          layout: {
+            walls: config.layout.walls.flatMap((wl) => block(wl.cell).map((cell) => ({ ...wl, cell }))),
+            structures: config.layout.structures.map((st) => ({ ...st, cell: origin(st.cell) })),
+          },
+        }
+      : {}),
+    ...(config.reservedCells ? { reservedCells: config.reservedCells.flatMap(block) } : {}),
+    ...(config.buildLimits?.walls !== undefined
+      ? { buildLimits: { ...config.buildLimits, walls: config.buildLimits.walls * f } }
+      : {}),
+  };
+}

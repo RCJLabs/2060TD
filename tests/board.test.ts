@@ -3,7 +3,7 @@ import { buildAssault } from '../src/content/assaults';
 import { missionSiege } from '../src/content/campaign';
 import { campaignFor, defenseCatalogFor, enemyRosterFor, FACTION_IDS } from '../src/content/factions';
 import { siegeConfig, TOWN_GRID } from '../src/meta/town';
-import { cellOf, coarsenConfig } from '../src/sim/board';
+import { cellOf, coarsenConfig, refineConfig } from '../src/sim/board';
 import { Engine } from '../src/sim/engine';
 import { createRng } from '../src/sim/rng';
 import { TERRAIN_NONE } from '../src/sim/terrain';
@@ -196,6 +196,34 @@ describe('one rule for a coarser board (M34)', () => {
       for (const w of config.layout?.walls ?? []) expect(w.cell).toBeLessThan(cells);
       for (const s of config.layout?.structures ?? []) expect(s.cell).toBeLessThan(cells);
     }
+  });
+
+  it('refine is coarsen run backwards: the round trip is exact', () => {
+    // The instrument that splits "what the mapping did" from "what the grid
+    // did" is only as good as this. A coarse plan refined onto the fine grid
+    // and coarsened again has to come back cell for cell.
+    const fine: SimConfig = {
+      ...board(
+        [...line(20, 1, 18, [9, 10]), ...line(24, 1, 18, [3, 4, 15, 16]), { cell: at(22, 1), kind: 'gate' }],
+        [
+          { cell: at(22, 8), kind: 'm2nest', level: 2 },
+          { cell: at(26, 4), kind: 'm2nest', level: 2 },
+          { cell: at(28, 6), kind: 'mortar', level: 1 },
+        ],
+      ),
+      reservedCells: [at(5, 5), at(5, 6)],
+      buildLimits: { walls: 40 },
+      siege: { ...buildAssault(6, enemyRosterFor('usa')), startingSupplies: 0 },
+    };
+    const coarse = coarsenConfig(fine, catalog, 2).config;
+    const refined = refineConfig(coarse, 2);
+    expect(refined.width).toBe(W);
+    expect(refined.cellSize).toBeUndefined(); // back at 1: left off, like every pre-M34 config
+    expect(coarsenConfig(refined, catalog, 2).config).toEqual(coarse);
+    // And the refined plan is the coarse SHAPE: every wall a solid 2x2.
+    expect(refined.layout!.walls.length).toBe(coarse.layout!.walls.length * 4);
+    // A refined board runs at cell size 1 with the post 2x2 again.
+    expect(new Engine(refined, catalog).cc.cells).toHaveLength(4);
   });
 
   it('the coarse battle is a battle: it spawns, fights and ends', () => {

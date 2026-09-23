@@ -54,6 +54,7 @@ import { CONDITIONS } from '../content/conditions';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
+import { coarsenConfig, refineConfig } from '../sim/board';
 import { Engine } from '../sim/engine';
 import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
@@ -1223,6 +1224,64 @@ interface DefenseRow {
   holdPct: number[];
 }
 
+/**
+ * One defence-matrix battle's config. The ONE place it is built (M34).
+ *
+ * It used to be written out inside `defenseMatrix`, and M34's similarity check
+ * needs the identical battle. A second hand-built copy would have doubled the
+ * hazard the comment below describes, so both read it from here — and the
+ * check's first act is to prove, cell for cell, that what it builds still
+ * reproduces the published table.
+ */
+function defenseConfigFor(
+  faction: FactionId,
+  base: ReferenceBase,
+  level: number,
+  seed: number,
+  opts: { mods?: DefenderMods; extraStructures?: LayoutStructure[]; orders?: StandingOrders } = {},
+): SimConfig {
+  const { mods, extraStructures = [], orders } = opts;
+  return {
+    width: W,
+    height: H,
+    seed,
+    ccOrigin: CC_ORIGIN,
+    ccLevel: base.ccLevel,
+    spawnLane: BASE_SPAWN_LANE,
+    spawnEdge: BASE_SPAWN_EDGE,
+    // The shipped game rolls (v1.23) and fights a staged objective (v1.41).
+    // This matrix builds its config BY HAND rather than through
+    // `battleConfig`, so it is the one place that quietly keeps measuring the
+    // sim as it was — and it did exactly that, twice now. The v1.23 comment
+    // predicted it; v1.41 shipped a whole milestone before anyone checked
+    // whether the defence half of the snapshot had been told. Every line added
+    // to `battleConfig` has to be added here too, or this file reports a game
+    // nobody is playing.
+    combatVersion: COMBAT_CURRENT,
+    killChainVersion: CHAIN_CURRENT,
+    siege: { ...buildAssault(level, enemyRosterFor(faction)), startingSupplies: 0 },
+    layout: {
+      walls: base.walls.map((w) => ({ ...w })),
+      structures: [...base.structures, ...extraStructures].map((s) => ({ ...s })),
+    },
+    // Orders rows fight with a typically-stocked magazine; bare rows stay
+    // empty so every pre-v0.8 number is unchanged.
+    powerCharges: orders ? { a10: 2, arty: 1 } : {},
+    ...(orders ? { standingOrders: orders } : {}),
+    ...(mods ? { mods: { defender: mods } } : {}),
+  };
+}
+
+/** Run one defence battle to its verdict. */
+function fightDefense(config: SimConfig, catalog: Catalog): Engine {
+  const engine = new Engine(config, catalog);
+  engine.enqueue({ tick: 0, type: 'startAssault' });
+  while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
+    engine.step();
+  }
+  return engine;
+}
+
 function defenseMatrix(
   faction: FactionId,
   mods?: DefenderMods,
@@ -1230,7 +1289,6 @@ function defenseMatrix(
   orders?: StandingOrders,
 ): DefenseRow[] {
   const catalog = defenseCatalogFor(faction);
-  const roster = enemyRosterFor(faction);
   const rows: DefenseRow[] = [];
 
   for (const base of referenceBases()) {
@@ -1238,35 +1296,11 @@ function defenseMatrix(
     for (const level of ASSAULT_LEVELS) {
       let held = 0;
       for (let i = 0; i < SEEDS; i++) {
-        const config: SimConfig = {
-          width: W,
-          height: H,
-          seed: seedOf(level, base.ccLevel, i),
-          ccOrigin: CC_ORIGIN,
-          ccLevel: base.ccLevel,
-          spawnLane: BASE_SPAWN_LANE,
-          spawnEdge: BASE_SPAWN_EDGE,
-          // The shipped game rolls (v1.23) and fights a staged objective
-          // (v1.41). This matrix builds its config BY HAND rather than through
-          // `battleConfig`, so it is the one place that quietly keeps measuring
-          // the sim as it was — and it did exactly that, twice now. The v1.23
-          // comment predicted it; v1.41 shipped a whole milestone before
-          // anyone checked whether the defence half of the snapshot had been
-          // told. Every line added to `battleConfig` has to be added here too,
-          // or this file reports a game nobody is playing.
-          combatVersion: COMBAT_CURRENT,
-          killChainVersion: CHAIN_CURRENT,
-          siege: { ...buildAssault(level, roster), startingSupplies: 0 },
-          layout: {
-            walls: base.walls.map((w) => ({ ...w })),
-            structures: [...base.structures, ...extraStructures].map((s) => ({ ...s })),
-          },
-          // Orders rows fight with a typically-stocked magazine; bare rows
-          // stay empty so every pre-v0.8 number is unchanged.
-          powerCharges: orders ? { a10: 2, arty: 1 } : {},
-          ...(orders ? { standingOrders: orders } : {}),
-          ...(mods ? { mods: { defender: mods } } : {}),
-        };
+        const config = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i), {
+          mods,
+          extraStructures,
+          orders,
+        });
         const engine = new Engine(config, catalog);
         engine.enqueue({ tick: 0, type: 'startAssault' });
         while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
@@ -1279,6 +1313,175 @@ function defenseMatrix(
     rows.push({ stage: base.name, holdPct: holds });
   }
   return rows;
+}
+
+/**
+ * Is the half-size board the same game? (M34 Phase 4 — the go/no-go)
+ *
+ * M34 moves the world from 20x30 to 10x15 as a similarity transform: every
+ * distance and speed in the catalog halves (`sim/scale.ts`), so the ground is
+ * the same and only the cells are bigger. What cannot halve is anything that
+ * was already one cell — a gun, a wall — and the question this answers is how
+ * much that costs, measured on the defence ladder the last three milestones
+ * were spent tuning.
+ *
+ * Three passes per (faction, base, level):
+ *
+ *   FINE    today's board, the published seeds. Its first job is to prove the
+ *           instrument: every cell must equal the shipped v1.43 table, or the
+ *           comparison below is between two things neither of which is the game.
+ *   NULL    today's board again with twenty DIFFERENT seeds. How far two runs of
+ *           the same game disagree is the noise floor, measured rather than
+ *           assumed — at 20 seeds one cell's hold rate swings a long way by
+ *           chance, and a drift is only a drift if it is bigger than that.
+ *   COARSE  the FINE configs mapped by the one rule (`sim/board.ts`) onto 10x15
+ *           at cell size 2 — exactly what migrating a player's base would do.
+ *   REFINED the COARSE plan put back on the 20x30 grid at cell size 1: the coarse
+ *           plan's exact shape, fought with fine pathing and a 2x2 post. It
+ *           splits the drift in two, one variable each — FINE -> REFINED is what
+ *           the MAPPING did to the plan, REFINED -> COARSE is what the GRID did
+ *           to the battle.
+ *
+ * The defence tables are flat by design ("the permanent layer alone"), so no
+ * terrain question enters: the only variable is the board.
+ */
+function similarity(): void {
+  const started = Date.now();
+  const bases = referenceBases();
+  const pct = (n: number) => Math.round((n / SEEDS) * 100);
+
+  // ---- what the fixtures lose in the mapping ----------------------------------
+  // A plan does not depend on the faction, so its mapping is reported once.
+  console.log('SIMILAR — is the 10x15 board the same game? (M34 Phase 4)\n');
+  console.log('FIXTURES ON 10x15 (cell size 2), by the one rule:');
+  for (const base of bases) {
+    const { config, report } = coarsenConfig(
+      defenseConfigFor('usa', base, 1, 1),
+      defenseCatalogFor('usa'),
+      2,
+    );
+    const dropped = report.structuresDropped.map((d) => `${d.kind} (${d.why})`);
+    console.log(
+      `  ${base.name.padEnd(11)}  structures ${base.structures.length} -> ` +
+        `${config.layout!.structures.length}${dropped.length ? `, lost: ${dropped.join(', ')}` : ''}` +
+        `   walls ${report.wallsIn} -> ${report.wallsOut}`,
+    );
+  }
+
+  // ---- the three passes ---------------------------------------------------------
+  type Cell = { fine: number; null: number; coarse: number; refined: number };
+  const rows: { faction: FactionId; base: string; cells: Cell[] }[] = [];
+  for (const faction of FACTION_IDS) {
+    const catalog = defenseCatalogFor(faction);
+    for (const base of bases) {
+      const cells: Cell[] = [];
+      for (const level of ASSAULT_LEVELS) {
+        let fine = 0;
+        let nul = 0;
+        let coarse = 0;
+        let refined = 0;
+        for (let i = 0; i < SEEDS; i++) {
+          const a = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i));
+          if (fightDefense(a, catalog).phase === 'victory') fine++;
+          const b = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i + SEEDS));
+          if (fightDefense(b, catalog).phase === 'victory') nul++;
+          const small = coarsenConfig(a, catalog, 2).config;
+          if (fightDefense(small, catalog).phase === 'victory') coarse++;
+          if (fightDefense(refineConfig(small, 2), catalog).phase === 'victory') refined++;
+        }
+        cells.push({ fine: pct(fine), null: pct(nul), coarse: pct(coarse), refined: pct(refined) });
+      }
+      rows.push({ faction, base: base.name, cells });
+    }
+  }
+
+  // ---- the instrument, checked before it is believed ------------------------------
+  // The FINE pass must reproduce the published bare defence tables cell for
+  // cell. They appear in FACTION_IDS order, three stage rows each.
+  const published: number[][] = [];
+  const md = readFileSync('docs/BALANCE.md', 'utf8').split('\n');
+  for (let i = 0; i < md.length; i++) {
+    if (!/^DEFENSE — .+ permanent layer vs .+ assault ladder \(hold%\)$/.test(md[i]!)) continue;
+    for (let r = 0; r < 3; r++) {
+      published.push(md[i + 3 + r]!.split('|').slice(1).map((v) => Number(v.trim())));
+    }
+  }
+  let agree = 0;
+  let checked = 0;
+  const off: string[] = [];
+  rows.forEach((row, r) => {
+    row.cells.forEach((cell, l) => {
+      checked++;
+      if (published[r]?.[l] === cell.fine) agree++;
+      else off.push(`${row.faction} ${row.base} L${l + 1}: ${published[r]?.[l]} vs ${cell.fine}`);
+    });
+  });
+  console.log(
+    `\nSELF-CHECK: the FINE pass against the published v1.43 tables — ${agree}/${checked} cells identical` +
+      (off.length ? `\n  DISAGREES, do not trust what follows:\n    ${off.slice(0, 8).join('\n    ')}` : ''),
+  );
+
+  // ---- the rows ---------------------------------------------------------------------
+  console.log(
+    `\nHOLD% BY LEVEL — FINE (20x30) / REFINED (coarse plan, fine grid) / COARSE (10x15), ${SEEDS} seeds`,
+  );
+  console.log(`FACTION | BASE        | BOARD   | ${ASSAULT_LEVELS.map((l) => pad(`L${l}`, 4)).join(' ')}`);
+  for (const row of rows) {
+    for (const which of ['fine', 'refined', 'coarse'] as const) {
+      console.log(
+        `${pad(which === 'fine' ? row.faction.toUpperCase() : '', 7)} | ${
+          which === 'fine' ? row.base.padEnd(11) : ''.padEnd(11)
+        } | ${which.padEnd(7)} | ${row.cells.map((c) => pad(c[which], 4)).join(' ')}`,
+      );
+    }
+  }
+
+  // ---- the verdict's numbers ----------------------------------------------------------
+  const all = rows.flatMap((r) => r.cells);
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  const live = (x: number, y: number) => (x >= 5 && x <= 95) || (y >= 5 && y <= 95);
+  type Key = 'fine' | 'null' | 'coarse' | 'refined';
+  const drift = (from: Key, to: Key) => {
+    const liveCells = all.filter((c) => live(c[from], c[to]));
+    return {
+      shift: mean(all.map((c) => c[to] - c[from])),
+      all: mean(all.map((c) => Math.abs(c[to] - c[from]))),
+      live: mean(liveCells.map((c) => Math.abs(c[to] - c[from]))),
+      liveCells: liveCells.length,
+      flips: rows.filter((r) => flip(r.cells, from) !== flip(r.cells, to)).length,
+      flipShift: mean(rows.map((r) => flip(r.cells, to) - flip(r.cells, from))),
+    };
+  };
+  const flip = (cells: Cell[], key: Key) => {
+    const at = cells.findIndex((c) => c[key] < 50);
+    return at < 0 ? ASSAULT_LEVELS.length + 1 : at + 1;
+  };
+  const contested = (key: Key) =>
+    mean(rows.map((r) => r.cells.filter((c) => c[key] >= 5 && c[key] <= 95).length));
+  const steps = [
+    { label: 'NULL', note: 'same board, new seeds', d: drift('fine', 'null'), c: contested('null') },
+    { label: 'MAPPING', note: 'fine -> refined', d: drift('fine', 'refined'), c: contested('refined') },
+    { label: 'GRID', note: 'refined -> coarse', d: drift('refined', 'coarse'), c: contested('coarse') },
+    { label: 'TOTAL', note: 'fine -> coarse', d: drift('fine', 'coarse'), c: contested('coarse') },
+  ];
+  const floor = steps[0]!.d;
+  console.log('\nTHE DRIFT, ONE VARIABLE AT A TIME (hold% points; x = multiples of the noise floor)');
+  console.log('STEP     | WHAT               | MEAN SHIFT | |DRIFT|/CELL     | LIVE CELLS           | FLIPS MOVED');
+  console.log('---------+--------------------+------------+------------------+----------------------+------------');
+  for (const { label, note, d } of steps) {
+    const x = (v: number, f: number) => (label === 'NULL' ? '' : ` (${(v / Math.max(0.01, f)).toFixed(1)}x)`);
+    console.log(
+      `${label.padEnd(8)} | ${note.padEnd(18)} | ${pad(`${d.shift >= 0 ? '+' : ''}${d.shift.toFixed(1)}`, 10)} | ` +
+        `${`${d.all.toFixed(1)}${x(d.all, floor.all)}`.padEnd(16)} | ` +
+        `${`${d.live.toFixed(1)}${x(d.live, floor.live)} n=${d.liveCells}`.padEnd(20)} | ` +
+        `${d.flips} of ${rows.length} (${d.flipShift >= 0 ? '+' : ''}${d.flipShift.toFixed(2)})`,
+    );
+  }
+  console.log(
+    `\ncontested levels per row: fine ${contested('fine').toFixed(2)}, null ${contested('null').toFixed(2)}, ` +
+      `refined ${contested('refined').toFixed(2)}, coarse ${contested('coarse').toFixed(2)}`,
+  );
+  console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
 
 // ---- report ---------------------------------------------------------------------
@@ -4277,6 +4480,10 @@ function main(): void {
         'stage, ONE rung size cannot serve every base.',
     );
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--similar')) {
+    similarity();
     return;
   }
   if (process.argv.includes('--contested')) {
