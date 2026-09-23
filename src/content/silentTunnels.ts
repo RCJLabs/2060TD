@@ -200,7 +200,8 @@ export const SILENT_TUNNELS: MissionDef[] = [
       },
       {
         entries: [
-          ...series(0, 100, 2, 'abrams', [7, 12]),
+          // Two heavies, not three, since the 10x15 board (`--missions fit`).
+          entry(100, 'abrams', 12),
           ...series(70, 55, 2, 'humvee', [6, 14]),
           ...series(160, 55, 3, 'javelin', [7, 10, 12]),
         ],
@@ -257,11 +258,13 @@ export const SILENT_TUNNELS: MissionDef[] = [
       },
       {
         entries: [
-          ...series(0, 110, 2, 'abrams', [7, 12]),
+          // Two heavies, not four, since the 10x15 board (`--missions fit`):
+          // the middle two.
+          entry(110, 'abrams', 12),
           entry(170, 'humvee', 12),
           ...series(220, 45, 5, 'ranger', [4, 7, 12, 16]),
           ...series(340, 70, 2, 'engineer', [6, 14]),
-          ...series(430, 120, 2, 'abrams', [10, 7]),
+          entry(430, 'abrams', 10),
         ],
       },
     ],

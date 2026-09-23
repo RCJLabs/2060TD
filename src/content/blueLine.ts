@@ -193,7 +193,8 @@ export const BLUE_LINE: MissionDef[] = [
       },
       {
         entries: [
-          ...series(0, 100, 2, 'type99', [7, 12]),
+          // Two heavies, not three, since the 10x15 board (`--missions fit`).
+          entry(100, 'type99', 12),
           ...series(70, 55, 2, 'zbd', [6, 14]),
           ...series(160, 55, 3, 'grenadier', [7, 10, 12]),
         ],
@@ -248,11 +249,13 @@ export const BLUE_LINE: MissionDef[] = [
       },
       {
         entries: [
-          ...series(0, 110, 2, 'type99', [7, 12]),
+          // Two heavies, not four, since the 10x15 board (`--missions fit`):
+          // one from each pair.
+          entry(0, 'type99', 7),
           entry(170, 'zbd', 12),
           ...series(220, 45, 5, 'rifle', [4, 7, 12, 16]),
           ...series(340, 70, 2, 'sapper', [6, 14]),
-          ...series(430, 120, 2, 'type99', [10, 7]),
+          entry(430, 'type99', 10),
         ],
       },
     ],

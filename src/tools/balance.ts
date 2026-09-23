@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import { buildAssault, LADDER, type Ladder } from '../content/assaults';
+import { missionSiege, type Difficulty, type MissionDef } from '../content/campaign';
 import { GARRISON_GUN_TRADE } from '../content/garrison';
 import { DAMAGE_MULT } from '../content/damage';
 import {
@@ -32,6 +33,7 @@ import {
 } from '../content/bases';
 import {
   baseKitFor,
+  campaignFor,
   defenseCatalogFor,
   enemyRosterFor,
   flavorFor,
@@ -57,7 +59,7 @@ import { CONDITIONS } from '../content/conditions';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
-import { coarsenConfig, refineConfig, siegeOnBoard } from '../sim/board';
+import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
 import { scaleFootprint } from '../sim/scale';
 import { createRng } from '../sim/rng';
@@ -82,6 +84,7 @@ import type {
   DefenderMods,
   LayoutStructure,
   LayoutWall,
+  SiegeDef,
   SimConfig,
   StandingOrders,
   Catalog,
@@ -1410,10 +1413,22 @@ function defenseConfigFor(
     chainVersion?: number;
     /** A candidate ladder, for `--retune`; the shipped one otherwise. */
     ladder?: Ladder;
+    /**
+     * An authored siege to fight instead of the ladder's — a campaign
+     * mission's, for `--missions`. Physical positions, like every other, and
+     * `level` is ignored when it is given.
+     */
+    siege?: SiegeDef;
+    /** Its tunnel mouths, physical, reserved as `missionConfig` reserves them. */
+    tunnels?: readonly { col: number; row: number }[];
   } = {},
 ): SimConfig {
   const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT, ladder = LADDER } = opts;
   const { board } = base;
+  const authored = opts.siege ?? buildAssault(level, enemyRosterFor(faction), ladder);
+  const reserved = (opts.tunnels ?? []).map(
+    (t) => onBoard(t.row, board.cellSize) * board.width + onBoard(t.col, board.cellSize),
+  );
   return {
     width: board.width,
     height: board.height,
@@ -1438,10 +1453,7 @@ function defenseConfigFor(
     killChainVersion: chainVersion,
     // Authored in physical positions, and mapped onto the board's cells by
     // the one rule — `battleConfig`'s seam, again.
-    siege: siegeOnBoard(
-      { ...buildAssault(level, enemyRosterFor(faction), ladder), startingSupplies: 0 },
-      board.cellSize,
-    ),
+    siege: siegeOnBoard({ ...authored, startingSupplies: 0 }, board.cellSize),
     layout: {
       walls: base.walls.map((w) => ({ ...w })),
       structures: [...base.structures, ...extraStructures].map((s) => ({ ...s })),
@@ -1451,6 +1463,7 @@ function defenseConfigFor(
     powerCharges: orders ? { a10: 2, arty: 1 } : {},
     ...(orders ? { standingOrders: orders } : {}),
     ...(mods ? { mods: { defender: mods } } : {}),
+    ...(reserved.length > 0 ? { reservedCells: reserved } : {}),
   };
 }
 
@@ -1963,6 +1976,336 @@ function retune(): void {
     `\nv1.44 falls by row: ${FACTION_IDS.map((_, f) => [0, 1, 2].map((b) => falls(V1_PUBLISHED[f * 3 + b]!)).join('/')).join(' ')}` +
       ` · contested per row 1.67`,
   );
+  console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+}
+
+/**
+ * Every campaign as v1.44 fought it: the 20x30 reference bases on chain v3,
+ * the missions as they were written for that board, standard difficulty,
+ * hold% over forty seeds, EARLY / MID / LATE. Frozen because the missions
+ * were re-authored for the 10x15 board after it (v1.45.1), and the instrument
+ * that checks them needs the campaign they were written to play like.
+ */
+const V1_CAMPAIGN: Record<FactionId, readonly (readonly number[])[]> = {
+  usa: [
+    [100, 100, 100], // M1 DIG IN
+    [100, 100, 100], // M2 FIRST BLOOD
+    [100, 100, 100], // M3 THE BREACH
+    [100, 100, 100], // M4 CONVOY
+    [0, 100, 100], // M5 SUPPRESSION
+    [100, 100, 100], // M6 INFILTRATION
+    [0, 95, 100], // M7 ARMOR PROBE
+    [0, 3, 100], // M8 THE LONG NIGHT
+    [0, 88, 100], // M9 LANDFALL
+  ],
+  china: [
+    [100, 100, 100], // M1 BEACHHEAD
+    [100, 100, 100], // M2 COUNTERATTACK
+    [100, 100, 100], // M3 DEMOLITION TEAMS
+    [3, 100, 100], // M4 JAVELIN RAIN
+    [0, 55, 100], // M5 ARMOR SPEARHEAD
+    [0, 15, 100], // M6 THE TIDE BREAKS
+  ],
+  russia: [
+    [100, 100, 100], // M1 THE RAILHEAD
+    [100, 100, 100], // M2 WHITEOUT
+    [100, 100, 100], // M3 SAPPERS ON THE ICE
+    [10, 100, 100], // M4 RIDGELINE MISSILES
+    [0, 95, 100], // M5 STEEL ON STEEL
+    [0, 68, 100], // M6 THE CORRIDOR HOLDS
+  ],
+  nk: [
+    [100, 100, 100], // M1 THE ENCLAVE
+    [100, 100, 100], // M2 NO MOON
+    [100, 100, 100], // M3 BREACHING CHARGES
+    [0, 100, 100], // M4 FIRE ON THE BLUFFS
+    [0, 75, 100], // M5 UP THE 101
+    [0, 35, 100], // M6 DAYLIGHT
+  ],
+  un: [
+    [100, 100, 100], // M1 THE CORRIDOR
+    [100, 100, 100], // M2 RULES OF ENGAGEMENT
+    [100, 100, 100], // M3 SAPPERS AT THE WIRE
+    [50, 100, 100], // M4 GRENADIER LINE
+    [0, 90, 100], // M5 ARMOR ON THE FIVE
+    [0, 13, 100], // M6 THE MANDATE HOLDS
+  ],
+};
+
+/**
+ * The campaign on the new board (`--missions`, after M34).
+ *
+ * Every faction's missions moved to 10x15 and chain v4 in v1.45, and nothing
+ * measured them: the ladder has always had a harness and the campaign never
+ * did. The same move put the ladder's rows 1.13 levels toward the attacker
+ * before it was re-tuned, so the missions are presumed moved until this says
+ * otherwise.
+ *
+ * Each mission is fought against all three reference bases, because what a
+ * player brings to mission N varies more than what they bring to ladder level
+ * N, in the defence tables' terms: permanent layer alone, flat ground. It is
+ * held up against `V1_CAMPAIGN`, the campaign as v1.44 fought it on 20x30 and
+ * frozen before the missions were re-authored for this board. A second pass
+ * with other seeds is the noise floor, measured rather than assumed. The base
+ * a campaign actually allows at a mission, by the command post level it has
+ * unlocked by then, is marked: that is the cell the mission was tuned in.
+ *
+ * It found every drifted mission was one that fields heavies, and the fix
+ * was per mission (`--missions fit`), because no one rule served all five.
+ */
+function missionsTable(difficulty: Difficulty = 'standard'): string {
+  const lines: string[] = [];
+  const out = (line: string) => lines.push(line);
+  const bases = referenceBases();
+  const n = SEEDS * 2;
+  const pct = (k: number) => Math.round((k / n) * 100);
+  type Cell = { was: number; now: number; again: number };
+  type Row = { faction: FactionId; mission: MissionDef; cells: Cell[]; home: number };
+  const rows: Row[] = [];
+  for (const faction of FACTION_IDS) {
+    const catalog = defenseCatalogFor(faction);
+    // The command post level a player can have when a mission comes: a
+    // mission's unlocks arrive with its victory, so they count from the next.
+    let cc = 1;
+    for (const mission of campaignFor(faction)) {
+      const opts = { siege: missionSiege(mission, difficulty), tunnels: mission.tunnels ?? [] };
+      const cells = bases.map((base, b) => {
+        let now = 0;
+        let again = 0;
+        for (let i = 0; i < n; i++) {
+          const seed = seedOf(100 + mission.index, base.ccLevel, i);
+          const other = seedOf(100 + mission.index, base.ccLevel, i + n);
+          if (fightDefense(defenseConfigFor(faction, base, 1, seed, opts), catalog).phase === 'victory') now++;
+          if (fightDefense(defenseConfigFor(faction, base, 1, other, opts), catalog).phase === 'victory') again++;
+        }
+        // The baseline is standard difficulty; at hard there is none to hold.
+        const was = difficulty === 'standard' ? (V1_CAMPAIGN[faction][mission.index]?.[b] ?? NaN) : NaN;
+        return { was, now: pct(now), again: pct(again) };
+      });
+      rows.push({ faction, mission, cells, home: cc - 1 });
+      if (mission.unlocks.includes('cc2')) cc = Math.max(cc, 2);
+      if (mission.unlocks.includes('cc3')) cc = Math.max(cc, 3);
+    }
+  }
+
+  // The noise floor: how far two seed sets on the SAME board disagree, where
+  // either of them is contested. A drift is only a drift if it is bigger.
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  const live = (x: number, y: number) => (x >= 5 && x <= 95) || (y >= 5 && y <= 95);
+  const every = rows.flatMap((r) => r.cells);
+  const floor = mean(every.filter((c) => live(c.now, c.again)).map((c) => Math.abs(c.now - c.again)));
+  const moved = Math.max(20, Math.round(floor * 3));
+  const baseline = difficulty === 'standard';
+
+  out(
+    `MISSIONS — every campaign on 10x15 (chain v${CHAIN_CURRENT}), ${difficulty}, ${n} seeds, ` +
+      'permanent layer alone' + (baseline ? ', against v1.44 on 20x30 (chain v3, frozen)' : ''),
+  );
+  out(
+    (baseline ? 'hold% v1.44 -> now' : 'hold% now') +
+      ' per reference base · * the base the campaign allows by then' +
+      (baseline ? ` · ! moved ${moved}+ points (3x the noise floor of ${floor.toFixed(1)}, never under 20)` : '') +
+      '\n',
+  );
+  const show = (c: Cell, home: boolean) =>
+    baseline
+      ? `${home ? '*' : ' '}${pad(c.was, 3)} -> ${pad(c.now, 3)}${Math.abs(c.now - c.was) >= moved ? ' !' : '  '}`
+      : `${home ? '*' : ' '}${pad(c.now, 3)}`;
+  for (const faction of FACTION_IDS) {
+    out(`${faction.toUpperCase()}`);
+    out(`MISSION                    | ${bases.map((b) => b.name.padEnd(12)).join(' | ')}`);
+    for (const row of rows.filter((r) => r.faction === faction)) {
+      const label = `M${row.mission.index + 1} ${row.mission.codename}`.slice(0, 26).padEnd(26);
+      out(`${label} | ${row.cells.map((c, b) => show(c, b === row.home).padEnd(12)).join(' | ')}`);
+    }
+    out('');
+  }
+  if (baseline) {
+    const signed = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(1)}`;
+    const home = rows.map((r) => r.cells[r.home]!);
+    out(
+      `THE MISSION AS TUNED (the * cells): mean shift ${signed(mean(home.map((c) => c.now - c.was)))} points over ` +
+        `${home.length}, mean |shift| ${mean(home.map((c) => Math.abs(c.now - c.was))).toFixed(1)}; ` +
+        `${home.filter((c) => c.now - c.was <= -moved).length} harder by ${moved}+, ` +
+        `${home.filter((c) => c.now - c.was >= moved).length} easier`,
+    );
+    for (const faction of FACTION_IDS) {
+      const mine = rows.filter((r) => r.faction === faction).map((r) => r.cells[r.home]!);
+      out(
+        `  ${faction.toUpperCase().padEnd(6)} mean shift ${signed(mean(mine.map((c) => c.now - c.was))).padStart(6)}` +
+          `   held ${mean(mine.map((c) => c.was)).toFixed(0).padStart(3)}% of the time in v1.44, ` +
+          `${mean(mine.map((c) => c.now)).toFixed(0).padStart(3)}% now`,
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * How much armour does the campaign have to lose to be the campaign it was?
+ * (`--missions sweep`)
+ *
+ * `--missions` found every drifted mission is one that fields heavies, which
+ * is the ladder's finding again: under chain v4 a heavy that reaches a
+ * covered post kills what covers it. This prices uniform rules for thinning a
+ * wave's heavies, each applied to every mission, against the home cell's hold
+ * rate as it was on 20x30 — the same yardstick `--retune` used, so the ladder
+ * and the campaign are re-tuned to one standard.
+ */
+function missionsSweep(): void {
+  const started = Date.now();
+  const bases = referenceBases();
+  /** How many heavies a wave keeps, of the n it was written with. */
+  const RULES: [string, (n: number) => number][] = [
+    ['as written', (n) => n],
+    ['half, rounded up', (n) => Math.ceil(n / 2)],
+    ['one fewer', (n) => Math.max(0, n - 1)],
+    ['one fewer, never none', (n) => (n === 0 ? 0 : Math.max(1, n - 1))],
+    ['at most one', (n) => Math.min(n, 1)],
+  ];
+  /** The latest-arriving heavies go first, so a wave keeps its opening. */
+  const thin = (siege: SiegeDef, catalog: Catalog, keep: (n: number) => number): SiegeDef => ({
+    ...siege,
+    waves: siege.waves.map((wave) => {
+      const heavy = (kind: string) => catalog.attackers[kind]?.armor === 'heavy';
+      let drop = wave.entries.filter((e) => heavy(e.kind)).length;
+      drop -= keep(drop);
+      const late = [...wave.entries].sort((a, b) => b.atTick - a.atTick);
+      const gone = new Set<unknown>();
+      for (const e of late) {
+        if (drop <= 0) break;
+        if (heavy(e.kind)) {
+          gone.add(e);
+          drop--;
+        }
+      }
+      return { ...wave, entries: wave.entries.filter((e) => !gone.has(e)) };
+    }),
+  });
+  const pct = (n: number) => Math.round((n / SEEDS) * 100);
+  const held = (config: SimConfig, catalog: Catalog) => fightDefense(config, catalog).phase === 'victory';
+
+  type Home = { faction: FactionId; mission: MissionDef; b: number; was: number };
+  const homes: Home[] = [];
+  for (const faction of FACTION_IDS) {
+    let cc = 1;
+    for (const mission of campaignFor(faction)) {
+      const b = cc - 1;
+      homes.push({ faction, mission, b, was: V1_CAMPAIGN[faction][mission.index]?.[b] ?? NaN });
+      if (mission.unlocks.includes('cc2')) cc = Math.max(cc, 2);
+      if (mission.unlocks.includes('cc3')) cc = Math.max(cc, 3);
+    }
+  }
+  const armoured = homes.filter((h) =>
+    h.mission.waves.some((w) => w.entries.some((e) => defenseCatalogFor(h.faction).attackers[e.kind]?.armor === 'heavy')),
+  );
+  console.log(`MISSIONS SWEEP — thinning each wave's heavies, ${SEEDS} seeds, the home cell of every mission that fields any`);
+  console.log(`the ${armoured.length} missions: ${armoured.map((h) => `${h.faction} M${h.mission.index + 1}`).join(', ')}\n`);
+  console.log(`RULE                    | MEAN SHIFT | MEAN |SHIFT| | WORST | ${armoured.map((h) => `${h.faction.slice(0, 3)}${h.mission.index + 1}`.padStart(6)).join('')}`);
+  console.log(`v1.44 (20x30, v${CHAIN_LATCHED})       |            |              |       | ${armoured.map((h) => pad(h.was, 6)).join('')}`);
+  for (const [label, keep] of RULES) {
+    const now = armoured.map((h) => {
+      const catalog = defenseCatalogFor(h.faction);
+      const siege = thin(missionSiege(h.mission, 'standard'), catalog, keep);
+      let n = 0;
+      for (let i = 0; i < SEEDS; i++) {
+        const seed = seedOf(100 + h.mission.index, bases[h.b]!.ccLevel, i);
+        if (held(defenseConfigFor(h.faction, bases[h.b]!, 1, seed, { siege, tunnels: h.mission.tunnels ?? [] }), catalog)) n++;
+      }
+      return pct(n);
+    });
+    const shifts = now.map((x, i) => x - armoured[i]!.was);
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+    const worst = shifts.reduce((w, x) => (Math.abs(x) > Math.abs(w) ? x : w), 0);
+    console.log(
+      `${label.padEnd(23)} | ${pad(`${mean(shifts) >= 0 ? '+' : ''}${mean(shifts).toFixed(1)}`, 10)} | ` +
+        `${pad(mean(shifts.map(Math.abs)).toFixed(1), 12)} | ${pad(`${worst >= 0 ? '+' : ''}${worst}`, 5)} | ${now.map((x) => pad(x, 6)).join('')}`,
+    );
+  }
+  console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+}
+
+/**
+ * Fit each drifted mission's armour to the campaign it was (`--missions fit`).
+ *
+ * `--missions sweep` showed no single thinning rule serves every campaign: a
+ * finale's four heavies want to become two for one faction and one for
+ * another, because each mission was tuned by hand against its own faction's
+ * guns. So each mission is fitted the way the deal is: search how many heavies
+ * each wave keeps, never more than it was written with, and take the count
+ * whose home-cell hold rate lands nearest v1.44's, ties to the one that
+ * removes fewer. Forty seeds a side rather than twenty, so a fit is not a fit
+ * to one seed set's noise.
+ */
+function missionsFit(): void {
+  const started = Date.now();
+  const SEEDS2 = SEEDS * 2;
+  const bases = referenceBases();
+  const pct = (n: number) => Math.round((n / SEEDS2) * 100);
+  const held = (config: SimConfig, catalog: Catalog) => fightDefense(config, catalog).phase === 'victory';
+  /** The wave's heavies beyond `keep` removed, the latest arrivals first. */
+  const keepHeavies = (siege: SiegeDef, catalog: Catalog, keep: number[]): SiegeDef => ({
+    ...siege,
+    waves: siege.waves.map((wave, w) => {
+      const heavy = (kind: string) => catalog.attackers[kind]?.armor === 'heavy';
+      let drop = wave.entries.filter((e) => heavy(e.kind)).length - keep[w]!;
+      const gone = new Set<unknown>();
+      for (const e of [...wave.entries].sort((a, b) => b.atTick - a.atTick)) {
+        if (drop <= 0) break;
+        if (heavy(e.kind)) {
+          gone.add(e);
+          drop--;
+        }
+      }
+      return { ...wave, entries: wave.entries.filter((e) => !gone.has(e)) };
+    }),
+  });
+  /** Every per-wave count at or below what was written. */
+  const combos = (written: number[]): number[][] =>
+    written.reduce<number[][]>(
+      (acc, n) => acc.flatMap((c) => Array.from({ length: n + 1 }, (_, k) => [...c, k])),
+      [[]],
+    );
+  console.log(`MISSIONS FIT — per-wave heavies, the home cell, ${SEEDS2} seeds a side\n`);
+  console.log('MISSION             | WRITTEN    | v1.44 | AS WRITTEN | FITTED     | NOW');
+  for (const faction of FACTION_IDS) {
+    const catalog = defenseCatalogFor(faction);
+    let cc = 1;
+    for (const mission of campaignFor(faction)) {
+      const b = cc - 1;
+      if (mission.unlocks.includes('cc2')) cc = Math.max(cc, 2);
+      if (mission.unlocks.includes('cc3')) cc = Math.max(cc, 3);
+      const written = mission.waves.map((w) => w.entries.filter((e) => catalog.attackers[e.kind]?.armor === 'heavy').length);
+      if (written.every((n) => n === 0)) continue;
+      const siege = missionSiege(mission, 'standard');
+      const tunnels = mission.tunnels ?? [];
+      const rate = (base: ReferenceBase, s: SiegeDef) => {
+        let n = 0;
+        for (let i = 0; i < SEEDS2; i++) {
+          const seed = seedOf(100 + mission.index, base.ccLevel, i);
+          if (held(defenseConfigFor(faction, base, 1, seed, { siege: s, tunnels }), catalog)) n++;
+        }
+        return pct(n);
+      };
+      const was = V1_CAMPAIGN[faction][mission.index]?.[b] ?? NaN;
+      const asWritten = rate(bases[b]!, siege);
+      let best = { keep: written, now: asWritten };
+      if (Math.abs(asWritten - was) > 10) {
+        for (const keep of combos(written)) {
+          const now = rate(bases[b]!, keepHeavies(siege, catalog, keep));
+          const removed = (k: number[]) => written.reduce((a, n, w) => a + n - k[w]!, 0);
+          const better =
+            Math.abs(now - was) < Math.abs(best.now - was) ||
+            (Math.abs(now - was) === Math.abs(best.now - was) && removed(keep) < removed(best.keep));
+          if (better) best = { keep, now };
+        }
+      }
+      console.log(
+        `${`${faction} M${mission.index + 1} ${mission.codename}`.slice(0, 19).padEnd(19)} | ${written.join(' ').padEnd(10)} | ` +
+          `${pad(was, 5)} | ${pad(asWritten, 10)} | ${best.keep.join(' ').padEnd(10)} | ${pad(best.now, 3)}`,
+      );
+    }
+  }
   console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
 
@@ -4972,6 +5315,18 @@ function main(): void {
     nativeCheck();
     return;
   }
+  if (process.argv.includes('--missions')) {
+    // `--missions hard` fights the campaign at hard difficulty; `--missions
+    // sweep` prices rules for thinning its armour, and `--missions fit` fits
+    // each drifted mission's armour to the campaign as it was.
+    if (process.argv.includes('sweep')) missionsSweep();
+    else if (process.argv.includes('fit')) missionsFit();
+    else {
+      console.log(missionsTable(process.argv.includes('hard') ? 'hard' : 'standard'));
+      console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    }
+    return;
+  }
   if (process.argv.includes('--retune')) {
     // `--retune 'heavy /3'` runs candidates by label; `--rows` prints each row.
     retune();
@@ -5708,6 +6063,9 @@ function main(): void {
       defenseTable(faction, defenseMatrix(faction, FORTIFY_MODS), ' — FORTIFY doctrine'),
     );
   }
+  // The campaign (v1.45.1). It was never in this file, which is how a whole
+  // board's worth of drift in it went unseen until someone went looking.
+  sections.push(missionsTable());
   const body = sections.join('\n\n');
   console.log(body);
   console.log(
@@ -5990,6 +6348,14 @@ function main(): void {
       '  HJ-8 trade (46/58/72 at 0.5/s), the Koksan runs a 4.2s cadence with a 3.5 dead zone',
       '  in exchange for 10.5–11 reach, and v0.7 adds sustainment auras: healing is additive,',
       '  capped per target, and deterministic — it out-heals one gun, never two.',
+      '- **The campaign is in this file from v1.45.1 (`--missions`).** Every mission is held',
+      '  up against v1.44\'s campaign, frozen, on the three reference bases; `*` marks the base',
+      '  the campaign allows by then. It had never been measured, and on the 10x15 board every',
+      '  mission that fields heavies had drifted toward the attacker, by about forty points on',
+      '  average at its own base. None without heavies moved. The armour missions and finales',
+      '  now field two heavies, chosen per mission by measurement (`--missions fit`). One cell',
+      '  still off is LANDFALL fought without the CC3 the campaign has unlocked by then: with no',
+      '  heavies at all a CC2 base holds it 15% of the time, so it is the mission, not the tanks.',
       '',
     ].join('\n');
     writeFileSync('docs/BALANCE.md', md);

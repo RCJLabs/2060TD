@@ -3933,6 +3933,44 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       harness does not see it, because its defence rows are the permanent layer
       with nothing spent. It is a live-play economy question, and it is not
       decided here.
+- [x] **Follow-up (v1.45.1) — the campaign, which nothing had measured.** The
+      balance harness has always priced the assault ladder and never a mission, so
+      Phase 8 re-tuned the one and could not see the other. `--missions` fights every
+      mission against the three reference bases, permanent layer alone, and holds it
+      up against v1.44's campaign, frozen before anything moved. The base a campaign
+      allows at a mission, by the command post level unlocked by then, is the one it
+      was tuned in.
+
+      Every mission that brings heavies had drifted toward the attacker, by about
+      forty points at that base, and not one mission without heavies moved. That is
+      the ladder's finding again. No single thinning rule served all five campaigns:
+      halving each wave's heavies left NK's missions 40 points short, and a finale's
+      four tanks wanted to be two for one faction and one for another. So each mission
+      was fitted like the deal (`--missions fit`), choosing WHICH heavies stay, and
+      every one of them landed on two:
+
+      | mission (MID) | heavies | v1.44 | on 10x15 as written | now |
+      |---|---|---|---|---|
+      | USA M7 ARMOR PROBE | 3 → 2 | 95 | 43 | 95 |
+      | China M5 ARMOR SPEARHEAD | 3 → 2 | 55 | 0 | 70 |
+      | China M6 THE TIDE BREAKS | 4 → 2 | 15 | 0 | 10 |
+      | Russia M5 STEEL ON STEEL | 3 → 2 | 95 | 53 | 98 |
+      | Russia M6 THE CORRIDOR HOLDS | 4 → 2 | 68 | 0 | 73 |
+      | NK M5 UP THE 101 | 3 → 2 | 75 | 0 | 55 |
+      | NK M6 DAYLIGHT | 4 → 2 | 35 | 0 | 30 |
+      | UN M5 ARMOR ON THE FIVE | 3 → 2 | 90 | 0 | 88 |
+      | UN M6 THE MANDATE HOLDS | 4 → 2 | 13 | 0 | 13 |
+
+      Forty seeds a side. Picking the nearest of up to sixteen options flatters the
+      pick, so the choices were fought again on forty seeds they were not chosen on:
+      mean shift +0.1, mean |shift| 7.7, the largest UN M6 at +23. Across all 33
+      missions the campaign is now 0.6 points off v1.44 on average.
+
+      **One cell is left, and it is not the tanks.** LANDFALL, the USA's finale,
+      fought with CC2 instead of the CC3 unlocked two missions earlier, holds 0%
+      where it held 88%. With no heavies at all it holds 15%, so no armour fit can
+      reach it. Its own base, CC3, holds 90% against 100%, and it is left as it is.
+      The campaign is now a table in `docs/BALANCE.md`, which it had never been.
 - [ ] **Later, and optional — landscape rotates the VIEW, not the sim.** A deep board
       in a short screen is 27px in phone landscape; the same board turned sideways is
       41px. The sim keeps its edge; only the camera turns.

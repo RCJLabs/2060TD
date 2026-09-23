@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.45.0, in the browser. No install, no account, works on a phone.
+v1.45.1, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -71,6 +71,21 @@ Found on the way:
 
 This completes M34. How it was decided, phase by phase, is in
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+**v1.45.1 — the campaign, re-tuned for the new board.** Nothing had ever
+measured the campaign: the balance harness priced the assault ladder and never a
+mission. Measured now against v1.44's campaign, every mission that brings heavy
+armour had got harder, for the ladder's reason: a tank that reaches the command
+post now kills the gun covering it. At the base the campaign allows by then, those
+missions held about forty points less often, and not one mission without armour
+moved. The armour missions and the finales now bring two tanks where they brought
+three or four, with which tanks chosen per mission by measurement. Across all 33
+missions the campaign holds as often as it did in v1.44, 0.6 points less on
+average. One exception: LANDFALL, the USA's finale, is much harder than before for
+a player who hasn't built the command post level the campaign unlocked two
+missions earlier. With no tanks in it at all, a CC2 base holds it 15% of the time.
+The campaign is now a table in the balance snapshot, so the next change that moves
+it will show.
 
 ## v1.44: the whole board, with the drawer open
 

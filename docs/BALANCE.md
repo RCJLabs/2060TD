@@ -1,4 +1,4 @@
-# Balance snapshot (v1.45.0)
+# Balance snapshot (v1.45.1)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -982,6 +982,64 @@ STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L1
 EARLY (CC1) |  100 |  100 |   90 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
 MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   50 |    5 |    0 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   20
+
+MISSIONS — every campaign on 10x15 (chain v4), standard, 40 seeds, permanent layer alone, against v1.44 on 20x30 (chain v3, frozen)
+hold% v1.44 -> now per reference base · * the base the campaign allows by then · ! moved 24+ points (3x the noise floor of 7.9, never under 20)
+
+USA
+MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)  
+M1 DIG IN                  | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M2 FIRST BLOOD             | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M3 THE BREACH              | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M4 CONVOY                  | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M5 SUPPRESSION             |    0 ->   0   | *100 -> 100   |  100 -> 100  
+M6 INFILTRATION            |  100 -> 100   | *100 -> 100   |  100 -> 100  
+M7 ARMOR PROBE             |    0 ->   0   | * 95 ->  95   |  100 -> 100  
+M8 THE LONG NIGHT          |    0 ->   0   |    3 ->   0   | *100 -> 100  
+M9 LANDFALL                |    0 ->   0   |   88 ->   0 ! | *100 ->  90  
+
+CHINA
+MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)  
+M1 BEACHHEAD               | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M2 COUNTERATTACK           | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M3 DEMOLITION TEAMS        | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M4 JAVELIN RAIN            |    3 ->   0   | *100 -> 100   |  100 -> 100  
+M5 ARMOR SPEARHEAD         |    0 ->   0   | * 55 ->  70   |  100 -> 100  
+M6 THE TIDE BREAKS         |    0 ->   0   | * 15 ->  10   |  100 -> 100  
+
+RUSSIA
+MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)  
+M1 THE RAILHEAD            | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M2 WHITEOUT                | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M3 SAPPERS ON THE ICE      | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M4 RIDGELINE MISSILES      |   10 ->   3   | *100 -> 100   |  100 -> 100  
+M5 STEEL ON STEEL          |    0 ->   0   | * 95 ->  98   |  100 -> 100  
+M6 THE CORRIDOR HOLDS      |    0 ->   0   | * 68 ->  73   |  100 -> 100  
+
+NK
+MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)  
+M1 THE ENCLAVE             | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M2 NO MOON                 | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M3 BREACHING CHARGES       | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M4 FIRE ON THE BLUFFS      |    0 ->   0   | *100 -> 100   |  100 -> 100  
+M5 UP THE 101              |    0 ->   0   | * 75 ->  55   |  100 -> 100  
+M6 DAYLIGHT                |    0 ->   0   | * 35 ->  30   |  100 -> 100  
+
+UN
+MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)  
+M1 THE CORRIDOR            | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M2 RULES OF ENGAGEMENT     | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M3 SAPPERS AT THE WIRE     | *100 -> 100   |  100 -> 100   |  100 -> 100  
+M4 GRENADIER LINE          |   50 ->  35   | *100 -> 100   |  100 -> 100  
+M5 ARMOR ON THE FIVE       |    0 ->   0   | * 90 ->  88   |  100 -> 100  
+M6 THE MANDATE HOLDS       |    0 ->   0   | * 13 ->  13   |  100 -> 100  
+
+THE MISSION AS TUNED (the * cells): mean shift -0.6 points over 33, mean |shift| 2.0; 0 harder by 24+, 0 easier
+  USA    mean shift   -1.1   held  99% of the time in v1.44,  98% now
+  CHINA  mean shift   +1.7   held  78% of the time in v1.44,  80% now
+  RUSSIA mean shift   +1.3   held  94% of the time in v1.44,  95% now
+  NK     mean shift   -4.2   held  85% of the time in v1.44,  81% now
+  UN     mean shift   -0.3   held  84% of the time in v1.44,  84% now
 ```
 
 ## Reading the tables (v0.8 pass)
@@ -1167,3 +1225,11 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  10
   HJ-8 trade (46/58/72 at 0.5/s), the Koksan runs a 4.2s cadence with a 3.5 dead zone
   in exchange for 10.5–11 reach, and v0.7 adds sustainment auras: healing is additive,
   capped per target, and deterministic — it out-heals one gun, never two.
+- **The campaign is in this file from v1.45.1 (`--missions`).** Every mission is held
+  up against v1.44's campaign, frozen, on the three reference bases; `*` marks the base
+  the campaign allows by then. It had never been measured, and on the 10x15 board every
+  mission that fields heavies had drifted toward the attacker, by about forty points on
+  average at its own base. None without heavies moved. The armour missions and finales
+  now field two heavies, chosen per mission by measurement (`--missions fit`). One cell
+  still off is LANDFALL fought without the CC3 the campaign has unlocked by then: with no
+  heavies at all a CC2 base holds it 15% of the time, so it is the mission, not the tanks.

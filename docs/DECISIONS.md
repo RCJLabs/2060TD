@@ -952,3 +952,12 @@ here with the change and its date.
   instead of +9%, moved that level by −0.07 on average, every row within one
   of v1.44's. The raid side's own surface, the deal, was re-selected by
   measurement for the redrawn bases rather than carried over.
+- 2026-09-23 — **Freeze the target before you change what it is measured
+  against.** The campaign instrument first fought each mission on both boards,
+  so its "before" column was the mission as currently written, on 20x30. After
+  the armour was re-authored, that column was the NEW mission on the old board.
+  It said the fix had failed, a mean shift of −10, when against the campaign
+  that had shipped the fix had worked (−0.6). A baseline re-derived from the
+  thing being tuned moves with the tuning. The v1.44 campaign is now frozen in
+  the harness, as v1.44's defence tables were, measured from the content before
+  it moved.
