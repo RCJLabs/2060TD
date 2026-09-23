@@ -3571,7 +3571,8 @@ time it does today: waves, prep and the battle's length are unchanged. Wall budg
 halve, because walls work as LINES across the approach and a line is half as many
 segments. The game should play as it does now, drawn twice as big. What it cannot
 preserve is the one-cell things, and **balance is judged as drift from v1.43**, which
-is the cost of discreteness and nothing else.
+is the cost of discreteness and nothing else. *Phase 4 measured this principle, and it
+does not hold. See Phase 4.*
 
 **The architecture is one parameter.** The engine takes its catalog once, in its
 constructor, and all 29 reads of a range, speed or radius go through it. So
@@ -3600,7 +3601,7 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       declared neither a distance nor not one — a radius added next year cannot slip
       past the scaler. And the claim the milestone rests on is pinned directly: at
       cell size 2 a unit covers the same ground in the same time.
-- [ ] **Phase 3 — content stops assuming a width, through one rule.** Spawn positions,
+- [x] **Phase 3 — content stops assuming a width, through one rule.** Spawn positions,
       base plans and saved towns all have to move from a 20-wide board to a 10-wide
       one, and they can share a single mapping. The centre-preserving map for a
       column, `round((c + 0.5) / 2 - 0.5)`, is exactly `floor(c / 2)` for every
@@ -3617,11 +3618,107 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       collide, and every place that maps a plan has to say what happens then. Terrain
       gets a new version sized to the board; version 1 stays frozen for the battles
       fought on it. Wall budgets 50/80/120 → 25/40/60.
-- [ ] **Phase 4 — the similarity check, and the go/no-go.** The balance harness runs
+
+      Done as `sim/board.ts`. `coarsenConfig` maps a config onto a board `factor`
+      times coarser by that rule. A block is wall when at least half of it is wall:
+      that keeps a solid line solid, never closes an opening, and is exactly
+      mirror-symmetric. The rejected alternatives each changed what a base IS —
+      "any wall" sealed the EARLY base's gap, "all wall" erased every one-thick
+      line. Half-or-more's costs run one way: a gap across a block edge comes out
+      twice as wide, and a piece of wall that leaves less than half a block in every
+      block it touches disappears. A lone cell always does, and so does a two-cell
+      stub across a block edge. Two claims on one cell, the post and the lane are
+      REPORTED, never dropped silently. Terrain and the town's wall-budget constants
+      belong with the boards themselves, so they move to Phase 5.
+- [x] **Phase 4 — the similarity check, and the go/no-go.** The balance harness runs
       identical matchups at `cellSize` 1 on 20x30 and 2 on 10x15, plans downsampled,
       and reports the drift in every table. Inside the noise floor, the transform is
       sound and the milestone proceeds. Outside it, the drift is named — crowding is
       the prime suspect — before anything moves.
+
+      **Verdict: outside it, by eight times. 10x15 is not today's game drawn bigger.**
+      `npm run balance -- --similar` fights every cell of the defence matrix four
+      ways. FINE is the published seeds. NULL is fresh seeds on the same board — the
+      noise floor, measured rather than assumed. COARSE is the plan mapped to 10x15.
+      REFINED is the coarse plan put back on the fine grid. So the drift splits into
+      what the MAPPING did to the plan and what the GRID did to the battle, one
+      variable each. Before anything was trusted, the FINE pass reproduced the
+      published v1.43 tables, 180 cells of 180.
+
+      | step | what changed | mean shift | drift per cell | × noise | rows whose 50% level moved |
+      |---|---|---|---|---|---|
+      | NULL | the seeds | +0.4 | 1.3 | — | 0 of 15 |
+      | MAPPING | the plan | +1.8 | 4.9 | 3.7× | 5 of 15 |
+      | GRID | the board | +7.0 | 8.7 | 6.6× | 5 of 15 |
+      | TOTAL | both | +8.8 | 10.7 | 8.2× | 8 of 15 |
+
+      Hold% points. The split is approximate in one known way. A refined wall is a
+      solid 2x2 block, twice the thickness of today's one-cell line, and a refined
+      one-cell gun sits half a cell from where it was.
+
+      **Crowding, the prime suspect, is not what moved it.** The mapped fixtures come
+      out with LESS wall, not more: 16 → 5, 30 → 8 and 46 → 18 segments. Half-or-more
+      trims line ends and dissolves MID's serpentine stubs, and LATE loses an
+      autocannon to the post's cell. Those are the mapping's costs, and they are
+      named.
+
+      The bigger half is the grid, and one battle shows it (NK, MID, level 9). On
+      10x15 the defence held 17 of 20; with the same coarse plan on the fine grid, it
+      held 0 of 20. Frozen at the stall, four Abrams stand on the perimeter cell north
+      of the post. The nearest covering gun is 2.24 cells away, and a tank's range is
+      now 2.0. On today's board the same tanks stand 3.61 from it, with a range of 4.
+      The post cannot pass SUPPRESS while that gun lives, and nothing tells the tanks to
+      go and kill it. Ninety seconds later the stall rule wipes them — twice in that
+      battle. On a board of half-cells, three things land on knife-edges: where the
+      post's centre is, which cell an attacker stops on, and a gun's range against
+      the cover radius. The nest holding that post shut sits at exactly 2.00, the
+      cover radius.
+
+      Two structural fixes were tried and both failed. Strict cover (a gun exactly at
+      the radius stops covering) collapsed LATE instead: NK LATE level 11 went from
+      100 on the coarse board to 5, against 40 today. A 2x2 post on the coarse board
+      made MID more defender-favoured, not less: NK MID level 8 went to 95, against
+      80 coarse and 10 today. A rule whose result turns on `<` versus `<=` is sitting
+      on a quantisation boundary.
+
+      **A worry this raised about the shipped game, and its answer.** 43.7% of the
+      matrix's defender wins on today's board include a stall wipe-out. Every one of
+      them fired with nobody else alive, and none removed more than one unit on the
+      ground. 90% came at CHARGE, and what they removed was mostly aircraft. On
+      today's board the rule is cleanup, not a defence.
+
+      **A candidate, measured: kill chain v4** (`CHAIN_ENGAGE`, not current). It is
+      version 3 plus one behaviour: a crew on a covered post, with no covering gun in
+      its reach, goes after the nearest one. That is the chain's own design line — "a
+      gun that can reach the post covers it, and the answer is to kill the gun" —
+      made into behaviour. On the coarse board it does what it is for. Stall
+      wipe-outs in defender wins fall from 34.6% to 22.7%, and every row becomes
+      monotonic. Under v3, NK MID rose 20 and 25 points between levels, and all five
+      LATE rows held 100% through level 12. What v4 does not do is restore similarity:
+      it is still 8.3× noise, now toward the attacker (mean shift −9.9). Where each
+      row first drops below 50% held:
+
+      | | EARLY (CC1) | MID (CC2) | LATE (CC3) |
+      |---|---|---|---|
+      | today, v3 | L3-4 | L7-10 | L11 to past L12 |
+      | 10x15, v3 | unchanged | mostly +2; UN never falls, NK −1 | all past L12 |
+      | 10x15, v4 | unchanged | 0 to −3 | −2 to −4 |
+
+      On today's board v4 moves 4 of 15 of those levels by one, three of them toward
+      the attacker, and leaves EARLY alone.
+
+      **What this means.** This milestone was picked on a premise: it improves
+      today's game without changing a rule. That premise does not hold. On 10x15 the
+      difficulty ladder moves about two levels at MID and LATE, by a different amount
+      in every row, and the kill chain needs a new rule to stay sane. A 10x15 game can
+      be built — v4 makes its curves monotonic, which is what a re-tune needs to fit.
+      But it would be a new game, not a port. It needs bases authored for the new
+      board, a ladder re-tuned rather than drift-corrected, and saved towns migrated,
+      and choosing that is a design decision rather than a measurement. One phase does
+      not depend on the choice. The drawer (Phase 6) hides a third of the board at
+      every grid size, and because the width binds in portrait, a 20x30 board and a
+      10x15 board stand exactly as tall on screen. **Phases 5, 7 and 8 wait on that
+      decision.**
 - [ ] **Phase 5 — the boards move.** `TOWN_GRID` and the raid map to 10x15;
       `gridVersion` 2; saved towns downsample 2:1 on load. That is lossy where two guns
       shared a 2x2 block, and whatever does not fit is refunded rather than dropped.

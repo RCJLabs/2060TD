@@ -188,12 +188,13 @@ export interface ChainModel {
    * covering guns are out of reach of the cell it is standing on, it stands
    * there until `stallSeconds` wipes it. On the shipped board that decides
    * almost nothing: 43.7% of the defence matrix's defender wins include a stall
-   * wipe-out, and every one of them fired with nobody else alive and fewer than
-   * two boots on the post — cleanup, not a stuck crew. A board with bigger cells
-   * crosses the knife-edge for real: at 10x15 four tanks on one perimeter cell
-   * sat 0.24 cells out of range of the gun that kept them off the post, for 90
-   * seconds, twice. Hunting the guns is not neutral on the shipped board either:
-   * it takes contested MID and LATE levels the standing crews lost.
+   * wipe-out, and every one of them fired with nobody else alive and removed
+   * at most one unit on the ground — cleanup, not a stuck crew. A board with
+   * bigger cells crosses the knife-edge for real: at 10x15 four tanks on one
+   * perimeter cell sat 0.24 cells out of range of the gun that kept them off
+   * the post, for 90 seconds, twice. Hunting the guns is not neutral on the
+   * shipped board either: it takes contested MID and LATE levels the standing
+   * crews lost.
    *
    * False is every version before this field existed.
    */
