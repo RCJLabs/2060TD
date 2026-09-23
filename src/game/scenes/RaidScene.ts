@@ -94,7 +94,7 @@ import { makeSheet } from '../ground';
 import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
 import { BoardView } from '../BoardView';
 import { haptic } from '../haptics';
-import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
+import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import { Overlay } from '../overlay';
 import { buildAttackerSpec } from '../spec';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
@@ -178,7 +178,7 @@ export class RaidScene extends Phaser.Scene {
   private panel!: Panel;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
-  private drawer: number = DRAWER_HALF;
+  private drawer: DrawerState = DRAWER_REST;
   private launchButton!: Button;
   private overlay: Overlay | null = null;
   /** A duel against a pasted snapshot instead of a rung on the ladder. */
@@ -285,7 +285,7 @@ export class RaidScene extends Phaser.Scene {
 
     this.panel = new Panel(this, this.board.ui, RAID_TABS);
     this.panel.onDrawerToggle = () => {
-      this.drawer = this.drawer > 0 ? DRAWER_SHUT : DRAWER_HALF;
+      this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
     };
     // The handle reports a live share while it is being dragged and a snapped
@@ -338,7 +338,7 @@ export class RaidScene extends Phaser.Scene {
     // strip costs the drawer a row and puts it under the thumb.
     const primaryH = layoutOf(this, this.drawer).rowH;
     // Three lines under the title: the target, and two of resources.
-    this.layout = layoutOf(this, this.drawer, primaryH, 3);
+    this.layout = layoutOf(this, this.drawer, primaryH, 3, this.board.cols / this.board.rows);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     const { primary, board, pad, font } = this.layout;

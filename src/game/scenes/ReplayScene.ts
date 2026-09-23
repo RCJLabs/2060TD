@@ -7,7 +7,7 @@ import type { SimConfig } from '../../sim/types';
 import { BattleRenderer } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
 import { BoardView } from '../BoardView';
-import { DRAWER_HALF, DRAWER_SHUT, layoutOf, onLayoutChange, type Layout } from '../layout';
+import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import { mono, Panel, type PanelRow } from '../ui';
 
 export interface ReplayData {
@@ -38,7 +38,7 @@ export class ReplayScene extends Phaser.Scene {
   private panel!: Panel;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
-  private drawer: number = DRAWER_HALF;
+  private drawer: DrawerState = DRAWER_REST;
   private endShown = false;
 
   constructor() {
@@ -77,7 +77,7 @@ export class ReplayScene extends Phaser.Scene {
     );
     this.panel = new Panel(this, this.board.ui, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
     this.panel.onDrawerToggle = () => {
-      this.drawer = this.drawer > 0 ? DRAWER_SHUT : DRAWER_HALF;
+      this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
     };
     // The handle reports a live share while it is being dragged and a snapped
@@ -99,7 +99,7 @@ export class ReplayScene extends Phaser.Scene {
   }
 
   private applyLayout(): void {
-    this.layout = layoutOf(this, this.drawer);
+    this.layout = layoutOf(this, this.drawer, 0, 1, this.board.cols / this.board.rows);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
   }
