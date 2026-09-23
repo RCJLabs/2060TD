@@ -16,6 +16,10 @@
  * scene: `list.h` and the board's height are what the player actually sees, and
  * a state variable that agrees with itself while the rects disagree is exactly
  * the bug worth catching.
+ *
+ * M34 added the resting detent — the drawer opens onto exactly the room the
+ * board leaves, so the whole map is in view — and the check that a dragged
+ * handle stays under the finger dragging it, which it did not.
  */
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
@@ -95,6 +99,7 @@ try {
       handle: to(raw.handle),
       // 32 world px per cell, drawn at `zoom`, shown at 1/dpr CSS px per device px.
       cell: cam ? (cam.zoom * 32) / raw.dpr : 0,
+      topWorld: cam ? cam.cy - cam.rect.h / cam.zoom / 2 : 0,
       bottomWorld: cam ? cam.cy + cam.rect.h / cam.zoom / 2 : 0,
     };
   };
@@ -110,10 +115,31 @@ try {
     `${start.handle.h.toFixed(0)}px tall, ${start.handle.w.toFixed(0)} wide`,
   );
 
+  // ---- at rest, the whole board is in view (M34) --------------------------
+  //
+  // The drawer used to open onto 42% of the screen whatever the board needed,
+  // which on this phone left 19 of 30 rows in view under a sheet that was mostly
+  // empty list. It rests on exactly what the world leaves now. Read off the
+  // live CAMERA, not the layout: what the map shows is what the player sees,
+  // and a layout that believes it made room proves nothing about the view.
+  const grid = await page.evaluate(() => window.lastline.grid?.() ?? null);
+  const worldH = (grid?.rows ?? 0) * 32;
+  check(
+    'at rest the drawer leaves the whole board in view',
+    grid !== null && start.topWorld <= 0.5 && start.bottomWorld >= worldH - 0.5,
+    `world rows ${(start.topWorld / 32).toFixed(2)} to ${(start.bottomWorld / 32).toFixed(2)} of ${grid?.rows}`,
+  );
+  check(
+    'and still shows a list, not just a handle',
+    start.list.h >= 88,
+    `list ${start.list.h.toFixed(0)}px`,
+  );
+
   const grabAt = () => ({
     x: start.handle.x + start.handle.w / 2,
     y: 0, // filled per-use from the CURRENT handle position
   });
+
 
   const drag = async (dy, steps = 8) => {
     const now = await shape();
@@ -128,6 +154,42 @@ try {
     await wait(500);
     return shape();
   };
+
+  // ---- a dragged handle stays under the finger (M34) ----------------------
+  //
+  // Held, not released, because a release snaps to a detent and a snapped
+  // drawer is right however far off the drag was. Until M34 the handle read
+  // its starting height in one unit and replayed it in another: it jumped on
+  // the first pixel and then ran a sixth ahead of the finger.
+  {
+    const from = start.handle.y + start.handle.h / 2;
+    const x = start.handle.x + start.handle.w / 2;
+    await touch('touchStart', x, from);
+    for (let i = 1; i <= 8; i++) {
+      await touch('touchMove', x, from - (120 * i) / 8);
+      await wait(16);
+    }
+    await wait(120);
+    const held = await shape();
+    await touch('touchEnd', x, from - 120);
+    await wait(500);
+    const moved = start.handle.y - held.handle.y;
+    check(
+      'a dragged handle stays under the finger',
+      Math.abs(moved - 120) <= 2,
+      `finger moved 120px, the handle ${moved.toFixed(0)}px`,
+    );
+    // Rest is a detent like the others, from above as well as from below. On
+    // this phone 120px up from rest is past halfway to HALF, so that release
+    // landed on HALF, and 180px back down is nearer rest again.
+    const up = await shape();
+    const back = await drag(180);
+    check(
+      'and a release nearer rest than half lands on rest',
+      up.list.h > start.list.h + 100 && Math.abs(back.list.h - start.list.h) < 2,
+      `list ${start.list.h.toFixed(0)} → ${up.list.h.toFixed(0)} → ${back.list.h.toFixed(0)}px`,
+    );
+  }
 
   // ---- dragging up grows the drawer and shrinks the board -----------------
   const grown = await drag(-260);
@@ -212,6 +274,11 @@ try {
     'a tap on the handle brings a shut drawer back',
     tapped.list.h > closed.list.h + 20,
     `list ${closed.list.h.toFixed(0)} → ${tapped.list.h.toFixed(0)}px`,
+  );
+  check(
+    'and brings it back to rest, not to half',
+    Math.abs(tapped.list.h - start.list.h) < 2,
+    `list ${tapped.list.h.toFixed(0)}px, at rest ${start.list.h.toFixed(0)}px`,
   );
 
   // ---- the handle does not eat the list's scroll --------------------------
@@ -486,6 +553,19 @@ try {
         .map((b) => b.label);
     });
   check('no row is armed before the flick', (await anyArmedRow()).length === 0, '');
+
+  // The coast needs a list tall enough to coast through and land in, which a
+  // resting drawer is not on a phone this tall: its whole list is a header and
+  // two rows. So this runs at HALF, where a player reading a long list would
+  // put it.
+  {
+    const L = await page.evaluate(() => {
+      const a = window.lastline;
+      const l = a.layout();
+      return { sh: (l.height - l.safe.top - l.safe.bottom) / a.dpr, drawer: l.drawerH / a.dpr };
+    });
+    await drag(-(0.42 * L.sh - L.drawer));
+  }
 
   // Back to the top, so the coast passes through rows the town can afford.
   // A press on a DISABLED row is not a press at all — it returns before the
