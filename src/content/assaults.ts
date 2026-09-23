@@ -10,8 +10,8 @@ import { entry, series } from './missions';
  * player's actual stockpile when the battle begins.
  */
 
-const scaleCount = (base: number, level: number): number =>
-  Math.max(1, Math.round(base * (1 + LADDER_GROWTH * (level - 1))));
+const scaleCount = (base: number, level: number, growth: number): number =>
+  Math.max(1, Math.round(base * (1 + growth * (level - 1))));
 
 /**
  * How much a level adds, and why it is so much smaller than it used to be.
@@ -37,6 +37,22 @@ const scaleCount = (base: number, level: number): number =>
  * this — only saved towns, which are rescaled on load by `rescaleLadder`.
  */
 const LADDER_GROWTH = 0.09;
+
+/**
+ * The ladder's rates, named together so a sweep can hold two and move one
+ * (`npm run balance -- --retune`). Nothing but the balance harness passes
+ * anything other than `LADDER`.
+ */
+export interface Ladder {
+  /** What each level adds to every wave's counts: `LADDER_GROWTH`. */
+  readonly growth: number;
+  /** Levels between heavies, from the first at level 3. */
+  readonly heavyEvery: number;
+  /** Levels between rotors, from the first at level 4. */
+  readonly rotorEvery: number;
+}
+
+export const LADDER: Ladder = { growth: LADDER_GROWTH, heavyEvery: 2, rotorEvery: 2 };
 
 /**
  * A newly unlocked wave arrives at a FRACTION of its strength and grows in.
@@ -111,8 +127,12 @@ export const USA_ASSAULT_ROSTER: AssaultRoster = {
   gunship: 'reaper',
 };
 
-export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAULT_ROSTER): SiegeDef {
-  const n = (base: number) => scaleCount(base, level);
+export function buildAssault(
+  level: number,
+  roster: AssaultRoster = CHINA_ASSAULT_ROSTER,
+  ladder: Ladder = LADDER,
+): SiegeDef {
+  const n = (base: number) => scaleCount(base, level, ladder.growth);
   const waves: WaveDef[] = [];
 
   // Wave 1 — probe: a swarm trickle with a line tail.
@@ -156,7 +176,7 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
 
   // Wave 5 (level 3+) — the armored hammer.
   if (level >= 3) {
-    const tanks = 1 + Math.floor((level - 3) / 2);
+    const tanks = 1 + Math.floor((level - 3) / ladder.heavyEvery);
     const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 3)));
     waves.push({
       entries: [
@@ -172,7 +192,7 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
   // Wave 6 (level 4+) — the sky. Rotors ignore the maze entirely, so a line
   // with no mount that can elevate simply watches them work.
   if (level >= 4) {
-    const rotors = 1 + Math.floor((level - 4) / 2);
+    const rotors = 1 + Math.floor((level - 4) / ladder.rotorEvery);
     const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 4)));
     waves.push({
       entries: [

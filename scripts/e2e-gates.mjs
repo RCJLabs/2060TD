@@ -355,7 +355,8 @@ try {
   await tapRow('VEHICLE GATE', 600);
   await fitBoard();
   let built = null;
-  for (const cell of [[10, 11], [11, 11], [10, 12]]) {
+  // Mid-board on 10x15 (M34), where the assault has to come past.
+  for (const cell of [[5, 5], [5, 6], [4, 6]]) {
     try {
       await tapCell(cell[0], cell[1], 600);
       built = cell;
@@ -407,8 +408,10 @@ try {
   check('the lever opens for business once the CP is there', armed, await gateLever());
   await tapRow('WORK THE GATES', 500);
   // Find the gate the way a player does: by looking at the wall line. Both the
-  // one carried in from the yard and the one built in setup are out there.
-  const gateCells = [[21, 8], [10, 11], ...built ? [built] : []];
+  // one carried in from the yard and the one built in setup are out there, and
+  // the harness knows where it put each — the yard's was a hand-written guess
+  // until M34, one that had been off the board since v1.40.
+  const gateCells = [...(laid ? [laid] : []), ...(built ? [built] : [])];
   let worked = null;
   for (const [col, row] of gateCells) {
     const at = await page.evaluate(

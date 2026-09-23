@@ -54,7 +54,7 @@ export const V1_GRID = {
 } as const;
 
 /** A board a town can be moved onto: its size, its post, and its cell. */
-interface Board {
+export interface Board {
   readonly width: number;
   readonly height: number;
   readonly ccOrigin: CellIndex;

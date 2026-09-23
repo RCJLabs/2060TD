@@ -3,6 +3,7 @@ import {
   CHAIN_CURRENT,
   CHAIN_ENGAGE,
   CHAIN_LATCHED,
+  CHAIN_MODELS,
   CHAIN_NONE,
   CHAIN_SPENT,
   chainModelFor,
@@ -320,6 +321,15 @@ describe('the kill chain', () => {
     expect(v4.gunAlive).toBe(false);
     expect(v4.wipes).toBe(0);
     expect(['charge', 'burn', 'down']).toContain(v4.stage);
+  });
+
+  it('every model is filed under its own version', () => {
+    // A model spread from another and left naming the version it came from
+    // reports the wrong chain. v3 did from the flip until this test: it named
+    // `CHAIN_CURRENT`, which had been 3 when it was written and is 4 now.
+    for (const [key, model] of Object.entries(CHAIN_MODELS)) {
+      expect(model.version, `the model filed under ${key}`).toBe(Number(key));
+    }
   });
 
   it('v4 is what a new battle gets, and every older chain stays frozen without the hunt', () => {

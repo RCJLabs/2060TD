@@ -211,7 +211,6 @@ function blockKind(walls: LayoutWall[], isGate: (kind: string) => boolean): stri
   return best;
 }
 
-/** A wave's spawn points, by the same rule as every other point. */
 /**
  * An authored siege on a board of `cellSize` (M34).
  *

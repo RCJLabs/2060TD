@@ -323,7 +323,7 @@ const spentAssault: ChainModel = {
  */
 const latched: ChainModel = {
   ...spentAssault,
-  version: CHAIN_CURRENT,
+  version: CHAIN_LATCHED,
   label: 'breach, suppress, charge, burn; a breach stays open',
   latchOpen: true,
 };
