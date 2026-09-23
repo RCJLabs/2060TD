@@ -1,4 +1,6 @@
+import { scaleFootprint } from '../sim/scale';
 import type { Catalog } from '../sim/types';
+import { MAP_CELL_SIZE } from './bases';
 import { ECONOMY_STRUCTURES } from './buildings';
 import { CHINA_ATTACKERS } from './china';
 import { CHINA_BASE, CHINA_WALLS } from './chinaBase';
@@ -44,6 +46,8 @@ export const RAID_CATALOG: Catalog = {
  */
 const ALL_STRUCTURES = { ...M1_CATALOG.structures, ...RAID_CATALOG.structures };
 
-export function footprintOfKind(kind: string): 1 | 2 {
-  return ALL_STRUCTURES[kind]?.footprint === 2 ? 2 : 1;
+export function footprintOfKind(kind: string, cellSize: number = MAP_CELL_SIZE): 1 | 2 {
+  // On a board of bigger cells a 2x2 building is one cell (M34), and the
+  // engine fights it at that size — so the board draws it at that size too.
+  return scaleFootprint(ALL_STRUCTURES[kind]?.footprint === 2 ? 2 : 1, cellSize);
 }

@@ -109,6 +109,7 @@ import {
 } from '../../meta/sharecode';
 import { COLORS } from '../palette';
 import { footprintOfKind } from '../../content/catalog';
+import { scaleCatalog } from '../../sim/scale';
 import { makeSheet } from '../ground';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 import type { BattleTag } from './SiegeScene';
@@ -1450,7 +1451,9 @@ export class TownScene extends Phaser.Scene {
     const meta = this.meta(kind);
     const opts = {
       layout: this.layout,
-      catalog: defenseCatalogFor(this.town.faction),
+      // As the board scales it (M34), so a card reads out the ranges, radii
+      // and footprint the battle will actually give the thing on this board.
+      catalog: scaleCatalog(defenseCatalogFor(this.town.faction), TOWN_GRID.cellSize),
       ...(meta ? { meta } : {}),
       container: this.board.ui,
       onClose: close,

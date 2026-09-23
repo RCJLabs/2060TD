@@ -34,7 +34,8 @@ import {
   type Difficulty,
   type MissionDef,
 } from '../content/campaign';
-import { M1_CATALOG } from '../content/catalog';
+import { footprintOfKind } from '../content/catalog';
+import { MAP_CELL_SIZE } from '../content/bases';
 import { effectsOf, techPrereq, TECH_BY_ID, type ResearchEffects } from '../content/research';
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
@@ -86,6 +87,11 @@ export const TOWN_GRID = {
    * means 0: the 32x24 western board, everything up to v1.39.
    */
   version: 1,
+  /**
+   * Physical units per cell (M34): the town is fought on the map's board, so
+   * it has the map's cell. See `MAP_CELL_SIZE`.
+   */
+  cellSize: MAP_CELL_SIZE,
 } as const;
 
 /**
@@ -551,7 +557,10 @@ const working = (s: PlacedStructure): boolean =>
   !s.wrecked && (s.buildEndsAt === undefined || s.upgradingTo !== undefined);
 
 export function footprintCells(kind: string, origin: CellIndex): CellIndex[] {
-  const footprint = M1_CATALOG.structures[kind]?.footprint ?? 1;
+  // The footprint the ENGINE will give it on this board — on a board of
+  // bigger cells a 2x2 building is one cell, and a town that reserved four
+  // for it would refuse placements the battle has room for.
+  const footprint = footprintOfKind(kind, TOWN_GRID.cellSize);
   if (footprint === 1) return [origin];
   const w = TOWN_GRID.width;
   return [origin, origin + 1, origin + w, origin + w + 1];

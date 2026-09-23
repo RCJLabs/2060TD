@@ -33,6 +33,12 @@ export interface StructureGlyphOptions {
    * Absent = the resting pose, pointing up. */
   aimAngle?: number;
   /**
+   * How many cells it spans, when the caller knows better than the board the
+   * game is on (M34): a replay of a battle fought at another cell size draws
+   * its buildings at the size that battle gave them.
+   */
+  footprint?: 1 | 2;
+  /**
    * The surface behind this glyph is DARK — a drawer row, a spec card.
    *
    * Same reason the attackers carry it: the paper knockout lifts a counter
@@ -171,7 +177,7 @@ export function drawStructureGlyph(
   opts: StructureGlyphOptions = {},
 ): void {
   const hostile = opts.hostile ?? false;
-  const big = footprintOfKind(kind) === 2;
+  const big = (opts.footprint ?? footprintOfKind(kind)) === 2;
   /** The glyph's own box: one cell, or two for a big kind. */
   const S = cell * (big ? 2 : 1) * 0.9;
   const dark = opts.onDark ?? false;

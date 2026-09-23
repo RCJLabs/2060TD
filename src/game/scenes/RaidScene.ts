@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { music } from '../music';
 import {
   ARCHETYPE_BY_ID,
+  MAP_CELL_SIZE,
   MAP_H,
   MAP_W,
   TARGETS_PER_TIER,
@@ -89,6 +90,7 @@ import {
 } from '../glyphs';
 import { footprintOfKind } from '../../content/catalog';
 import { chainStalledAt } from '../../sim/killchain';
+import { scaleCatalog } from '../../sim/scale';
 import { COLORS } from '../palette';
 import { makeSheet } from '../ground';
 import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
@@ -795,7 +797,8 @@ export class RaidScene extends Phaser.Scene {
     const train = this.trainable.find((m) => m.kind === kind);
     this.overlay = buildAttackerSpec(this, kind, {
       layout: this.layout,
-      catalog: raidCatalogFor(this.town.faction),
+      // As the board scales it (M34): ranges and speeds in this board's cells.
+      catalog: scaleCatalog(raidCatalogFor(this.town.faction), MAP_CELL_SIZE),
       ...(train ? { train } : {}),
       container: this.board.ui,
       onClose: close,
