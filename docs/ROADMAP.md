@@ -3513,7 +3513,7 @@ not static text running off the screen.
 
 ---
 
-## M34 — "Thumb Scale": a board you never have to zoom
+## M34 — v1.45 "Thumb Scale": a board you never have to zoom
 
 Picked from a brainstorm of five phone overhauls, as the one that improves the game
 that exists today without changing a rule. M33 made the board READABLE on a phone;
@@ -3746,7 +3746,7 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       code IS its config, layout included; terrain does need its old version,
       because a config carries only a terrain seed.
 
-- [ ] **Phase 5 — the boards move.** `TOWN_GRID` and the raid map to 10x15;
+- [x] **Phase 5 — the boards move.** `TOWN_GRID` and the raid map to 10x15;
       `gridVersion` 2; saved towns downsample 2:1 on load. That is lossy where two guns
       shared a 2x2 block, and whatever does not fit is refunded rather than dropped.
       Generated bases, share codes and replay codes carry their grid, as M33's did.
@@ -3767,6 +3767,29 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
          refunded.
       8. The flip: `TOWN_GRID` and `MAP_W`/`MAP_H` to 10x15 at cell size 2,
          `CHAIN_CURRENT` to 4.
+
+      **Done.** Three things turned up that no single piece had shown:
+      - **The raid planner drew the wrong ground.** Its preview asked for the
+        terrain without the base's buildings, so all 60 bases sampled previewed a
+        different river from the one the raid was fought on, about 53 cells apart.
+        It was wrong on 20x30 too, and shipped alone as v1.44.1.
+      - **Terrain version 1 is a slope written in cells.** The same tilt over half
+        as many cells made 15.6% of the board steep, against 6.1%. Version 2
+        divides the tilt and the valley by the cell size.
+      - **The generator sealed its own bases** once a wall line was one cell
+        thick at two units a cell. On the first try, 81 of 84 keeps had no way in,
+        and the coarser board also exposed an older bug in the camp's stubs that
+        had sealed a third of camps on 20x30. Walls now go down first. A one-cell
+        gap between two walls is kept clear as a walkway, with the cells in front
+        of and behind it where the wall runs on. Nothing is built on the post's
+        four neighbours, and the stores go last, with a ring to fall back on.
+        Every shape has a way in on 81 to 84 of 84 sampled bases, with the guns
+        and stores it had.
+
+      Saved towns move by the one rule. A block of the new board is wall when half
+      of it was, and a building that lands on a taken cell walks to the nearest
+      free one. Every wall that does not come across is refunded: merged into a
+      block with another, or past the new budget of 25/40/60 by CC level.
 - [x] **Phase 6 — the drawer gets what the board leaves.** Its resting height is sized
       from the grid instead of a fixed 42%, never less than the handle and the tabs, so
       the whole board is in view at rest. Target: 15 of 15 rows.
@@ -3818,10 +3841,98 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       The instrument had a defect of its own too. It rebuilt the shut board from
       the list height, so in landscape it took the rail's list for a drawer, and
       reported a desktop at 45px a cell and 18 rows of 30. It is 26.7px and all 30.
-- [ ] **Phase 7 — the ~330 hard-coded cells**, across 25 test, harness and tool files,
+- [x] **Phase 7 — the ~330 hard-coded cells**, across 25 test, harness and tool files,
       move onto the board's own seams. Plus the milestone's acceptance test: on the
       360-wide phone, at fit zoom, place on a named cell first try with a real touch.
-- [ ] **Phase 8 — re-tune from the drift report, regenerate the snapshot, ship.**
+
+      **Done.** Seventeen test files moved onto the new board. Where the old
+      geometry was the point they were halved, so the same ground is tested. The
+      balance harness measures the game as played: each reference base carries the
+      board it is drawn on, the 10x15 bases are the reference set, and the 20x30
+      ones stay as fixtures for `--similar` and `--native`. Those two measure
+      against v1.44's tables, frozen in the harness because the snapshot moves on,
+      and `--similar` still reproduces them 180 of 180 cells.
+
+      **The acceptance test is `e2e-thumb`.** On a 360-wide phone with the drawer
+      at rest, the whole board is in view, 150 of 150 cells at 36.0px. One touch a
+      quarter of a cell off centre, then CONFIRM, builds on the cell the test named
+      before it looked at anything. The same touch moved three quarters of a cell
+      builds on the neighbour, and the test was seen failing on that before it was
+      trusted. It is the first harness that could fail that way: every other one
+      placed by scanning for whatever free cell was on screen.
+
+      Also found on the way:
+      - **Two rows of the snapshot measured nothing.** The engine skips a layout
+        piece that does not fit, without a word. The Engineer Corps HQ was a 2x2
+        on the last row of the 20x30 board from v1.40 on, and the AA cover's
+        forward mount stood on MID's inner wall. The harness now refuses any
+        reference layout that does not land, and both rows are redrawn.
+      - **The town demo died on load.** Seed 4242's river runs under the
+        showcase's second depot on this board. Every showcase placement now
+        throws with its reason instead of failing quietly.
+      - **Chain v3 reported itself as v4** from the flip on: it named its version
+        as `CHAIN_CURRENT`. A test now checks that every model is filed under its
+        own version.
+      - **Three harnesses wrote cells for boards the game had left.** The share
+        harness had been scattering a 32-wide wall line across the 20-wide board
+        since v1.40.
+      - **The wheel and the pinch had never zoomed about the point under them.**
+        Both read their anchor back through a camera matrix that Phaser rebuilds
+        only at the next render, so every notch slid the view. Six notches at the
+        middle of a portrait phone slid it 127 world px. On the 20x30 world that
+        still left room to pan. On 10x15 it pinned the camera in a corner, and the
+        gesture harness's pan check failed. Both now anchor on the rig's own
+        centre and zoom, and the harness checks the anchor itself: 0.3 px.
+      - **The yard's wire order asked for twice the wire.** LAY TWENTY WALL
+        counted segments, and a segment is two units now, so twenty was four
+        fifths of a CC1 town's whole budget. It is LAY TEN WALL: the same length.
+- [x] **Phase 8 — re-tune from the drift report, regenerate the snapshot, ship.**
+
+      **The ladder, not the chain.** On the board as flipped, the defence rows
+      first held under half 1.13 levels sooner than v1.44's, and MID fell off a
+      cliff. The third heavy, at level 7, took three factions' MID from holding
+      every seed to holding one or none. Chain v4 is why: a heavy that reaches a
+      covered post now kills what holds it shut. MID's only covering gun is a
+      mortar, which cannot fire at what stands next to it. But the chain decides
+      raids too, and the raid tables had not drifted, so a chain made kinder to
+      defenders would have bought the defence rows back with the Front Line's top
+      rungs. The assault ladder is fought by town defence and nothing else.
+      `--retune` priced twelve ladders against where v1.44's rows first held
+      under half:
+
+      | ladder | mean shift | mean \|shift\| | EARLY | MID | LATE | contested per row |
+      |---|---|---|---|---|---|---|
+      | v1.44's, on 10x15 | −1.13 | 1.13 | −0.20 | −1.80 | −1.40 | 1.60 |
+      | a heavy every 3 levels | −0.67 | 0.67 | −0.20 | −1.20 | −0.60 | 1.47 |
+      | +7% a level | −1.00 | 1.00 | −0.20 | −2.00 | −0.80 | 1.60 |
+      | a heavy every 3, +7% | −0.33 | 0.60 | −0.20 | −1.00 | +0.20 | 1.67 |
+      | a heavy every 4 | −0.40 | 0.40 | −0.20 | −1.00 | 0.00 | 1.40 |
+      | a heavy every 4, +6% | +0.13 | 0.53 | −0.20 | −0.20 | +0.80 | 1.80 |
+      | **a heavy every 4, +7% (shipped)** | **−0.07** | **0.33** | −0.20 | −0.40 | +0.40 | 1.53 |
+
+      v1.44 had 1.67 contested levels per row. In the shipped ladder every row
+      lands within one level of v1.44's, ten of fifteen exactly, and none rises.
+      Rotors were not the problem: every three levels instead of two left MID
+      exactly where it was. EARLY's −0.20 is the USA's alone, at level 3, and no
+      ladder priced here moved it.
+
+      **The deal was chosen again.** A layout index names a different base now,
+      so `--layouts` re-selected every rung's three (shape, layout) pairs against
+      the same curve, 100/95/85/70/55. Parity at each faction's best line went
+      from 18.8 points of spread to 8.0. The keep now reaches three factions of
+      five. At T4 and T5 Russia's reference force clears it 0-8% on 22 of its 24
+      layouts and the UN's on all 24, so the selection does not deal it to them.
+
+      Shipped as v1.45.0, with `docs/BALANCE.md` regenerated. `--native`
+      reproduces its bare defence tables 180 of 180 cells.
+
+      **Open: a wall segment still costs what it did.** A segment is two units
+      of wire now, and the budget halved with it, so a line across the approach
+      costs half the Supplies: a full CC3 budget of the USA's plain wall is 600
+      where it was 1200. The migration's refund assumes that price, and the
+      harness does not see it, because its defence rows are the permanent layer
+      with nothing spent. It is a live-play economy question, and it is not
+      decided here.
 - [ ] **Later, and optional — landscape rotates the VIEW, not the sim.** A deep board
       in a short screen is 27px in phone landscape; the same board turned sideways is
       41px. The sim keeps its edge; only the camera turns.
@@ -3857,7 +3968,7 @@ was being read for.
 - The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
 - Balance numbers are provisional until M5's harness; resist hand-tuning before it exists.
 - Each milestone is pushed to the repo in a runnable state with green tests.
-- The 22 E2E harnesses gate every release with `npm run e2e`, which runs them
+- The 24 E2E harnesses gate every release with `npm run e2e`, which runs them
   in sequence and **re-runs a failure once, alone, before calling it anything**
   — the rule that came out of the v1.41.2 gate, where two batches on the same
   commit failed different harnesses and none failed twice. A flake is reported

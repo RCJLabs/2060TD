@@ -507,46 +507,52 @@ export type DealPair = readonly [ArchetypeId, number];
  * The score also carries a small penalty for a shape the faction has already
  * met, because difficulty alone collapses the roster — `compound`, `camp` and
  * `corridor` have the widest layout ranges, so they can hit any target and the
- * other five stop being dealt at all. With the nudge, all eight reach every
- * faction across the ladder.
+ * other five stop being dealt at all. With the nudge, all eight reached every
+ * faction across the ladder on 20x30. On 10x15 the keep reaches three of the
+ * five. At T4 and T5 Russia's reference force clears it 0-8% on 22 of its 24
+ * layouts and the UN's on all 24, so dealing it to them would be dealing a
+ * wall, and the nudge rightly loses to that.
  *
  * The numbers after each row are the clear rates the row was selected for.
+ * Selected again for the 10x15 board (M34): the eight plans were redrawn, so a
+ * layout index names a different base than it did, and the old pairs' rates
+ * described bases nobody is dealt any more.
  */
 export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
   usa: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
     [['compound', 0], ['camp', 0], ['star', 0]], // T2 100/100/100
-    [['corridor', 11], ['camp', 11], ['depot', 0]], // T3 75/83/100
-    [['star', 7], ['keep', 1], ['strongpoints', 10]], // T4 50/67/83
-    [['bunker', 5], ['corridor', 0], ['star', 5]], // T5 42/58/67
+    [['corridor', 7], ['depot', 10], ['strongpoints', 2]], // T3 67/83/100
+    [['camp', 10], ['keep', 6], ['compound', 9]], // T4 58/67/83
+    [['bunker', 8], ['compound', 7], ['keep', 5]], // T5 42/58/67
   ],
   china: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-    [['compound', 3], ['camp', 0], ['star', 0]], // T2 92/100/100
-    [['star', 7], ['depot', 5], ['strongpoints', 0]], // T3 58/92/100
-    [['compound', 2], ['strongpoints', 1], ['keep', 11]], // T4 58/67/83
-    [['compound', 8], ['strongpoints', 2], ['bunker', 2]], // T5 42/58/67
+    [['star', 11], ['corridor', 7], ['compound', 0]], // T2 83/92/100
+    [['compound', 7], ['corridor', 2], ['depot', 0]], // T3 67/83/100
+    [['camp', 2], ['strongpoints', 9], ['compound', 8]], // T4 58/75/83
+    [['keep', 2], ['corridor', 10], ['bunker', 4]], // T5 33/58/67
   ],
   russia: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-    [['compound', 5], ['camp', 0], ['star', 0]], // T2 92/100/100
-    [['camp', 1], ['corridor', 2], ['depot', 0]], // T3 67/83/100
-    [['strongpoints', 7], ['keep', 10], ['compound', 6]], // T4 50/75/83
-    [['camp', 4], ['bunker', 2], ['compound', 11]], // T5 42/50/67
+    [['corridor', 2], ['compound', 1], ['star', 0]], // T2 75/92/100
+    [['corridor', 5], ['strongpoints', 8], ['depot', 0]], // T3 67/83/100
+    [['compound', 9], ['corridor', 11], ['camp', 8]], // T4 58/67/83
+    [['compound', 2], ['camp', 6], ['bunker', 9]], // T5 42/50/67
   ],
   nk: [
-    [['compound', 0], ['camp', 0], ['corridor', 2]], // T1 92/100/100
-    [['compound', 2], ['corridor', 1], ['star', 0]], // T2 83/92/100
-    [['depot', 3], ['compound', 2], ['strongpoints', 0]], // T3 67/83/100
-    [['compound', 0], ['keep', 10], ['camp', 2]], // T4 58/75/83
-    [['compound', 7], ['corridor', 1], ['bunker', 6]], // T5 42/58/75
+    [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+    [['compound', 2], ['corridor', 11], ['star', 0]], // T2 92/92/100
+    [['star', 0], ['strongpoints', 2], ['depot', 0]], // T3 75/83/100
+    [['keep', 0], ['compound', 3], ['camp', 1]], // T4 50/67/83
+    [['corridor', 5], ['compound', 6], ['bunker', 10]], // T5 42/58/67
   ],
   un: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-    [['camp', 7], ['corridor', 0], ['star', 0]], // T2 92/92/100
-    [['star', 10], ['compound', 11], ['depot', 0]], // T3 67/83/100
-    [['compound', 1], ['keep', 6], ['strongpoints', 9]], // T4 58/67/83
-    [['bunker', 0], ['compound', 7], ['strongpoints', 5]], // T5 42/58/67
+    [['corridor', 11], ['star', 4], ['compound', 0]], // T2 75/92/100
+    [['compound', 6], ['depot', 4], ['strongpoints', 0]], // T3 67/83/100
+    [['compound', 5], ['corridor', 3], ['strongpoints', 1]], // T4 50/67/92
+    [['compound', 9], ['bunker', 8], ['camp', 1]], // T5 42/50/67
   ],
 };
 

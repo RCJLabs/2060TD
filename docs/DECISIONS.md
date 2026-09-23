@@ -928,3 +928,27 @@ here with the change and its date.
   another. The scroll was a press tested against the rect as it was after the
   press had moved it. Both are the same shape: state read in one frame of
   reference and acted on in another.
+- 2026-09-23 — **An instrument that skips what it cannot place measures a base
+  nobody drew.** The engine drops a layout piece that does not fit without a
+  word, which is right for a save: a building that a migration could not place
+  must not brick the battle. It is wrong for a measurement. Two rows of the
+  published snapshot measured nothing. The Engineer Corps HQ was a 2x2 on the
+  last row of the 20x30 board for eight releases, so the "HQ on the line" row
+  matched the bare UN row to the cell. The AA cover's forward mount had stood
+  on MID's inner wall since the row was added. The harness now refuses a reference layout that does not
+  land, and the first thing it did was confirm the redrawn rows land. The
+  showcase town took the same lesson on the same day: seed 4242's river moved
+  under a depot, and the demo died on a `!` three lines after the placement
+  that had quietly failed.
+- 2026-09-23 — **Re-tune the lever that only the drifted thing pulls.** On
+  10x15 the defence rows fell 1.13 levels sooner than v1.44's, and the raid
+  tables did not drift. Chain v4 caused it — a crew stuck on a covered post now
+  goes after the guns covering it, so every heavy that reaches the post kills
+  what holds it shut — but the chain also decides raids, and a chain made
+  kinder to defenders would have bought the defence ladder back with the
+  Front Line's top rungs. The assault ladder decides town defence and nothing
+  else. Twelve ladders were priced against where each v1.44 row first held
+  under half: a heavy every four levels instead of two, and +7% a level
+  instead of +9%, moved that level by −0.07 on average, every row within one
+  of v1.44's. The raid side's own surface, the deal, was re-selected by
+  measurement for the redrawn bases rather than carried over.

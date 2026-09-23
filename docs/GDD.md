@@ -491,26 +491,37 @@ data-driven so later factions are content drops, not engine work.
 
 ## 5. Systems
 
-### 5.0 The board *(v1.40)*
+### 5.0 The board *(v1.40, M34)*
 
-**20 cells across, 30 deep, attacked from the north.** Every battle in the game is fought
-on this shape: the town when it is besieged, a generated ladder base, a pasted share code,
-a campaign mission.
+**10 cells across, 15 deep, two units a cell, attacked from the north.** Every battle in
+the game is fought on this shape: the town when it is besieged, a generated ladder base, a
+pasted share code, a campaign mission.
 
-It was 32x24 entered from the west until v1.40, and the reason it turned is that this is a
-phone game. Thirty-two cells across the short side of a 360px phone is an **11px cell**, and
+**Lengths are written in units, not cells** — ranges, radii, speeds, strike strips, the
+column an arrival enters at — and the board says how many units a cell is. At two, every
+2x2 building is exactly one cell, and the narrowest phone draws a cell at 36px with the
+whole board in view above the drawer at rest: twice the 18px of 20x30, and enough to build
+on a named cell with one touch. What cannot halve is anything already one cell, so a gun
+and a wall stand on twice the ground they did. That made the move a redesign rather than a
+port: the generator's eight plans, the balance harness's reference bases and the ladder's
+deal were drawn or chosen again for this board, the kill chain gained a rule (a crew stuck
+on a covered post goes after the guns covering it), and the assault ladder was re-tuned so
+each defence stage falls where it did on 20x30.
+
+It was 32x24 entered from the west until v1.40, and 20x30 until M34. The reason it turned,
+then shrank, is that this is a phone game. Thirty-two cells across the short side of a 360px phone is an **11px cell**, and
 an 11px cell cannot carry a silhouette, a level pip or a fingertip — measurable with
 `npm run fit`, which scores a candidate grid against the real board rect on six devices.
 Upright, the same phone gets **18px**, and a typical one 20-21px.
 
 What that cost is small and specific, and it is why the board turned rather than shrinking:
 
-| | v1.39 | v1.40 |
-|---|---|---|
-| Depth from the entry line | 32 | 30 |
-| Across the entry line | 24 | 20 |
-| Cells | 768 | 600 |
-| Cell on a 360px phone | 11.3px | 18.0px |
+| | v1.39 | v1.40 | M34 |
+|---|---|---|---|
+| Depth from the entry line | 32 | 30 | 15 cells, 30 units |
+| Across the entry line | 24 | 20 | 10 cells, 20 units |
+| Cells | 768 | 600 | 150 |
+| Cell on a 360px phone | 11.3px | 18.0px | 36.0px |
 
 **Depth is what decides a raid** — route length and gun coverage, per `docs/BALANCE.md` —
 and depth lost two cells. The axis that lost four is the one nobody walks along.
@@ -527,7 +538,12 @@ Two consequences run through the whole codebase:
   battle they recorded. Saves and share codes carry a grid version and are TRANSPOSED
   forward — the map that carries the old command post to the new one, so every building
   keeps its exact offset from the post and its exact distance from the enemy. A base that
-  funnelled attackers into a crossfire still does.
+  funnelled attackers into a crossfire still does. The move to 10x15 is not exact, so it
+  is not free: a 20x30 town comes across by the one rule, `floor(p / 2)`. A block of the
+  new board is wall when half of it was, a building that lands on a taken cell walks to
+  the nearest free one, and every wall that does not come across — merged into a block
+  with another, or past the new budget — is refunded.
+  Replays carry their cell size and re-fight on the board they recorded.
 
 ### 5.1 Resources
 

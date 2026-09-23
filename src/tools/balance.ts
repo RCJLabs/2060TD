@@ -1889,13 +1889,23 @@ function nativeCheck(): void {
  */
 function retune(): void {
   const started = Date.now();
-  const CANDIDATES: [string, Partial<Ladder>][] = [
-    ['shipped', {}],
-    ['heavy /3', { heavyEvery: 3 }],
-    ['growth .07', { growth: 0.07 }],
-    ['growth .05', { growth: 0.05 }],
-    ['heavy /3 + growth .07', { heavyEvery: 3, growth: 0.07 }],
-    ['heavy /3 + rotor /3', { heavyEvery: 3, rotorEvery: 3 }],
+  // Every candidate is a whole ladder, written from v1.44's so the table is a
+  // record of the decision rather than a diff against whatever ships today.
+  const V144: Ladder = { growth: 0.09, heavyEvery: 2, rotorEvery: 2 };
+  const CANDIDATES: [string, Ladder][] = [
+    ['v1.44', V144],
+    ['heavy /3', { ...V144, heavyEvery: 3 }],
+    ['growth .07', { ...V144, growth: 0.07 }],
+    ['growth .05', { ...V144, growth: 0.05 }],
+    ['heavy /3 + rotor /3', { ...V144, heavyEvery: 3, rotorEvery: 3 }],
+    ['heavy /3 + growth .07', { ...V144, heavyEvery: 3, growth: 0.07 }],
+    ['heavy /3 + growth .06', { ...V144, heavyEvery: 3, growth: 0.06 }],
+    ['heavy /3 + growth .05', { ...V144, heavyEvery: 3, growth: 0.05 }],
+    ['heavy /3 + growth .07 + rotor /3', { ...V144, heavyEvery: 3, growth: 0.07, rotorEvery: 3 }],
+    ['heavy /4', { ...V144, heavyEvery: 4 }],
+    ['heavy /4 + growth .08', { ...V144, heavyEvery: 4, growth: 0.08 }],
+    ['heavy /4 + growth .06', { ...V144, heavyEvery: 4, growth: 0.06 }],
+    ['shipped', LADDER],
   ];
   const only = process.argv.slice(process.argv.indexOf('--retune') + 1).filter((a) => !a.startsWith('--'));
   const picked = only.length ? CANDIDATES.filter(([label]) => only.includes(label)) : CANDIDATES;
@@ -1911,8 +1921,7 @@ function retune(): void {
   console.log(
     'LADDER                 | SHIFT | |SHIFT| | EARLY | MID   | LATE  | CONTESTED | RISES | FALLS BY ROW (USA CHN RUS NK UN, E/M/L)',
   );
-  for (const [label, over] of picked) {
-    const ladder: Ladder = { ...LADDER, ...over };
+  for (const [label, ladder] of picked) {
     const shifts: number[] = [];
     const byStage: number[][] = [[], [], []];
     const contested: number[] = [];
@@ -1931,6 +1940,9 @@ function retune(): void {
           }
           return Math.round((held / SEEDS) * 100);
         });
+        if (process.argv.includes('--rows')) {
+          console.log(`  ${faction.toUpperCase().padEnd(6)} ${base.name.padEnd(11)} ${row.map((c) => pad(c, 4)).join('')}`);
+        }
         const shift = falls(row) - falls(V1_PUBLISHED[r]!);
         shifts.push(shift);
         byStage[b]!.push(shift);
@@ -4961,7 +4973,7 @@ function main(): void {
     return;
   }
   if (process.argv.includes('--retune')) {
-    // `--retune 'heavy /3'` runs one candidate by its label.
+    // `--retune 'heavy /3'` runs candidates by label; `--rows` prints each row.
     retune();
     return;
   }
@@ -5778,6 +5790,18 @@ function main(): void {
       '> was the ceiling — which is what every snapshot in this file had recorded, and',
       '> what three content notes carried since v0.6 were separately describing.',
       '> Contested levels per row: 0.73 before, 2.20 after.',
+      '>',
+      '> **M34 moved every battle onto a 10x15 board at two units a cell, so no row here',
+      '> is comparable to a v1.44 cell.** The catalog is written in physical units and',
+      '> halves onto the new cells, but a gun or a wall cannot shrink below one, and the',
+      '> kill chain is version 4: a crew stuck on a covered post goes after the guns',
+      '> covering it. The eight generator plans, the three reference bases and the deal',
+      '> were drawn or chosen again for this board. The assault ladder was re-tuned so each',
+      '> defence row first holds under half where v1.44\'s did (`--retune`): a heavy every',
+      '> four levels instead of two, and +7% a level instead of +9%, which moves that level',
+      '> by −0.07 on average against −1.13 for the old ladder on this board. Two rows below',
+      '> measured nothing before this snapshot: the Engineer Corps HQ and the forward AA',
+      '> mount never landed. A reference layout that does not land now stops the harness.',
       '',
       '```',
       body,
@@ -5812,7 +5836,7 @@ function main(): void {
       '  is winnable — tier-1 losses drop ~18 points and tier-3 clears gain ~13 — and go quiet',
       '  where the force is simply outgunned (tier 4+): healing at 22/s loses to two guns',
       '  focused, by design. On defense the Engineer Corps HQ row shows the aura the reference',
-      '  can see; the Engineer Revetment (CP layer, 15 hp/s over 3 cells) is the live-play',
+      '  can see; the Engineer Revetment (CP layer, 15 hp/s over 3 units) is the live-play',
       '  tool the reference cannot. Every UN gun is deliberately mid-pack; the faction wins',
       '  by still being there in wave three.',
       '- **Russia (artillery) progresses through fire preparation**: their bare late-game force',
