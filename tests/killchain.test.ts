@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHAIN_CURRENT, CHAIN_NONE, CHAIN_SPENT, chainModelFor } from '../src/sim/killchain';
+import { CHAIN_CURRENT, CHAIN_ENGAGE, CHAIN_NONE, CHAIN_SPENT, chainModelFor } from '../src/sim/killchain';
 import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
 import type { SimConfig } from '../src/sim/types';
 import { Engine } from '../src/sim/engine';
@@ -271,6 +271,51 @@ describe('the kill chain', () => {
     // v1.41.2: the breach latched, so the post is nobody's ranged target. The
     // aircraft closes instead, which makes it an assault the sweep can spend.
     expect(latched.left, 'the aircraft is still loitering').toBe(0);
+  });
+
+  it('a covered post sends its crew after the gun, where v3 left it standing to be wiped', () => {
+    // One nest covering the post from where nobody on the post can touch it,
+    // and three bruisers — melee, so they cannot shoot at all — made tough
+    // enough that the nest cannot kill one inside the stall window. On v3 they
+    // breach, stand on the post through SUPPRESS achieving nothing, and the
+    // stall rule wipes them: 43.7% of the shipped defence matrix's wins include
+    // exactly that. On v4 they go and pull the gun down, and the chain moves.
+    const run = (version: number) => {
+      const e = makeSandbox(42, { killChainVersion: version, mods: { attacker: { hp: 10 } } });
+      // (18, 8): 3.5 cells from the post's centre (18, 5), inside cover.
+      e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(18, 8), kind: 'm2nest' });
+      send(e, 'bruiser', 3);
+      let reachedSuppress = false;
+      for (let i = 0; i < 6000; i++) {
+        e.step();
+        if (e.chainProgress()?.stage === 'suppress') reachedSuppress = true;
+      }
+      const gun = e.structures.find((st) => st.profile.kind === 'm2nest');
+      return {
+        reachedSuppress,
+        gunAlive: !!gun && gun.hp > 0,
+        wipes: e.stallWipes,
+        stage: e.chainProgress()!.stage,
+      };
+    };
+    const v3 = run(CHAIN_CURRENT);
+    const v4 = run(CHAIN_ENGAGE);
+    // Liveness: both got as far as the gate, or they differ for another reason.
+    expect(v3.reachedSuppress, 'v3 never reached the gate').toBe(true);
+    expect(v4.reachedSuppress, 'v4 never reached the gate').toBe(true);
+    // v3: the gun survives and the assault is wiped standing on the post.
+    expect(v3.gunAlive).toBe(true);
+    expect(v3.wipes).toBeGreaterThan(0);
+    // v4: the gun comes down, nobody times out, and the post moves past the gate.
+    expect(v4.gunAlive).toBe(false);
+    expect(v4.wipes).toBe(0);
+    expect(['charge', 'burn', 'down']).toContain(v4.stage);
+  });
+
+  it('the candidate is a candidate: v4 exists and is not what a battle gets by default', () => {
+    expect(chainModelFor(CHAIN_ENGAGE).engageCover).toBe(true);
+    expect(CHAIN_CURRENT).not.toBe(CHAIN_ENGAGE);
+    for (const v of [CHAIN_NONE, CHAIN_SPENT, CHAIN_CURRENT]) expect(chainModelFor(v).engageCover).toBe(false);
   });
 
   it('the whole chain ends in a taken post, and the sim says who took it', () => {

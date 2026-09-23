@@ -39,8 +39,10 @@ import type { Catalog, CellIndex, LayoutStructure, LayoutWall, SimConfig, WaveDe
  * Half-or-more keeps a solid line solid and never closes an opening in one,
  * and because a board whose sides divide by the factor splits into whole
  * blocks, it is exactly mirror-symmetric. What it costs is known and runs one
- * way: a gap that straddles a block edge comes out twice as wide, and an
- * isolated one-cell stub disappears.
+ * way: a gap that straddles a block edge comes out twice as wide, and a piece of
+ * wall that leaves less than half a block in every block it touches disappears.
+ * That is a lone cell always, and a two-cell stub whenever it straddles a block
+ * edge — which is how the MID reference base's serpentine lost its stubs.
  *
  * Two things cannot share a cell, and the rule can put them there. Nothing here
  * decides silently: whatever does not fit is REPORTED, so every caller — the

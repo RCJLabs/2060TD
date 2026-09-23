@@ -274,6 +274,8 @@ export class Engine {
    * not end.
    */
   private chainIdle = 0;
+  /** Stall wipe-outs so far; see `stallWipes`. */
+  private assaultsSpent = 0;
   /** The board fingerprint the idle counter is measured against. */
   private chainStill = '';
   private nextId = 1;
@@ -1443,6 +1445,26 @@ export class Engine {
         attacker.path = null;
       }
 
+      // A covered post, and this attacker is standing on it with nothing it can
+      // shoot (chain v4). Standing there achieves nothing — the stage cannot
+      // move while a gun covers it — so go and get the gun. When the gun falls
+      // the block above sends it back to the post. `chainStage` is last tick's,
+      // which is when the attacker learned the post would not move.
+      if (
+        this.chain.engageCover &&
+        target === this.cc &&
+        attacker.state === 'assaulting' &&
+        this.chainStage === 'suppress' &&
+        !attacker.profile.air
+      ) {
+        const gun = this.coverTargetFor(attacker);
+        if (gun) {
+          target = gun;
+          attacker.targetId = gun.id;
+          attacker.path = null;
+        }
+      }
+
       // Flying units skip the grid entirely — no path, no walls, no blockers.
       if (attacker.profile.air) {
         this.updateAirAttacker(attacker, target, events);
@@ -1773,6 +1795,37 @@ export class Engine {
   }
 
   /**
+   * The covering gun an attacker on the post should go after, or null (chain v4).
+   *
+   * Null when a covering gun is already in this attacker's reach: it will be
+   * shot from where the attacker stands, by the ordinary engage pass. Otherwise
+   * the NEAREST covering gun, because the one that is closest is the one that
+   * is quickest to reach and the post cannot move until every one is dead.
+   * Same test as `coveringGuns`, so what an attacker hunts is exactly what is
+   * holding the post shut.
+   */
+  private coverTargetFor(attacker: Attacker): Structure | null {
+    const r2 = this.chain.coverRadius * this.chain.coverRadius;
+    const reach = attacker.profile.weapon?.range ?? 0;
+    let best: Structure | null = null;
+    let bestD = Infinity;
+    for (const s of this.structures) {
+      if (s.hp <= 0 || !this.isDefenseStructure(s) || !s.profile.targetable) continue;
+      if (layerOf(s.profile.weapon!) === 'air') continue;
+      const cx = s.center.x - this.cc.center.x;
+      const cy = s.center.y - this.cc.center.y;
+      if (cx * cx + cy * cy > r2) continue;
+      const d = Math.hypot(s.center.x - attacker.pos.x, s.center.y - attacker.pos.y);
+      if (d <= reach) return null;
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  /**
    * Spend what the assault put into the post this tick.
    *
    * Exactly one stage is live, and each spends a different currency: that is
@@ -1871,9 +1924,24 @@ export class Engine {
     }
     if (++this.chainIdle < this.chain.stallSeconds * TICKS_PER_SECOND) return;
     this.chainIdle = 0;
+    let wiped = 0;
     for (const attacker of this.attackers) {
-      if (attacker.hp > 0 && attacker.state === 'assaulting') attacker.hp = 0;
+      if (attacker.hp > 0 && attacker.state === 'assaulting') {
+        attacker.hp = 0;
+        wiped++;
+      }
     }
+    if (wiped > 0) this.assaultsSpent++;
+  }
+
+  /**
+   * How many times this battle's assault was spent — its holders wiped by the
+   * stall rule rather than stopped by the defence (M34). Read-only, outside the
+   * stats and the state hash: it is for the instruments, which need to tell a
+   * defence that held from an assault that timed out.
+   */
+  get stallWipes(): number {
+    return this.assaultsSpent;
   }
 
   /**

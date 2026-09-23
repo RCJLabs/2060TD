@@ -1238,9 +1238,14 @@ function defenseConfigFor(
   base: ReferenceBase,
   level: number,
   seed: number,
-  opts: { mods?: DefenderMods; extraStructures?: LayoutStructure[]; orders?: StandingOrders } = {},
+  opts: {
+    mods?: DefenderMods;
+    extraStructures?: LayoutStructure[];
+    orders?: StandingOrders;
+    chainVersion?: number;
+  } = {},
 ): SimConfig {
-  const { mods, extraStructures = [], orders } = opts;
+  const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT } = opts;
   return {
     width: W,
     height: H,
@@ -1258,7 +1263,7 @@ function defenseConfigFor(
     // to `battleConfig` has to be added here too, or this file reports a game
     // nobody is playing.
     combatVersion: COMBAT_CURRENT,
-    killChainVersion: CHAIN_CURRENT,
+    killChainVersion: chainVersion,
     siege: { ...buildAssault(level, enemyRosterFor(faction)), startingSupplies: 0 },
     layout: {
       walls: base.walls.map((w) => ({ ...w })),
@@ -1345,14 +1350,14 @@ function defenseMatrix(
  * The defence tables are flat by design ("the permanent layer alone"), so no
  * terrain question enters: the only variable is the board.
  */
-function similarity(): void {
+function similarity(chainVersion: number = CHAIN_CURRENT): void {
   const started = Date.now();
   const bases = referenceBases();
   const pct = (n: number) => Math.round((n / SEEDS) * 100);
 
   // ---- what the fixtures lose in the mapping ----------------------------------
   // A plan does not depend on the faction, so its mapping is reported once.
-  console.log('SIMILAR — is the 10x15 board the same game? (M34 Phase 4)\n');
+  console.log(`SIMILAR — is the 10x15 board the same game? (M34 Phase 4) — kill chain v${chainVersion}\n`);
   console.log('FIXTURES ON 10x15 (cell size 2), by the one rule:');
   for (const base of bases) {
     const { config, report } = coarsenConfig(
@@ -1371,6 +1376,23 @@ function similarity(): void {
   // ---- the three passes ---------------------------------------------------------
   type Cell = { fine: number; null: number; coarse: number; refined: number };
   const rows: { faction: FactionId; base: string; cells: Cell[] }[] = [];
+  // Defender wins, and how many of them include a stall wipe-out: an assault
+  // that stood on the post doing nothing until the rule removed it, rather than
+  // one the defence stopped.
+  const tally = {
+    fine: { wins: 0, stalled: 0 },
+    null: { wins: 0, stalled: 0 },
+    coarse: { wins: 0, stalled: 0 },
+    refined: { wins: 0, stalled: 0 },
+  };
+  const count = (key: keyof typeof tally, e: Engine): boolean => {
+    const won = e.phase === 'victory';
+    if (won) {
+      tally[key].wins++;
+      if (e.stallWipes > 0) tally[key].stalled++;
+    }
+    return won;
+  };
   for (const faction of FACTION_IDS) {
     const catalog = defenseCatalogFor(faction);
     for (const base of bases) {
@@ -1381,13 +1403,17 @@ function similarity(): void {
         let coarse = 0;
         let refined = 0;
         for (let i = 0; i < SEEDS; i++) {
-          const a = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i));
-          if (fightDefense(a, catalog).phase === 'victory') fine++;
-          const b = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i + SEEDS));
-          if (fightDefense(b, catalog).phase === 'victory') nul++;
+          const a = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i), {
+            chainVersion,
+          });
+          if (count('fine', fightDefense(a, catalog))) fine++;
+          const b = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i + SEEDS), {
+            chainVersion,
+          });
+          if (count('null', fightDefense(b, catalog))) nul++;
           const small = coarsenConfig(a, catalog, 2).config;
-          if (fightDefense(small, catalog).phase === 'victory') coarse++;
-          if (fightDefense(refineConfig(small, 2), catalog).phase === 'victory') refined++;
+          if (count('coarse', fightDefense(small, catalog))) coarse++;
+          if (count('refined', fightDefense(refineConfig(small, 2), catalog))) refined++;
         }
         cells.push({ fine: pct(fine), null: pct(nul), coarse: pct(coarse), refined: pct(refined) });
       }
@@ -1409,14 +1435,20 @@ function similarity(): void {
   let agree = 0;
   let checked = 0;
   const off: string[] = [];
-  rows.forEach((row, r) => {
+  if (chainVersion !== CHAIN_CURRENT) {
+    console.log(
+      `\nSELF-CHECK: skipped — the published tables were fought on chain v${CHAIN_CURRENT}, and this ` +
+        `run is measuring v${chainVersion}. Run without CHAIN= to check the instrument.`,
+    );
+  }
+  if (chainVersion === CHAIN_CURRENT) rows.forEach((row, r) => {
     row.cells.forEach((cell, l) => {
       checked++;
       if (published[r]?.[l] === cell.fine) agree++;
       else off.push(`${row.faction} ${row.base} L${l + 1}: ${published[r]?.[l]} vs ${cell.fine}`);
     });
   });
-  console.log(
+  if (chainVersion === CHAIN_CURRENT) console.log(
     `\nSELF-CHECK: the FINE pass against the published v1.43 tables — ${agree}/${checked} cells identical` +
       (off.length ? `\n  DISAGREES, do not trust what follows:\n    ${off.slice(0, 8).join('\n    ')}` : ''),
   );
@@ -1480,6 +1512,12 @@ function similarity(): void {
   console.log(
     `\ncontested levels per row: fine ${contested('fine').toFixed(2)}, null ${contested('null').toFixed(2)}, ` +
       `refined ${contested('refined').toFixed(2)}, coarse ${contested('coarse').toFixed(2)}`,
+  );
+  const share = (k: keyof typeof tally) =>
+    `${tally[k].stalled}/${tally[k].wins} (${((100 * tally[k].stalled) / Math.max(1, tally[k].wins)).toFixed(1)}%)`;
+  console.log(
+    `defender wins that include a stall wipe-out: fine ${share('fine')}, null ${share('null')}, ` +
+      `refined ${share('refined')}, coarse ${share('coarse')}`,
   );
   console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
@@ -4483,7 +4521,10 @@ function main(): void {
     return;
   }
   if (process.argv.includes('--similar')) {
-    similarity();
+    // CHAIN=4 to measure a candidate kill chain. An env var rather than a flag:
+    // `--chain` is already an instrument, and `process.argv.includes` would
+    // hand this run to it.
+    similarity(Number(process.env['CHAIN'] ?? CHAIN_CURRENT));
     return;
   }
   if (process.argv.includes('--contested')) {
