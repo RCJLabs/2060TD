@@ -3606,9 +3606,14 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       column, `round((c + 0.5) / 2 - 0.5)`, is exactly `floor(c / 2)` for every
       integer — checked, not assumed — so content stays authored in today's
       coordinates as PHYSICAL positions, the way the catalog stays in physical units,
-      and a board of cell size 2 maps position `p` to cell `floor(p / 2)`. Symmetric
-      spawn pairs stay symmetric (3/17 → 1/8, 7/13 → 3/6 about a centre of 4.5).
-      What the rule cannot do is put two things in one cell: two guns in one 2x2 block
+      and a board of cell size 2 maps position `p` to cell `floor(p / 2)`. A pair
+      mirrored about the BOARD's axis stays mirrored, exactly. That is narrower than
+      this entry first claimed — "symmetric spawn pairs stay symmetric" — and a test
+      caught it: the waves pair their columns about column 10, half a cell right of
+      a 20-wide line's true centre, so odd pairs map exactly centred (7/13 → 3/6) and
+      even ones a unit right (8/12 → 4/6). And a 10-wide board has no centre column,
+      so the 1x1 post lands a unit left of the axis today's 2x2 straddles. What the
+      rule cannot do at all is put two things in one cell: two guns in one 2x2 block
       collide, and every place that maps a plan has to say what happens then. Terrain
       gets a new version sized to the board; version 1 stays frozen for the battles
       fought on it. Wall budgets 50/80/120 → 25/40/60.
