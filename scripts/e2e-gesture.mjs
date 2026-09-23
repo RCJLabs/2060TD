@@ -111,6 +111,7 @@ try {
         const list = api.scroll();
         const box = (r) => ({ x: r.x / d, y: r.y / d, w: r.w / d, h: r.h / d });
         return {
+          dpr: d,
           board: cam ? { zoom: cam.zoom, cx: cam.cx, cy: cam.cy, rect: box(cam.rect) } : null,
           list: list
             ? { scrollY: list.scrollY / d, max: list.max / d, fling: list.fling, rect: box(list.rect) }
@@ -243,7 +244,31 @@ try {
     // clamped to nothing at a zoom where the map pans perfectly well, and this
     // check then fails for a fact about the board's shape rather than about
     // gestures. A diagonal drag moves on whichever axis has room.
-    for (let i = 0; i < 6; i++) await wheelAt(bMid.x, bMid.y, -120);
+    // The wheel zooms ABOUT THE CURSOR: the world point under it stays put.
+    // Both zoom gestures used to read that point back through a camera matrix
+    // Phaser had not rebuilt yet, so each notch slid the view; on the 10x15
+    // board (M34) six of them pinned it in a corner, and the pan below had
+    // nowhere left to go.
+    const under = (s, x, y) => ({
+      x: s.board.cx + ((x - (s.board.rect.x + s.board.rect.w / 2)) * s.dpr) / s.board.zoom,
+      y: s.board.cy + ((y - (s.board.rect.y + s.board.rect.h / 2)) * s.dpr) / s.board.zoom,
+    });
+    const aim = { x: bMid.x + B.w * 0.15, y: bMid.y - B.h * 0.1 };
+    const unzoomed = await state();
+    for (let i = 0; i < 6; i++) await wheelAt(aim.x, aim.y, -120);
+    const zoomed = await state();
+    const was = under(unzoomed, aim.x, aim.y);
+    const now = under(zoomed, aim.x, aim.y);
+    // Only along an axis the world overflows. On a landscape screen the
+    // portrait world is narrower than the view even zoomed, so the rig centres
+    // it across — correctly — and only its depth can hold still.
+    const slid =
+      run.name === 'landscape' ? Math.abs(now.y - was.y) : Math.hypot(now.x - was.x, now.y - was.y);
+    check(
+      `${run.name}: the wheel zooms about the point under the cursor`,
+      zoomed.board.zoom > unzoomed.board.zoom * 1.5 && slid < 1,
+      `zoom ${unzoomed.board.zoom.toFixed(2)} → ${zoomed.board.zoom.toFixed(2)}, the point under it slid ${slid.toFixed(1)} world px`,
+    );
     before = await state();
     await drag(bMid.x + B.w * 0.2, bMid.y + B.h * 0.2, bMid.x - B.w * 0.2, bMid.y - B.h * 0.2);
     after = await state();

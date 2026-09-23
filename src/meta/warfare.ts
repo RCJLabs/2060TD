@@ -3,6 +3,7 @@ import {
   BASE_SPAWN_LANE,
   generateBase,
   lootFor,
+  MAP_CELL_SIZE,
   MAP_H,
   MAP_W,
   type GeneratedBase,
@@ -24,6 +25,7 @@ import { Engine } from '../sim/engine';
 import { TERRAIN_NONE, TERRAIN_VERSION } from '../sim/terrain';
 import { COMBAT_CURRENT } from '../sim/combat';
 import { CHAIN_CURRENT } from '../sim/killchain';
+import { onBoard } from '../sim/board';
 import { isObjectiveId, watchObjective, type ObjectiveId } from './objectives';
 import type {
   AttackerMods,
@@ -85,25 +87,31 @@ const range = (lo: number, hi: number): number[] =>
  * are the long ones and grew. N1/N2 are the FRONT DOOR — the line a siege
  * comes down and the one the defender's guns are aimed at — which is what
  * makes choosing S1 or E2 instead a decision rather than a preference.
+ *
+ * The spans are PHYSICAL (M34), like the waves: N1 is units 2-8 of the
+ * 20-unit north edge, whatever a cell is, and the board maps them by the one
+ * rule. At two units a cell N1 is columns 1-4.
  */
 export function sectorCells(id: SectorId): { col: number; row: number }[] {
+  const span = (lo: number, hi: number): number[] =>
+    range(onBoard(lo, MAP_CELL_SIZE), onBoard(hi, MAP_CELL_SIZE));
   switch (id) {
     case 'N1':
-      return range(2, 8).map((col) => ({ col, row: 0 }));
+      return span(2, 8).map((col) => ({ col, row: 0 }));
     case 'N2':
-      return range(11, 17).map((col) => ({ col, row: 0 }));
+      return span(11, 17).map((col) => ({ col, row: 0 }));
     case 'S1':
-      return range(2, 8).map((col) => ({ col, row: MAP_H - 1 }));
+      return span(2, 8).map((col) => ({ col, row: MAP_H - 1 }));
     case 'S2':
-      return range(11, 17).map((col) => ({ col, row: MAP_H - 1 }));
+      return span(11, 17).map((col) => ({ col, row: MAP_H - 1 }));
     case 'W1':
-      return range(3, 13).map((row) => ({ col: 0, row }));
+      return span(3, 13).map((row) => ({ col: 0, row }));
     case 'W2':
-      return range(17, 27).map((row) => ({ col: 0, row }));
+      return span(17, 27).map((row) => ({ col: 0, row }));
     case 'E1':
-      return range(3, 13).map((row) => ({ col: MAP_W - 1, row }));
+      return span(3, 13).map((row) => ({ col: MAP_W - 1, row }));
     case 'E2':
-      return range(17, 27).map((row) => ({ col: MAP_W - 1, row }));
+      return span(17, 27).map((row) => ({ col: MAP_W - 1, row }));
   }
 }
 
@@ -289,8 +297,9 @@ export const SQUAD_DELAY_TICKS = 120; // squads launch 6s apart, in order
 
 export const TUNNEL_DIG_TICKS = 160; // 8s: the ground opens after the walkers commit
 export const TUNNEL_FUEL_COST = 40; // per squad: galleries are shored and sealed per raid
-export const TUNNEL_MIN_CC_DIST = 4; // cells from the command post center: off its
-// doorstep, but inside every template's wall ring (compound margin 6-7, star 7-8)
+export const TUNNEL_MIN_CC_DIST = 4; // PHYSICAL units from the post's centre: off its
+// doorstep, but inside every template's wall ring — two cells at two units a cell,
+// against a compound four out and a star three
 
 /** Deterministic surfacing ring: mouth first, neighbors, then the radius-2
  * shoulder — a squad comes up as a platoon, not a file of targets. */
@@ -315,13 +324,18 @@ export function tunnelFuelCost(squads: SquadPlan[]): number {
 export function tunnelSiteValid(base: GeneratedBase, cell: CellIndex): boolean {
   const col = cell % MAP_W;
   const row = Math.floor(cell / MAP_W);
-  if (col < 2 || col > MAP_W - 3 || row < 2 || row > MAP_H - 3) return false;
+  // Two units in from every edge, in this board's cells (M34).
+  const margin = onBoard(2, MAP_CELL_SIZE);
+  if (col < margin || col > MAP_W - 1 - margin || row < margin || row > MAP_H - 1 - margin) {
+    return false;
+  }
   if (base.walls.some((w) => w.cell === cell)) return false;
   const ccCol = (base.ccOrigin % MAP_W) + 0.5;
   const ccRow = Math.floor(base.ccOrigin / MAP_W) + 0.5;
   const dc = col - ccCol;
   const dr = row - ccRow;
-  return dc * dc + dr * dr >= TUNNEL_MIN_CC_DIST * TUNNEL_MIN_CC_DIST;
+  const min = TUNNEL_MIN_CC_DIST / MAP_CELL_SIZE;
+  return dc * dc + dr * dr >= min * min;
 }
 
 export function planUnitCount(squads: SquadPlan[]): number {
@@ -444,6 +458,9 @@ export function raidConfig(
   return {
     width: MAP_W,
     height: MAP_H,
+    // The board's cell, in the catalog's units (M34): named here, at the one
+    // seam every raid, duel and probe config comes through.
+    cellSize: MAP_CELL_SIZE,
     seed,
     ccOrigin: base.ccOrigin,
     ccLevel: base.ccLevel,

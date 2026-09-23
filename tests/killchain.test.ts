@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { CHAIN_CURRENT, CHAIN_ENGAGE, CHAIN_NONE, CHAIN_SPENT, chainModelFor } from '../src/sim/killchain';
+import {
+  CHAIN_CURRENT,
+  CHAIN_ENGAGE,
+  CHAIN_LATCHED,
+  CHAIN_MODELS,
+  CHAIN_NONE,
+  CHAIN_SPENT,
+  chainModelFor,
+} from '../src/sim/killchain';
 import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
 import type { SimConfig } from '../src/sim/types';
 import { Engine } from '../src/sim/engine';
@@ -95,7 +103,10 @@ describe('the kill chain', () => {
   });
 
   it('a live gun covering the post holds the charge, and killing it releases it', () => {
-    const covered = staged();
+    // On v3, where a crew on the post stays on it: the gate is the thing under
+    // test, and v4 inherits it unchanged. v4's crews go after the gun instead
+    // of waiting at the gate, which the test below this one pins.
+    const covered = staged({ killChainVersion: CHAIN_LATCHED });
     // Three cells from the post's centre, off its perimeter so it blocks
     // nothing — the gate is about the gun being alive, not in the way.
     covered.enqueue({ tick: 0, type: 'placeStructure', cell: covered.grid.idx(15, 5), kind: 'm2nest' });
@@ -106,7 +117,7 @@ describe('the kill chain', () => {
     expect(chain.covering).toBe(1);
     expect(covered.cc.hp).toBe(BREACH_FLOOR);
 
-    const clear = staged();
+    const clear = staged({ killChainVersion: CHAIN_LATCHED });
     send(clear, 'tank', 2);
     clear.run(2000);
     expect(clear.cc.hp, 'the same force got no further on an open post').toBeLessThan(BREACH_FLOOR);
@@ -252,7 +263,7 @@ describe('the kill chain', () => {
     };
 
     const spent = run(CHAIN_SPENT);
-    const latched = run(CHAIN_CURRENT);
+    const latched = run(CHAIN_LATCHED);
     // Liveness: both fixtures must actually have opened the post, or the two
     // runs differ for a reason that has nothing to do with the threshold.
     expect(spent.opened, 'the v2 fixture never opened the post').toBe(true);
@@ -298,7 +309,7 @@ describe('the kill chain', () => {
         stage: e.chainProgress()!.stage,
       };
     };
-    const v3 = run(CHAIN_CURRENT);
+    const v3 = run(CHAIN_LATCHED);
     const v4 = run(CHAIN_ENGAGE);
     // Liveness: both got as far as the gate, or they differ for another reason.
     expect(v3.reachedSuppress, 'v3 never reached the gate').toBe(true);
@@ -312,10 +323,19 @@ describe('the kill chain', () => {
     expect(['charge', 'burn', 'down']).toContain(v4.stage);
   });
 
-  it('the candidate is a candidate: v4 exists and is not what a battle gets by default', () => {
-    expect(chainModelFor(CHAIN_ENGAGE).engageCover).toBe(true);
-    expect(CHAIN_CURRENT).not.toBe(CHAIN_ENGAGE);
-    for (const v of [CHAIN_NONE, CHAIN_SPENT, CHAIN_CURRENT]) expect(chainModelFor(v).engageCover).toBe(false);
+  it('every model is filed under its own version', () => {
+    // A model spread from another and left naming the version it came from
+    // reports the wrong chain. v3 did from the flip until this test: it named
+    // `CHAIN_CURRENT`, which had been 3 when it was written and is 4 now.
+    for (const [key, model] of Object.entries(CHAIN_MODELS)) {
+      expect(model.version, `the model filed under ${key}`).toBe(Number(key));
+    }
+  });
+
+  it('v4 is what a new battle gets, and every older chain stays frozen without the hunt', () => {
+    expect(CHAIN_CURRENT).toBe(CHAIN_ENGAGE);
+    expect(chainModelFor(CHAIN_CURRENT).engageCover).toBe(true);
+    for (const v of [CHAIN_NONE, CHAIN_SPENT, CHAIN_LATCHED]) expect(chainModelFor(v).engageCover).toBe(false);
   });
 
   it('the whole chain ends in a taken post, and the sim says who took it', () => {

@@ -123,7 +123,11 @@ try {
     town.fuel = 8000;
     town.unlocked = [...new Set([...town.unlocked, 'frontline', 'autocannon', 'aa', 'barracks'])];
     town.army = { ranger: 6, engineer: 3, javelin: 3 };
-    for (let y = 4; y < 18; y++) town.walls.push({ cell: y * 32 + 22, kind: 'wall' });
+    // A wall line across the 10x15 board (grid version 2, M34), both edge
+    // columns left open. Written in 32-wide cells until M34, which from v1.40
+    // on scattered them across the 20-wide board wherever they happened to land.
+    if (town.gridVersion !== 2) throw new Error(`a grid-version-2 save, not ${town.gridVersion}`);
+    for (let x = 1; x <= 8; x++) town.walls.push({ cell: 9 * 10 + x, kind: 'wall' });
     localStorage.setItem('lastline_save_v1', JSON.stringify(save));
   });
   await page.reload({ waitUntil: 'networkidle' });

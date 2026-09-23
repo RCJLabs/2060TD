@@ -367,6 +367,25 @@ export class BoardView {
     );
   }
 
+  /**
+   * The world point under a screen point, from the rig's own centre, zoom and
+   * rect — never the camera's, for an anchor read straight after a zoom.
+   *
+   * Phaser rebuilds a camera's matrix at the next render, so `getWorldPoint`
+   * called between `setZoom` and that render mixes the new zoom with the old
+   * transform. Both zoom gestures anchored themselves that way: every notch
+   * of the wheel slid the view toward the far corner of the world, not the
+   * point under the cursor. On the 20x30 world six notches did not reach the
+   * corner. On M34's 10x15 they pinned the camera in it, and the drag that
+   * should have panned the zoomed board had nowhere left to go.
+   */
+  private worldAt(x: number, y: number): { x: number; y: number } {
+    return {
+      x: this.centerX + (x - (this.rect.x + this.rect.w / 2)) / this.zoom,
+      y: this.centerY + (y - (this.rect.y + this.rect.h / 2)) / this.zoom,
+    };
+  }
+
   /** Grid cell under a pointer, or null when it is off the board/grid. */
   cellAt(pointer: Phaser.Input.Pointer): { col: number; row: number } | null {
     if (!this.inBoard(pointer)) return null;
@@ -496,9 +515,9 @@ export class BoardView {
         const midX = (p1.x + p2.x) / 2;
         const midY = (p1.y + p2.y) / 2;
         if (this.pinchDist > 0 && dist > 0) {
-          const before = this.camera.getWorldPoint(midX, midY);
+          const before = this.worldAt(midX, midY);
           this.setZoom(this.zoom * (dist / this.pinchDist));
-          const after = this.camera.getWorldPoint(midX, midY);
+          const after = this.worldAt(midX, midY);
           this.centerX += before.x - after.x;
           this.centerY += before.y - after.y;
           this.apply();
@@ -626,9 +645,9 @@ export class BoardView {
       Phaser.Input.Events.POINTER_WHEEL,
       (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
         if (!this.inBoard(pointer)) return;
-        const before = this.camera.getWorldPoint(pointer.x, pointer.y);
+        const before = this.worldAt(pointer.x, pointer.y);
         this.setZoom(this.zoom * (dy > 0 ? 0.9 : 1.1));
-        const after = this.camera.getWorldPoint(pointer.x, pointer.y);
+        const after = this.worldAt(pointer.x, pointer.y);
         this.centerX += before.x - after.x;
         this.centerY += before.y - after.y;
         this.apply();

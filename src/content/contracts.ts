@@ -157,11 +157,14 @@ const HOME: Contract[] = [
   },
   {
     id: 'wire',
-    label: 'LAY TWENTY WALL',
-    brief: 'Twenty segments of wire. The maze is the defense.',
+    // Ten since M34, from twenty: a segment is two units of wire on the 10x15
+    // board, so ten is the same length laid — and twenty would have been four
+    // fifths of a CC1 town's whole budget, where it had been two fifths.
+    label: 'LAY TEN WALL',
+    brief: 'Ten segments of wire. The maze is the defense.',
     category: 'home',
     metric: 'walls',
-    goal: 20,
+    goal: 10,
     pay: { supplies: 300, fuel: 60, intel: 15 },
   },
   {

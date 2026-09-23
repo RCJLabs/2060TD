@@ -159,8 +159,8 @@ export function wallLine(e: Engine, tick: number, x: number, gapY: number | null
 }
 
 /**
- * A terrain seed whose ground is clear of the yard — every cell in
- * x 1..24, y 2..18 is dry, while the rest of the board still has water on it.
+ * A terrain seed whose ground is clear of the yard — on the town board, every
+ * cell in x 1..7, y 1..13 is dry, while column 8 still carries a river.
  *
  * Terrain arrived in v1.19, and most suites are about the economy, the yard
  * and the codecs rather than about where the river runs. They place buildings
@@ -174,8 +174,13 @@ export function wallLine(e: Engine, tick: number, x: number, gapY: number | null
  */
 export const CLEAR_YARD_SEED = 2;
 
-/** The rectangle CLEAR_YARD_SEED promises to keep dry. */
-export const CLEAR_YARD = { x0: 1, y0: 2, x1: 24, y1: 18 };
+/**
+ * The rectangle CLEAR_YARD_SEED promises to keep dry, on the 10x15 town board
+ * (M34). It was x 1..24, y 2..18 of the 32x24 board, and the test holding the
+ * promise went on checking that board for two releases after the town left it:
+ * it passed, and guaranteed nothing about the ground the suites were using.
+ */
+export const CLEAR_YARD = { x0: 1, y0: 1, x1: 7, y1: 13 };
 
 /** A town on ground that leaves the yard clear. */
 export function yardTown(now: number, faction?: FactionId): TownState {

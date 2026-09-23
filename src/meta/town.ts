@@ -5,6 +5,7 @@ import {
   type TerrainField,
 } from '../sim/terrain';
 import { COMBAT_CURRENT } from '../sim/combat';
+import { onBoard, siegeOnBoard } from '../sim/board';
 import { CHAIN_CURRENT } from '../sim/killchain';
 import {
   defenseCatalogFor,
@@ -58,25 +59,22 @@ import { creditContracts, normalizeContracts, type ContractState } from './contr
  */
 
 /**
- * The town board (v1.40: 20x30, portrait, attacked from the north).
+ * The town board (M34: 10x15, a cell of two units, attacked from the north).
  *
- * It was 32x24 entered from the west, which put 32 cells across the short
- * side of a phone — an 11px cell, too small for a silhouette or a fingertip.
- * Upright, the same phone gets 18px. The fight barely notices: depth from the
- * entry line went 32 to 30, and it is depth that decides a raid.
+ * It was 32x24 entered from the west through v1.39, an 11px cell on a phone;
+ * v1.40 turned it upright to 20x30 and 18px. M34 halves the cell count again
+ * so a cell is 36px on the same phone — big enough to hit with a thumb — and
+ * the catalog is untouched: a cell is two of its units, and the engine
+ * scales every range and speed to match (`cellSize`).
  *
- * The post is the old (27, 11) transposed, and a town saved before this
- * release is transposed with it, so every building keeps its distance from
- * both the post and the enemy — see `regrid.ts`.
+ * The post is the 20x30 one's (9, 27) by the one rule, `floor(p / 2)`, and a
+ * town saved on the 20x30 board is carried across by the same rule — see
+ * `regrid.ts`.
  */
 export const TOWN_GRID = {
-  width: 20,
-  height: 30,
-  // (9, 27): the old (27, 11) rotated, then pulled two cells back to the
-  // middle of a 20-cell line — 11 was centre on a 24-cell one. A town saved
-  // before this release is translated by the same two cells, so every
-  // building keeps its exact offset from the post.
-  ccOrigin: 27 * 20 + 9, // (9, 27)
+  width: 10,
+  height: 15,
+  ccOrigin: 13 * 10 + 4, // (4, 13)
   /** Reserved entry lane, measured from `spawnEdge`. Nothing builds on it. */
   spawnLane: 0,
   spawnEdge: 'north' as SpawnEdge,
@@ -84,9 +82,10 @@ export const TOWN_GRID = {
    * Which board a cell index is against. Bumped when the board's shape
    * changes, because an index means something different on each and a save
    * that does not say which one it meant cannot be read. Absent on a save
-   * means 0: the 32x24 western board, everything up to v1.39.
+   * means 0: the 32x24 western board, everything up to v1.39. 1 is the 20x30
+   * board of v1.40-v1.44; 2 is this one.
    */
-  version: 1,
+  version: 2,
   /**
    * Physical units per cell (M34): the town is fought on the map's board, so
    * it has the map's cell. See `MAP_CELL_SIZE`.
@@ -1101,12 +1100,16 @@ function battleConfig(
   return {
     width: TOWN_GRID.width,
     height: TOWN_GRID.height,
+    // The board's cell, in the catalog's units (M34). Named here, at the seam
+    // every town battle comes through, like the terrain and the chain below.
+    cellSize: TOWN_GRID.cellSize,
     seed,
     ccOrigin: TOWN_GRID.ccOrigin,
     ccLevel: ccLevel(town),
     spawnLane: TOWN_GRID.spawnLane,
     spawnEdge: TOWN_GRID.spawnEdge,
-    siege,
+    // Authored in physical positions; mapped onto this board's cells here.
+    siege: siegeOnBoard(siege, TOWN_GRID.cellSize),
     layout: townLayout(town),
     powerCharges: { ...town.charges },
     buildLimits: buildLimitsFor(town),
@@ -1140,7 +1143,12 @@ export function siegeConfig(town: TownState, seed: number): SimConfig {
 /** Battle config for a campaign mission at the town's difficulty. */
 export function missionConfig(town: TownState, mission: MissionDef, seed: number): SimConfig {
   const def = missionSiege(mission, town.campaign.difficulty ?? 'standard');
-  const reserved = (mission.tunnels ?? []).map((tn) => tn.row * TOWN_GRID.width + tn.col);
+  // Tunnel mouths are authored in physical positions, like the waves that
+  // surface from them, and land on this board by the same rule.
+  const cs = TOWN_GRID.cellSize;
+  const reserved = (mission.tunnels ?? []).map(
+    (tn) => onBoard(tn.row, cs) * TOWN_GRID.width + onBoard(tn.col, cs),
+  );
   return battleConfig(
     town,
     seed,

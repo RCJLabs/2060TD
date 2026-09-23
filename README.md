@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.44.0, in the browser. No install, no account, works on a phone.
+v1.45.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,59 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.44: the whole board, with the drawer open
+## Current state — v1.45: a board sized for thumbs
+
+**Every battle is now fought on 10x15 cells of two units each, where it was 20x30
+cells of one.** The world is the same size; its cells are twice as big. With the
+drawer at rest the whole board is in view, and a cell is big enough to hit:
+
+| | cell | rows in view at rest |
+|---|---|---|
+| small Android, 360 wide | 36.0px (was 18.0) | **15 of 15** |
+| iPhone 13 / Pixel 7 / 15 Pro Max | 39.0 / 41.2 / 43.0px | **15 of 15** |
+| iPhone 13 from the home screen | 39.0px | 13 of 15 |
+| a phone in a browser tab | 35px | 12 of 15 |
+
+Placing a building is one touch where you mean, then CONFIRM, and a new test holds
+that to a real touch. On a 360-wide phone, a thumb that lands a quarter of a cell off
+centre builds on the cell the test named in advance.
+
+**Your town comes with you.** A saved 20x30 town is moved across by one rule: each
+cell of the new board covers a 2x2 block of the old one. A block becomes wall when
+half of it was. A building that lands on a taken cell moves to the nearest free
+one. Walls that merge, or that run past the new budget of 25/40/60 by command post
+level, are refunded in full. Share codes cross the same way, and replays carry
+their cell size, so an old replay re-fights the battle it recorded.
+
+**It is a redesign, not a zoom.** Every distance is written in units and halves onto
+the new cells, so ranges, speeds and a battle's length are what they were. What
+cannot halve is anything already one cell, so a gun stands on twice the ground it
+did. That changed the fight at the post. A crew stuck on a covered post used to wait
+there until the stall rule removed it; now it goes after the guns covering the post
+(kill chain v4). So the eight base plans, the balance harness's reference bases and
+the Front Line's deal were drawn or chosen again for this board. The assault ladder
+was re-tuned: a heavy every four levels instead of two, and +7% a level instead of
++9%. Each defence stage now falls within one level of where it fell on 20x30, and
+the five factions' raid odds are 8 points apart at their best lines, down from 19.
+
+Found on the way:
+
+- **The mouse wheel and the pinch now zoom about the point under them.** Each
+  step used to slide the view a little, 127 world px over six notches. On the
+  smaller world that was enough to pin the camera in a corner.
+- **The yard's wire order is LAY TEN WALL.** A segment is twice the length it
+  was, so twenty had become most of a new town's budget.
+- **The town demo died on load.** The river on its pinned ground now runs under
+  one of its depots.
+- **Chain v3 had reported itself as v4** since the flip.
+- **Two rows of the balance snapshot had never measured anything.** The
+  Engineer Corps HQ and a forward AA mount never landed on the board, and the
+  harness now stops on any reference layout that does not land.
+
+This completes M34. How it was decided, phase by phase, is in
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+## v1.44: the whole board, with the drawer open
 
 **The drawer used to hide a third of the board.** It opened to 42% of the screen
 whatever the map needed, so a phone showed 18 or 19 of the board's 30 rows under
@@ -1639,14 +1691,14 @@ npm run catch -- "KRRAK|WHUMP|BLAM"
                    # is saying something matching. For anything too brief to
                    # catch on a timer
 npm run icons      # regenerate the four PWA icons from one drawing function
-npm run fit -- 20x30 18x28
+npm run fit -- 10x15 9x14
                    # what size is a cell on the device this is played on? Scores
                    # a candidate grid against the real board rect on nine
                    # viewports — six whole screens, and three phones as they
                    # are held, in a browser tab or from the home screen with
                    # the notch emulated — and counts the rows in view with the
                    # drawer shut and at rest
-npm run e2e        # THE GATE: all 23 harnesses in sequence, and a failure
+npm run e2e        # THE GATE: all 24 harnesses in sequence, and a failure
                    # re-run once ALONE before it is called anything — a flake
                    # is reported loudly and passes, a real failure fails twice
                    # and does not. Run it with nothing else going; the
@@ -1655,6 +1707,7 @@ node scripts/e2e-flow.mjs            # first-run flow, desktop
 VIEWPORT=phone-portrait FACTION=nk \
   node scripts/e2e-flow.mjs          # …on a phone, as the KPA
 node scripts/e2e-touch.mjs           # touch gestures: scroll, flick, tap-vs-drag
+node scripts/e2e-thumb.mjs           # 360-wide phone: one touch builds on a named cell
 node scripts/e2e-menu.mjs            # menu → settings → war → back to menu
 node scripts/e2e-share.mjs           # code out, code in, duel fought
 node scripts/e2e-league.mjs          # standing overlay + a full condition rotation

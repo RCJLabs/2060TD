@@ -11,7 +11,8 @@
  * live CP play), which is the floor a base must clear.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { buildAssault } from '../content/assaults';
+import { isDeepStrictEqual } from 'node:util';
+import { buildAssault, LADDER, type Ladder } from '../content/assaults';
 import { GARRISON_GUN_TRADE } from '../content/garrison';
 import { DAMAGE_MULT } from '../content/damage';
 import {
@@ -24,6 +25,7 @@ import {
   dealPairFor,
   BASE_SPAWN_EDGE,
   BASE_SPAWN_LANE,
+  MAP_CELL_SIZE,
   MAP_W,
   type ArchetypeId,
   type GeneratedBase,
@@ -39,6 +41,7 @@ import {
   type FactionId,
 } from '../content/factions';
 import { airTransit, slowestAirSpeed } from '../meta/airread';
+import { V1_GRID, type Board } from '../meta/regrid';
 import { TOWN_GRID } from '../meta/town';
 import {
   DOCTRINE_IDS,
@@ -54,13 +57,15 @@ import { CONDITIONS } from '../content/conditions';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS } from '../content/standingOrders';
-import { coarsenConfig, refineConfig } from '../sim/board';
+import { coarsenConfig, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
+import { scaleFootprint } from '../sim/scale';
 import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
 import {
   CHAIN_CURRENT,
   CHAIN_ENGAGE,
+  CHAIN_LATCHED,
   CHAIN_MODELS,
   CHAIN_NONE,
   chainModelFor,
@@ -232,12 +237,16 @@ const AIR_RAID_PLANS: Record<FactionId, SquadPlan[]> = {
 };
 
 /** Deterministic gallery head for a base: the first valid site among fixed
- * offsets from the command post, east side first (behind most wall lines). */
+ * offsets from the command post, east side first (behind most wall lines).
+ *
+ * In this board's cells. The 20x30 list, halved away from the post (M34): the
+ * same directions at the same distance, just outside the minimum. Its two
+ * outer fallbacks halved onto the first two and are gone. */
 function nkTunnelCell(base: GeneratedBase): number | undefined {
   const ccCol = base.ccOrigin % MAP_W;
   const ccRow = Math.floor(base.ccOrigin / MAP_W);
   const candidates: [number, number][] = [
-    [5, 0], [-5, 0], [0, -5], [0, 5], [5, 3], [-5, -3], [6, 0], [-6, 0],
+    [3, 0], [-3, 0], [0, -3], [0, 3], [3, 2], [-3, -2],
   ];
   for (const [dc, dr] of candidates) {
     const cell = (ccRow + dr) * MAP_W + (ccCol + dc);
@@ -550,13 +559,11 @@ function raidMatrix(
 
 // ---- defense side: three reference bases vs the assault ladder ------------------
 
-const W = TOWN_GRID.width;
-const H = TOWN_GRID.height;
-const CC_ORIGIN = TOWN_GRID.ccOrigin;
-
 interface ReferenceBase {
   name: string;
   ccLevel: number;
+  /** The board it is drawn on, which is the board it is fought on (M34). */
+  board: Board;
   walls: LayoutWall[];
   structures: LayoutStructure[];
 }
@@ -564,185 +571,189 @@ interface ReferenceBase {
 /**
  * The reference bases below are written in APPROACH SPACE, like the generated
  * ones: `u` is depth from the line the attack comes down, `v` runs across it.
- *
- * The numbers are the ones these bases have been tuned with since v0.3 —
- * depth is unchanged, and across is two cells in from where it was because
- * the line is 20 cells now instead of 24. What moved is this function.
  */
-const idx = (u: number, v: number): CellIndex => u * W + v;
+const idx = (u: number, v: number): CellIndex => u * TOWN_GRID.width + v;
 
 /** A wall line at depth u covering [v0, v1], skipping the listed gaps. */
-function wallLine(walls: LayoutWall[], u: number, v0: number, v1: number, gaps: number[]): void {
+function wallLine(base: ReferenceBase, u: number, v0: number, v1: number, gaps: number[]): void {
   for (let v = v0; v <= v1; v++) {
-    if (!gaps.includes(v)) walls.push({ cell: idx(u, v), kind: 'wall' });
+    if (!gaps.includes(v)) base.walls.push({ cell: u * base.board.width + v, kind: 'wall' });
   }
 }
 
 /**
  * Reference towns, staged like a real save: everything within CC gating for
  * its level (counts and structure levels), funnels facing the entry line.
+ *
+ * DRAWN for the 10x15 board (M34), not mapped onto it. Mapping by the one rule
+ * is what Phase 4 measured, and it costs a base two thirds of its wall: a
+ * one-thick line keeps only the blocks it fills half of, so line ends and
+ * two-cell stubs vanish. These keep each 20x30 base's DESIGN at the new
+ * resolution — the same lines, with the same openings in the same order, and
+ * the same guns in the same roles — and give up its coordinates, which a board
+ * this coarse cannot express. Guns are one cell on both boards, so here each
+ * stands on twice the ground it did; the post is one cell at (4, 13).
+ *
+ * Every line spans columns 1-8 and leaves both edge columns open, as the 20x30
+ * lines left columns 0 and 19. A gap is one cell: two physical units, the
+ * width of the two-cell gaps it replaces. A pocket between lines is two rows
+ * where guns stand in it, and one where it only carries attackers across —
+ * a gun in a one-row pocket is a wall across it.
+ *
+ * What covers the post is kept too. The 20x30 MID had one gun within the cover
+ * radius and LATE four; so do these, and none sits exactly ON the radius, the
+ * knife-edge Phase 4 found deciding battles.
  */
 function referenceBases(): ReferenceBase[] {
-  // EARLY (CC1): one wall line, one gap, three guns — two nests and an
-  // autocannon, which is CC1's WHOLE gun allowance. 16 wall segments of the 50
-  // it could lay, and that gap was checked rather than assumed: doubling the
-  // maze to 32 moves level 4 not at all, at any attacker strength from 0.6x to
-  // 1.4x. Three guns cannot hold a level-4 assault however they are arranged,
-  // so EARLY's missing contested band is a question about what CC1 is FOR, not
-  // about this layout.
-  const early: ReferenceBase = { name: 'EARLY (CC1)', ccLevel: 1, walls: [], structures: [] };
-  wallLine(early.walls, 20, 1, 18, [9, 10]);
+  const board = TOWN_GRID;
+  // EARLY (CC1): one line, its gap on the post's column, two nests flanking
+  // the gap from behind and the autocannon out to the left — CC1's WHOLE gun
+  // allowance. Three guns could not hold a level-4 assault on 20x30 however
+  // they were arranged, so EARLY's missing contested band is a question about
+  // what CC1 is FOR, not about this layout.
+  const early: ReferenceBase = { name: 'EARLY (CC1)', ccLevel: 1, board, walls: [], structures: [] };
+  wallLine(early, 10, 1, 8, [4]);
   early.structures = [
-    { cell: idx(22, 8), kind: 'm2nest', level: 1 },
-    { cell: idx(22, 11), kind: 'm2nest', level: 1 },
-    { cell: idx(21, 3), kind: 'autocannon', level: 1 },
+    { cell: idx(11, 3), kind: 'm2nest', level: 1 },
+    { cell: idx(11, 5), kind: 'm2nest', level: 1 },
+    { cell: idx(11, 1), kind: 'autocannon', level: 1 },
+  ];
+
+  // MID (CC2): the serpentine. In at the centre past two nests, across the
+  // pocket, out near an edge past an autocannon, and back to the post under
+  // the mortar. Each autocannon stands beside one of the inner line's two
+  // openings, so whichever way the attack turns, an AT gun is waiting.
+  const mid: ReferenceBase = { name: 'MID (CC2)', ccLevel: 2, board, walls: [], structures: [] };
+  wallLine(mid, 8, 1, 8, [4]);
+  wallLine(mid, 11, 1, 8, [1, 8]);
+  mid.structures = [
+    { cell: idx(9, 3), kind: 'm2nest', level: 2 },
+    { cell: idx(9, 5), kind: 'm2nest', level: 2 },
+    { cell: idx(14, 1), kind: 'm2nest', level: 2 },
+    { cell: idx(12, 2), kind: 'autocannon', level: 2 },
+    { cell: idx(12, 7), kind: 'autocannon', level: 2 },
+    { cell: idx(14, 3), kind: 'mortar', level: 1 },
+  ];
+
+  // LATE (CC3): three lines, centre / edges / centre, so the way in crosses
+  // the board twice. Two nests in the first pocket, the second pocket left
+  // clear because it is one row, and the post ringed by four covering guns —
+  // max emplacements at level 3.
+  const late: ReferenceBase = { name: 'LATE (CC3)', ccLevel: 3, board, walls: [], structures: [] };
+  wallLine(late, 6, 1, 8, [4]);
+  wallLine(late, 9, 1, 8, [1, 8]);
+  wallLine(late, 11, 1, 8, [4]);
+  late.structures = [
+    { cell: idx(8, 2), kind: 'm2nest', level: 3 },
+    { cell: idx(8, 7), kind: 'm2nest', level: 3 },
+    { cell: idx(12, 1), kind: 'm2nest', level: 3 },
+    { cell: idx(12, 8), kind: 'm2nest', level: 3 },
+    { cell: idx(12, 3), kind: 'autocannon', level: 3 },
+    { cell: idx(12, 5), kind: 'autocannon', level: 3 },
+    { cell: idx(8, 4), kind: 'autocannon', level: 3 },
+    { cell: idx(14, 3), kind: 'mortar', level: 2 },
+    { cell: idx(14, 5), kind: 'mortar', level: 2 },
+  ];
+
+  return [early, mid, late];
+}
+
+/**
+ * The reference towns as v1.40-v1.44 drew them, on the 20x30 board at one unit
+ * a cell. Nothing is played there any more. They are kept because two M34
+ * instruments measure the move FROM them: `--similar` maps them by the one
+ * rule, and `--native` holds the curve they published against the one the
+ * bases above fight.
+ */
+function v1ReferenceBases(): ReferenceBase[] {
+  const board = V1_GRID;
+  const at = (u: number, v: number): CellIndex => u * board.width + v;
+  // EARLY (CC1): one wall line, one gap, three guns — two nests and an
+  // autocannon. 16 wall segments of the 50 it could lay, and that gap was
+  // checked rather than assumed: doubling the maze to 32 moved level 4 not at
+  // all, at any attacker strength from 0.6x to 1.4x.
+  const early: ReferenceBase = { name: 'EARLY (CC1)', ccLevel: 1, board, walls: [], structures: [] };
+  wallLine(early, 20, 1, 18, [9, 10]);
+  early.structures = [
+    { cell: at(22, 8), kind: 'm2nest', level: 1 },
+    { cell: at(22, 11), kind: 'm2nest', level: 1 },
+    { cell: at(21, 3), kind: 'autocannon', level: 1 },
   ];
 
   // MID (CC2): offset double line — a serpentine through two kill pockets.
   // Both AT posts overlap the inner wall's breach approaches: a lone tank
   // that stalls at the line to shell the CC from standoff must be reachable
   // by at least one of them, wherever the escort fight left holes.
-  const mid: ReferenceBase = { name: 'MID (CC2)', ccLevel: 2, walls: [], structures: [] };
-  wallLine(mid.walls, 20, 1, 18, [9, 10]);
-  wallLine(mid.walls, 24, 1, 18, [3, 4, 15, 16]);
+  const mid: ReferenceBase = { name: 'MID (CC2)', ccLevel: 2, board, walls: [], structures: [] };
+  wallLine(mid, 20, 1, 18, [9, 10]);
+  wallLine(mid, 24, 1, 18, [3, 4, 15, 16]);
   mid.structures = [
-    { cell: idx(22, 8), kind: 'm2nest', level: 2 },
-    { cell: idx(22, 11), kind: 'm2nest', level: 2 },
-    { cell: idx(26, 4), kind: 'm2nest', level: 2 },
-    { cell: idx(25, 6), kind: 'autocannon', level: 2 },
-    { cell: idx(25, 13), kind: 'autocannon', level: 2 },
-    { cell: idx(28, 6), kind: 'mortar', level: 1 },
+    { cell: at(22, 8), kind: 'm2nest', level: 2 },
+    { cell: at(22, 11), kind: 'm2nest', level: 2 },
+    { cell: at(26, 4), kind: 'm2nest', level: 2 },
+    { cell: at(25, 6), kind: 'autocannon', level: 2 },
+    { cell: at(25, 13), kind: 'autocannon', level: 2 },
+    { cell: at(28, 6), kind: 'mortar', level: 1 },
   ];
 
   // LATE (CC3): triple line, max emplacements at level 3.
-  const late: ReferenceBase = { name: 'LATE (CC3)', ccLevel: 3, walls: [], structures: [] };
-  wallLine(late.walls, 17, 1, 18, [9, 10]);
-  wallLine(late.walls, 21, 1, 18, [2, 3, 16, 17]);
-  wallLine(late.walls, 25, 1, 18, [9, 10]);
+  const late: ReferenceBase = { name: 'LATE (CC3)', ccLevel: 3, board, walls: [], structures: [] };
+  wallLine(late, 17, 1, 18, [9, 10]);
+  wallLine(late, 21, 1, 18, [2, 3, 16, 17]);
+  wallLine(late, 25, 1, 18, [9, 10]);
   late.structures = [
-    { cell: idx(19, 8), kind: 'm2nest', level: 3 },
-    { cell: idx(19, 11), kind: 'm2nest', level: 3 },
-    { cell: idx(23, 3), kind: 'm2nest', level: 3 },
-    { cell: idx(23, 16), kind: 'm2nest', level: 3 },
-    { cell: idx(27, 8), kind: 'autocannon', level: 3 },
-    { cell: idx(27, 12), kind: 'autocannon', level: 3 },
-    { cell: idx(22, 9), kind: 'autocannon', level: 3 },
-    { cell: idx(29, 7), kind: 'mortar', level: 2 },
-    { cell: idx(29, 12), kind: 'mortar', level: 2 },
-  ];
-
-  return [early, mid, late];
-}
-
-// ---- M34: the reference bases, drawn for 10x15 ------------------------------------
-
-/** The 10x15 board, in its own cells, and where its command post stands. */
-const NATIVE_W = 10;
-const NATIVE_H = 15;
-const nidx = (u: number, v: number): CellIndex => u * NATIVE_W + v;
-const NATIVE_CC = nidx(13, 4);
-
-/** `wallLine` on the 10x15 board. */
-function nativeLine(walls: LayoutWall[], u: number, v0: number, v1: number, gaps: number[]): void {
-  for (let v = v0; v <= v1; v++) {
-    if (!gaps.includes(v)) walls.push({ cell: nidx(u, v), kind: 'wall' });
-  }
-}
-
-/**
- * The three reference bases DRAWN for the 10x15 board (M34), not mapped onto it.
- *
- * Mapping by the one rule is what Phase 4 measured, and it costs a base two
- * thirds of its wall: a one-thick line keeps only the blocks it fills half of,
- * so line ends and two-cell stubs vanish. These keep each base's DESIGN at the
- * new resolution — the same lines, with the same openings in the same order,
- * and the same guns in the same roles — and give up its coordinates, which a
- * board this coarse cannot express. Guns are one cell on both boards, so here
- * each stands on twice the ground it did; the post is one cell at (4, 13).
- *
- * Every line spans columns 1-8 and leaves both edge columns open, as the 20x30
- * lines leave columns 0 and 19. A gap is one cell: two physical units, the
- * width of the two-cell gaps it replaces. A pocket between lines is two rows
- * where guns stand in it, and one where it only carries attackers across —
- * a gun in a one-row pocket is a wall across it.
- *
- * What covers the post is kept too. Today's MID has one gun within the cover
- * radius and LATE has four; so do these, and none sits exactly ON the radius,
- * the knife-edge Phase 4 found deciding battles.
- */
-function nativeReferenceBases(): ReferenceBase[] {
-  // EARLY: one line, its gap on the post's column, two nests flanking the gap
-  // from behind and the autocannon out to the left.
-  const early: ReferenceBase = { name: 'EARLY (CC1)', ccLevel: 1, walls: [], structures: [] };
-  nativeLine(early.walls, 10, 1, 8, [4]);
-  early.structures = [
-    { cell: nidx(11, 3), kind: 'm2nest', level: 1 },
-    { cell: nidx(11, 5), kind: 'm2nest', level: 1 },
-    { cell: nidx(11, 1), kind: 'autocannon', level: 1 },
-  ];
-
-  // MID: the serpentine. In at the centre past two nests, across the pocket,
-  // out near an edge past an autocannon, and back to the post under the mortar.
-  const mid: ReferenceBase = { name: 'MID (CC2)', ccLevel: 2, walls: [], structures: [] };
-  nativeLine(mid.walls, 8, 1, 8, [4]);
-  nativeLine(mid.walls, 11, 1, 8, [1, 8]);
-  mid.structures = [
-    { cell: nidx(9, 3), kind: 'm2nest', level: 2 },
-    { cell: nidx(9, 5), kind: 'm2nest', level: 2 },
-    { cell: nidx(14, 1), kind: 'm2nest', level: 2 },
-    { cell: nidx(12, 2), kind: 'autocannon', level: 2 },
-    { cell: nidx(12, 7), kind: 'autocannon', level: 2 },
-    { cell: nidx(14, 3), kind: 'mortar', level: 1 },
-  ];
-
-  // LATE: three lines, centre / edges / centre, so the way in crosses the
-  // board twice. Two nests in the first pocket, the second pocket left clear
-  // because it is one row, and the post ringed by four covering guns.
-  const late: ReferenceBase = { name: 'LATE (CC3)', ccLevel: 3, walls: [], structures: [] };
-  nativeLine(late.walls, 6, 1, 8, [4]);
-  nativeLine(late.walls, 9, 1, 8, [1, 8]);
-  nativeLine(late.walls, 11, 1, 8, [4]);
-  late.structures = [
-    { cell: nidx(8, 2), kind: 'm2nest', level: 3 },
-    { cell: nidx(8, 7), kind: 'm2nest', level: 3 },
-    { cell: nidx(12, 1), kind: 'm2nest', level: 3 },
-    { cell: nidx(12, 8), kind: 'm2nest', level: 3 },
-    { cell: nidx(12, 3), kind: 'autocannon', level: 3 },
-    { cell: nidx(12, 5), kind: 'autocannon', level: 3 },
-    { cell: nidx(8, 4), kind: 'autocannon', level: 3 },
-    { cell: nidx(14, 3), kind: 'mortar', level: 2 },
-    { cell: nidx(14, 5), kind: 'mortar', level: 2 },
+    { cell: at(19, 8), kind: 'm2nest', level: 3 },
+    { cell: at(19, 11), kind: 'm2nest', level: 3 },
+    { cell: at(23, 3), kind: 'm2nest', level: 3 },
+    { cell: at(23, 16), kind: 'm2nest', level: 3 },
+    { cell: at(27, 8), kind: 'autocannon', level: 3 },
+    { cell: at(27, 12), kind: 'autocannon', level: 3 },
+    { cell: at(22, 9), kind: 'autocannon', level: 3 },
+    { cell: at(29, 7), kind: 'mortar', level: 2 },
+    { cell: at(29, 12), kind: 'mortar', level: 2 },
   ];
 
   return [early, mid, late];
 }
 
 /**
- * A native base as a battle: today's config with no layout, mapped by the one
- * rule for everything a base does not decide — the waves, the entry lane, the
- * post, the cell size — and then the drawn layout put on it.
+ * The bare defence tables as v1.44 published them — the bases above on 20x30,
+ * kill chain v3 — in FACTION_IDS order, EARLY / MID / LATE, levels 1-12.
+ *
+ * Frozen here because docs/BALANCE.md moved on with the board, and two
+ * instruments still measure against the old curve: `--similar`, whose first
+ * act is to prove its 20x30 pass IS the game that was, and `--native`, because
+ * it is the curve the 10x15 re-tune aims at.
  */
-function nativeDefenseConfigFor(
-  faction: FactionId,
-  base: ReferenceBase,
-  level: number,
-  seed: number,
-  chainVersion: number,
-): SimConfig {
-  const bare = defenseConfigFor(faction, { ...base, walls: [], structures: [] }, level, seed, {
-    chainVersion,
-  });
-  const { config } = coarsenConfig(bare, defenseCatalogFor(faction), 2);
-  if (config.width !== NATIVE_W || config.height !== NATIVE_H || config.ccOrigin !== NATIVE_CC) {
-    throw new Error(`native board mismatch: ${config.width}x${config.height}, post ${config.ccOrigin}`);
+const V1_PUBLISHED: readonly (readonly number[])[] = [
+  [100, 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0], // USA
+  [100, 100, 100, 100, 100, 100, 100, 85, 40, 0, 0, 0],
+  [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 95, 90],
+  [100, 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0], // China
+  [100, 100, 100, 100, 100, 100, 70, 5, 0, 0, 0, 0],
+  [100, 100, 100, 100, 100, 100, 100, 100, 100, 95, 45, 25],
+  [100, 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0], // Russia
+  [100, 100, 100, 100, 100, 100, 100, 55, 55, 0, 0, 0],
+  [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 90],
+  [100, 100, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0], // North Korea
+  [100, 100, 100, 100, 95, 95, 40, 10, 0, 0, 0, 0],
+  [100, 100, 100, 100, 100, 100, 100, 100, 100, 95, 40, 10],
+  [100, 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0], // UN
+  [100, 100, 100, 100, 100, 100, 55, 10, 5, 0, 0, 0],
+  [100, 100, 100, 100, 100, 100, 100, 100, 100, 75, 15, 0],
+];
+
+/** The bare defence tables docs/BALANCE.md publishes now, in the same order. */
+function publishedDefense(): number[][] {
+  const published: number[][] = [];
+  const md = readFileSync('docs/BALANCE.md', 'utf8').split('\n');
+  for (let i = 0; i < md.length; i++) {
+    if (!/^DEFENSE — .+ permanent layer vs .+ assault ladder \(hold%\)$/.test(md[i]!)) continue;
+    for (let r = 0; r < 3; r++) {
+      published.push(md[i + 3 + r]!.split('|').slice(1).map((v) => Number(v.trim())));
+    }
   }
-  return {
-    ...config,
-    layout: {
-      walls: base.walls.map((w) => ({ ...w })),
-      structures: base.structures.map((s) => ({ ...s })),
-    },
-  };
+  return published;
 }
 
 /**
@@ -750,30 +761,31 @@ function nativeDefenseConfigFor(
  * structures block, four-connected — stricter than the pathfinder, so a base
  * that passes this is open to it too.
  */
-function nativeOpenPath(base: ReferenceBase): boolean {
-  const blocked = new Set<number>([NATIVE_CC]);
+function openPath(base: ReferenceBase): boolean {
+  const { width, height, ccOrigin } = base.board;
+  const blocked = new Set<number>([ccOrigin]);
   for (const w of base.walls) blocked.add(w.cell);
   for (const s of base.structures) blocked.add(s.cell);
   const seen = new Set<number>();
   const queue: number[] = [];
-  for (let v = 0; v < NATIVE_W; v++) {
+  for (let v = 0; v < width; v++) {
     if (!blocked.has(v)) {
       seen.add(v);
       queue.push(v);
     }
   }
-  const cu = Math.floor(NATIVE_CC / NATIVE_W);
-  const cv = NATIVE_CC % NATIVE_W;
+  const cu = Math.floor(ccOrigin / width);
+  const cv = ccOrigin % width;
   while (queue.length > 0) {
     const c = queue.shift()!;
-    const u = Math.floor(c / NATIVE_W);
-    const v = c % NATIVE_W;
+    const u = Math.floor(c / width);
+    const v = c % width;
     if (Math.abs(u - cu) + Math.abs(v - cv) === 1) return true;
     for (const [du, dv] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
       const nu = u + du;
       const nv = v + dv;
-      if (nu < 0 || nu >= NATIVE_H || nv < 0 || nv >= NATIVE_W) continue;
-      const n = nidx(nu, nv);
+      if (nu < 0 || nu >= height || nv < 0 || nv >= width) continue;
+      const n = nu * width + nv;
       if (blocked.has(n) || seen.has(n)) continue;
       seen.add(n);
       queue.push(n);
@@ -782,18 +794,19 @@ function nativeOpenPath(base: ReferenceBase): boolean {
   return false;
 }
 
-/** How a gun is drawn on a native map: n nest, a autocannon, o mortar. */
-const NATIVE_GLYPH: Record<string, string> = { m2nest: 'n', autocannon: 'a', mortar: 'o' };
+/** How a gun is drawn on a base map: n nest, a autocannon, o mortar. */
+const GLYPH: Record<string, string> = { m2nest: 'n', autocannon: 'a', mortar: 'o' };
 
-/** A native base as text: # wall, P post, and each gun by its glyph. */
-function nativeMap(base: ReferenceBase): string[] {
-  const at = new Map<number, string>([[NATIVE_CC, 'P']]);
+/** A base as text: # wall, P post, and each gun by its glyph. */
+function baseMap(base: ReferenceBase): string[] {
+  const { width, height, ccOrigin } = base.board;
+  const at = new Map<number, string>([[ccOrigin, 'P']]);
   for (const w of base.walls) at.set(w.cell, '#');
-  for (const s of base.structures) at.set(s.cell, NATIVE_GLYPH[s.kind] ?? s.kind[0]!);
+  for (const s of base.structures) at.set(s.cell, GLYPH[s.kind] ?? s.kind[0]!);
   const rows: string[] = [];
-  for (let u = 0; u < NATIVE_H; u++) {
+  for (let u = 0; u < height; u++) {
     let line = '';
-    for (let v = 0; v < NATIVE_W; v++) line += at.get(nidx(u, v)) ?? '.';
+    for (let v = 0; v < width; v++) line += at.get(u * width + v) ?? '.';
     rows.push(line);
   }
   return rows;
@@ -885,27 +898,13 @@ function siegeTraceOn(
   attackerHp = 1,
 ): WaveTrace {
   const catalog = defenseCatalogFor(faction);
-  const roster = enemyRosterFor(faction);
-  const config: SimConfig = {
-    width: W,
-    height: H,
-    seed,
-    ccOrigin: CC_ORIGIN,
-    ccLevel: base.ccLevel,
-    spawnLane: BASE_SPAWN_LANE,
-    spawnEdge: BASE_SPAWN_EDGE,
-    combatVersion: COMBAT_CURRENT,
-    killChainVersion: chainVersion,
-    siege: { ...buildAssault(level, roster), startingSupplies: 0 },
-    layout: {
-      walls: base.walls.map((w) => ({ ...w })),
-      structures: base.structures.map((st) => ({ ...st })),
-    },
-    ...(attackerHp === 1 ? {} : { mods: { attacker: { hp: attackerHp } } }),
-    powerCharges: policy ? { a10: 2, arty: 1 } : {},
-    ...(policy ? { standingOrders: policy } : {}),
-  };
-  const engine = new Engine(config, catalog);
+  // The table's own battle, so a trace is of a row the snapshot publishes.
+  const config = defenseConfigFor(faction, base, level, seed, {
+    orders: policy ?? undefined,
+    chainVersion,
+  });
+  if (attackerHp !== 1) config.mods = { ...config.mods, attacker: { hp: attackerHp } };
+  const engine = layDefense(config, catalog);
   engine.enqueue({ tick: 0, type: 'startAssault' });
 
   const max = engine.cc.profile.maxHp;
@@ -1409,14 +1408,21 @@ function defenseConfigFor(
     extraStructures?: LayoutStructure[];
     orders?: StandingOrders;
     chainVersion?: number;
+    /** A candidate ladder, for `--retune`; the shipped one otherwise. */
+    ladder?: Ladder;
   } = {},
 ): SimConfig {
-  const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT } = opts;
+  const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT, ladder = LADDER } = opts;
+  const { board } = base;
   return {
-    width: W,
-    height: H,
+    width: board.width,
+    height: board.height,
+    // The board's cell, in the catalog's units (M34), named the way
+    // `battleConfig` names it — and left out at one, so a 20x30 config is the
+    // one v1.44 fought, field for field.
+    ...(board.cellSize === 1 ? {} : { cellSize: board.cellSize }),
     seed,
-    ccOrigin: CC_ORIGIN,
+    ccOrigin: board.ccOrigin,
     ccLevel: base.ccLevel,
     spawnLane: BASE_SPAWN_LANE,
     spawnEdge: BASE_SPAWN_EDGE,
@@ -1430,7 +1436,12 @@ function defenseConfigFor(
     // nobody is playing.
     combatVersion: COMBAT_CURRENT,
     killChainVersion: chainVersion,
-    siege: { ...buildAssault(level, enemyRosterFor(faction)), startingSupplies: 0 },
+    // Authored in physical positions, and mapped onto the board's cells by
+    // the one rule — `battleConfig`'s seam, again.
+    siege: siegeOnBoard(
+      { ...buildAssault(level, enemyRosterFor(faction), ladder), startingSupplies: 0 },
+      board.cellSize,
+    ),
     layout: {
       walls: base.walls.map((w) => ({ ...w })),
       structures: [...base.structures, ...extraStructures].map((s) => ({ ...s })),
@@ -1443,9 +1454,37 @@ function defenseConfigFor(
   };
 }
 
+/**
+ * A defence battle's engine, refusing a layout it could not lay.
+ *
+ * The engine drops a layout piece that does not fit without a word — right
+ * for a player's save, where a building a migration could not place must not
+ * brick the battle, and wrong for an instrument, where a row that silently
+ * lost a piece measures a base nobody drew. Two rows of the snapshot did
+ * exactly that until M34: the Engineer Corps HQ was a 2x2 on the last row of
+ * the 20x30 board from v1.40 on, and the AA cover's forward mount stood on
+ * MID's inner wall from the day it was added. Neither was ever in a battle.
+ */
+function layDefense(config: SimConfig, catalog: Catalog): Engine {
+  const engine = new Engine(config, catalog);
+  const structures = config.layout?.structures ?? [];
+  const walls = config.layout?.walls ?? [];
+  const laid = structures.filter((s) =>
+    engine.structures.some((st) => st.origin === s.cell && st.profile.kind === s.kind),
+  ).length;
+  const walled = walls.filter((w) => engine.grid.wallAt(w.cell)).length;
+  if (laid !== structures.length || walled !== walls.length) {
+    throw new Error(
+      `a reference layout did not lay: ${laid}/${structures.length} structures, ` +
+        `${walled}/${walls.length} walls`,
+    );
+  }
+  return engine;
+}
+
 /** Run one defence battle to its verdict. */
 function fightDefense(config: SimConfig, catalog: Catalog): Engine {
-  const engine = new Engine(config, catalog);
+  const engine = layDefense(config, catalog);
   engine.enqueue({ tick: 0, type: 'startAssault' });
   while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
     engine.step();
@@ -1472,12 +1511,7 @@ function defenseMatrix(
           extraStructures,
           orders,
         });
-        const engine = new Engine(config, catalog);
-        engine.enqueue({ tick: 0, type: 'startAssault' });
-        while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
-          engine.step();
-        }
-        if (engine.phase === 'victory') held++;
+        if (fightDefense(config, catalog).phase === 'victory') held++;
       }
       holds.push(Math.round((held / SEEDS) * 100));
     }
@@ -1498,10 +1532,11 @@ function defenseMatrix(
  *
  * Three passes per (faction, base, level):
  *
- *   FINE    today's board, the published seeds. Its first job is to prove the
- *           instrument: every cell must equal the shipped v1.43 table, or the
- *           comparison below is between two things neither of which is the game.
- *   NULL    today's board again with twenty DIFFERENT seeds. How far two runs of
+ *   FINE    the 20x30 board, the published seeds. Its first job is to prove the
+ *           instrument: every cell must equal the table v1.44 shipped
+ *           (`V1_PUBLISHED`), or the comparison below is between two things
+ *           neither of which is the game that was.
+ *   NULL    the 20x30 board again with twenty DIFFERENT seeds. How far two runs of
  *           the same game disagree is the noise floor, measured rather than
  *           assumed — at 20 seeds one cell's hold rate swings a long way by
  *           chance, and a drift is only a drift if it is bigger than that.
@@ -1516,9 +1551,9 @@ function defenseMatrix(
  * The defence tables are flat by design ("the permanent layer alone"), so no
  * terrain question enters: the only variable is the board.
  */
-function similarity(chainVersion: number = CHAIN_CURRENT): void {
+function similarity(chainVersion: number = CHAIN_LATCHED): void {
   const started = Date.now();
-  const bases = referenceBases();
+  const bases = v1ReferenceBases();
   const pct = (n: number) => Math.round((n / SEEDS) * 100);
 
   // ---- what the fixtures lose in the mapping ----------------------------------
@@ -1588,36 +1623,29 @@ function similarity(chainVersion: number = CHAIN_CURRENT): void {
   }
 
   // ---- the instrument, checked before it is believed ------------------------------
-  // The FINE pass must reproduce the published bare defence tables cell for
-  // cell. They appear in FACTION_IDS order, three stage rows each.
-  const published: number[][] = [];
-  const md = readFileSync('docs/BALANCE.md', 'utf8').split('\n');
-  for (let i = 0; i < md.length; i++) {
-    if (!/^DEFENSE — .+ permanent layer vs .+ assault ladder \(hold%\)$/.test(md[i]!)) continue;
-    for (let r = 0; r < 3; r++) {
-      published.push(md[i + 3 + r]!.split('|').slice(1).map((v) => Number(v.trim())));
-    }
-  }
+  // The FINE pass must reproduce the tables v1.44 published cell for cell.
+  // They were fought on chain v3, so that is the only chain it can check.
   let agree = 0;
   let checked = 0;
   const off: string[] = [];
-  if (chainVersion !== CHAIN_CURRENT) {
+  if (chainVersion !== CHAIN_LATCHED) {
     console.log(
-      `\nSELF-CHECK: skipped — the published tables were fought on chain v${CHAIN_CURRENT}, and this ` +
+      `\nSELF-CHECK: skipped — the v1.44 tables were fought on chain v${CHAIN_LATCHED}, and this ` +
         `run is measuring v${chainVersion}. Run without CHAIN= to check the instrument.`,
     );
-  }
-  if (chainVersion === CHAIN_CURRENT) rows.forEach((row, r) => {
-    row.cells.forEach((cell, l) => {
-      checked++;
-      if (published[r]?.[l] === cell.fine) agree++;
-      else off.push(`${row.faction} ${row.base} L${l + 1}: ${published[r]?.[l]} vs ${cell.fine}`);
+  } else {
+    rows.forEach((row, r) => {
+      row.cells.forEach((cell, l) => {
+        checked++;
+        if (V1_PUBLISHED[r]?.[l] === cell.fine) agree++;
+        else off.push(`${row.faction} ${row.base} L${l + 1}: ${V1_PUBLISHED[r]?.[l]} vs ${cell.fine}`);
+      });
     });
-  });
-  if (chainVersion === CHAIN_CURRENT) console.log(
-    `\nSELF-CHECK: the FINE pass against the published v1.43 tables — ${agree}/${checked} cells identical` +
-      (off.length ? `\n  DISAGREES, do not trust what follows:\n    ${off.slice(0, 8).join('\n    ')}` : ''),
-  );
+    console.log(
+      `\nSELF-CHECK: the FINE pass against the tables v1.44 published — ${agree}/${checked} cells identical` +
+        (off.length ? `\n  DISAGREES, do not trust what follows:\n    ${off.slice(0, 8).join('\n    ')}` : ''),
+    );
+  }
 
   // ---- the rows ---------------------------------------------------------------------
   console.log(
@@ -1689,49 +1717,65 @@ function similarity(chainVersion: number = CHAIN_CURRENT): void {
 }
 
 /**
- * The reference bases drawn for 10x15, against today's published curves
- * (M34, `--native`).
+ * The move, row by row: the reference bases drawn for 10x15 against the curve
+ * the 20x30 bases published (M34, `--native`).
  *
  * Phase 4 established that a 10x15 board is a different game, so what is left
- * to measure is how different, with content made FOR it rather than mapped onto
- * it. Each native base is fought on both chains — v3, today's, and v4, the one
- * whose crews go after the guns covering the post — and every row is compared
- * with the published 20x30 row where the defence first holds under half.
- * That level is the number a re-tune has to move.
+ * to measure is how different, with content made FOR it rather than mapped
+ * onto it. Each base is fought on both chains — v3, the one the 20x30 tables
+ * were fought on, and v4, today's, whose crews go after the guns covering the
+ * post — so a row's drift splits into what the board did and what the chain
+ * did. Every row is compared with v1.44's at the level where the defence first
+ * holds under half: the number a re-tune has to move.
+ *
+ * Checked before it is believed, twice. A bare native battle must be exactly
+ * what the one rule makes of a bare 20x30 one — the waves, the post, the lane,
+ * the cell — so a row differs from v1.44's by the layout and the chain and
+ * nothing else. And the v4 pass is today's game, so it must reproduce the
+ * tables docs/BALANCE.md publishes, cell for cell: the job `--similar` does
+ * for the 20x30 board.
  */
 function nativeCheck(): void {
   const started = Date.now();
-  const bases = nativeReferenceBases();
+  const bases = referenceBases();
+  const fine = v1ReferenceBases();
+  const { width, height } = TOWN_GRID;
   console.log('NATIVE — the reference bases drawn for 10x15 (M34)\n');
-  const maps = bases.map(nativeMap);
-  console.log(bases.map((b) => b.name.padEnd(NATIVE_W + 4)).join(''));
-  for (let u = 0; u < NATIVE_H; u++) {
-    console.log(maps.map((m) => m[u]!.padEnd(NATIVE_W + 4)).join(''));
+  const maps = bases.map(baseMap);
+  console.log(bases.map((b) => b.name.padEnd(width + 4)).join(''));
+  for (let u = 0; u < height; u++) {
+    console.log(maps.map((m) => m[u]!.padEnd(width + 4)).join(''));
   }
-  const open = bases.map((b) => `${b.name}: ${nativeOpenPath(b) ? 'open' : 'SEALED'}, ${b.walls.length} walls`);
+  const open = bases.map((b) => `${b.name}: ${openPath(b) ? 'open' : 'SEALED'}, ${b.walls.length} walls`);
   console.log(`\n${open.join(' · ')}`);
-  if (bases.some((b) => !nativeOpenPath(b))) throw new Error('a native base has no way in');
+  if (bases.some((b) => !openPath(b))) throw new Error('a native base has no way in');
 
-  // Today's rows, as published: the instrument reads the snapshot rather than
-  // re-fighting it, and `--similar` is what checks the snapshot is reproducible.
-  const published: number[][] = [];
-  const md = readFileSync('docs/BALANCE.md', 'utf8').split('\n');
-  for (let i = 0; i < md.length; i++) {
-    if (!/^DEFENSE — .+ permanent layer vs .+ assault ladder \(hold%\)$/.test(md[i]!)) continue;
-    for (let r = 0; r < 3; r++) {
-      published.push(md[i + 3 + r]!.split('|').slice(1).map((v) => Number(v.trim())));
+  // Everything a base does not decide is the one rule's.
+  const bare = (base: ReferenceBase): ReferenceBase => ({ ...base, walls: [], structures: [] });
+  let mapped = 0;
+  for (const faction of FACTION_IDS) {
+    for (const [b, base] of bases.entries()) {
+      for (const level of ASSAULT_LEVELS) {
+        const seed = seedOf(level, base.ccLevel, 0);
+        const was = defenseConfigFor(faction, bare(fine[b]!), level, seed);
+        const one = coarsenConfig(was, defenseCatalogFor(faction), 2).config;
+        if (!isDeepStrictEqual(one, defenseConfigFor(faction, bare(base), level, seed))) {
+          throw new Error(`${faction} ${base.name} L${level}: a bare native battle is not the mapped one`);
+        }
+        mapped++;
+      }
     }
   }
+  console.log(`MAPPING: all ${mapped} bare native battles are the one rule's mapping of the 20x30 ones`);
 
-  type Row = { faction: FactionId; base: string; today: number[]; v3: number[]; v4: number[] };
+  type Row = { faction: FactionId; base: string; today: readonly number[]; v3: number[]; v4: number[] };
   const rows: Row[] = [];
   const stalls = { v3: { wins: 0, stalled: 0 }, v4: { wins: 0, stalled: 0 } };
   const pct = (n: number) => Math.round((n / SEEDS) * 100);
   let r = 0;
   for (const faction of FACTION_IDS) {
     const catalog = defenseCatalogFor(faction);
-    const fine = referenceBases();
-    for (const [b, base] of bases.entries()) {
+    for (const base of bases) {
       const v3: number[] = [];
       const v4: number[] = [];
       for (const level of ASSAULT_LEVELS) {
@@ -1739,36 +1783,49 @@ function nativeCheck(): void {
         let held4 = 0;
         for (let i = 0; i < SEEDS; i++) {
           // Seeded exactly as the published table's cell, so a row differs
-          // from today's by the board and the chain and nothing else.
-          const seed = seedOf(level, fine[b]!.ccLevel, i);
+          // from v1.44's by the board and the chain and nothing else.
+          const seed = seedOf(level, base.ccLevel, i);
           for (const [chain, tally] of [
-            [CHAIN_CURRENT, stalls.v3],
+            [CHAIN_LATCHED, stalls.v3],
             [CHAIN_ENGAGE, stalls.v4],
           ] as const) {
-            const e = fightDefense(nativeDefenseConfigFor(faction, base, level, seed, chain), catalog);
+            const config = defenseConfigFor(faction, base, level, seed, { chainVersion: chain });
+            const e = fightDefense(config, catalog);
             if (e.phase !== 'victory') continue;
             tally.wins++;
             if (e.stallWipes > 0) tally.stalled++;
-            if (chain === CHAIN_CURRENT) held3++;
+            if (chain === CHAIN_LATCHED) held3++;
             else held4++;
           }
         }
         v3.push(pct(held3));
         v4.push(pct(held4));
       }
-      rows.push({ faction, base: base.name, today: published[r] ?? [], v3, v4 });
+      rows.push({ faction, base: base.name, today: V1_PUBLISHED[r] ?? [], v3, v4 });
       r++;
     }
   }
 
-  console.log(`\nHOLD% BY LEVEL — TODAY (20x30, v3, published) / NATIVE 10x15 on v3 / on v4, ${SEEDS} seeds`);
+  // The v4 pass is today's game, so it has to BE the snapshot.
+  const published = publishedDefense();
+  const current = CHAIN_CURRENT === CHAIN_ENGAGE ? 'v4' : null;
+  if (current) {
+    const cells = rows.flatMap((row) => row[current]);
+    const agree = cells.filter((c, i) => published[Math.floor(i / 12)]?.[i % 12] === c).length;
+    console.log(
+      `SELF-CHECK: the ${current} pass against docs/BALANCE.md — ${agree}/${cells.length} cells identical` +
+        (agree === cells.length ? '' : ' (a snapshot from before this change, or a tool that drifted from it)'),
+    );
+  }
+
+  console.log(`\nHOLD% BY LEVEL — v1.44 (20x30, v3, published) / NATIVE 10x15 on v3 / on v4, ${SEEDS} seeds`);
   console.log(`FACTION | BASE        | BOARD     | ${ASSAULT_LEVELS.map((l) => pad(`L${l}`, 4)).join(' ')}`);
   for (const row of rows) {
     for (const which of ['today', 'v3', 'v4'] as const) {
       console.log(
         `${pad(which === 'today' ? row.faction.toUpperCase() : '', 7)} | ${
           which === 'today' ? row.base.padEnd(11) : ''.padEnd(11)
-        } | ${(which === 'today' ? 'today' : `native ${which}`).padEnd(9)} | ${row[which]
+        } | ${(which === 'today' ? 'v1.44' : `native ${which}`).padEnd(9)} | ${row[which]
           .map((c) => pad(c, 4))
           .join(' ')}`,
       );
@@ -1776,14 +1833,14 @@ function nativeCheck(): void {
   }
 
   // Where each row first holds under half — the level a re-tune has to move.
-  const falls = (cells: number[]) => {
+  const falls = (cells: readonly number[]) => {
     const at = cells.findIndex((c) => c < 50);
     return at < 0 ? ASSAULT_LEVELS.length + 1 : at + 1;
   };
   const show = (l: number) => (l > ASSAULT_LEVELS.length ? `>${ASSAULT_LEVELS.length}` : `L${l}`);
   const rises = (cells: number[]) => cells.slice(1).some((c, i) => c > cells[i]! + 15);
   console.log('\nWHERE EACH ROW FIRST HOLDS UNDER HALF');
-  console.log('FACTION | BASE        | TODAY | NATIVE v3    | NATIVE v4');
+  console.log('FACTION | BASE        | v1.44 | NATIVE v3    | NATIVE v4');
   const shifts = { v3: [] as number[], v4: [] as number[] };
   for (const row of rows) {
     const t = falls(row.today);
@@ -1808,12 +1865,104 @@ function nativeCheck(): void {
       `v4 ${rows.filter((x) => rises(x.v4)).length} of ${rows.length}`,
   );
   console.log(
-    `contested levels per row: today ${contested('today').toFixed(2)}, native v3 ${contested('v3').toFixed(2)}, ` +
+    `contested levels per row: v1.44 ${contested('today').toFixed(2)}, native v3 ${contested('v3').toFixed(2)}, ` +
       `native v4 ${contested('v4').toFixed(2)}`,
   );
   const share = (k: 'v3' | 'v4') =>
     `${stalls[k].stalled}/${stalls[k].wins} (${((100 * stalls[k].stalled) / Math.max(1, stalls[k].wins)).toFixed(1)}%)`;
   console.log(`defender wins that include a stall wipe-out: v3 ${share('v3')}, v4 ${share('v4')}`);
+  console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+}
+
+/**
+ * Re-tune the ladder for 10x15 (M34 Phase 8, `--retune`).
+ *
+ * `--native` says where each row now first holds under half and how far that
+ * is from where v1.44 put it. This prices candidate ladders against the same
+ * question — every row on the native bases on today's chain, seeded as the
+ * published cells — and scores each by how far the rows' falls move from
+ * v1.44's, by stage, and how many contested levels a row keeps.
+ *
+ * The ladder rather than the chain, because the chain decides raids too and
+ * the raid tables did not drift: a chain made kinder to defenders would buy
+ * back the defence ladder by taking the Front Line's top rungs away.
+ */
+function retune(): void {
+  const started = Date.now();
+  // Every candidate is a whole ladder, written from v1.44's so the table is a
+  // record of the decision rather than a diff against whatever ships today.
+  const V144: Ladder = { growth: 0.09, heavyEvery: 2, rotorEvery: 2 };
+  const CANDIDATES: [string, Ladder][] = [
+    ['v1.44', V144],
+    ['heavy /3', { ...V144, heavyEvery: 3 }],
+    ['growth .07', { ...V144, growth: 0.07 }],
+    ['growth .05', { ...V144, growth: 0.05 }],
+    ['heavy /3 + rotor /3', { ...V144, heavyEvery: 3, rotorEvery: 3 }],
+    ['heavy /3 + growth .07', { ...V144, heavyEvery: 3, growth: 0.07 }],
+    ['heavy /3 + growth .06', { ...V144, heavyEvery: 3, growth: 0.06 }],
+    ['heavy /3 + growth .05', { ...V144, heavyEvery: 3, growth: 0.05 }],
+    ['heavy /3 + growth .07 + rotor /3', { ...V144, heavyEvery: 3, growth: 0.07, rotorEvery: 3 }],
+    ['heavy /4', { ...V144, heavyEvery: 4 }],
+    ['heavy /4 + growth .08', { ...V144, heavyEvery: 4, growth: 0.08 }],
+    ['heavy /4 + growth .06', { ...V144, heavyEvery: 4, growth: 0.06 }],
+    ['shipped', LADDER],
+  ];
+  const only = process.argv.slice(process.argv.indexOf('--retune') + 1).filter((a) => !a.startsWith('--'));
+  const picked = only.length ? CANDIDATES.filter(([label]) => only.includes(label)) : CANDIDATES;
+  const bases = referenceBases();
+  const falls = (cells: readonly number[]) => {
+    const at = cells.findIndex((c) => c < 50);
+    return at < 0 ? ASSAULT_LEVELS.length + 1 : at + 1;
+  };
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  const signed = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
+  console.log(`RETUNE — candidate ladders on the native bases, chain v${CHAIN_CURRENT}, ${SEEDS} seeds`);
+  console.log('shift = the level a row first holds under half, minus v1.44\'s (0 is on target)\n');
+  console.log(
+    'LADDER                 | SHIFT | |SHIFT| | EARLY | MID   | LATE  | CONTESTED | RISES | FALLS BY ROW (USA CHN RUS NK UN, E/M/L)',
+  );
+  for (const [label, ladder] of picked) {
+    const shifts: number[] = [];
+    const byStage: number[][] = [[], [], []];
+    const contested: number[] = [];
+    let rises = 0;
+    const fallsRow: string[] = [];
+    let r = 0;
+    for (const faction of FACTION_IDS) {
+      const catalog = defenseCatalogFor(faction);
+      const cells: string[] = [];
+      for (const [b, base] of bases.entries()) {
+        const row = ASSAULT_LEVELS.map((level) => {
+          let held = 0;
+          for (let i = 0; i < SEEDS; i++) {
+            const config = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i), { ladder });
+            if (fightDefense(config, catalog).phase === 'victory') held++;
+          }
+          return Math.round((held / SEEDS) * 100);
+        });
+        if (process.argv.includes('--rows')) {
+          console.log(`  ${faction.toUpperCase().padEnd(6)} ${base.name.padEnd(11)} ${row.map((c) => pad(c, 4)).join('')}`);
+        }
+        const shift = falls(row) - falls(V1_PUBLISHED[r]!);
+        shifts.push(shift);
+        byStage[b]!.push(shift);
+        contested.push(row.filter((c) => c >= 5 && c <= 95).length);
+        if (row.slice(1).some((c, i) => c > row[i]! + 15)) rises++;
+        cells.push(String(falls(row)));
+        r++;
+      }
+      fallsRow.push(cells.join('/'));
+    }
+    console.log(
+      `${label.padEnd(22)} | ${pad(signed(mean(shifts)), 5)} | ${pad(mean(shifts.map(Math.abs)).toFixed(2), 7)} | ` +
+        `${byStage.map((xs) => pad(signed(mean(xs)), 5)).join(' | ')} | ${pad(mean(contested).toFixed(2), 9)} | ` +
+        `${pad(rises, 5)} | ${fallsRow.join(' ')}`,
+    );
+  }
+  console.log(
+    `\nv1.44 falls by row: ${FACTION_IDS.map((_, f) => [0, 1, 2].map((b) => falls(V1_PUBLISHED[f * 3 + b]!)).join('/')).join(' ')}` +
+      ` · contested per row 1.67`,
+  );
   console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
 
@@ -2380,8 +2529,12 @@ function wingTable(): string {
  * cannot predict. It is still scored below so the table keeps saying why.
  */
 function overheadFlak(base: GeneratedBase, cat: Catalog): number {
-  const ccX = (base.ccOrigin % MAP_W) + 1;
-  const ccY = Math.floor(base.ccOrigin / MAP_W) + 1;
+  // In PHYSICAL units, as `airTransit` measures (M34): the catalog's ranges
+  // are written in them, so the board's cells are scaled up to meet them.
+  const u = MAP_CELL_SIZE;
+  const ccHalf = scaleFootprint(2, u) / 2;
+  const ccX = ((base.ccOrigin % MAP_W) + ccHalf) * u;
+  const ccY = (Math.floor(base.ccOrigin / MAP_W) + ccHalf) * u;
   let total = 0;
   for (const st of base.structures) {
     const profile = cat.structures[st.kind];
@@ -2393,9 +2546,9 @@ function overheadFlak(base: GeneratedBase, cat: Catalog): number {
         : profile;
     const w = merged.weapon;
     if (!w || (w.targets !== 'air' && w.targets !== 'both')) continue;
-    const foot = profile.footprint ?? 1;
-    const sx = (st.cell % MAP_W) + (foot === 2 ? 1 : 0.5);
-    const sy = Math.floor(st.cell / MAP_W) + (foot === 2 ? 1 : 0.5);
+    const half = scaleFootprint(profile.footprint === 2 ? 2 : 1, u) / 2;
+    const sx = ((st.cell % MAP_W) + half) * u;
+    const sy = (Math.floor(st.cell / MAP_W) + half) * u;
     if ((ccX - sx) ** 2 + (ccY - sy) ** 2 <= w.range * w.range) total += w.damage * w.shotsPerSecond;
   }
   return total;
@@ -4819,11 +4972,17 @@ function main(): void {
     nativeCheck();
     return;
   }
+  if (process.argv.includes('--retune')) {
+    // `--retune 'heavy /3'` runs candidates by label; `--rows` prints each row.
+    retune();
+    return;
+  }
   if (process.argv.includes('--similar')) {
-    // CHAIN=4 to measure a candidate kill chain. An env var rather than a flag:
-    // `--chain` is already an instrument, and `process.argv.includes` would
-    // hand this run to it.
-    similarity(Number(process.env['CHAIN'] ?? CHAIN_CURRENT));
+    // Chain v3 by default, the one the 20x30 tables were fought on and so the
+    // only one the self-check can check; CHAIN=4 measures today's. An env var
+    // rather than a flag: `--chain` is already an instrument, and
+    // `process.argv.includes` would hand this run to it.
+    similarity(Number(process.env['CHAIN'] ?? CHAIN_LATCHED));
     return;
   }
   if (process.argv.includes('--contested')) {
@@ -5413,14 +5572,16 @@ function main(): void {
     { units: { nlaw: 2, peacekeeper: 1 }, sector: 'N1', doctrine: 'hunt' },
     { units: { peacekeeper: 2, unsapper: 1, vab: 1 }, sector: 'S1', doctrine: 'raze' },
   ];
-  // UN defense experiment: the Engineer Corps HQ parked behind the post,
-  // its repair aura over the CC and the inner guns.
-  const UN_ENG_BAY: LayoutStructure[] = [{ cell: idx(29, 11), kind: 'engBay', level: 1 }];
-  // Air cover for the reference line: one mount forward of the wall, one over
-  // the command post, which is what a player would actually build.
+  // UN defense experiment: the Engineer Corps HQ parked right behind the
+  // post, its repair aura (four units: two cells) over the post and the guns
+  // either side of it. Until M34 this row placed nothing — see `layDefense`.
+  const UN_ENG_BAY: LayoutStructure[] = [{ cell: idx(14, 4), kind: 'engBay', level: 1 }];
+  // Air cover for the reference line: one mount inside the inner line, one
+  // beside the command post, which is what a player would actually build.
+  // Both cells are free in all three bases and on nobody's way in.
   const AA_COVER: LayoutStructure[] = [
-    { cell: idx(24, 11), kind: 'aa', level: 2 },
-    { cell: idx(29, 12), kind: 'aa', level: 2 },
+    { cell: idx(12, 6), kind: 'aa', level: 2 },
+    { cell: idx(14, 6), kind: 'aa', level: 2 },
   ];
 
   for (const faction of FACTION_IDS) {
@@ -5629,6 +5790,18 @@ function main(): void {
       '> was the ceiling — which is what every snapshot in this file had recorded, and',
       '> what three content notes carried since v0.6 were separately describing.',
       '> Contested levels per row: 0.73 before, 2.20 after.',
+      '>',
+      '> **M34 moved every battle onto a 10x15 board at two units a cell, so no row here',
+      '> is comparable to a v1.44 cell.** The catalog is written in physical units and',
+      '> halves onto the new cells, but a gun or a wall cannot shrink below one, and the',
+      '> kill chain is version 4: a crew stuck on a covered post goes after the guns',
+      '> covering it. The eight generator plans, the three reference bases and the deal',
+      '> were drawn or chosen again for this board. The assault ladder was re-tuned so each',
+      '> defence row first holds under half where v1.44\'s did (`--retune`): a heavy every',
+      '> four levels instead of two, and +7% a level instead of +9%, which moves that level',
+      '> by −0.07 on average against −1.13 for the old ladder on this board. Two rows below',
+      '> measured nothing before this snapshot: the Engineer Corps HQ and the forward AA',
+      '> mount never landed. A reference layout that does not land now stops the harness.',
       '',
       '```',
       body,
@@ -5663,7 +5836,7 @@ function main(): void {
       '  is winnable — tier-1 losses drop ~18 points and tier-3 clears gain ~13 — and go quiet',
       '  where the force is simply outgunned (tier 4+): healing at 22/s loses to two guns',
       '  focused, by design. On defense the Engineer Corps HQ row shows the aura the reference',
-      '  can see; the Engineer Revetment (CP layer, 15 hp/s over 3 cells) is the live-play',
+      '  can see; the Engineer Revetment (CP layer, 15 hp/s over 3 units) is the live-play',
       '  tool the reference cannot. Every UN gun is deliberately mid-pack; the faction wins',
       '  by still being there in wave three.',
       '- **Russia (artillery) progresses through fire preparation**: their bare late-game force',

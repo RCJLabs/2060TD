@@ -10,8 +10,8 @@ import { entry, series } from './missions';
  * player's actual stockpile when the battle begins.
  */
 
-const scaleCount = (base: number, level: number): number =>
-  Math.max(1, Math.round(base * (1 + LADDER_GROWTH * (level - 1))));
+const scaleCount = (base: number, level: number, growth: number): number =>
+  Math.max(1, Math.round(base * (1 + growth * (level - 1))));
 
 /**
  * How much a level adds, and why it is so much smaller than it used to be.
@@ -35,8 +35,40 @@ const scaleCount = (base: number, level: number): number =>
  *
  * `assaultLevel` was never capped, so nothing in the meta had to change for
  * this — only saved towns, which are rescaled on load by `rescaleLadder`.
+ *
+ * +7% since M34, from +9%: see `LADDER`, which moved with it.
  */
-const LADDER_GROWTH = 0.09;
+const LADDER_GROWTH = 0.07;
+
+/**
+ * The ladder's rates, named together so a sweep can hold two and move one
+ * (`npm run balance -- --retune`). Nothing but the balance harness passes
+ * anything other than `LADDER`.
+ *
+ * Re-tuned for the 10x15 board (M34), whose kill chain sends a crew stuck on
+ * a covered post after the guns covering it. That makes each heavy a bigger
+ * step than it was on 20x30: a heavy that reaches the post now kills what
+ * holds it shut. On the shipped ladder the third heavy, at level 7, took MID
+ * from holding every seed to holding one or none for three factions in five,
+ * and the rows fell 1.13 levels sooner than v1.44's on average.
+ *
+ * Twelve ladders were priced against where v1.44's rows first held under half.
+ * A heavy every four levels instead of two, with each level adding 7%
+ * instead of 9%, came closest: a mean shift of −0.07 levels, every row
+ * within one of v1.44's, and none rising. The heavy cadence alone left MID a
+ * level short, and slower growth alone barely moved it. Rotors were not the
+ * problem, and they stay every two levels.
+ */
+export interface Ladder {
+  /** What each level adds to every wave's counts: `LADDER_GROWTH`. */
+  readonly growth: number;
+  /** Levels between heavies, from the first at level 3. */
+  readonly heavyEvery: number;
+  /** Levels between rotors, from the first at level 4. */
+  readonly rotorEvery: number;
+}
+
+export const LADDER: Ladder = { growth: LADDER_GROWTH, heavyEvery: 4, rotorEvery: 2 };
 
 /**
  * A newly unlocked wave arrives at a FRACTION of its strength and grows in.
@@ -111,8 +143,12 @@ export const USA_ASSAULT_ROSTER: AssaultRoster = {
   gunship: 'reaper',
 };
 
-export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAULT_ROSTER): SiegeDef {
-  const n = (base: number) => scaleCount(base, level);
+export function buildAssault(
+  level: number,
+  roster: AssaultRoster = CHINA_ASSAULT_ROSTER,
+  ladder: Ladder = LADDER,
+): SiegeDef {
+  const n = (base: number) => scaleCount(base, level, ladder.growth);
   const waves: WaveDef[] = [];
 
   // Wave 1 — probe: a swarm trickle with a line tail.
@@ -156,7 +192,7 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
 
   // Wave 5 (level 3+) — the armored hammer.
   if (level >= 3) {
-    const tanks = 1 + Math.floor((level - 3) / 2);
+    const tanks = 1 + Math.floor((level - 3) / ladder.heavyEvery);
     const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 3)));
     waves.push({
       entries: [
@@ -172,7 +208,7 @@ export function buildAssault(level: number, roster: AssaultRoster = CHINA_ASSAUL
   // Wave 6 (level 4+) — the sky. Rotors ignore the maze entirely, so a line
   // with no mount that can elevate simply watches them work.
   if (level >= 4) {
-    const rotors = 1 + Math.floor((level - 4) / 2);
+    const rotors = 1 + Math.floor((level - 4) / ladder.rotorEvery);
     const r = (base: number) => Math.max(1, Math.round(n(base) * waveRamp(level, 4)));
     waves.push({
       entries: [

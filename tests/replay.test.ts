@@ -6,7 +6,6 @@ import { defenseCatalogFor } from '../src/content/factions';
 import { Engine } from '../src/sim/engine';
 import type { Catalog, SimConfig } from '../src/sim/types';
 import { deserialize, serialize } from '../src/meta/save';
-import { coarsenConfig } from '../src/sim/board';
 import {
   place,
   placeWall,
@@ -59,10 +58,10 @@ const raidFixture = (): SimConfig =>
 
 function probeFixture(): SimConfig {
   const town = unlockAll(yardTown(T0));
-  place(town, 'supplyDepot', idx(23, 6), T0 - 1_000_000);
-  place(town, 'm2nest', idx(21, 9), T0 - 1_000_000);
+  place(town, 'supplyDepot', idx(3, 11), T0 - 1_000_000);
+  place(town, 'm2nest', idx(4, 10), T0 - 1_000_000);
   tick(town, T0);
-  for (let y = 3; y <= 20; y++) placeWall(town, idx(19, y));
+  for (let x = 1; x <= 7; x++) if (x !== 4) placeWall(town, idx(x, 9));
   town.standingOrders = 'holdfast';
   return probeConfig(town, 4, 999);
 }
@@ -125,11 +124,9 @@ describe('a replay code is the battle', () => {
   });
 
   it('carries the size of a cell, and re-fights a coarse battle on its own board (M34)', () => {
-    // A probe on the 10x15 board: the one rule maps today's probe onto it, with
-    // the ground taken off because a coarser board needs its own terrain.
-    const fine = { ...probeFixture(), terrainSeed: undefined, terrainVersion: undefined };
+    // A probe on the 10x15 board, as the game builds one now.
+    const config = probeFixture();
     const catalog = defenseCatalogFor('usa');
-    const config = coarsenConfig(fine, catalog, 2).config;
     expect(config.cellSize).toBe(2);
     const code = encodeReplay({ kind: 'probe', faction: 'usa', title: 'P', won: false, config });
     const back = decodeReplay(code);
@@ -144,7 +141,10 @@ describe('a replay code is the battle', () => {
   });
 
   it('writes no cell-size block for a battle at a cell of one', () => {
+    // A battle recorded before M34 names no cell size; one that names a cell
+    // of one is the same battle, and must be the same code.
     const config = raidFixture();
+    delete config.cellSize;
     const code = encodeReplay({ kind: 'raid', faction: 'usa', title: 'X', won: true, config });
     const withOne = encodeReplay({
       kind: 'raid',

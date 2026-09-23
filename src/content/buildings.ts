@@ -266,7 +266,11 @@ export const BUILDABLE_KINDS = [
 export interface CcGating {
   /** Max upgrade level for every structure at this CC level. */
   maxStructureLevel: number;
-  /** Max Supplies-wall segments. */
+  /**
+   * Max Supplies-wall segments. Halved at M34 — 50/80/120 became 25/40/60 —
+   * because walls work as LINES across the approach, and a line across a
+   * board of two-unit cells is half as many segments of twice the length.
+   */
   walls: number;
   /** Max count per structure kind. */
   counts: Record<string, number>;
@@ -275,7 +279,7 @@ export interface CcGating {
 export const CC_GATING: CcGating[] = [
   {
     maxStructureLevel: 1,
-    walls: 50,
+    walls: 25,
     counts: {
       supplyDepot: 2, fuelDepot: 1, storageBunker: 1, engBay: 0, radar: 0,
       barracks: 1, motorpool: 0, airfield: 0,
@@ -284,7 +288,7 @@ export const CC_GATING: CcGating[] = [
   },
   {
     maxStructureLevel: 2,
-    walls: 80,
+    walls: 40,
     counts: {
       supplyDepot: 3, fuelDepot: 2, storageBunker: 2, engBay: 1, radar: 1,
       barracks: 1, motorpool: 1, airfield: 1,
@@ -293,7 +297,7 @@ export const CC_GATING: CcGating[] = [
   },
   {
     maxStructureLevel: 3,
-    walls: 120,
+    walls: 60,
     counts: {
       supplyDepot: 4, fuelDepot: 3, storageBunker: 3, engBay: 1, radar: 1,
       barracks: 2, motorpool: 1, airfield: 1,

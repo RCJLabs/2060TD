@@ -254,7 +254,12 @@ try {
       // Two guns on the approach. Enough to turn back a small probe, nowhere
       // near enough for a big one — a defeat needs buildings to be memorable
       // about, and a hold needs something doing the holding.
-      for (const cell of [427, 431]) {
+      //
+      // Cells of the 10x15 board (grid version 2, M34): three rows in front of
+      // the post, either side of its column. A save on any other board would
+      // put these somewhere else entirely, so say so rather than drift.
+      if (town.gridVersion !== 2) throw new Error(`a grid-version-2 save, not ${town.gridVersion}`);
+      for (const cell of [10 * 10 + 3, 10 * 10 + 5]) {
         if (!town.structures.some((st) => st.cell === cell)) {
           town.structures.push({ id: town.nextId++, kind: 'm2nest', cell, level: 1, wrecked: false });
         }

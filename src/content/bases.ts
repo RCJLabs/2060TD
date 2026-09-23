@@ -1,4 +1,5 @@
 import { createRng, type Rng } from '../sim/rng';
+import { scaleFootprint } from '../sim/scale';
 import { generateTerrain, TERRAIN_VERSION } from '../sim/terrain';
 import type { CellIndex, LayoutStructure, LayoutWall, SpawnEdge } from '../sim/types';
 
@@ -9,16 +10,17 @@ import type { CellIndex, LayoutStructure, LayoutWall, SpawnEdge } from '../sim/t
  */
 
 /**
- * The board, in cells (v1.40: 20x30, portrait).
+ * The board, in cells (M34: 10x15, a cell of two physical units).
  *
  * It was 32x24 through v1.39, which fitted a desktop window and nothing else:
- * 32 cells across a 360px phone is an 11px cell, and an 11px cell cannot carry
- * a silhouette, a level pip or a fingertip. Turning the board upright buys the
- * phone an 18px cell while costing the fight almost nothing, because the axis
- * that shrank is the one nobody walks along — see `MAP_U` below.
+ * 32 cells across a 360px phone is an 11px cell. v1.40 turned it upright to
+ * 20x30 and bought the phone 18px. M34 halves it again, to 36px on the same
+ * phone: twice the cell, so a thumb lands on the square it aims at and the
+ * art reads at the size it is drawn. The catalog did not move — a cell is two
+ * of its units now, and `MAP_CELL_SIZE` says so.
  */
-export const MAP_W = 20;
-export const MAP_H = 30;
+export const MAP_W = 10;
+export const MAP_H = 15;
 /**
  * How many physical units one cell of the board spans (M34).
  *
@@ -28,7 +30,7 @@ export const MAP_H = 30;
  * that sizes a thing on the map defaults to: a footprint, a range ring, the
  * air read. A replay of a battle on another board carries its own.
  */
-export const MAP_CELL_SIZE = 1;
+export const MAP_CELL_SIZE = 2;
 export const TARGETS_PER_TIER = 3;
 
 /**
@@ -61,9 +63,9 @@ export const BASE_SPAWN_LANE = 0;
  * tower and economy spot lists. Eight shapes tuned over six releases stay
  * exactly as tuned, and the board underneath them can rotate.
  */
-/** Depth: 30 cells, against the 32 a west approach used to have. */
+/** Depth: 15 cells of two units — the 30 of v1.40, at half the resolution. */
 export const MAP_U = APPROACH_NORTH ? MAP_H : MAP_W;
-/** Across: 20 cells, against 24. This is the axis the phone bought back. */
+/** Across: 10 cells. */
 export const MAP_V = APPROACH_NORTH ? MAP_W : MAP_H;
 
 /** Approach space to the real board. */
@@ -215,18 +217,23 @@ class Occupancy {
   }
 
   free(cells: CellIndex[]): boolean {
+    // Clear of both edge columns: nothing is built on the ground a raider
+    // enters along. It was two columns on the west and one on the east at
+    // 20x30; one each, at two units a cell, is the same ground.
     return cells.every(
-      (c) => !this.cells.has(c) && c >= 0 && c % MAP_W >= 2 && c % MAP_W <= MAP_W - 2 && c < MAP_W * MAP_H,
+      (c) => !this.cells.has(c) && c >= 0 && c % MAP_W >= 1 && c % MAP_W <= MAP_W - 2 && c < MAP_W * MAP_H,
     );
   }
 }
 
-const footprint2 = (origin: CellIndex): CellIndex[] => [
-  origin,
-  origin + 1,
-  origin + MAP_W,
-  origin + MAP_W + 1,
-];
+/**
+ * The cells a building covers on this board. A 2x2 kind is one cell once a
+ * cell is two units (M34), which is how the engine fights it — so that is
+ * also what the generator reserves for it.
+ */
+const BIG = scaleFootprint(2, MAP_CELL_SIZE);
+const footprintBig = (origin: CellIndex): CellIndex[] =>
+  BIG === 1 ? [origin] : [origin, origin + 1, origin + MAP_W, origin + MAP_W + 1];
 
 
 // ---- archetypes ------------------------------------------------------------------
@@ -249,6 +256,12 @@ export interface PlanContext {
   ccU: number;
   ccV: number;
   putWall: (u: number, v: number) => void;
+  /**
+   * A cell nothing may be built on: the way through a gap the generic walkway
+   * rule cannot see, like a breach in a DIAGONAL wall, whose cells touch only
+   * at their corners (M34).
+   */
+  keepClear: (u: number, v: number) => void;
   /** Preferred gun positions, best first. The generator takes what fits. */
   towerSpots: [number, number][];
 }
@@ -494,46 +507,52 @@ export type DealPair = readonly [ArchetypeId, number];
  * The score also carries a small penalty for a shape the faction has already
  * met, because difficulty alone collapses the roster — `compound`, `camp` and
  * `corridor` have the widest layout ranges, so they can hit any target and the
- * other five stop being dealt at all. With the nudge, all eight reach every
- * faction across the ladder.
+ * other five stop being dealt at all. With the nudge, all eight reached every
+ * faction across the ladder on 20x30. On 10x15 the keep reaches three of the
+ * five. At T4 and T5 Russia's reference force clears it 0-8% on 22 of its 24
+ * layouts and the UN's on all 24, so dealing it to them would be dealing a
+ * wall, and the nudge rightly loses to that.
  *
  * The numbers after each row are the clear rates the row was selected for.
+ * Selected again for the 10x15 board (M34): the eight plans were redrawn, so a
+ * layout index names a different base than it did, and the old pairs' rates
+ * described bases nobody is dealt any more.
  */
 export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
   usa: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
     [['compound', 0], ['camp', 0], ['star', 0]], // T2 100/100/100
-    [['corridor', 11], ['camp', 11], ['depot', 0]], // T3 75/83/100
-    [['star', 7], ['keep', 1], ['strongpoints', 10]], // T4 50/67/83
-    [['bunker', 5], ['corridor', 0], ['star', 5]], // T5 42/58/67
+    [['corridor', 7], ['depot', 10], ['strongpoints', 2]], // T3 67/83/100
+    [['camp', 10], ['keep', 6], ['compound', 9]], // T4 58/67/83
+    [['bunker', 8], ['compound', 7], ['keep', 5]], // T5 42/58/67
   ],
   china: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-    [['compound', 3], ['camp', 0], ['star', 0]], // T2 92/100/100
-    [['star', 7], ['depot', 5], ['strongpoints', 0]], // T3 58/92/100
-    [['compound', 2], ['strongpoints', 1], ['keep', 11]], // T4 58/67/83
-    [['compound', 8], ['strongpoints', 2], ['bunker', 2]], // T5 42/58/67
+    [['star', 11], ['corridor', 7], ['compound', 0]], // T2 83/92/100
+    [['compound', 7], ['corridor', 2], ['depot', 0]], // T3 67/83/100
+    [['camp', 2], ['strongpoints', 9], ['compound', 8]], // T4 58/75/83
+    [['keep', 2], ['corridor', 10], ['bunker', 4]], // T5 33/58/67
   ],
   russia: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-    [['compound', 5], ['camp', 0], ['star', 0]], // T2 92/100/100
-    [['camp', 1], ['corridor', 2], ['depot', 0]], // T3 67/83/100
-    [['strongpoints', 7], ['keep', 10], ['compound', 6]], // T4 50/75/83
-    [['camp', 4], ['bunker', 2], ['compound', 11]], // T5 42/50/67
+    [['corridor', 2], ['compound', 1], ['star', 0]], // T2 75/92/100
+    [['corridor', 5], ['strongpoints', 8], ['depot', 0]], // T3 67/83/100
+    [['compound', 9], ['corridor', 11], ['camp', 8]], // T4 58/67/83
+    [['compound', 2], ['camp', 6], ['bunker', 9]], // T5 42/50/67
   ],
   nk: [
-    [['compound', 0], ['camp', 0], ['corridor', 2]], // T1 92/100/100
-    [['compound', 2], ['corridor', 1], ['star', 0]], // T2 83/92/100
-    [['depot', 3], ['compound', 2], ['strongpoints', 0]], // T3 67/83/100
-    [['compound', 0], ['keep', 10], ['camp', 2]], // T4 58/75/83
-    [['compound', 7], ['corridor', 1], ['bunker', 6]], // T5 42/58/75
+    [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
+    [['compound', 2], ['corridor', 11], ['star', 0]], // T2 92/92/100
+    [['star', 0], ['strongpoints', 2], ['depot', 0]], // T3 75/83/100
+    [['keep', 0], ['compound', 3], ['camp', 1]], // T4 50/67/83
+    [['corridor', 5], ['compound', 6], ['bunker', 10]], // T5 42/58/67
   ],
   un: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
-    [['camp', 7], ['corridor', 0], ['star', 0]], // T2 92/92/100
-    [['star', 10], ['compound', 11], ['depot', 0]], // T3 67/83/100
-    [['compound', 1], ['keep', 6], ['strongpoints', 9]], // T4 58/67/83
-    [['bunker', 0], ['compound', 7], ['strongpoints', 5]], // T5 42/58/67
+    [['corridor', 11], ['star', 4], ['compound', 0]], // T2 75/92/100
+    [['compound', 6], ['depot', 4], ['strongpoints', 0]], // T3 67/83/100
+    [['compound', 5], ['corridor', 3], ['strongpoints', 1]], // T4 50/67/92
+    [['compound', 9], ['bunker', 8], ['camp', 1]], // T5 42/50/67
   ],
 };
 
@@ -613,43 +632,55 @@ export function archetypeFor(tier: number, variant: number, faction?: string): A
  *
  * A ring wider than the line does not make a bigger ring: `putWall` drops what
  * it cannot place, so it makes a ring with HOLES IN ITS TIPS — and these two
- * shapes exist to be the one way in. The first pass at the portrait board just
- * lowered the authored radii, which fixed the holes and quietly made a keep
- * the easiest thing on the ladder (98.6 mean against 79.6). Capping instead
- * keeps the radius the shapes were tuned with wherever there is room for it.
+ * shapes exist to be the one way in. Capping keeps the radius the shape wants
+ * wherever there is room for it.
  */
 function ringFit(v: number, want: number): number {
   return Math.max(2, Math.min(want, v - 1, MAP_V - 2 - v));
 }
 
+// The eight plans below are DRAWN for the 10x15 board (M34), not mapped onto
+// it. Mapping halves every coordinate, and a one-cell line keeps only the
+// blocks it fills half of, so a mapped plan loses its line ends, its stubs and
+// its gates. These keep each shape's design at the new resolution — the same
+// walls in the same places relative to the post, the same gates, the same
+// eight gun spots best-first — with every distance halved and rounded to what
+// a cell of two units can say. A gate is one cell: two units, where it was
+// three at 20x30, because a two-cell gate on a ten-cell line is a fifth of it.
+// Guns are one cell on both boards and never sit in the only cell below a
+// gate, which on a one-row pocket would be a wall across it.
+
 /** Walled rectangle with two or three gates, guns on the corners and gates. */
 function planCompound(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const margin = ri(rng, 6, 7);
-  const x0 = Math.max(3, ccU - margin);
-  const x1 = Math.min(MAP_U - 3, ccU + margin + 1);
-  const y0 = Math.max(2, ccV - margin + 1);
-  const y1 = Math.min(MAP_V - 3, ccV + margin);
+  // Four cells out, never three: the rectangle holds the post, up to eight
+  // guns and the stores, and at three its inside is 25 cells, which packed
+  // shut around its own gates on one base in fourteen.
+  const margin = ri(rng, 4, 4);
+  const x0 = Math.max(2, ccU - margin);
+  const x1 = Math.min(MAP_U - 2, ccU + margin);
+  const y0 = Math.max(1, ccV - margin);
+  const y1 = Math.min(MAP_V - 2, ccV + margin);
   const gates = new Set<number>();
   const gateCount = ri(rng, 2, 3);
   for (let g = 0; g < gateCount; g++) gates.add(ri(rng, 0, 3));
   const gateAt = (side: number): boolean => gates.has(side);
   const gatePos = [
-    ri(rng, x0 + 2, x1 - 3),
-    ri(rng, x0 + 2, x1 - 3),
-    ri(rng, y0 + 2, y1 - 3),
-    ri(rng, y0 + 2, y1 - 3),
+    ri(rng, x0 + 1, x1 - 1),
+    ri(rng, x0 + 1, x1 - 1),
+    ri(rng, y0 + 1, y1 - 1),
+    ri(rng, y0 + 1, y1 - 1),
   ];
   for (let x = x0; x <= x1; x++) {
-    if (!(gateAt(0) && Math.abs(x - gatePos[0]!) <= 1)) putWall(x, y0);
-    if (!(gateAt(1) && Math.abs(x - gatePos[1]!) <= 1)) putWall(x, y1);
+    if (!(gateAt(0) && x === gatePos[0])) putWall(x, y0);
+    if (!(gateAt(1) && x === gatePos[1])) putWall(x, y1);
   }
   for (let y = y0; y <= y1; y++) {
-    if (!(gateAt(2) && Math.abs(y - gatePos[2]!) <= 1)) putWall(x0, y);
-    if (!(gateAt(3) && Math.abs(y - gatePos[3]!) <= 1)) putWall(x1, y);
+    if (!(gateAt(2) && y === gatePos[2])) putWall(x0, y);
+    if (!(gateAt(3) && y === gatePos[3])) putWall(x1, y);
   }
   towerSpots.push(
-    [x0 + 2, y0 + 2], [x1 - 2, y0 + 2], [x0 + 2, y1 - 2], [x1 - 2, y1 - 2],
+    [x0 + 1, y0 + 1], [x1 - 1, y0 + 1], [x0 + 1, y1 - 1], [x1 - 1, y1 - 1],
     [gatePos[0]!, y0 + 2], [gatePos[1]!, y1 - 2], [x0 + 2, gatePos[2]!], [x1 - 2, gatePos[3]!],
   );
 }
@@ -657,9 +688,9 @@ function planCompound(c: PlanContext): void {
 /** Diamond ring with two breaches. */
 function planStar(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const cx = ccU + 1;
-  const cy = ccV + 1;
-  const r = ringFit(cy, ri(rng, 7, 8));
+  const cx = ccU;
+  const cy = ccV;
+  const r = ringFit(cy, ri(rng, 3, 4));
   const breachA = ri(rng, 0, 3);
   const breachB = (breachA + ri(rng, 1, 3)) % 4;
   for (let dx = -r; dx <= r; dx++) {
@@ -668,40 +699,49 @@ function planStar(c: PlanContext): void {
       const x = cx + dx;
       const y = cy + sign * dy;
       const quadrant = (dx >= 0 ? 0 : 1) + (sign > 0 ? 0 : 2);
+      // The middle of the quadrant's edge: two cells on a radius-3 diamond,
+      // the same share of the edge the three-cell breach was at radius 7.
       const isBreach =
-        (quadrant === breachA || quadrant === breachB) && Math.abs(Math.abs(dx) - r / 2) < 1.5;
+        (quadrant === breachA || quadrant === breachB) && Math.abs(Math.abs(dx) - r / 2) < 1;
       if (!isBreach) putWall(x, y);
       if (sign === -1 && dy === 0) break; // avoid double-placing the tips
     }
   }
+  // A diamond's walls touch only at their corners, and a walker moves in four
+  // directions, so the only ways in are the breaches — and at radius 3 the
+  // cell behind a breach is the diagonal next to the post, which is where the
+  // spots below put a gun. Kept clear, or a star fort is a sealed one.
+  for (const q of [breachA, breachB]) {
+    c.keepClear(cx + (q % 2 === 0 ? 1 : -1), cy + (q < 2 ? 1 : -1));
+  }
   towerSpots.push(
-    [cx + r - 3, cy], [cx - r + 3, cy], [cx, cy + r - 3], [cx, cy - r + 3],
-    [cx + 3, cy + 3], [cx - 3, cy - 3], [cx + 3, cy - 3], [cx - 3, cy + 3],
+    [cx + r - 1, cy], [cx - r + 1, cy], [cx, cy + r - 1], [cx, cy - r + 1],
+    [cx + 1, cy + 1], [cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1],
   );
 }
 
-/** Two offset wall lines west of the post: a forced serpentine. */
+/** Two offset wall lines north of the post: a forced serpentine. */
 function planCorridor(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const lineA = ccU - 7;
-  const lineB = ccU - 3;
-  const gapA = ri(rng, 3, 8);
-  // The serpentine's far gap, on the opposite half of the line from the near
-  // one. 15-20 was the far half of a 24-cell line and is off the end of a
-  // 20-cell one.
-  const gapB = ri(rng, 12, 17);
+  // Two rows of pocket between the lines, so a gun can stand in it without
+  // standing across it.
+  const lineA = ccU - 5;
+  const lineB = ccU - 2;
+  const gapA = ri(rng, 1, 3);
+  // The far gap, on the opposite half of the line from the near one.
+  const gapB = ri(rng, 6, 8);
   for (let y = 1; y <= MAP_V - 2; y++) {
-    if (Math.abs(y - gapA) > 1) putWall(lineA, y);
-    if (Math.abs(y - gapB) > 1) putWall(lineB, y);
+    if (y !== gapA) putWall(lineA, y);
+    if (y !== gapB) putWall(lineB, y);
   }
-  for (let x = lineB; x <= Math.min(MAP_U - 3, ccU + 6); x++) {
-    putWall(x, 2);
-    putWall(x, MAP_V - 3);
+  for (let x = lineB; x <= Math.min(MAP_U - 2, ccU + 3); x++) {
+    putWall(x, 1);
+    putWall(x, MAP_V - 2);
   }
   towerSpots.push(
-    [lineA + 1, gapA], [lineB + 1, gapB], [lineB + 2, gapA],
-    [ccU - 1, ccV - 4], [ccU - 1, ccV + 5], [ccU + 3, ccV - 3], [ccU + 3, ccV + 4],
-    [lineA + 3, Math.floor(MAP_V / 2)],
+    [lineA + 2, gapA], [lineB + 1, gapB - 1], [lineA + 2, gapB],
+    [ccU - 1, ccV - 2], [ccU - 1, ccV + 2], [ccU + 1, ccV - 2], [ccU + 1, ccV + 2],
+    [lineA + 2, Math.floor(MAP_V / 2)],
   );
 }
 
@@ -712,8 +752,12 @@ function planCorridor(c: PlanContext): void {
  */
 function planCamp(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const r = ringFit(ccV, ri(rng, 5, 7));
-  const stub = ri(rng, 3, 5);
+  const r = ringFit(ccV, ri(rng, 3, 3));
+  // Two short of the radius, so the stubs never meet at a corner. A stub one
+  // short closes the ring for a walker that moves in four directions — its
+  // ends touch diagonally — and at 20x30 that sealed a third of the camps this
+  // shape exists to leave open.
+  const stub = r - 2;
   for (let i = -stub; i <= stub; i++) {
     putWall(ccU + i, ccV - r);
     putWall(ccU + i, ccV + r);
@@ -721,8 +765,8 @@ function planCamp(c: PlanContext): void {
     putWall(ccU + r, ccV + i);
   }
   towerSpots.push(
-    [ccU, ccV - r + 2], [ccU, ccV + r - 1], [ccU - r + 2, ccV], [ccU + r - 1, ccV],
-    [ccU - 3, ccV - 3], [ccU + 4, ccV + 4], [ccU + 4, ccV - 3], [ccU - 3, ccV + 4],
+    [ccU, ccV - r + 1], [ccU, ccV + r - 1], [ccU - r + 1, ccV], [ccU + r - 1, ccV],
+    [ccU - 2, ccV - 2], [ccU + 2, ccV + 2], [ccU + 2, ccV - 2], [ccU - 2, ccV + 2],
   );
 }
 
@@ -733,10 +777,14 @@ function planCamp(c: PlanContext): void {
  * entry sectors instead of one heavy push.
  */
 function planDepot(c: PlanContext): void {
-  const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const r = ri(rng, 3, 4);
+  const { ccU, ccV, putWall, towerSpots } = c;
+  // Two out, always: the 20x30 ring's three or four, at two units a cell,
+  // with room inside it for the post and a gun on each side.
+  const r = 2;
+  // Walls on the ring's corners and half-sides, with its four gates at the
+  // middle of each side — one cell, as every gate on this board is.
   for (let i = -r; i <= r; i++) {
-    if (Math.abs(i) > 1) {
+    if (i !== 0) {
       putWall(ccU + i, ccV - r);
       putWall(ccU + i, ccV + r);
       putWall(ccU - r, ccV + i);
@@ -744,15 +792,16 @@ function planDepot(c: PlanContext): void {
     }
   }
   for (const [px, py] of depotSpots(c)) {
-    for (let i = -2; i <= 2; i++) {
-      if (Math.abs(i) > 1) {
-        putWall(px + i, py - 2);
-        putWall(px + i, py + 2);
-      }
-    }
-    towerSpots.push([px, py - 3]);
+    // A pen is its four corners: enough to say "this is a pen", open on
+    // every side, which is what the five-cell pens at 20x30 were at a quarter
+    // of the scale.
+    putWall(px - 1, py - 1);
+    putWall(px - 1, py + 1);
+    putWall(px + 1, py - 1);
+    putWall(px + 1, py + 1);
+    towerSpots.push([px - 2, py]);
   }
-  towerSpots.push([ccU, ccV - r - 1], [ccU, ccV + r + 2], [ccU - r - 1, ccV], [ccU + r + 2, ccV]);
+  towerSpots.push([ccU, ccV - r - 1], [ccU, ccV + r + 1], [ccU - r - 1, ccV], [ccU + r + 1, ccV]);
 }
 
 /** The four corner pens a dispersed depot keeps its stores in. */
@@ -760,10 +809,10 @@ function depotSpots(c: PlanContext): [number, number][] {
   const { rng } = c;
   const inset = ri(rng, 0, 1);
   return [
-    [6 + inset, 5 + inset],
-    [MAP_U - 8 - inset, 5 + inset],
-    [6 + inset, MAP_V - 6 - inset],
-    [MAP_U - 8 - inset, MAP_V - 6 - inset],
+    [3 + inset, 2],
+    [MAP_U - 3 - inset, 2],
+    [3 + inset, MAP_V - 3],
+    [MAP_U - 3 - inset, MAP_V - 3],
   ];
 }
 
@@ -776,13 +825,13 @@ function planStrongpoints(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
   const pens: [number, number][] = [
     [ccU, ccV],
-    [ccU - ri(rng, 8, 10), ccV - ri(rng, 4, 6)],
-    [ccU - ri(rng, 8, 10), ccV + ri(rng, 4, 6)],
-    [ccU + ri(rng, 5, 7), ccV + ri(rng, 5, 7) * (rng() < 0.5 ? -1 : 1)],
+    [ccU - ri(rng, 4, 5), ccV - ri(rng, 2, 3)],
+    [ccU - ri(rng, 4, 5), ccV + ri(rng, 2, 3)],
+    [ccU + ri(rng, 3, 4), ccV + ri(rng, 2, 3) * (rng() < 0.5 ? -1 : 1)],
   ];
   pens.forEach(([px, py], index) => {
-    const r = index === 0 ? 4 : 3;
-    const gap = ri(rng, -1, 1);
+    const r = index === 0 ? 2 : 1;
+    const gap = ri(rng, -1, 1) * (index === 0 ? 1 : 0);
     for (let i = -r; i <= r; i++) {
       if (i !== gap) {
         putWall(px + i, py - r);
@@ -793,40 +842,58 @@ function planStrongpoints(c: PlanContext): void {
         putWall(px + r, py + i);
       }
     }
-    towerSpots.push([px + (index === 0 ? 2 : 0), py + (index === 0 ? -2 : 1)]);
+    // The command post's pen has room for a gun beside it; a small pen's gun
+    // IS what it holds.
+    towerSpots.push([px + (index === 0 ? 1 : 0), py + (index === 0 ? -1 : 0)]);
   });
-  towerSpots.push([ccU - 4, ccV], [ccU + 5, ccV], [ccU, ccV - 5], [ccU, ccV + 6]);
+  towerSpots.push([ccU - 3, ccV], [ccU + 3, ccV], [ccU, ccV - 3], [ccU, ccV + 3]);
 }
 
 /**
  * Two concentric rings with their gates on opposite sides, so the way in is
  * long even though the base is small, and the guns between the rings all cover
  * each other. The shape that rewards spending ordnance before walking in.
+ *
+ * At 10x15 the outer ring is deeper than it is wide (M34). A square one can be
+ * three cells from the post at most across a ten-cell line, which leaves ONE
+ * row between the rings — and a gun standing in a one-row corridor is a wall
+ * across it: 81 of 84 keeps came out sealed. Four rows deep and three across,
+ * the bands in front of and behind the post are two rows, and the guns stand
+ * in their outer row with the walk going past them.
  */
 function planKeep(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const inner = 4;
-  const outer = ringFit(ccV, ri(rng, 7, 8));
+  const inner = 1;
+  const outerV = ringFit(ccV, ri(rng, 3, 4));
+  const outerU = outerV + 1;
   const innerGate = ri(rng, 0, 3);
   const outerGate = (innerGate + 2) % 4;
-  const ring = (r: number, gate: number): void => {
-    for (let i = -r; i <= r; i++) {
-      const skipTop = gate === 0 && Math.abs(i) <= 1;
-      const skipBottom = gate === 1 && Math.abs(i) <= 1;
-      const skipLeft = gate === 2 && Math.abs(i) <= 1;
-      const skipRight = gate === 3 && Math.abs(i) <= 1;
-      if (!skipTop) putWall(ccU + i, ccV - r);
-      if (!skipBottom) putWall(ccU + i, ccV + r);
-      if (!skipLeft) putWall(ccU - r, ccV + i);
-      if (!skipRight) putWall(ccU + r, ccV + i);
+  // Sides 0 and 1 are the walls ACROSS from the post, 2 and 3 the faces in
+  // front of it and behind it; a gate is the middle cell of its side.
+  const ring = (ru: number, rv: number, gate: number): void => {
+    for (let i = -ru; i <= ru; i++) {
+      if (!(gate === 0 && i === 0)) putWall(ccU + i, ccV - rv);
+      if (!(gate === 1 && i === 0)) putWall(ccU + i, ccV + rv);
+    }
+    for (let i = -rv; i <= rv; i++) {
+      if (!(gate === 2 && i === 0)) putWall(ccU - ru, ccV + i);
+      if (!(gate === 3 && i === 0)) putWall(ccU + ru, ccV + i);
     }
   };
-  ring(inner, innerGate);
-  ring(outer, outerGate);
-  const mid = Math.round((inner + outer) / 2);
+  ring(inner, inner, innerGate);
+  ring(outerU, outerV, outerGate);
+  // The ring of cells right outside the inner ring is the walk between the
+  // gates, and it is kept clear: two structures in one column of a two-row
+  // band close it as surely as one in a one-row corridor.
+  for (let du = -2; du <= 2; du++) {
+    for (let dv = -2; dv <= 2; dv++) {
+      if (Math.max(Math.abs(du), Math.abs(dv)) === 2) c.keepClear(ccU + du, ccV + dv);
+    }
+  }
+  const band = outerU - 1;
   towerSpots.push(
-    [ccU - mid, ccV - mid], [ccU + mid, ccV - mid], [ccU - mid, ccV + mid], [ccU + mid, ccV + mid],
-    [ccU, ccV - mid], [ccU, ccV + mid + 1], [ccU - mid, ccV], [ccU + mid + 1, ccV],
+    [ccU - band, ccV - 2], [ccU - band, ccV + 2], [ccU + band, ccV - 2], [ccU + band, ccV + 2],
+    [ccU - band, ccV], [ccU + band, ccV], [ccU - band, ccV - 1], [ccU + band, ccV + 1],
   );
 }
 
@@ -837,18 +904,16 @@ function planKeep(c: PlanContext): void {
  */
 function planBunker(c: PlanContext): void {
   const { rng, ccU, ccV, putWall, towerSpots } = c;
-  const face = ccU - ri(rng, 5, 6);
-  const half = ri(rng, 5, 7);
+  // One row: two units thick, which is what the two rows of 20x30 were.
+  const face = ccU - 3;
+  const half = ri(rng, 2, 3);
   for (let y = ccV - half; y <= ccV + half; y++) {
-    if (Math.abs(y - ccV) > 1) {
-      putWall(face, y);
-      putWall(face - 1, y);
-    }
+    if (y !== ccV) putWall(face, y);
   }
   towerSpots.push(
-    [face + 2, ccV - 3], [face + 2, ccV + 4], [face + 4, ccV],
-    [ccU - 2, ccV - 4], [ccU - 2, ccV + 5], [ccU + 3, ccV - 2], [ccU + 3, ccV + 3],
-    [ccU, ccV - 6], [ccU, ccV + 7], [face + 3, ccV - 6], [face + 3, ccV + 7],
+    [face + 1, ccV - 2], [face + 1, ccV + 2], [face + 2, ccV + 1],
+    [ccU - 1, ccV - 2], [ccU - 1, ccV + 2], [ccU + 1, ccV - 1], [ccU + 1, ccV + 1],
+    [ccU, ccV - 3], [ccU, ccV + 3], [face + 1, ccV - 3], [face + 1, ccV + 3],
   );
 }
 
@@ -899,8 +964,8 @@ export function generateBase(
   // it can land in is handed to the generator as ground to keep dry.
   const terrainSeed = (Math.imul(seed, 2654435761) ^ 0x517cc1b7) >>> 0;
   const ccBox: CellIndex[] = [];
-  for (let v = 8; v <= 11; v++) {
-    for (let u = 12; u <= 17; u++) ccBox.push(idx(realX(u, v), realY(u, v)));
+  for (let v = 4; v <= 5; v++) {
+    for (let u = 6; u <= 8; u++) ccBox.push(idx(realX(u, v), realY(u, v)));
   }
   const terrain = generateTerrain(
     terrainSeed,
@@ -919,14 +984,12 @@ export function generateBase(
   occupancy.block(water);
 
   // The post sits deep and central: `ccU` is how far in from the attack, `ccV`
-  // how far along the line.
-  // Depth is one cell shallower than the old board's 13-17, because the board
-  // is two cells shallower; across is re-centred on a 20-cell line instead of
-  // a 24-cell one. The approach a raider walks is otherwise what it was.
-  const ccU = ri(rng, 12, 16);
-  const ccV = ri(rng, 8, 10);
+  // how far along the line. Rows 6-8 of 15 and columns 4-5 of 10 are the
+  // 12-16 and 8-10 of 20x30 at two units a cell; the box above keeps them dry.
+  const ccU = ri(rng, 6, 8);
+  const ccV = ri(rng, 4, 5);
   const ccOrigin = idx(realX(ccU, ccV), realY(ccU, ccV));
-  occupancy.block(footprint2(ccOrigin));
+  occupancy.block(footprintBig(ccOrigin));
 
   const putStructure = (
     kind: string,
@@ -936,8 +999,11 @@ export function generateBase(
     at = level,
   ): boolean => {
     const origin = idx(realX(u, v), realY(u, v));
-    const cells = big ? footprint2(origin) : [origin];
-    if (v < 1 || v + (big ? 1 : 0) > MAP_V - 2 || !occupancy.free(cells)) return false;
+    const cells = big ? footprintBig(origin) : [origin];
+    const reach = cells.length > 1 ? 1 : 0;
+    if (u < 1 || u + reach > MAP_U - 1 || v < 1 || v + reach > MAP_V - 2 || !occupancy.free(cells)) {
+      return false;
+    }
     occupancy.block(cells);
     // Compound mounts stay at level 1 however deep the ladder goes. They are
     // there to answer rotors, not to be a quiet ground-defence buff on every
@@ -948,7 +1014,8 @@ export function generateBase(
   };
 
   const putWall = (u: number, v: number): void => {
-    if (u < 2 || u > MAP_U - 2 || v < 1 || v > MAP_V - 2) return;
+    // Clear of the entry row, as two rows of 20x30 were, and of both edges.
+    if (u < 1 || u > MAP_U - 2 || v < 1 || v > MAP_V - 2) return;
     const cell = idx(realX(u, v), realY(u, v));
     if (!occupancy.free([cell])) return;
     occupancy.block([cell]);
@@ -956,14 +1023,63 @@ export function generateBase(
   };
 
   const towerSpots: [number, number][] = [];
-  const plan: PlanContext = { rng, tier, ccU, ccV, putWall, towerSpots };
+  const declared: CellIndex[] = [];
+  const keepClear = (u: number, v: number): void => {
+    if (u < 0 || u >= MAP_U || v < 0 || v >= MAP_V) return;
+    declared.push(idx(realX(u, v), realY(u, v)));
+  };
+  // The post's four sides are always a way to stand at it. At 20x30 it was
+  // two cells wide with eight around it; one cell has four, and four guns
+  // jittered onto them made a post nobody could reach without breaking one.
+  keepClear(ccU - 1, ccV);
+  keepClear(ccU + 1, ccV);
+  keepClear(ccU, ccV - 1);
+  keepClear(ccU, ccV + 1);
+  const plan: PlanContext = { rng, tier, ccU, ccV, putWall, keepClear, towerSpots };
+
+  // ---- walls: the archetype decides the shape of the problem ----
+  // First, since M34, and then the walkways they leave are kept clear. At
+  // 20x30 a gate was three cells and a corridor between rings three wide, so
+  // nothing that landed in one could close it; at two units a cell both are
+  // one cell, and a store or a gun in it IS the way in, closed. A walkway is
+  // any open cell with wall on two opposite sides — a gate in a line, a cell
+  // of a one-wide corridor — together with the open cells in front of and
+  // behind it. Nothing is built there, and the walls-first order is what lets
+  // the economy see where they are.
+  arch.walls(plan);
+  const wallAt = new Set(walls.map((w) => w.cell));
+  const isWall = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < MAP_W && y < MAP_H && wallAt.has(y * MAP_W + x);
+  const walkway: CellIndex[] = [];
+  for (let cell = 0; cell < MAP_W * MAP_H; cell++) {
+    if (wallAt.has(cell)) continue;
+    const x = cell % MAP_W;
+    const y = Math.floor(cell / MAP_W);
+    const across = isWall(x - 1, y) && isWall(x + 1, y);
+    const along = isWall(x, y - 1) && isWall(x, y + 1);
+    if (!across && !along) continue;
+    walkway.push(cell);
+    // In front of and behind a gap in a LINE: the cells a gate opens onto. A
+    // line is wall that carries on past the gap's own two neighbours; a pen's
+    // four corners do not, and a store in the middle of its pen blocks nobody.
+    if (across && (isWall(x - 2, y) || isWall(x + 2, y))) {
+      if (y > 0 && !wallAt.has(cell - MAP_W)) walkway.push(cell - MAP_W);
+      if (y < MAP_H - 1 && !wallAt.has(cell + MAP_W)) walkway.push(cell + MAP_W);
+    }
+    if (along && (isWall(x, y - 2) || isWall(x, y + 2))) {
+      if (x > 0 && !wallAt.has(cell - 1)) walkway.push(cell - 1);
+      if (x < MAP_W - 1 && !wallAt.has(cell + 1)) walkway.push(cell + 1);
+    }
+  }
+  occupancy.block(walkway);
+  occupancy.block(declared);
 
   // ---- economy: caches and dumps, where the shape keeps them ----
   const cacheCount = Math.max(1, Math.round(Math.min(4, 2 + Math.floor(tier / 3)) * arch.economy));
   const dumpCount = Math.max(1, Math.round(Math.min(3, 1 + Math.floor(tier / 4)) * arch.economy));
   const economySpots: [number, number][] = arch.economySpots?.(plan) ?? [
-    [ccU - 5, ccV - 4], [ccU + 4, ccV - 4], [ccU - 5, ccV + 3], [ccU + 4, ccV + 3],
-    [ccU - 6, ccV], [ccU + 5, ccV], [ccU, ccV - 5], [ccU, ccV + 4],
+    [ccU - 3, ccV - 2], [ccU + 2, ccV - 2], [ccU - 3, ccV + 2], [ccU + 2, ccV + 2],
+    [ccU - 3, ccV], [ccU + 3, ccV], [ccU, ccV - 3], [ccU, ccV + 3],
   ];
   // Seeded shuffle.
   for (let i = economySpots.length - 1; i > 0; i--) {
@@ -973,17 +1089,31 @@ export function generateBase(
   let spotIndex = 0;
   const nextSpot = (): [number, number] | null =>
     spotIndex < economySpots.length ? economySpots[spotIndex++]! : null;
+  // The jitter is variety, and a store is loot, so it is never lost to it:
+  // the jittered cell, then the spot itself, then outward ring by ring. A wall
+  // or a walkway can hold a store's spot now, which it could not when stores
+  // went down before the walls.
+  const putStore = (kind: string, u: number, v: number, du: number, dv: number): void => {
+    if (putStructure(kind, u + du, v + dv, true)) return;
+    for (let r = 0; r <= 2; r++) {
+      for (let a = -r; a <= r; a++) {
+        for (let b = -r; b <= r; b++) {
+          if (Math.max(Math.abs(a), Math.abs(b)) !== r) continue;
+          if (putStructure(kind, u + a, v + b, true)) return;
+        }
+      }
+    }
+  };
   for (let i = 0; i < cacheCount; i++) {
     const spot = nextSpot();
-    if (spot) putStructure(kit.cache, spot[0] + ri(rng, -1, 1), spot[1], true);
+    const ju = ri(rng, -1, 1);
+    if (spot) putStore(kit.cache, spot[0], spot[1], ju, 0);
   }
   for (let i = 0; i < dumpCount; i++) {
     const spot = nextSpot();
-    if (spot) putStructure(kit.dump, spot[0], spot[1] + ri(rng, -1, 0), true);
+    const jv = ri(rng, -1, 0);
+    if (spot) putStore(kit.dump, spot[0], spot[1], 0, jv);
   }
-
-  // ---- walls: the archetype decides the shape of the problem ----
-  arch.walls(plan);
 
   // ---- towers ------------------------------------------------------------------
   // Unchanged, and deliberately so — see the ROADMAP's open item. This steps
@@ -1044,9 +1174,19 @@ export function generateBase(
     }
   }
   // Fill any shortfall with guards hugging the command post.
+  // Then outward, ring by ring: at two units a cell the walkways take cells a
+  // gun used to stand on, and a rung is priced by its gun count, so a gun that
+  // does not fit its spot goes on the next ring out rather than missing.
   const fallback: [number, number][] = [
-    [ccU - 2, ccV - 1], [ccU + 3, ccV - 1], [ccU - 2, ccV + 2], [ccU + 3, ccV + 2],
+    [ccU - 1, ccV - 1], [ccU + 1, ccV - 1], [ccU - 1, ccV + 1], [ccU + 1, ccV + 1],
   ];
+  for (let r = 2; r <= 4; r++) {
+    for (let du = -r; du <= r; du++) {
+      for (let dv = -r; dv <= r; dv++) {
+        if (Math.max(Math.abs(du), Math.abs(dv)) === r) fallback.push([ccU + du, ccV + dv]);
+      }
+    }
+  }
   for (let i = 0; i < fallback.length && (placed < towerCount || mounts < aaCount); i++) {
     const wantAa = mounts < aaCount;
     const kind = wantAa ? kit.aa : towerKind(placed);

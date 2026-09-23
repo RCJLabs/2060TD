@@ -2,16 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { buildAssault } from '../src/content/assaults';
 import { missionSiege } from '../src/content/campaign';
 import { campaignFor, defenseCatalogFor, enemyRosterFor, FACTION_IDS } from '../src/content/factions';
-import { siegeConfig, TOWN_GRID } from '../src/meta/town';
+import { V1_GRID } from '../src/meta/regrid';
 import { cellOf, coarsenConfig, refineConfig } from '../src/sim/board';
 import { Engine } from '../src/sim/engine';
 import { createRng } from '../src/sim/rng';
 import { TERRAIN_NONE } from '../src/sim/terrain';
 import type { LayoutWall, SimConfig } from '../src/sim/types';
-import { yardTown } from './helpers';
 
-const W = TOWN_GRID.width; // 20
-const H = TOWN_GRID.height; // 30
+// The rule maps the 20x30 board of v1.40-v1.44 onto this one, so these tests
+// are written against THAT board by name, not against whatever the town is.
+const W = V1_GRID.width; // 20
+const H = V1_GRID.height; // 30
 const at = (u: number, v: number) => u * W + v;
 const catalog = defenseCatalogFor('usa');
 
@@ -22,7 +23,7 @@ function board(walls: LayoutWall[] = [], structures: SimConfig['layout'] extends
     width: W,
     height: H,
     seed: 1,
-    ccOrigin: TOWN_GRID.ccOrigin,
+    ccOrigin: V1_GRID.ccOrigin,
     spawnLane: 0,
     spawnEdge: 'north',
     layout: { walls, structures },
@@ -44,9 +45,10 @@ function row(config: SimConfig, U: number): string {
   return s;
 }
 
-/** A flat siege on the town board, so the terrain refusal does not fire. */
+/** A flat siege on the 20x30 board, as a town battle there was built. */
 const flatSiege = (level: number): SimConfig => ({
-  ...siegeConfig(yardTown(1_800_000_000_000), 7),
+  ...board(),
+  seed: 7,
   terrainVersion: TERRAIN_NONE,
   siege: { ...buildAssault(level, enemyRosterFor('usa')), startingSupplies: 0 },
 });
@@ -77,7 +79,7 @@ describe('one rule for a coarser board (M34)', () => {
     expect(cellOf(10, 2)).toBe(5); // the lone "centre" column: right of 4.5
     // And the post: a 2x2 straddling the axis at columns 9-10 becomes a 1x1,
     // and a 10-wide board has no centre column to put it in.
-    expect(cellOf(TOWN_GRID.ccOrigin % W, 2)).toBe(4);
+    expect(cellOf(V1_GRID.ccOrigin % W, 2)).toBe(4);
   });
 
   it('at a factor of 1 the config is the config', () => {

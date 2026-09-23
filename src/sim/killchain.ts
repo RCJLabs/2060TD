@@ -72,15 +72,26 @@ export const CHAIN_BREACH = 1;
  */
 export const CHAIN_SPENT = 2;
 
-/** The shipped model. New configs name this; nothing else should. */
-export const CHAIN_CURRENT = 3;
 /**
- * A CANDIDATE, not current (M34): version 3, plus an assault that goes after
- * the guns covering its post instead of standing on it. See
- * `ChainModel.engageCover`. It becomes current only if the measurements that
- * motivated it say it should.
+ * The staged chain with a latched breach — current from v1.41.2 until M34,
+ * and what every 20x30 battle since then was fought on.
+ */
+export const CHAIN_LATCHED = 3;
+/**
+ * Version 3 plus an assault that goes after the guns covering its post
+ * instead of standing on it (M34). See `ChainModel.engageCover`.
  */
 export const CHAIN_ENGAGE = 4;
+/**
+ * The shipped model. New configs name this; nothing else should.
+ *
+ * Version 4 since M34. On the 10x15 board version 3 is held by its stall rule
+ * rather than by the guns: mid and late rows plateau at 40-55% held and never
+ * fall, and 54% of the defence matrix's defender wins include a stall
+ * wipe-out. Version 4's crews go after the gun that is keeping them off the
+ * post, and every row falls.
+ */
+export const CHAIN_CURRENT = CHAIN_ENGAGE;
 
 /** Where a raid has got to. `down` means the post has fallen. */
 export type ChainStage = 'breach' | 'suppress' | 'charge' | 'burn' | 'down';
@@ -312,7 +323,7 @@ const spentAssault: ChainModel = {
  */
 const latched: ChainModel = {
   ...spentAssault,
-  version: CHAIN_CURRENT,
+  version: CHAIN_LATCHED,
   label: 'breach, suppress, charge, burn; a breach stays open',
   latchOpen: true,
 };
@@ -329,7 +340,7 @@ export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_NONE]: sponge,
   [CHAIN_BREACH]: theBreach,
   [CHAIN_SPENT]: spentAssault,
-  [CHAIN_CURRENT]: latched,
+  [CHAIN_LATCHED]: latched,
   [CHAIN_ENGAGE]: huntTheCover,
 };
 

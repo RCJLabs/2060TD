@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assaultLoot, buildAssault } from '../src/content/assaults';
 import { TOWN_GRID } from '../src/meta/town';
+import { siegeOnBoard } from '../src/sim/board';
 
 const kindCount = (level: number, kind: string): number =>
   buildAssault(level)
@@ -43,8 +44,11 @@ describe('assault ladder generator', () => {
     // belongs to the config's entry edge, not to this test — so what is
     // checked is the property that survives a rotation: every entry names a
     // position, and every position it names is on the board.
+    //
+    // Since M34 an assault is authored in physical units, so "on the board"
+    // is asked of the waves the battle is given — through the same seam.
     for (const level of [1, 3, 6, 10]) {
-      for (const wave of buildAssault(level).waves) {
+      for (const wave of siegeOnBoard(buildAssault(level), TOWN_GRID.cellSize).waves) {
         for (const entry of wave.entries) {
           expect(entry.col ?? entry.row, 'an entry that names no position').toBeDefined();
           if (entry.col !== undefined) {

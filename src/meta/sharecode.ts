@@ -250,7 +250,7 @@ export function decodeBase(raw: string): DecodeResult {
 
   let base = { faction, name: cleanName(name), ccOrigin, ccLevel, walls, structures };
   if (gridVersion < TOWN_GRID.version) {
-    const moved = regridShared(base);
+    const moved = regridShared(base, gridVersion);
     if (!moved) return { ok: false, error: 'content' };
     base = moved;
     // The old ground described a board that is not there any more, so it is
@@ -280,14 +280,17 @@ const onBoard = (cell: number): boolean => cell >= 0 && cell < MAP_W * MAP_H;
  * post itself has nowhere to go, which no real code produces and a corrupt
  * one might.
  */
-function regridShared(base: {
-  faction: FactionId;
-  name: string;
-  ccOrigin: CellIndex;
-  ccLevel: number;
-  walls: LayoutWall[];
-  structures: LayoutStructure[];
-}): typeof base | null {
+function regridShared(
+  base: {
+    faction: FactionId;
+    name: string;
+    ccOrigin: CellIndex;
+    ccLevel: number;
+    walls: LayoutWall[];
+    structures: LayoutStructure[];
+  },
+  gridVersion: number,
+): typeof base | null {
   const target = {
     structures: [
       { id: 0, kind: 'cc', cell: base.ccOrigin, level: base.ccLevel, wrecked: false },
@@ -301,7 +304,7 @@ function regridShared(base: {
     ],
     walls: base.walls.map((w) => ({ cell: w.cell, kind: w.kind })),
   };
-  regridTown(target);
+  regridTown(target, gridVersion);
   const cc = target.structures.find((st) => st.kind === 'cc');
   if (!cc) return null;
   return {
