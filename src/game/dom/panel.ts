@@ -94,6 +94,8 @@ export class DomPanel implements PanelApi, PanelProbe {
   /** When the list last moved with no finger on it: a coast, however brief. */
   private coastAt = -Infinity;
   private fingers = new Set<number>();
+  /** Recent scroll positions, for the speed a lifted finger leaves behind. */
+  private samples: { t: number; top: number }[] = [];
 
   /** The press this panel is judging: which way it is going, and from where. */
   private press: {
@@ -567,7 +569,42 @@ export class DomPanel implements PanelApi, PanelProbe {
 
   private bindList(): void {
     const list = this.list;
-    list.addEventListener('scroll', () => this.updateHint(), { passive: true });
+    list.addEventListener(
+      'scroll',
+      () => {
+        this.updateHint();
+        this.sample();
+      },
+      { passive: true },
+    );
+    // The lift, as the list sees it. A touch the browser is scrolling for gets
+    // a pointercancel when the pan begins and no pointerup at the end, so the
+    // moment the finger leaves is read from the touch itself. The canvas panel
+    // knows its throw speed at the lift, because it is the one throwing; the
+    // browser does not say, so it is measured from the last few samples, and
+    // the per-frame reading takes over once the coast has moved the list.
+    list.addEventListener(
+      'touchend',
+      () => {
+        const speed = this.recentSpeed();
+        if (speed > 0.5) {
+          this.fling = speed;
+          this.coastAt = performance.now();
+        }
+      },
+      { passive: true },
+    );
+    // A press anywhere else stops the coast: a throw that is still coasting
+    // belongs to the gesture that threw it, and a drawer still moving while
+    // the next drag pans the map is one finger moving two things.
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (this.dead || list.contains(e.target as Node)) return;
+        if (this.fling > 0.5 || performance.now() - this.coastAt < 120) this.stopCoast();
+      },
+      { capture: true },
+    );
 
     // Capture phase: this sees every press in the list before the row does.
     list.addEventListener(
@@ -703,12 +740,45 @@ export class DomPanel implements PanelApi, PanelProbe {
     haptic('tap');
   }
 
-  /** Per frame: how fast the list is coasting, for the probe and the catch. */
+  /** Note where the list is now, keeping the last tenth of a second. */
+  private sample(): void {
+    const now = performance.now();
+    this.samples.push({ t: now, top: this.list.scrollTop });
+    while (this.samples.length > 2 && now - this.samples[0]!.t > 100) this.samples.shift();
+  }
+
+  /** Device px per frame over the recent samples. */
+  private recentSpeed(): number {
+    const first = this.samples[0];
+    const last = this.samples[this.samples.length - 1];
+    if (!first || !last || last.t - first.t < 1) return 0;
+    return (Math.abs(last.top - first.top) / (last.t - first.t)) * (1000 / 60) * dpr();
+  }
+
+  /** Stop the list where it is. Setting the position ends the platform's coast. */
+  private stopCoast(): void {
+    const top = this.list.scrollTop;
+    this.list.scrollTop = top;
+    this.lastScrollTop = top;
+    this.samples = [];
+    this.fling = 0;
+    this.coastAt = -Infinity;
+  }
+
+  /**
+   * Per frame: how fast the list is coasting, for the probe and the catch.
+   *
+   * Held for a frame or two rather than read raw: the platform's coast does
+   * not move the list on every frame the game draws, and a single still frame
+   * read as "stopped" said a thrown list was at rest while it was travelling.
+   */
   private step(): void {
     const top = this.list.scrollTop;
     const moved = Math.abs(top - this.lastScrollTop) * dpr();
     this.lastScrollTop = top;
-    this.fling = this.fingers.size === 0 && !this.press ? moved : 0;
+    this.sample();
+    this.fling = this.fingers.size === 0 && !this.press ? Math.max(moved, this.fling * 0.5) : 0;
+    if (this.fling < 0.25) this.fling = 0;
     if (this.fling > 0.5) this.coastAt = performance.now();
   }
 
