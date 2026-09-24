@@ -406,7 +406,21 @@ export class BattleRenderer {
           wallDps: attacker.profile.wallDps,
         });
 
-        if (attacker.state === 'breaking') {
+        if (attacker.pinnedUntil > this.engine.tick) {
+          // Pinned under a fire mission (kill chain 6): four short strokes
+          // closing on the unit, the page's mark for "under fire". It is doing
+          // nothing else, so it wears no other ring.
+          g.lineStyle(Math.max(1.5, c * 0.05), COLORS.alarm, 0.95);
+          for (let k = 0; k < 4; k++) {
+            const a = Math.PI / 4 + (k * Math.PI) / 2;
+            g.lineBetween(
+              px + Math.cos(a) * c * 0.46,
+              y + Math.sin(a) * c * 0.46,
+              px + Math.cos(a) * c * 0.3,
+              y + Math.sin(a) * c * 0.3,
+            );
+          }
+        } else if (attacker.state === 'breaking') {
           g.lineStyle(2, COLORS.tracer, 0.8);
           g.strokeCircle(px, y, 12);
         } else if (attacker.state === 'engaging') {

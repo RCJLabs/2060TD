@@ -1,3 +1,5 @@
+import type { ArmorClass } from './types';
+
 /**
  * The kill chain (v1.41) — what taking a command post actually IS.
  *
@@ -90,14 +92,20 @@ export const CHAIN_ENGAGE = 4;
  */
 export const CHAIN_AIMED = 5;
 /**
+ * Version 5 plus a fire mission that pins what it lands on (M23 Phase 5). See
+ * `ChainModel.pinSeconds`.
+ */
+export const CHAIN_PINNED = 6;
+/**
  * The shipped model. New configs name this; nothing else should.
  *
  * Version 4 from M34: on the 10x15 board version 3 is held by its stall rule
  * rather than by the guns, and version 4's crews go after the gun that is
  * keeping them off the post. Version 5 from M23 Phase 3c, which is version 4
- * with a duty officer who can aim.
+ * with a duty officer who can aim. Version 6 from M23 Phase 5, which is
+ * version 5 with fire missions the chain can see.
  */
-export const CHAIN_CURRENT = CHAIN_AIMED;
+export const CHAIN_CURRENT = CHAIN_PINNED;
 
 /** Where a raid has got to. `down` means the post has fallen. */
 export type ChainStage = 'breach' | 'suppress' | 'charge' | 'burn' | 'down';
@@ -255,6 +263,40 @@ export interface ChainModel {
    * change.
    */
   readonly leadFire: boolean;
+  /**
+   * Seconds a unit caught under a fire mission spends pinned (M23 Phase 5):
+   * it does not move, shoot, dig or hold, so it moves no stage of the chain.
+   *
+   * M23 Phase 3c found that on the contested band a gun decides battles and a
+   * fire mission only stirs them, and put it down to the chain: killing a few
+   * of the men walking up to the post moves nothing it counts. A pinned unit
+   * is something it counts, at every stage. It adds no demolition at BREACH,
+   * its gun is silent against the ones holding SUPPRESS shut, it is not one
+   * of the crew at CHARGE and it holds nothing while the post BURNS.
+   *
+   * Pinning is not a knob tuned to a target. Five, eight and twelve seconds
+   * all make a gun run on the assault a starred verb, at +11, +13 and +15
+   * held on the band. Eight is long enough to see: the crew goes down and the
+   * bar stops. Only fire missions pin. A mortar and a mine do damage, as they
+   * always have, because pinning from a gun that fires all battle would be a
+   * new permanent layer rather than a new verb.
+   *
+   * 0 is every version before this field existed, where a strike does
+   * damage and nothing else.
+   */
+  readonly pinSeconds: number;
+  /**
+   * The armour classes a fire mission pins. Aircraft are never under one.
+   *
+   * Every ground class, and the measurement is why: the pin's worth is
+   * almost all in the heavies. On the band, pinning tanks alone gives a gun
+   * run on the assault +12 of the +13 that pinning everything does, and
+   * pinning only infantry and light vehicles gives +7, against +6 for the
+   * same order with no pin at all. A tank is the unit that digs hardest at
+   * BREACH and shells the guns from standoff, and the one a fire mission is
+   * least likely to kill.
+   */
+  readonly pinArmor: readonly ArmorClass[];
 }
 
 const sponge: ChainModel = {
@@ -272,6 +314,8 @@ const sponge: ChainModel = {
   engageCover: false,
   aimToScale: false,
   leadFire: false,
+  pinSeconds: 0,
+  pinArmor: [],
 };
 
 /**
@@ -325,6 +369,8 @@ const theBreach: ChainModel = {
   engageCover: false,
   aimToScale: false,
   leadFire: false,
+  pinSeconds: 0,
+  pinArmor: [],
 };
 
 /**
@@ -402,6 +448,23 @@ const aimed: ChainModel = {
   leadFire: true,
 };
 
+/**
+ * M23 Phase 5: the same chain, with fire missions it can see.
+ *
+ * A fire mission pins every ground unit it lands on, and the pin is what the
+ * chain reads: a pinned unit adds nothing to the stage it is at. See
+ * `ChainModel.pinSeconds` for what was measured.
+ */
+const pinned: ChainModel = {
+  ...aimed,
+  version: CHAIN_PINNED,
+  label:
+    'breach, suppress, charge, burn; the crew hunts the guns; orders aim to scale and lead; ' +
+    'a fire mission pins what it lands on',
+  pinSeconds: 8,
+  pinArmor: ['none', 'light', 'heavy'],
+};
+
 /** The version registry. A version is frozen: a new model is a new number. */
 export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_NONE]: sponge,
@@ -410,6 +473,7 @@ export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_LATCHED]: latched,
   [CHAIN_ENGAGE]: huntTheCover,
   [CHAIN_AIMED]: aimed,
+  [CHAIN_PINNED]: pinned,
 };
 
 /**

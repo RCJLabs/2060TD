@@ -617,6 +617,9 @@ export class SiegeScene extends Phaser.Scene {
           });
         }
         rows.push({ id: 'hint', label: 'Arm a power, then tap the map.', heading: true });
+        if (e.pinSeconds > 0) {
+          rows.push({ id: 'pin', label: `What it lands on is pinned ${e.pinSeconds}s.`, heading: true });
+        }
         return rows;
       }
       case 'intel': {

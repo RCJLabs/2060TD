@@ -25,6 +25,7 @@ import type {
   SimConfig,
   SimEvent,
   SimStats,
+  StandingOrderRule,
   StandingOrderTarget,
   StructureProfile,
   TargetLayer,
@@ -119,6 +120,11 @@ export interface Attacker {
   pathVersion: number;
   state: 'moving' | 'breaking' | 'engaging' | 'assaulting' | 'stuck';
   weaponCooldown: number;
+  /**
+   * The tick a fire mission's pin lifts (M23 Phase 5); pinned while the clock
+   * is short of it. Always 0 on a chain that does not pin.
+   */
+  pinnedUntil: number;
 }
 
 /**
@@ -686,6 +692,7 @@ export class Engine {
       pathVersion: -1,
       state: 'moving',
       weaponCooldown: 0,
+      pinnedUntil: 0,
     };
     this.attackers.push(attacker);
     this.stats.spawned++;
@@ -906,15 +913,26 @@ export class Engine {
    * The attacker at the heart of the densest knot. `groundOnly` leaves the
    * aircraft out of it, both as the knot and as its neighbours: what a gun run
    * or a barrage is aimed at, since both pass beneath anything flying.
+   * `within` keeps the knot inside that many cells of the post.
    */
-  private densestAttacker(groundOnly: boolean): Attacker | null {
+  private densestAttacker(groundOnly: boolean, within = Infinity): Attacker | null {
+    return this.densestKnot(groundOnly, within)?.lead ?? null;
+  }
+
+  /** The densest knot, and how many are in it, its heart included. */
+  private densestKnot(groundOnly: boolean, within = Infinity): { lead: Attacker; count: number } | null {
+    // The knot and its neighbours both have to be inside the ring. Unbounded,
+    // the test never fails, which is every search before M23 Phase 5.
+    const ring = within * within;
+    const outside = (a: Attacker): boolean =>
+      (a.pos.x - this.cc.center.x) ** 2 + (a.pos.y - this.cc.center.y) ** 2 > ring;
     let best: Attacker | null = null;
     let bestCount = -1;
     for (const attacker of this.attackers) {
-      if (attacker.hp <= 0 || (groundOnly && attacker.profile.air)) continue;
+      if (attacker.hp <= 0 || (groundOnly && attacker.profile.air) || outside(attacker)) continue;
       let count = 0;
       for (const other of this.attackers) {
-        if (other.hp <= 0 || (groundOnly && other.profile.air)) continue;
+        if (other.hp <= 0 || (groundOnly && other.profile.air) || outside(other)) continue;
         const dx = other.pos.x - attacker.pos.x;
         const dy = other.pos.y - attacker.pos.y;
         if (dx * dx + dy * dy <= this.aimReach * this.aimReach) count++; // itself included
@@ -924,16 +942,39 @@ export class Engine {
         best = attacker;
       }
     }
-    return best;
+    return best ? { lead: best, count: bestCount } : null;
+  }
+
+  /**
+   * The knot a rule aims at, when it aims at one: the densest knot of the whole
+   * attack for `densest`, and of the ground assault inside the post's cover
+   * ring for `assault` (M23 Phase 5). A fire mission that can lead
+   * (`ChainModel.leadFire`) counts only the ground force it can land on; a
+   * deploy counts everyone, as it always has.
+   */
+  private knotFor(rule: StandingOrderRule): { lead: Attacker; count: number } | null {
+    if (rule.target === 'assault') return this.densestKnot(true, this.assaultRing);
+    if (rule.target === 'densest') return this.densestKnot(rule.action === 'power' && this.chain.leadFire);
+    return null;
+  }
+
+  /**
+   * How far from the post's centre the assault on it is counted (M23 Phase 5):
+   * the ring the chain is fought in, its cover radius. The sponge has no such
+   * ring, so there it is the cells touching the post, where its attackers
+   * stand, rather than a radius of nothing that no order could ever fire into.
+   */
+  private get assaultRing(): number {
+    return this.chain.staged ? this.chain.coverRadius : this.cc.profile.footprint / 2 + 1.5;
   }
 
   /**
    * Where a fire mission on the densest knot is laid (`ChainModel.leadFire`):
    * ahead of the knot's lead attacker, by as far as it will walk before the
-   * middle of the strike arrives.
+   * middle of the strike arrives. `within` is `densestAttacker`'s ring.
    */
-  private fireMissionAim(kind: string): Vec2 | null {
-    const lead = this.densestAttacker(true);
+  private fireMissionAim(kind: string, within = Infinity): Vec2 | null {
+    const lead = this.densestAttacker(true, within);
     if (!lead) return null;
     const def = this.catalog.powers[kind];
     if (!def) return { ...lead.pos };
@@ -969,6 +1010,10 @@ export class Engine {
       anchor = this.lastBreachCell !== null ? this.grid.centerOf(this.lastBreachCell) : null;
     } else if (target === 'densest') {
       anchor = this.densestAttackerCluster();
+    } else if (target === 'assault') {
+      // Beside the assault on the post, where it is standing.
+      const knot = this.densestAttacker(true, this.assaultRing);
+      anchor = knot ? { ...knot.pos } : null;
     } else {
       // ccApproach: between the post and the fight, `AIM_REACH` out.
       const threat = this.densestAttackerCluster();
@@ -1043,6 +1088,13 @@ export class Engine {
         hostiles++;
       }
       if (hostiles < (rule.minHostiles ?? 1)) continue;
+      // Fire discipline (M23 Phase 5). An order that aims at a knot waits for
+      // one worth it; without this a fire mission goes the moment it can be
+      // afforded, onto whichever two men are nearest to being a crowd.
+      if ((rule.minKnot ?? 1) > 1 && (rule.target === 'densest' || rule.target === 'assault')) {
+        const knot = this.knotFor(rule);
+        if (!knot || knot.count < rule.minKnot!) continue;
+      }
 
       let acted = false;
       if (rule.action === 'power' && garrison) {
@@ -1053,9 +1105,12 @@ export class Engine {
             ? { ...this.cc.center }
             : rule.target === 'breach' && this.lastBreachCell !== null
               ? this.grid.centerOf(this.lastBreachCell)
-              : this.chain.leadFire
-                ? this.fireMissionAim(rule.kind)
-                : this.densestAttackerCluster();
+              : rule.target === 'assault'
+                ? // Only while there is one: nobody in the ring is no mission.
+                  this.fireMissionAim(rule.kind, this.assaultRing)
+                : this.chain.leadFire
+                  ? this.fireMissionAim(rule.kind)
+                  : this.densestAttackerCluster();
         if (target) acted = this.castPowerAt(rule.kind, target, events);
       } else {
         const cell = this.orderDeployCell(rule.target, rule.kind);
@@ -1162,6 +1217,18 @@ export class Engine {
     attacker.hp -= raw * roll * cover * this.catalog.damage[type][attacker.profile.armor];
   }
 
+  /**
+   * Pin a unit a fire mission landed on (`ChainModel.pinSeconds`). A second
+   * strike on a unit already pinned keeps it down until the later of the two
+   * lifts; it never shortens a pin.
+   */
+  private pin(attacker: Attacker): void {
+    if (this.chain.pinSeconds <= 0 || attacker.hp <= 0) return;
+    if (!this.chain.pinArmor.includes(attacker.profile.armor)) return;
+    const until = this.tick + Math.round(this.chain.pinSeconds * TICKS_PER_SECOND);
+    if (until > attacker.pinnedUntil) attacker.pinnedUntil = until;
+  }
+
   private damageStructure(
     structure: Structure,
     raw: number,
@@ -1229,6 +1296,7 @@ export class Engine {
           if (inShape(shape, attacker.pos.x, attacker.pos.y)) {
             // A barrage lands where it lands; the canopy does not stop it.
             this.damageAttacker(attacker, impact.damage, impact.damageType, false);
+            this.pin(attacker);
           }
         }
       }
@@ -1520,6 +1588,15 @@ export class Engine {
       // Flying units skip the grid entirely — no path, no walls, no blockers.
       if (attacker.profile.air) {
         this.updateAirAttacker(attacker, target, events);
+        continue;
+      }
+
+      // Pinned under a fire mission (`ChainModel.pinSeconds`): it does not
+      // move, shoot, dig or crew the charge, and it holds nothing while the
+      // post burns. It is still at the objective for the stall clock, which
+      // asks whether the assault is achieving anything, and it is not.
+      if (attacker.pinnedUntil > this.tick) {
+        if (attacker.state === 'assaulting' && target === this.cc && this.chain.staged) this.chainAtPost++;
         continue;
       }
 
@@ -1986,6 +2063,11 @@ export class Engine {
     if (wiped > 0) this.assaultsSpent++;
   }
 
+  /** Seconds a fire mission pins what it lands on; 0 on a chain that does not pin. */
+  get pinSeconds(): number {
+    return this.chain.pinSeconds;
+  }
+
   /**
    * How many times this battle's assault was spent — its holders wiped by the
    * stall rule rather than stopped by the defence (M34). Read-only, outside the
@@ -2314,7 +2396,10 @@ export class Engine {
     }
     for (const a of this.attackers) {
       parts.push(
-        `a${a.id}:${a.profile.kind}:${a.doctrine[0]}${a.targetId}:${a.hp.toFixed(6)}@${a.pos.x.toFixed(6)},${a.pos.y.toFixed(6)}:${a.state}:${a.weaponCooldown.toFixed(6)}`,
+        `a${a.id}:${a.profile.kind}:${a.doctrine[0]}${a.targetId}:${a.hp.toFixed(6)}@${a.pos.x.toFixed(6)},${a.pos.y.toFixed(6)}:${a.state}:${a.weaponCooldown.toFixed(6)}` +
+          // Only while it holds, so a battle nobody is pinned in hashes as it
+          // did on a chain that cannot pin.
+          (a.pinnedUntil > this.tick ? `:pin${a.pinnedUntil}` : ''),
       );
     }
     for (const p of this.projectiles) {

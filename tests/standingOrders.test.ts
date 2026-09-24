@@ -31,7 +31,7 @@ import {
 } from '../src/meta/warfare';
 import { siegeOnBoard } from '../src/sim/board';
 import { Engine } from '../src/sim/engine';
-import { CHAIN_AIMED, CHAIN_ENGAGE } from '../src/sim/killchain';
+import { CHAIN_AIMED, CHAIN_CURRENT, CHAIN_ENGAGE, CHAIN_PINNED } from '../src/sim/killchain';
 import type { SimConfig, StandingOrders } from '../src/sim/types';
 
 const T0 = 1_700_000_000_000;
@@ -101,8 +101,11 @@ describe('standing orders in the engine', () => {
   });
 
   it('spends CP and deploys field works the bare battle never gets', () => {
-    const bare = runOut(midConfig(41));
-    const ordered = runOut(midConfig(41, STANDING_ORDERS.holdfast));
+    // Level 6: at 5 this base holds its walls with nobody acting, and since
+    // M23 Phase 5 HOLDFAST's gun run waits for an assault on the post, so a
+    // battle that never reaches the post is one it rightly spends nothing on.
+    const bare = runOut(midConfig(41, undefined, 6));
+    const ordered = runOut(midConfig(41, STANDING_ORDERS.holdfast, 6));
     expect(bare.stats.cpSpent).toBe(0);
     expect(ordered.stats.cpSpent).toBeGreaterThan(0);
     expect(ordered.ordersExecuted).toBeGreaterThan(0);
@@ -303,26 +306,25 @@ describe("the duty officer's aim (chain v5, M23 Phase 3c)", () => {
   });
 
   it('HOLDFAST meets them at the hole from v5, and a battle fought before it gets back its own', () => {
-    const now = standingOrdersFor('holdfast');
-    expect(now).toBe(STANDING_ORDERS.holdfast);
-    expect(now!.rules.filter((r) => r.action === 'deploy').every((r) => r.target === 'breach')).toBe(true);
+    const v5 = standingOrdersFor('holdfast', CHAIN_AIMED)!;
+    expect(v5.rules.filter((r) => r.action === 'deploy').every((r) => r.target === 'breach')).toBe(true);
     // A probe fought on chain 4 re-fights with the inner-line gun it had.
     const then = standingOrdersFor('holdfast', CHAIN_ENGAGE)!;
     expect(then.rules.map((r) => r.target)).toEqual(['breach', 'ccApproach', 'densest']);
-    expect(standingOrdersFor('holdfast', CHAIN_AIMED)).toBe(now);
+    expect(v5.rules.map((r) => r.target)).toEqual(['breach', 'breach', 'densest']);
     // And a code says which: the reader resolves the id against the chain.
     for (const [chain, want] of [
       [CHAIN_ENGAGE, then],
-      [CHAIN_AIMED, now],
+      [CHAIN_AIMED, v5],
     ] as const) {
       const config = { ...midConfig(3, want), killChainVersion: chain };
       const round = decodeReplay(encodeReplay({ kind: 'probe', faction: 'usa', title: 'T', won: true, config }));
       expect(round.ok).toBe(true);
       if (round.ok) expect(round.replay.config.standingOrders).toEqual(want);
     }
-    // The other two never changed, so every chain reads them the same.
-    for (const id of ['counterbattery', 'tripwire'] as const) {
-      expect(standingOrdersFor(id, CHAIN_ENGAGE)).toBe(STANDING_ORDERS[id]);
+    // TRIPWIRE never changed, so every chain reads it the same.
+    for (const chain of [CHAIN_ENGAGE, CHAIN_AIMED, CHAIN_PINNED]) {
+      expect(standingOrdersFor('tripwire', chain)).toBe(STANDING_ORDERS.tripwire);
     }
   });
 
@@ -340,6 +342,92 @@ describe("the duty officer's aim (chain v5, M23 Phase 3c)", () => {
       return engine.stateHash();
     };
     expect(hash(CHAIN_AIMED)).toBe(hash(CHAIN_ENGAGE));
+  });
+});
+
+/**
+ * Fire missions the chain can see (chain v6, M23 Phase 5): a strike pins what
+ * it lands on, and the duty officer waits for the assault to reach the post
+ * before calling one.
+ */
+describe('fire on the assault (chain v6, M23 Phase 5)', () => {
+  const onChain = (seed: number, orders: StandingOrders, level = 6): SimConfig => ({
+    ...midConfig(seed, orders, level),
+    killChainVersion: CHAIN_CURRENT,
+  });
+  const gunRunOn = (target: 'assault' | 'densest', minKnot?: number): StandingOrders => ({
+    id: 'probe',
+    maxActions: 2,
+    rules: [
+      {
+        cpAtLeast: 45,
+        action: 'power',
+        kind: 'a10',
+        target,
+        minHostiles: 1,
+        cooldownTicks: 200,
+        ...(minKnot !== undefined ? { minKnot } : {}),
+      },
+    ],
+  });
+  /** Every gun run the battle called, with where the attack was when it did. */
+  const casts = (config: SimConfig) => {
+    const engine = new Engine(config, defenseCatalogFor('usa'));
+    engine.enqueue({ tick: 0, type: 'startAssault' });
+    const out: { nearest: number; inRing: number }[] = [];
+    while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
+      for (const ev of engine.step()) {
+        if (ev.type !== 'powerCast') continue;
+        const cc = engine.cc.center;
+        const ground = engine.attackers.filter((a) => a.hp > 0 && !a.profile.air);
+        const dist = ground.map((a) => Math.hypot(a.pos.x - cc.x, a.pos.y - cc.y));
+        out.push({ nearest: Math.min(...dist), inRing: dist.filter((d) => d <= 2).length });
+      }
+    }
+    return out;
+  };
+
+  it('an order on the assault waits for it to reach the post', () => {
+    const seen = [41, 7, 13].flatMap((seed) => casts(onChain(seed, gunRunOn('assault'))));
+    expect(seen.length, 'no gun run was ever called').toBeGreaterThan(0);
+    // The ring is the post's cover radius: 4 units, 2 cells on this board.
+    for (const cast of seen) expect(cast.nearest).toBeLessThanOrEqual(2);
+    // Where the same order on the densest knot goes the moment it can pay.
+    const eager = [41, 7, 13].flatMap((seed) => casts(onChain(seed, gunRunOn('densest'))));
+    expect(eager.some((cast) => cast.nearest > 2)).toBe(true);
+  });
+
+  it('and one that asks for a knot waits for that many', () => {
+    // Level 8, where the assault masses on the post: at 6 the base holds it
+    // off before three are ever in the ring together.
+    const seen = [41, 7, 13].flatMap((seed) => casts(onChain(seed, gunRunOn('assault', 3), 8)));
+    expect(seen.length, 'no gun run was ever called').toBeGreaterThan(0);
+    for (const cast of seen) expect(cast.inRing).toBeGreaterThanOrEqual(3);
+  });
+
+  it('COUNTERBATTERY and HOLDFAST fire on the assault from v6, and older battles get their own back', () => {
+    for (const id of ['counterbattery', 'holdfast'] as const) {
+      const now = standingOrdersFor(id)!;
+      expect(now).toBe(STANDING_ORDERS[id]);
+      const fire = now.rules.filter((r) => r.action === 'power');
+      expect(fire.length).toBeGreaterThan(0);
+      for (const rule of fire) {
+        expect(rule.target).toBe('assault');
+        expect(rule.minKnot ?? 1).toBeGreaterThan(1);
+      }
+      // A battle fought on v5 re-fights with the orders it had, on the mass.
+      const v5 = standingOrdersFor(id, CHAIN_AIMED)!;
+      expect(v5.rules.filter((r) => r.action === 'power').every((r) => r.target === 'densest')).toBe(true);
+      for (const [chain, want] of [
+        [CHAIN_AIMED, v5],
+        [CHAIN_PINNED, now],
+      ] as const) {
+        const config = { ...midConfig(3, want), killChainVersion: chain };
+        const round = decodeReplay(encodeReplay({ kind: 'probe', faction: 'usa', title: 'T', won: true, config }));
+        expect(round.ok).toBe(true);
+        if (round.ok) expect(round.replay.config.standingOrders).toEqual(want);
+      }
+    }
   });
 });
 

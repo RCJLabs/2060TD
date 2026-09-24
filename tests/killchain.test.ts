@@ -6,6 +6,7 @@ import {
   CHAIN_LATCHED,
   CHAIN_MODELS,
   CHAIN_NONE,
+  CHAIN_PINNED,
   CHAIN_SPENT,
   chainModelFor,
 } from '../src/sim/killchain';
@@ -333,10 +334,21 @@ describe('the kill chain', () => {
     }
   });
 
-  it('v5 is what a new battle gets, and every older chain stays frozen as it shipped', () => {
-    expect(CHAIN_CURRENT).toBe(CHAIN_AIMED);
+  it('v6 is what a new battle gets, and every older chain stays frozen as it shipped', () => {
+    expect(CHAIN_CURRENT).toBe(CHAIN_PINNED);
     const now = chainModelFor(CHAIN_CURRENT);
     expect(now.engageCover && now.aimToScale && now.leadFire).toBe(true);
+    expect(now.pinSeconds).toBeGreaterThan(0);
+    for (const v of [CHAIN_NONE, CHAIN_SPENT, CHAIN_LATCHED, CHAIN_ENGAGE, CHAIN_AIMED]) {
+      expect(chainModelFor(v).pinSeconds, `v${v} pins`).toBe(0);
+    }
+    // v6 is v5 with the pin and nothing else: a battle no fire mission lands
+    // in is fought on v6 exactly as on v5.
+    expect({ ...now, version: 0, label: '', pinSeconds: 0, pinArmor: [] }).toEqual({
+      ...chainModelFor(CHAIN_AIMED),
+      version: 0,
+      label: '',
+    });
     for (const v of [CHAIN_NONE, CHAIN_SPENT, CHAIN_LATCHED]) expect(chainModelFor(v).engageCover).toBe(false);
     // The hunt without the aim: v4 is what every v1.45 battle was fought on.
     expect(chainModelFor(CHAIN_ENGAGE).engageCover).toBe(true);
@@ -346,7 +358,7 @@ describe('the kill chain', () => {
     }
     // And v5 is v4 with the aim and nothing else: whatever v5 does to a battle
     // with no orders and no fire plan in it, it does as v4.
-    expect({ ...now, version: 0, label: '', aimToScale: false, leadFire: false }).toEqual({
+    expect({ ...chainModelFor(CHAIN_AIMED), version: 0, label: '', aimToScale: false, leadFire: false }).toEqual({
       ...chainModelFor(CHAIN_ENGAGE),
       version: 0,
       label: '',
@@ -396,5 +408,123 @@ describe('the kill chain', () => {
     expect(before.ok).toBe(true);
     if (!before.ok) return;
     expect(before.replay.config.killChainVersion, 'an old code woke up staged').toBeUndefined();
+  });
+});
+
+/**
+ * A fire mission the chain can see (v6, M23 Phase 5).
+ *
+ * Phase 3c measured the gun run and the barrage stirring battles on the
+ * contested band rather than deciding them, and put it down to the chain:
+ * killing a few of the men walking up to the post moves nothing it counts. A
+ * pinned unit is something it counts, at every stage.
+ */
+describe('the pin', () => {
+  const MODEL = chainModelFor(CHAIN_PINNED);
+  const PIN_TICKS = MODEL.pinSeconds * 20;
+
+  const staged = (chain = CHAIN_PINNED): Engine => makeSandbox(42, { killChainVersion: chain });
+  const send = (e: Engine, kind: string, n: number): void => {
+    for (let i = 0; i < n; i++) {
+      e.enqueue({ tick: 0, type: 'spawnAttacker', cell: spawnCell(e, 4 + i), kind });
+    }
+  };
+  /** A gun run laid on the first attacker, run until a pass has hit it. */
+  const gunRun = (e: Engine): { at: { x: number; y: number }; hitTick: number } => {
+    const target = e.attackers[0]!;
+    const hp = target.hp;
+    e.enqueue({ tick: e.tick, type: 'castPower', kind: 'a10', target: { ...target.pos } });
+    for (let i = 0; i < 60; i++) {
+      e.step();
+      if (target.hp < hp) return { at: { ...target.pos }, hitTick: e.tick };
+    }
+    throw new Error('the gun run never touched the fixture');
+  };
+
+  it('a unit a fire mission lands on is pinned where it stands, and the pin lifts', () => {
+    const e = staged();
+    send(e, 'tank', 1);
+    e.run(100);
+    const tank = e.attackers[0]!;
+    const { at, hitTick } = gunRun(e);
+    // A tank survives a pass and is pinned: heavy armour included on purpose.
+    // For exactly the pin, counted from the tick the pass landed on, which is
+    // the one before the clock moved on.
+    expect(tank.hp).toBeGreaterThan(0);
+    expect(tank.pinnedUntil).toBe(hitTick - 1 + PIN_TICKS);
+    e.run(PIN_TICKS - 10);
+    expect(tank.pos, 'a pinned unit walked').toEqual(at);
+    e.run(40);
+    expect(tank.pos.x, 'the pin never lifted').toBeGreaterThan(at.x);
+  });
+
+  it('on v5 the same strike does damage and nothing else', () => {
+    const e = staged(CHAIN_AIMED);
+    send(e, 'tank', 1);
+    e.run(100);
+    const tank = e.attackers[0]!;
+    const { at } = gunRun(e);
+    expect(tank.pinnedUntil).toBe(0);
+    e.run(40);
+    expect(tank.pos.x).toBeGreaterThan(at.x);
+  });
+
+  it('a pinned crew works nothing: the charge stops and the burn backs off', () => {
+    const e = staged();
+    send(e, 'bruiser', 2);
+    let lit = -1;
+    for (let i = 0; i < 2000 && lit < 0; i++) {
+      e.step();
+      if (e.chainProgress()!.stage === 'burn') lit = e.tick;
+    }
+    expect(lit, 'the fixture never set the charge').toBeGreaterThan(0);
+    e.run(60);
+    const burning = e.cc.hp;
+    expect(burning).toBeLessThan(MODEL.chargeTo * e.cc.profile.maxHp);
+    // Pin the whole crew, as a strike on the post would.
+    for (const attacker of e.attackers) attacker.pinnedUntil = e.tick + PIN_TICKS;
+    e.run(40);
+    expect(e.chainProgress()!.holders, 'a pinned body held the ground').toBe(0);
+    expect(e.cc.hp, 'the burn kept going under a pinned crew').toBeGreaterThan(burning);
+    // Then they get up, and the fuse is lit again.
+    e.run(PIN_TICKS);
+    expect(e.chainProgress()!.holders).toBe(2);
+  });
+
+  it("a pinned unit's gun is silent", () => {
+    const e = staged();
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: 5 * 20 + 9, kind: 'm2nest' });
+    send(e, 'gunTank', 1);
+    let firing = false;
+    for (let i = 0; i < 600 && !firing; i++) firing = e.step().some((ev) => ev.type === 'shot' && ev.from.x < 9);
+    expect(firing, 'the gun tank never engaged').toBe(true);
+    const tank = e.attackers[0]!;
+    tank.pinnedUntil = e.tick + PIN_TICKS;
+    for (let i = 0; i < PIN_TICKS - 1; i++) {
+      const shots = e.step().filter((ev) => ev.type === 'shot' && Math.abs(ev.from.x - tank.pos.x) < 1e-9);
+      expect(shots, `the pinned tank fired at tick ${e.tick}`).toHaveLength(0);
+    }
+  });
+
+  it('a second strike never shortens a pin', () => {
+    const e = staged();
+    send(e, 'tank', 1);
+    e.run(100);
+    const tank = e.attackers[0]!;
+    tank.pinnedUntil = e.tick + 10 * PIN_TICKS;
+    const long = tank.pinnedUntil;
+    gunRun(e);
+    expect(tank.pinnedUntil).toBe(long);
+  });
+
+  it('a battle nobody is pinned in is the same battle on v5 and v6', () => {
+    const hash = (chain: number): string => {
+      const e = staged(chain);
+      send(e, 'bruiser', 2);
+      e.run(1400);
+      expect(e.cc.hp, 'the fixture never reached the post').toBeLessThan(e.cc.profile.maxHp);
+      return e.stateHash();
+    };
+    expect(hash(CHAIN_PINNED)).toBe(hash(CHAIN_AIMED));
   });
 });

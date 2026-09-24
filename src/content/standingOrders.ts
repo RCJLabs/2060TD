@@ -1,4 +1,4 @@
-import { CHAIN_AIMED, CHAIN_CURRENT } from '../sim/killchain';
+import { CHAIN_AIMED, CHAIN_CURRENT, CHAIN_PINNED } from '../sim/killchain';
 import type { StandingOrders } from '../sim/types';
 
 /**
@@ -36,6 +36,10 @@ export const STANDING_ORDERS: Record<StandingOrdersId, StandingOrders> = {
    * base (-7 held); at the breach it is +16 overall and positive on every
    * stage. See `HOLDFAST_INNER_LINE` for the version battles before chain 5
    * were fought with.
+   *
+   * The gun run goes onto the assault at the post since M23 Phase 5, and waits
+   * for two to be there; `counterbattery` below says why. See
+   * `HOLDFAST_AT_THE_HOLE` for the orders battles on chain 5 were fought with.
    */
   holdfast: {
     id: 'holdfast',
@@ -43,17 +47,28 @@ export const STANDING_ORDERS: Record<StandingOrdersId, StandingOrders> = {
     rules: [
       { cpAtLeast: 40, action: 'deploy', kind: 'depmg', target: 'breach', minHostiles: 4, cooldownTicks: 300 },
       { cpAtLeast: 55, action: 'deploy', kind: 'foxhole', target: 'breach', minHostiles: 3, cooldownTicks: 260 },
-      { cpAtLeast: 90, action: 'power', kind: 'a10', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
+      { cpAtLeast: 90, action: 'power', kind: 'a10', target: 'assault', minKnot: 2, minHostiles: 5, cooldownTicks: 400 },
     ],
   },
-  /** Ordnance first: stocked fire missions on the mass, mines in between. */
+  /**
+   * Ordnance first: stocked fire missions on the assault, mines in between.
+   *
+   * Until M23 Phase 5 its fire missions went onto the densest knot on the
+   * board the moment they could be afforded, which is usually the column
+   * still forming at the edge of the map, well out of reach of any gun. On
+   * the contested band that made both of them stir battles rather than
+   * decide them. Now each waits for the assault to reach the post: two in the
+   * ring for the gun run, whose strip is narrow, and three for the barrage,
+   * whose shells scatter. See `COUNTERBATTERY_ON_THE_MASS` for the orders
+   * battles before chain 6 were fought with.
+   */
   counterbattery: {
     id: 'counterbattery',
     maxActions: 6,
     rules: [
-      { cpAtLeast: 45, action: 'power', kind: 'a10', target: 'densest', minHostiles: 4, cooldownTicks: 300 },
+      { cpAtLeast: 45, action: 'power', kind: 'a10', target: 'assault', minKnot: 2, minHostiles: 4, cooldownTicks: 300 },
       { cpAtLeast: 28, action: 'deploy', kind: 'claymore', target: 'ccApproach', minHostiles: 2, cooldownTicks: 140 },
-      { cpAtLeast: 70, action: 'power', kind: 'arty', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
+      { cpAtLeast: 70, action: 'power', kind: 'arty', target: 'assault', minKnot: 3, minHostiles: 5, cooldownTicks: 400 },
     ],
   },
   /** Refuse the interior: mines early and often, guns close-in late. */
@@ -94,6 +109,36 @@ const HOLDFAST_INNER_LINE: StandingOrders = {
 };
 
 /**
+ * HOLDFAST from M23 Phase 3c until Phase 5: both guns at the breach, and the
+ * gun run on the densest knot on the board. Frozen for the battles fought on
+ * kill chain 5.
+ */
+const HOLDFAST_AT_THE_HOLE: StandingOrders = {
+  id: 'holdfast',
+  maxActions: 3,
+  rules: [
+    { cpAtLeast: 40, action: 'deploy', kind: 'depmg', target: 'breach', minHostiles: 4, cooldownTicks: 300 },
+    { cpAtLeast: 55, action: 'deploy', kind: 'foxhole', target: 'breach', minHostiles: 3, cooldownTicks: 260 },
+    { cpAtLeast: 90, action: 'power', kind: 'a10', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
+  ],
+};
+
+/**
+ * COUNTERBATTERY as it stood from v0.8 until M23 Phase 5: both fire missions
+ * on the densest knot on the board, the moment they could be afforded.
+ * Frozen for the battles fought with it.
+ */
+const COUNTERBATTERY_ON_THE_MASS: StandingOrders = {
+  id: 'counterbattery',
+  maxActions: 6,
+  rules: [
+    { cpAtLeast: 45, action: 'power', kind: 'a10', target: 'densest', minHostiles: 4, cooldownTicks: 300 },
+    { cpAtLeast: 28, action: 'deploy', kind: 'claymore', target: 'ccApproach', minHostiles: 2, cooldownTicks: 140 },
+    { cpAtLeast: 70, action: 'power', kind: 'arty', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
+  ],
+};
+
+/**
  * The orders a battle on this kill chain fights with. Absent means a battle
  * fought today.
  */
@@ -103,6 +148,8 @@ export function standingOrdersFor(
 ): StandingOrders | undefined {
   if (!id) return undefined;
   if (id === 'holdfast' && killChainVersion < CHAIN_AIMED) return HOLDFAST_INNER_LINE;
+  if (id === 'holdfast' && killChainVersion < CHAIN_PINNED) return HOLDFAST_AT_THE_HOLE;
+  if (id === 'counterbattery' && killChainVersion < CHAIN_PINNED) return COUNTERBATTERY_ON_THE_MASS;
   return STANDING_ORDERS[id];
 }
 

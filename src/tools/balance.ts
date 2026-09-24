@@ -65,11 +65,13 @@ import { scaleFootprint } from '../sim/scale';
 import { createRng } from '../sim/rng';
 import { COMBAT_CURRENT, COMBAT_MODELS, COMBAT_NONE, combatModelFor } from '../sim/combat';
 import {
+  CHAIN_AIMED,
   CHAIN_CURRENT,
   CHAIN_ENGAGE,
   CHAIN_LATCHED,
   CHAIN_MODELS,
   CHAIN_NONE,
+  CHAIN_PINNED,
   chainModelFor,
   type ChainModel,
 } from '../sim/killchain';
@@ -87,6 +89,7 @@ import type {
   SiegeDef,
   SimConfig,
   StandingOrders,
+  StandingOrderTarget,
   Catalog,
   DamageType,
   Doctrine,
@@ -941,6 +944,140 @@ function siegeTraceOn(
   };
 }
 
+/** A cell of the contested band, with its bare verdict seed by seed. */
+interface BandCell {
+  faction: FactionId;
+  base: ReferenceBase;
+  level: number;
+  bare: boolean[];
+}
+
+const BAND_STAGES = ['EARLY', 'MID', 'LATE'];
+const bandStageOf = (c: BandCell): number => BAND_STAGES.findIndex((st) => c.base.name.startsWith(st));
+
+/**
+ * The band as it is NOW (M23 Phase 3c): every (faction, base, level) the
+ * bare permanent layer holds between 5% and 95%. Phase 2 scoped the verbs to
+ * MID levels 3-4 because on the six-rung ladder that was the only place a row
+ * moved; the ladder has been lengthened, the board shrunk and the chain
+ * changed since, and those cells are held every time now. A verb measured
+ * where the row cannot move reads zero for a reason that is not the verb.
+ */
+function contestedBand(seeds: number): BandCell[] {
+  const cells: BandCell[] = [];
+  for (const faction of FACTION_IDS) {
+    for (const base of referenceBases()) {
+      for (const level of ASSAULT_LEVELS) {
+        const bare = Array.from(
+          { length: seeds },
+          (_, i) => siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), null).held,
+        );
+        const held = (bare.filter(Boolean).length / seeds) * 100;
+        if (held >= 5 && held <= 95) cells.push({ faction, base, level, bare });
+      }
+    }
+  }
+  return cells;
+}
+
+interface BandScore {
+  held: number;
+  low: number;
+  byStage: number[];
+  acts: number;
+  won: number;
+  lost: number;
+}
+
+/**
+ * Hold rate and mean low-water mark over every cell of the band, and by stage
+ * — and the battles whose verdict the policy CHANGED, each way. The net is the
+ * hold rate; the gross is whether the policy decides battles or only stirs
+ * them, and a verb that flips as many losses into wins as wins into losses is
+ * not leverage, it is noise with a price.
+ *
+ * The bare verdicts it is compared with were fought on the shipped chain, so a
+ * candidate chain must fight a bare battle exactly as the shipped one does —
+ * which a model that only changes what a fire mission does, does.
+ */
+function scoreOnBand(
+  cells: BandCell[],
+  seeds: number,
+  policy: SiegePolicy,
+  chainVersion = CHAIN_CURRENT,
+): BandScore {
+  let held = 0;
+  let low = 0;
+  let acts = 0;
+  let won = 0;
+  let lost = 0;
+  let n = 0;
+  const stageHeld = [0, 0, 0];
+  const stageN = [0, 0, 0];
+  for (const c of cells) {
+    for (let i = 0; i < seeds; i++) {
+      const r = siegeTraceOn(c.faction, c.base, c.level, seedOf(c.level, c.base.ccLevel, i), policy, chainVersion);
+      if (r.held) {
+        held++;
+        stageHeld[bandStageOf(c)]!++;
+      }
+      if (r.held && !c.bare[i]) won++;
+      if (!r.held && c.bare[i]) lost++;
+      stageN[bandStageOf(c)]!++;
+      low += r.low;
+      acts += r.acts;
+      n++;
+    }
+  }
+  return {
+    held: (held / n) * 100,
+    low: low / n,
+    byStage: stageHeld.map((h, st) => (stageN[st] ? (h / stageN[st]!) * 100 : NaN)),
+    acts: acts / n,
+    won,
+    lost,
+  };
+}
+
+/**
+ * The battles changed each way, starred when the net is more than a coin
+ * would give: a policy that changes W + L verdicts at random nets zero with
+ * a spread of sqrt(W + L), so a net beyond twice that is a direction.
+ */
+function flipCell(got: { won: number; lost: number }): string {
+  const star = Math.abs(got.won - got.lost) > 2 * Math.sqrt(got.won + got.lost);
+  return pad(`+${got.won} -${got.lost}${star ? ' *' : '  '}`, 11);
+}
+
+/**
+ * A policy of one rule, acting the moment it can afford to: the same budget,
+ * threshold and cooldown for every verb, so the verb and its aim are all that
+ * vary.
+ */
+function oneRulePolicy(
+  action: 'deploy' | 'power',
+  kind: string,
+  target: StandingOrderTarget,
+  price: number,
+  minKnot?: number,
+): StandingOrders {
+  return {
+    id: 'probe',
+    maxActions: 3,
+    rules: [
+      {
+        cpAtLeast: price,
+        action,
+        kind,
+        target,
+        minHostiles: 2,
+        cooldownTicks: 200,
+        ...(minKnot !== undefined ? { minKnot } : {}),
+      },
+    ],
+  };
+}
+
 /**
  * The verb set, ONE AT A TIME — the table M23 Phase 2 exists to produce.
  *
@@ -969,8 +1106,9 @@ function verbTable(seeds = 20): string {
     label: string;
     action: 'deploy' | 'power';
     kind: string;
-    target: 'breach' | 'ccApproach' | 'densest';
+    target: StandingOrderTarget;
     price: number;
+    minKnot?: number;
   }
   const VERBS: Verb[] = [
     { label: 'depmg -> breach', action: 'deploy', kind: 'depmg', target: 'breach', price: 25 },
@@ -982,84 +1120,19 @@ function verbTable(seeds = 20): string {
     { label: 'claymore -> densest', action: 'deploy', kind: 'claymore', target: 'densest', price: 15 },
     { label: 'a10 -> densest', action: 'power', kind: 'a10', target: 'densest', price: 45 },
     { label: 'arty -> densest', action: 'power', kind: 'arty', target: 'densest', price: 60 },
-    // Fire on the post itself, where the charge crew and the burn's holders
-    // stand: the one aim a damage verb has that the chain can see (M23 3c).
-    { label: 'a10 -> ccApproach', action: 'power', kind: 'a10', target: 'ccApproach', price: 45 },
-    { label: 'arty -> ccApproach', action: 'power', kind: 'arty', target: 'ccApproach', price: 60 },
+    // Fire on the assault at the post, once a knot of that many is inside its
+    // cover ring (M23 Phase 5): the orders COUNTERBATTERY and HOLDFAST give.
+    // Aimed at the post itself instead, a strike goes the moment it can be
+    // paid for and lands on an empty post; 3c measured that at +0 and +3.
+    { label: 'a10 -> assault k2', action: 'power', kind: 'a10', target: 'assault', price: 45, minKnot: 2 },
+    { label: 'arty -> assault k3', action: 'power', kind: 'arty', target: 'assault', price: 60, minKnot: 3 },
   ];
 
-  // The band as it is NOW (M23 Phase 3c): every (faction, base, level) the
-  // bare permanent layer holds between 5% and 95%. Phase 2 scoped this table
-  // to MID levels 3-4 because on the six-rung ladder that was the only place a
-  // row moved; the ladder has been lengthened, the board shrunk and the chain
-  // changed since, and those cells are held every time now. A verb measured
-  // where the row cannot move reads zero for a reason that is not the verb.
-  type Cell = { faction: FactionId; base: ReferenceBase; level: number; bare: boolean[] };
-  const CELLS: Cell[] = [];
-  for (const faction of FACTION_IDS) {
-    for (const base of referenceBases()) {
-      for (const level of ASSAULT_LEVELS) {
-        const bare = Array.from(
-          { length: seeds },
-          (_, i) => siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), null).held,
-        );
-        const held = (bare.filter(Boolean).length / seeds) * 100;
-        if (held >= 5 && held <= 95) CELLS.push({ faction, base, level, bare });
-      }
-    }
-  }
-  const STAGES = ['EARLY', 'MID', 'LATE'];
-  const stageOf = (c: Cell) => STAGES.findIndex((st) => c.base.name.startsWith(st));
-
-  /**
-   * Hold rate and mean low-water mark over every scoped cell, and by stage —
-   * and the battles whose verdict the policy CHANGED, each way. The net is the
-   * hold rate; the gross is whether the policy decides battles or only stirs
-   * them, and a verb that flips as many losses into wins as wins into losses
-   * is not leverage, it is noise with a price.
-   */
-  const score = (
-    policy: SiegePolicy,
-  ): { held: number; low: number; byStage: number[]; acts: number; won: number; lost: number } => {
-    let held = 0;
-    let low = 0;
-    let acts = 0;
-    let won = 0;
-    let lost = 0;
-    let n = 0;
-    const stageHeld = [0, 0, 0];
-    const stageN = [0, 0, 0];
-    for (const c of CELLS) {
-      for (let i = 0; i < seeds; i++) {
-        const r = siegeTrace(c.faction, c.base, c.level, seedOf(c.level, c.base.ccLevel, i), policy);
-        if (r.held) {
-          held++;
-          stageHeld[stageOf(c)]!++;
-        }
-        if (r.held && !c.bare[i]) won++;
-        if (!r.held && c.bare[i]) lost++;
-        stageN[stageOf(c)]!++;
-        low += r.low;
-        acts += r.acts;
-        n++;
-      }
-    }
-    return {
-      held: (held / n) * 100,
-      low: low / n,
-      byStage: stageHeld.map((h, st) => (stageN[st] ? (h / stageN[st]!) * 100 : NaN)),
-      acts: acts / n,
-      won,
-      lost,
-    };
-  };
-  /**
-   * The battles changed each way, starred when the net is more than a coin
-   * would give: a policy that changes W + L verdicts at random nets zero with
-   * a spread of sqrt(W + L), so a net beyond twice that is a direction.
-   */
-  const flips = (got: { won: number; lost: number }) =>
-    pad(`+${got.won} -${got.lost}${Math.abs(got.won - got.lost) > 2 * Math.sqrt(got.won + got.lost) ? ' *' : '  '}`, 11);
+  const CELLS = contestedBand(seeds);
+  const STAGES = BAND_STAGES;
+  const stageOf = bandStageOf;
+  const score = (policy: SiegePolicy): BandScore => scoreOnBand(CELLS, seeds, policy);
+  const flips = flipCell;
 
   const bare = score(null);
   const perStage = STAGES.map((_, st) => CELLS.filter((c) => stageOf(c) === st).length);
@@ -1073,21 +1146,7 @@ function verbTable(seeds = 20): string {
       `${bare.low.toFixed(3)} |       — | ${bare.byStage.map((h) => pad(Number.isNaN(h) ? '—' : `${h.toFixed(0)}%`, 5)).join(' | ')} |           —`,
   ];
   for (const verb of VERBS) {
-    const policy = {
-      id: 'probe',
-      maxActions: 3,
-      rules: [
-        {
-          cpAtLeast: verb.price,
-          action: verb.action,
-          kind: verb.kind,
-          target: verb.target,
-          minHostiles: 2,
-          cooldownTicks: 200,
-        },
-      ],
-    } as unknown as StandingOrders;
-    const got = score(policy);
+    const got = score(oneRulePolicy(verb.action, verb.kind, verb.target, verb.price, verb.minKnot));
     const dHeld = got.held - bare.held;
     const dLow = got.low - bare.low;
     lines.push(
@@ -1141,9 +1200,16 @@ function verbTable(seeds = 20): string {
     // HOLDFAST as it was before Phase 3c moved its second gun to the breach,
     // fought on today's chain: the rule that repair exists to take out.
     ['HOLDFAST, gun at the post', standingOrdersFor('holdfast', CHAIN_ENGAGE)!],
+    // And the two before Phase 5 aimed their fire missions at the assault,
+    // on today's chain: what the pin is worth to orders that fire on the mass.
+    ['HOLDFAST, air on the mass', standingOrdersFor('holdfast', CHAIN_AIMED)!],
+    ['CBTY, fire on the mass', standingOrdersFor('counterbattery', CHAIN_AIMED)!],
   ];
   lines.push('');
-  lines.push(`PRESETS — the same cells: the shipped three, two one-line repairs, and HOLDFAST before 3c`);
+  lines.push(
+    'PRESETS — the same cells: the shipped three, two one-line repairs, HOLDFAST before 3c, ' +
+      'and HOLDFAST and COUNTERBATTERY before Phase 5',
+  );
   lines.push('PRESET                       | HELD | vs NONE |   LOW | ACTS | EARLY |   MID |  LATE |       FLIPS');
   lines.push('-----------------------------+------+---------+-------+------+-------+-------+-------+------------');
   for (const [label, policy] of PRESETS) {
@@ -1157,6 +1223,94 @@ function verbTable(seeds = 20): string {
         ` | ${flips(got)}`,
     );
   }
+  return lines.join('\n');
+}
+
+/**
+ * M23 Phase 5: the fire missions, re-judged with a job the chain can see.
+ *
+ * Phase 3c found that on the contested band a gun decides battles and a fire
+ * mission only stirs them. Two things were behind it, and this table prices
+ * each on its own. The first is WHEN the duty officer calls a strike: on the
+ * densest knot on the board the moment it can pay, which is usually the
+ * column still forming at the edge of the map, or on the assault at the post
+ * once a knot of two or three is inside its cover ring (`assault`,
+ * `minKnot`). The second is what a strike DOES: damage alone on chain 5, and
+ * on chain 6 a pin, which leaves every unit it lands on moving no stage of the
+ * chain for `pinSeconds`.
+ *
+ * The pin rows below the shipped model are candidates registered under
+ * throwaway version numbers, as `--band` does: the pin's length, and which
+ * armour it catches. Every row is judged by the rule `--verbs` judges by, on
+ * the band it measures on.
+ */
+function pinTable(seeds = 20): string {
+  const cells = contestedBand(seeds);
+  const base = chainModelFor(CHAIN_PINNED);
+  type Fire = [string, string, StandingOrderTarget, number, number?];
+  const GUN_RUN: Fire = ['a10 -> assault k2', 'a10', 'assault', 45, 2];
+  const ROWS: [string, number, Fire[]][] = [
+    [
+      'chain 5, no pin',
+      CHAIN_AIMED,
+      [
+        ['a10 -> densest', 'a10', 'densest', 45],
+        GUN_RUN,
+        ['arty -> densest', 'arty', 'densest', 60],
+        ['arty -> assault k2', 'arty', 'assault', 60, 2],
+        ['arty -> assault k3', 'arty', 'assault', 60, 3],
+      ],
+    ],
+    [
+      'chain 6 (shipped)',
+      CHAIN_PINNED,
+      [
+        ['a10 -> densest', 'a10', 'densest', 45],
+        GUN_RUN,
+        ['arty -> densest', 'arty', 'densest', 60],
+        ['arty -> assault k2', 'arty', 'assault', 60, 2],
+        ['arty -> assault k3', 'arty', 'assault', 60, 3],
+      ],
+    ],
+  ];
+  const PROBES: [string, Partial<ChainModel>][] = [
+    ['pin 8s, inf + light', { pinArmor: ['none', 'light'] }],
+    ['pin 8s, heavy only', { pinArmor: ['heavy'] }],
+    ['pin 5s, all ground', { pinSeconds: 5 }],
+    ['pin 12s, all ground', { pinSeconds: 12 }],
+  ];
+  PROBES.forEach(([label, over], at) => {
+    const version = 900 + at;
+    CHAIN_MODELS[version] = { ...base, ...over, version };
+    ROWS.push([label, version, [GUN_RUN]]);
+  });
+
+  const bare = scoreOnBand(cells, seeds, null);
+  const perStage = BAND_STAGES.map((_, st) => cells.filter((c) => bandStageOf(c) === st).length);
+  const signed = (d: number) => (Number.isNaN(d) ? '—' : d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0));
+  const lines = [
+    `PINS — fire missions on the contested band: ${cells.length} cells ` +
+      `(EARLY ${perStage[0]}, MID ${perStage[1]}, LATE ${perStage[2]}), ${seeds} seeds, ` +
+      `bare ${bare.held.toFixed(0)}%`,
+    'CHAIN                | VERB               | HELD | vs NONE | EARLY |   MID |  LATE |       FLIPS',
+    '---------------------+--------------------+------+---------+-------+-------+-------+------------',
+  ];
+  for (const [label, version, fires] of ROWS) {
+    for (const [verb, kind, target, price, minKnot] of fires) {
+      const got = scoreOnBand(cells, seeds, oneRulePolicy('power', kind, target, price, minKnot), version);
+      lines.push(
+        `${pad(label, 20)} | ${pad(verb, 18)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
+          `${pad(signed(got.held - bare.held), 7)} | ` +
+          got.byStage.map((h, st) => pad(signed(h - bare.byStage[st]!), 5)).join(' | ') +
+          ` | ${flipCell(got)}`,
+      );
+    }
+  }
+  lines.push('');
+  lines.push(
+    'k: the knot the order waits for inside the post\'s cover ring (minKnot). FLIPS as --verbs: ' +
+      '* is a net beyond twice the square root of the gross.',
+  );
   return lines.join('\n');
 }
 
@@ -5635,6 +5789,12 @@ function main(): void {
         );
       }
     }
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--pins')) {
+    const arg = process.argv[process.argv.indexOf('--pins') + 1];
+    console.log(pinTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

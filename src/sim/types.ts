@@ -288,8 +288,10 @@ export interface AutoPowerRule {
 }
 
 /** Where a standing order acts: the latest wall breach, the command post
- * approach, or the densest attacker cluster. */
-export type StandingOrderTarget = 'breach' | 'ccApproach' | 'densest';
+ * approach, the densest attacker cluster, or (M23 Phase 5) the assault on
+ * the post itself — the densest knot inside the ring the kill chain is fought
+ * in, and only while there is one. */
+export type StandingOrderTarget = 'breach' | 'ccApproach' | 'densest' | 'assault';
 
 export interface StandingOrderRule {
   /** Act only while CP is at or above this reserve. */
@@ -312,6 +314,12 @@ export interface StandingOrderRule {
    * calling for it.
    */
   hostiles?: 'any' | 'air' | 'ground';
+  /**
+   * Act only on a knot at least this strong (M23 Phase 5): the attackers
+   * within reach of the one a `densest` or `assault` rule aims at, itself
+   * included. Omit for 1, which is every rule before this existed.
+   */
+  minKnot?: number;
   /** Ticks between successful firings of this rule. */
   cooldownTicks: number;
 }
