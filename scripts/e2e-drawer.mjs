@@ -583,7 +583,7 @@ try {
   // button takes ownership — so a check that lands on one proves nothing, and
   // this one landed on an unaffordable AIRFIELD until it was pinned down.
   //
-  // And then it is TRIED, up to four times, rather than pinned (M30). Where a
+  // And then it is TRIED, up to six times, rather than pinned (M30). Where a
   // coasting list is when the finger lands depends on whose physics are
   // coasting it — the canvas panel's decay when this was written, the
   // platform's own momentum since, which moves the list differently — and the
@@ -596,7 +596,8 @@ try {
   let cx = 0;
   let cy = 0;
   let landed = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  const landings = [0.4, 0.55, 0.3, 0.7, 0.15, 0.85];
+  for (let attempt = 0; attempt < landings.length; attempt++) {
     if (attempt > 0) {
       await touch('touchEnd', cx, cy);
       await wait(600);
@@ -642,9 +643,12 @@ try {
     // lands somewhere else in the list: a coast is as repeatable as the
     // physics under it, so landing on the same spot again lands on the same
     // locked row again. The spread is wider than the longest run of locked
-    // rows, so one of the four has to find a row that can be pressed.
+    // rows, so one of them has to find a row that can be pressed. That run
+    // grew by two in v1.52, when the research-locked works went in between
+    // the Generator and the Signals Station, and four landings from 0.3 to 0.7
+    // of the list could all fall inside it.
     cx = flickBox.list.x + flickBox.list.w / 2;
-    cy = flickBox.list.y + flickBox.list.h * [0.4, 0.55, 0.3, 0.7][attempt];
+    cy = flickBox.list.y + flickBox.list.h * landings[attempt];
     await touch('touchStart', cx, cy);
     await wait(250);
     landed = await page.evaluate(

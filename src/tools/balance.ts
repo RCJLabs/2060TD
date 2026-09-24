@@ -56,6 +56,7 @@ import {
   type SquadPlan,
 } from '../meta/warfare';
 import { CONDITIONS } from '../content/conditions';
+import { effectsOf, TECHS, type TechBranch } from '../content/research';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
@@ -1951,13 +1952,14 @@ function defenseMatrix(
   mods?: DefenderMods,
   extraStructures: LayoutStructure[] = [],
   orders?: StandingOrders,
+  levels: readonly number[] = ASSAULT_LEVELS,
 ): DefenseRow[] {
   const catalog = defenseCatalogFor(faction);
   const rows: DefenseRow[] = [];
 
   for (const base of referenceBases()) {
     const holds: number[] = [];
-    for (const level of ASSAULT_LEVELS) {
+    for (const level of levels) {
       let held = 0;
       for (let i = 0; i < SEEDS; i++) {
         const config = defenseConfigFor(faction, base, level, seedOf(level, base.ccLevel, i), {
@@ -2803,6 +2805,76 @@ const DOCTRINE_SUPPORT: RaidSupport = {
 };
 
 const FORTIFY_MODS: DefenderMods = { wallHp: 1.15, weaponDamage: 1.12 };
+
+/** Every tech of a branch up to `tier`, by id. */
+const branchTo = (branch: TechBranch, tier: number): string[] =>
+  TECHS.filter((t) => t.branch === branch && t.tier <= tier).map((t) => t.id);
+
+/**
+ * M24 Phase 4: the research graph's top tiers in battle, beside the doctrine
+ * they extend. The multipliers come from `effectsOf`, so this table reads the
+ * techs as shipped. A tier's worth of multiplier ought to move a band by about
+ * half a level, the way the first tiers do.
+ *
+ * The reading is an area, not a crossing: the levels a defence holds summed
+ * over the ladder (a level held half the time counts a half), and the tiers a
+ * raid clears summed the same way. The late base's hold curve is not monotone
+ * past L10, where a heavy wave lands every fourth level and rotors every
+ * second, and the first level it drops below 50% said more about the noise
+ * than the doctrine. The defence runs past the published twelve levels
+ * because the late base holds past all of them, and the graph is a late tool.
+ *
+ * STRIKE 5's other half, one more charge of each ordnance in stock, is not in
+ * it. A third call inside one raid was measured and moved nothing: a raid that
+ * clears is over in about a minute, before either power is off cooldown. The
+ * charge is one more raid's fire plan between restocks, which is economy.
+ */
+function graphTable(faction: FactionId): string {
+  const levels = Array.from({ length: 20 }, (_, i) => i + 1);
+  const fortify = (tier: number): DefenderMods => {
+    const e = effectsOf(branchTo('fortify', tier));
+    return { wallHp: e.wallHp, weaponDamage: e.weaponDamage };
+  };
+  const strike = (tier: number): RaidSupport => {
+    const e = effectsOf(branchTo('strike', tier));
+    return { ...DOCTRINE_SUPPORT, mods: { hp: e.unitHp, damage: e.unitDamage } };
+  };
+  const area = (pcts: readonly number[]): number => pcts.reduce((n, p) => n + p / 100, 0);
+  const flavor = flavorFor(faction);
+  const lines = [`THE GRAPH IN BATTLE — ${flavor.faction}`];
+  const defence = [
+    defenseMatrix(faction, undefined, [], undefined, levels),
+    defenseMatrix(faction, fortify(3), [], undefined, levels),
+    defenseMatrix(faction, fortify(5), [], undefined, levels),
+  ];
+  lines.push('DEFENCE, levels held of L1-L20: STAGE | NONE | FORTIFY 1-3 | FORTIFY 1-5');
+  const held = defence.map((rows) => rows.map((r) => area(r.holdPct)));
+  defence[0]!.forEach((row, i) => {
+    lines.push(
+      `  ${row.stage.padEnd(11)} | ${pad(held[0]![i]!.toFixed(2), 5)} | ${pad(held[1]![i]!.toFixed(2), 11)} | ` +
+        `${pad(held[2]![i]!.toFixed(2), 11)}`,
+    );
+  });
+  const meanShift = (a: number[], b: number[]): string =>
+    (b.reduce((n, x, i) => n + x - a[i]!, 0) / a.length).toFixed(2);
+  lines.push(
+    `  mean: tiers 1-3 +${meanShift(held[0]!, held[1]!)} levels, tiers 4-5 on top of them ` +
+      `+${meanShift(held[1]!, held[2]!)}`,
+  );
+  const raids = [raidMatrix(faction), raidMatrix(faction, strike(3)), raidMatrix(faction, strike(5))];
+  lines.push(`RAID, clear% by tier: ROW | ${RAID_TIERS.map((t) => `T${t}`).join(' | ')} | TIERS CLEARED`);
+  const cleared = raids.map((rows) => area(rows.map((r) => r.clearPct)));
+  ['NONE', 'STRIKE 1-3 + fire plan', 'STRIKE 1-5 + fire plan'].forEach((label, i) => {
+    lines.push(
+      `  ${label.padEnd(22)} | ${raids[i]!.map((r) => pad(r.clearPct, 3)).join(' | ')} | ${cleared[i]!.toFixed(2)}`,
+    );
+  });
+  lines.push(
+    `  tiers 1-3 and the fire plan +${(cleared[1]! - cleared[0]!).toFixed(2)} tiers, ` +
+      `tiers 4-5 on top of them +${(cleared[2]! - cleared[1]!).toFixed(2)}`,
+  );
+  return lines.join('\n');
+}
 
 /**
  * The field-condition rotation (M7). A condition is meant to be a trade, so
@@ -5605,6 +5677,12 @@ function main(): void {
   if (process.argv.includes('--shapes')) {
     console.log(archetypeTable('usa'));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--graph')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${graphTable(faction)}\n`);
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
   if (process.argv.includes('--conditions')) {

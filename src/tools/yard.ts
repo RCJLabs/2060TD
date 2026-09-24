@@ -6,7 +6,7 @@
  * halves of that. Each stage's reference defence stands, as the balance
  * harness draws it, and the stage's whole economy allowance is laid out
  * behind it three ways — nearest the post, at random, and by a search for the
- * best yard — and scored off the real `ratesPerHour`. Then the best yard is
+ * best yard — and scored off the real `productionPerHour`. Then the best yard is
  * fought through the defence's band, for what its buildings do to the maze
  * and what it loses to wrecks on a hold; and the played fortnight is run with
  * a commander who places for the yard beside one who does not.
@@ -18,7 +18,7 @@ import { BUILDABLE_KINDS, CC_GATING } from '../content/buildings';
 import { townMetaFor, type FactionId } from '../content/factions';
 import {
   baseRatesPerHour,
-  ratesPerHour,
+  productionPerHour,
   trainingDiscount,
   TOWN_GRID,
   type TownState,
@@ -84,9 +84,12 @@ class Yard {
     cells.forEach((cell, i) => (this.town.structures[this.first + i]!.cell = cell));
   }
 
-  /** Each resource the stage makes, as a share of what it makes before the yard. */
+  /**
+   * Each resource the stage's producers make, as a share of what they make
+   * before the yard. What the converters make of it is not the yard's doing.
+   */
   shares(): { supplies: number; fuel: number; intel: number | null } {
-    const rate = ratesPerHour(this.town);
+    const rate = productionPerHour(this.town);
     return {
       supplies: rate.supplies / this.base.supplies,
       fuel: rate.fuel / this.base.fuel,
@@ -107,10 +110,13 @@ class Yard {
 
   private get baseValue(): number {
     const meta = townMetaFor(this.town.faction);
+    // A converter counts as one at full power in `yardValue`, so its base is one.
+    const works = this.pieces.filter((p) => meta[p.kind]?.converts).length;
     return (
       this.base.supplies / meta['supplyDepot']!.generatesSupplies![0]! +
       this.base.fuel / meta['fuelDepot']!.generatesFuel![0]! +
-      this.base.intel / meta['radar']!.generatesIntel![0]!
+      this.base.intel / meta['radar']!.generatesIntel![0]! +
+      works
     );
   }
 
@@ -168,6 +174,8 @@ class Yard {
       fuelDepot: 'F',
       storageBunker: 'B',
       generator: 'G',
+      refinery: 'P',
+      bureau: 'I',
       engBay: 'E',
       radar: 'R',
       barracks: 'K',
@@ -332,7 +340,7 @@ export function yardTable(faction: FactionId = 'usa'): string {
   lines.push('(RANDOM and the bests are the mean in depot-equivalents; n/m F: facilities beside their depot)');
   lines.push('');
   lines.push('THE BEST YARDS BEHIND THE LINES — # wire, g guns, C the post; S supply, F fuel, B bunker,');
-  lines.push('G generator, R signals, E engineering, K barracks, M motor pool, A airfield');
+  lines.push('G generator, P refinery, I intel bureau, R signals, E engineering, K barracks, M motor pool, A airfield');
   const width = TOWN_GRID.width + 4;
   const rows = Math.max(...maps.map((m) => m.length));
   for (let r = 0; r < rows; r++) {

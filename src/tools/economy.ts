@@ -13,6 +13,8 @@
  * each, with every resource that moves booked to where it came from and where
  * it went. WHAT A DEFENCE COSTS (M24 Phase 2) puts the war back in: what a
  * siege pays against what it breaks, both in hours of the stage's production.
+ * Since M24 Phase 4 the commander also builds the works that convert supplies
+ * and buys the research graph, the top of which costs supplies and fuel.
  */
 import { assaultLoot, buildAssault } from '../content/assaults';
 import { generateBase, lootFor } from '../content/bases';
@@ -29,18 +31,21 @@ import {
 import { LADDER_EPOCH } from '../content/leagues';
 import { TECHS } from '../content/research';
 import {
+  accrue,
   canPlace,
   canResearch,
   caps,
   countOf,
   cumulativeCost,
   gating as gatingOf,
+  isUnlocked,
   newTown,
   outcomeFromEngine,
   place,
   baseRatesPerHour,
-  ratesPerHour,
+  productionPerHour,
   trainingDiscount,
+  yardOutput,
   repairCost,
   siegeConfig,
   startResearch,
@@ -73,7 +78,19 @@ const TIERS: string[][] = [
   ['storageBunker'],
   ['radar'],
   ['cc'],
-  ['engBay', 'generator', 'm2nest', 'autocannon', 'mortar', 'aa', 'barracks', 'motorpool', 'airfield'],
+  [
+    'engBay',
+    'generator',
+    'refinery',
+    'bureau',
+    'm2nest',
+    'autocannon',
+    'mortar',
+    'aa',
+    'barracks',
+    'motorpool',
+    'airfield',
+  ],
 ];
 
 /** Where a purchase is booked. */
@@ -84,6 +101,8 @@ const CATEGORY: Record<string, string> = {
   radar: 'production',
   storageBunker: 'storage',
   generator: 'production',
+  refinery: 'works',
+  bureau: 'works',
   engBay: 'facilities',
   barracks: 'facilities',
   motorpool: 'facilities',
@@ -375,11 +394,14 @@ interface Ledger {
   atCap: Amounts;
   /** Made past the eight hours an absence accrues for. */
   pastOffline: Amounts;
+  /** Supplies the converters took, and the fuel and intel they made of them. */
+  converted: Amounts;
   contracts: Amounts;
   /** What a season closing paid, which `tick` pays on top of the cap. */
   placements: Amounts;
   spent: Record<string, { supplies: number; fuel: number }>;
-  research: number;
+  /** What research cost, in all three. */
+  research: Amounts;
 }
 
 export interface Run {
@@ -389,8 +411,13 @@ export interface Run {
   milestones: Record<string, number | null>;
   /** When the last thing was bought, in days. */
   lastPurchase: number;
-  /** Supplies made once everything was bought, with nothing left to spend them on. */
+  /**
+   * Supplies made with nothing left to buy: the town built out, and every tech
+   * of the graph researched or in progress.
+   */
   idleMade: number;
+  /** Supplies made once the town was built out, research or not: Phase 3's reading. */
+  builtOutMade: number;
 }
 
 /** Board cells nearest the post first: where a commander puts buildings. */
@@ -441,13 +468,19 @@ export type Placement = 'naive' | 'yard';
  * top, which only ever breaks a tie.
  */
 export function yardValue(town: TownState): number {
-  const rate = ratesPerHour(town);
+  // What the producers make, and not what reaches the store: a converter takes
+  // from the one to make the other, and its cell decides only its power.
+  const rate = productionPerHour(town);
   const meta = townMetaFor(town.faction);
   let value =
     rate.supplies / meta['supplyDepot']!.generatesSupplies![0]! +
     rate.fuel / meta['fuelDepot']!.generatesFuel![0]! +
     rate.intel / meta['radar']!.generatesIntel![0]!;
-  for (const s of town.structures) if (trainingDiscount(town, s) > 0) value += 0.01;
+  for (const s of town.structures) {
+    // A converter at full power counts as a depot's worth, out of power half.
+    if (meta[s.kind]?.converts) value += yardOutput(town, s);
+    if (trainingDiscount(town, s) > 0) value += 0.01;
+  }
   return value;
 }
 
@@ -463,10 +496,11 @@ export function playFortnight(
     banked: zero(),
     atCap: zero(),
     pastOffline: zero(),
+    converted: zero(),
     contracts: zero(),
     placements: zero(),
     spent: {},
-    research: 0,
+    research: zero(),
   };
   const start = LADDER_EPOCH + 7 * HOUR;
   const town = unlockAll(newTown(start, faction));
@@ -476,23 +510,33 @@ export function playFortnight(
     'CC2': null,
     'CC3': null,
     'CC3 built out': null,
-    'all research': null,
+    'the nine': null,
+    'the graph': null,
   };
+  const nine = TECHS.filter((t) => t.tier <= 3).map((t) => t.id);
   let lastPurchase = 0;
-  /** Supplies made after everything was bought. */
+  /** Supplies made with nothing left to buy, and made after the build-out. */
   let idleMade = 0;
+  let builtOutMade = 0;
+  const nothingToBuy = (): boolean =>
+    milestones['CC3 built out'] !== null &&
+    TECHS.every((t) => town.research.completed.includes(t.id) || town.research.active?.id === t.id);
   const book = (kind: string, cost: { supplies: number; fuel: number }): void => {
     const bin = (ledger.spent[CATEGORY[kind] ?? kind] ??= { supplies: 0, fuel: 0 });
     bin.supplies += cost.supplies;
     bin.fuel += cost.fuel;
   };
 
-  /** Advance to `now` through the real `tick`, booking what it did. */
+  /**
+   * Advance to `now` through the real `tick`, booking what it did. The stores
+   * it should reach come from `accrue`, which is what `tick` applies, and the
+   * converters' part of them is booked apart from what the producers made.
+   */
   const advance = (now: number): void => {
     const elapsed = Math.max(0, now - town.lastSeen);
     const counted = Math.min(elapsed, OFFLINE_CAP_HOURS * HOUR);
-    const rate = ratesPerHour(town);
-    const cap = caps(town);
+    const rate = productionPerHour(town);
+    const gained = accrue(town, counted);
     const expected = zero();
     for (const r of RESOURCES) {
       const made = (rate[r] * elapsed) / HOUR;
@@ -500,12 +544,14 @@ export function playFortnight(
       const held = town[r];
       ledger.made[r] += made;
       ledger.pastOffline[r] += made - gain;
-      // As `tick` does it: fill to the cap, and keep whatever was above it.
-      const after = elapsed > 0 ? Math.max(held, Math.min(cap[r], held + gain)) : held;
-      const banked = after - held;
+      const banked = gained[r] - held;
       ledger.banked[r] += banked;
-      ledger.atCap[r] += gain - banked;
-      expected[r] = after;
+      // Lost to a full store: what came in and was neither kept nor handed on
+      // to a converter. Supplies go into the works and fuel and intel come out.
+      const taken = gained.converted[r];
+      ledger.converted[r] += taken;
+      ledger.atCap[r] += (r === 'supplies' ? gain - taken : gain + taken) - banked;
+      expected[r] = gained[r];
     }
     tick(town, now);
     // Anything else `tick` paid is a season placement; nothing else pays there,
@@ -530,13 +576,15 @@ export function playFortnight(
    * stock on the CC2 upgrade and two nests before it owned a depot, so it
    * produced nothing for a fortnight.
    */
-  const buyOne = (now: number): boolean => {
+  const buyOne = (now: number): 'bought' | 'saving' | 'done' => {
     const meta = townMetaFor(faction);
     const top = (kind: string): number => Math.min(gatingOf(town).maxStructureLevel, meta[kind]!.levels.length);
     for (const tier of TIERS) {
       let pending = false;
       const options: { cost: { supplies: number; fuel: number }; kind: string; act: () => boolean }[] = [];
       for (const kind of tier) {
+        // The works wait on their research, which is not a thing to save for.
+        if (kind !== 'cc' && !isUnlocked(town, kind)) continue;
         if (kind === 'cc') {
           const cc = townCc(town);
           const why = upgradeError(town, cc);
@@ -576,19 +624,32 @@ export function playFortnight(
         ledger.contracts.fuel += town.fuel - (held.fuel - pick.cost.fuel);
         ledger.contracts.intel += town.intel - held.intel;
         lastPurchase = now;
-        return true;
+        return 'bought';
       }
       // Something in this tier is still to buy: save for it.
-      if (pending) return false;
+      if (pending) return 'saving';
     }
-    return false;
+    return 'done';
   };
 
-  const research = (now: number): void => {
+  /**
+   * The next project, cheapest in intel first. A tech that costs supplies or
+   * fuel — the graph's top two tiers — waits until there is nothing left to
+   * build: a commander who wants a bigger town buys the town first.
+   */
+  const research = (now: number, builtOut: boolean): void => {
     if (town.research.active) return;
-    const next = [...TECHS].sort((a, b) => a.intel - b.intel).find((t) => canResearch(town, t.id) === null);
-    if (!next) return;
-    if (startResearch(town, next.id, now)) ledger.research += next.intel;
+    const next = [...TECHS]
+      .filter((t) => builtOut || (!t.supplies && !t.fuel))
+      .sort((a, b) => a.intel - b.intel || (a.supplies ?? 0) - (b.supplies ?? 0))
+      .find((t) => canResearch(town, t.id) === null);
+    if (!next || !startResearch(town, next.id, now)) return;
+    const cost = { supplies: next.supplies ?? 0, fuel: next.fuel ?? 0 };
+    ledger.research.intel += next.intel;
+    ledger.research.supplies += cost.supplies;
+    ledger.research.fuel += cost.fuel;
+    if (cost.supplies > 0 || cost.fuel > 0) book('research', cost);
+    lastPurchase = now;
   };
 
   const waking = 16 * HOUR;
@@ -599,12 +660,14 @@ export function playFortnight(
       for (let m = 0; m < sessionMinutes; m++) {
         const now = at + m * MIN;
         const madeBefore = ledger.made.supplies;
+        const idle = nothingToBuy();
+        const built = milestones['CC3 built out'] !== null;
         advance(now);
-        if (milestones['CC3 built out'] !== null) idleMade += ledger.made.supplies - madeBefore;
-        while (buyOne(now)) {
-          /* spend what can be spent */
-        }
-        research(now);
+        if (idle) idleMade += ledger.made.supplies - madeBefore;
+        if (built) builtOutMade += ledger.made.supplies - madeBefore;
+        let state = buyOne(now);
+        while (state === 'bought') state = buyOne(now);
+        research(now, state === 'done');
         const t = (now - start) / DAY;
         const mark = (name: string, ok: boolean): void => {
           if (ok && milestones[name] === null) milestones[name] = t;
@@ -612,7 +675,8 @@ export function playFortnight(
         mark('CC2', townCc(town).level >= 2 && townCc(town).buildEndsAt === undefined);
         mark('CC3', townCc(town).level >= 3 && townCc(town).buildEndsAt === undefined);
         mark('CC3 built out', isBuiltOut(town, 3));
-        mark('all research', town.research.completed.length === TECHS.length);
+        mark('the nine', nine.every((id) => town.research.completed.includes(id)));
+        mark('the graph', town.research.completed.length === TECHS.length);
       }
     }
   }
@@ -622,6 +686,7 @@ export function playFortnight(
     milestones,
     lastPurchase: (lastPurchase - start) / DAY,
     idleMade,
+    builtOutMade,
   };
 }
 
@@ -631,8 +696,10 @@ function fortnightTable(faction: FactionId, days = 14, sessionMinutes = 10): str
   const when = (d: number | null): string => (d === null ? 'never' : d < 1 ? `${(d * 24).toFixed(0)} h` : `${d.toFixed(1)} d`);
   const lines = [
     `A PLAYED FORTNIGHT — ${faction.toUpperCase()}: ${days} days, a ${sessionMinutes}-minute session at a fixed ` +
-      `cadence from 07:00 to 23:00, buying production, then storage, intel, the Command Center and the rest`,
-    'EVERY  | SESSIONS | CC2 BY | CC3 BY | ALL BOUGHT | ALL RESEARCH | SUPPLIES MADE | BANKED | LOST FULL | LOST PAST 8H | MADE WITH NOTHING TO BUY',
+      `cadence from 07:00 to 23:00, buying production, then storage, intel, the Command Center and the rest, ` +
+      `then the research graph`,
+    'EVERY  | SESSIONS | CC2 BY | CC3 BY | ALL BOUGHT | THE NINE | THE GRAPH | SUPPLIES MADE | BANKED | CONVERTED | ' +
+      'LOST FULL | LOST PAST 8H | MADE AFTER THE BUILD-OUT | MADE WITH NOTHING TO BUY',
   ];
   for (const { h, run } of runs) {
     const m = run.milestones;
@@ -640,9 +707,11 @@ function fortnightTable(faction: FactionId, days = 14, sessionMinutes = 10): str
     lines.push(
       `${pad(h < 1 ? `${h * 60} min` : `${h} h`, 6)} | ${pad(String(run.sessionsPerDay), 8)} | ` +
         `${pad(when(m['CC2']!), 6)} | ${pad(when(m['CC3']!), 6)} | ${pad(when(m['CC3 built out']!), 10)} | ` +
-        `${pad(when(m['all research']!), 12)} | ${pad(k(L.made.supplies), 13)} | ` +
-        `${pad(pct(L.banked.supplies, L.made.supplies), 6)} | ${pad(pct(L.atCap.supplies, L.made.supplies), 9)} | ` +
-        `${pad(pct(L.pastOffline.supplies, L.made.supplies), 12)} | ${pct(run.idleMade, L.made.supplies)}`,
+        `${pad(when(m['the nine']!), 8)} | ${pad(when(m['the graph']!), 9)} | ${pad(k(L.made.supplies), 13)} | ` +
+        `${pad(pct(L.banked.supplies, L.made.supplies), 6)} | ${pad(pct(L.converted.supplies, L.made.supplies), 9)} | ` +
+        `${pad(pct(L.atCap.supplies, L.made.supplies), 9)} | ` +
+        `${pad(pct(L.pastOffline.supplies, L.made.supplies), 12)} | ${pad(pct(run.builtOutMade, L.made.supplies), 24)} | ` +
+        `${pct(run.idleMade, L.made.supplies)}`,
     );
   }
   // Where it went, for one cadence a player might keep.
@@ -650,10 +719,13 @@ function fortnightTable(faction: FactionId, days = 14, sessionMinutes = 10): str
   const spent = Object.entries(typical.ledger.spent).sort((a, b) => b[1].supplies - a[1].supplies);
   const total = spent.reduce((sum, [, v]) => sum + v.supplies, 0);
   lines.push('');
+  const R = typical.ledger.research;
+  const C = typical.ledger.converted;
   lines.push(
     `WHERE IT WENT, a session every 2 h: ${k(total)} supplies spent, the last purchase ${when(typical.lastPurchase)} in; ` +
-      `${typical.ledger.research} intel on all nine techs; ${k(typical.ledger.contracts.supplies)} supplies from the ` +
-      `day's orders for building`,
+      `research ${k(R.intel)} intel, ${k(R.supplies)} supplies, ${k(R.fuel)} fuel; the works took ${k(C.supplies)} ` +
+      `supplies for ${k(C.fuel)} fuel and ${k(C.intel)} intel; ${k(typical.ledger.contracts.supplies)} supplies from ` +
+      `the day's orders for building`,
   );
   for (const [category, v] of spent) {
     lines.push(`  ${pad(category, 14)} ${pad(k(v.supplies), 6)} S ${pad(k(v.fuel), 6)} F  ${pct(v.supplies, total)}`);
@@ -689,9 +761,51 @@ function overflowTable(faction: FactionId): string[] {
   ];
 }
 
+/**
+ * THE WORKS (M24 Phase 4): what each stage's converters take and make an hour
+ * at the stage's top level, powered, against what its producers make before
+ * the yard. What they take is their price while the supply store is filling;
+ * on a full one it is production that would have been lost.
+ */
+function worksTable(faction: FactionId): string[] {
+  const meta = townMetaFor(faction);
+  const lines = [
+    `THE WORKS — ${faction.toUpperCase()}: each stage's converters at its top level, powered, against its producers`,
+    'STAGE | PRODUCERS MAKE AN HOUR | REFINERY S → F | BUREAU S → I | THE WORKS TAKE | THEY ADD | WITH STRATEGIC RESERVE',
+  ];
+  for (let cc = 1; cc <= 3; cc++) {
+    const gate = CC_GATING[cc - 1]!;
+    const rate = baseRatesPerHour(builtOut(faction, cc));
+    const works = (kind: string): { input: number; output: number } => {
+      const c = meta[kind]!.converts!;
+      const n = gate.counts[kind] ?? 0;
+      const i = Math.min(gate.maxStructureLevel, c.input.length) - 1;
+      return { input: c.input[i]! * n, output: c.output[i]! * n };
+    };
+    const refinery = works('refinery');
+    const bureau = works('bureau');
+    const take = refinery.input + bureau.input;
+    const producers = `${rate.supplies} S ${rate.fuel} F ${rate.intel} I`;
+    if (take === 0) {
+      lines.push(`CC${cc}   | ${pad(producers, 22)} | none`);
+      continue;
+    }
+    const adds = (k: number): string =>
+      `+${pct(refinery.output * k, rate.fuel)} fuel, +${pct(bureau.output * k, rate.intel)} intel`;
+    lines.push(
+      `CC${cc}   | ${pad(producers, 22)} | ${pad(`${refinery.input} → ${refinery.output}`, 14)} | ` +
+        `${pad(`${bureau.input} → ${bureau.output}`, 12)} | ${pad(`${take} S, ${pct(take, rate.supplies)}`, 14)} | ` +
+        `${pad(adds(1), 22)} | ${adds(1.25)}`,
+    );
+  }
+  return lines;
+}
+
 export function economyTable(faction: FactionId = 'usa'): string {
   return [
     ...stageTable(faction),
+    '',
+    ...worksTable(faction),
     '',
     ...defenceTable(faction),
     '',
