@@ -117,6 +117,9 @@ import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, 
 import type { Ink } from '../ink';
 import { buildSettings } from '../settingsOverlay';
 import { buildStructureSpec, buildWallSpec } from '../spec';
+import { buildTheaterMap } from '../theaterMap';
+import { frontLabel } from '../../meta/theater';
+import { theaterFor } from '../../content/theaters';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
 import {
   baseFromShare,
@@ -545,6 +548,7 @@ export class TownScene extends Scene {
     kb?.on('keydown-F', () => this.openFrontline());
     kb?.on('keydown-T', () => this.openOverlay(() => this.showResearch()));
     kb?.on('keydown-M', () => this.openOverlay(() => this.showMissions()));
+    kb?.on('keydown-G', () => this.openOverlay(() => this.showTheater()));
   }
 
   private handleCell(cell: number, isTap: boolean): void {
@@ -882,14 +886,43 @@ export class TownScene extends Scene {
     });
   }
 
-  private openFrontline(): void {
+  /** The raid planner, on the front post in `variant`'s lane when the map chose one. */
+  private openFrontline(variant?: number): void {
     if (this.demoMode || !isUnlocked(this.town, 'frontline')) return;
     if (this.town.frontline.pendingCounterattack) {
       this.launchCounterattack();
       return;
     }
     saveTown(this.town);
-    this.scene.start('raid', { town: this.town });
+    this.scene.start('raid', { town: this.town, ...(variant !== undefined ? { variant } : {}) });
+  }
+
+  /**
+   * The theater (M25 Phase 1): the Front Line drawn as the ground it is. It
+   * only reads, so a demo board may open it; a raid starts from it only where
+   * one could start from the Front Line row.
+   */
+  private showTheater(): void {
+    if (this.overlay || !isUnlocked(this.town, 'frontline')) return;
+    const close = (): void => {
+      this.overlay?.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    const canRaid = !this.demoMode && !this.town.frontline.pendingCounterattack;
+    this.overlay = buildTheaterMap(this, {
+      layout: this.layout,
+      town: this.town,
+      ...(canRaid
+        ? {
+            onRaid: (variant: number) => {
+              close();
+              this.openFrontline(variant);
+            },
+          }
+        : {}),
+      onClose: close,
+    });
   }
 
   /**
@@ -2464,10 +2497,19 @@ export class TownScene extends Scene {
     } else {
       rows.push({
         id: 'front',
-        label: `FRONT LINE — TIER ${town.frontline.tier}`,
+        label: `FRONT LINE — ${frontLabel(town)}`,
         sub: '[F]',
         enabled: !this.demoMode,
         onTap: () => this.openFrontline(),
+      });
+    }
+    // The ground the Front Line is fought over (M25).
+    if (isUnlocked(town, 'frontline')) {
+      rows.push({
+        id: 'theater',
+        label: `THEATER — ${theaterFor(town.faction).name}`,
+        sub: '[G]',
+        onTap: () => this.openOverlay(() => this.showTheater()),
       });
     }
 

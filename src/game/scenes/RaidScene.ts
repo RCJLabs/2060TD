@@ -106,6 +106,9 @@ import { buildAttackerSpec } from '../spec';
 import { createButton, type FreeButton } from '../dom/button';
 import { createLabel, type SceneLabel } from '../dom/label';
 import { createOverlay, type OverlayApi } from '../dom/overlay';
+import { buildTheaterMap } from '../theaterMap';
+import { frontLabel } from '../../meta/theater';
+import { columnName, laneFor, theaterFor } from '../../content/theaters';
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
 
@@ -205,7 +208,7 @@ export class RaidScene extends Scene {
     super('raid');
   }
 
-  init(data: { town?: TownState; challenge?: Challenge }): void {
+  init(data: { town?: TownState; challenge?: Challenge; variant?: number }): void {
     const params = new URLSearchParams(window.location.search);
     this.demoMode = params.get('demo') === 'raid';
     this.challenge = data?.challenge ?? null;
@@ -217,7 +220,12 @@ export class RaidScene extends Scene {
         pick === 'china' || pick === 'russia' || pick === 'nk' || pick === 'un' ? pick : 'usa',
       );
     }
-    this.variant = 0;
+    // The post the theater map chose, or the first (M25).
+    const chosen = data?.variant;
+    this.variant =
+      chosen !== undefined && !this.challenge
+        ? ((chosen % TARGETS_PER_TIER) + TARGETS_PER_TIER) % TARGETS_PER_TIER
+        : 0;
     this.selectedSquad = 0;
     this.result = null;
     this.squadReport = null;
@@ -447,8 +455,13 @@ export class RaidScene extends Scene {
   }
 
   private cycleTarget(): void {
+    this.selectTarget((this.variant + 1) % TARGETS_PER_TIER);
+  }
+
+  /** Aim the planner at the front post in `variant`'s lane. */
+  private selectTarget(variant: number): void {
     if (this.challenge) return; // one code, one base
-    this.variant = (this.variant + 1) % TARGETS_PER_TIER;
+    this.variant = variant;
     this.base = targetFor(this.town, this.variant);
     // A posture survives a change of target, but only where the new post can
     // answer it: a camp with one emplacement cannot be asked for two.
@@ -831,6 +844,28 @@ export class RaidScene extends Scene {
     this.result = null;
   }
 
+  /** The theater map (M25), from which a post can be chosen for this raid. */
+  private showTheater(): void {
+    if (this.overlay || this.challenge) return;
+    const close = (): void => {
+      this.overlay?.close();
+      this.overlay = null;
+    };
+    this.overlay = buildTheaterMap(this, {
+      layout: this.layout,
+      town: this.town,
+      ...(this.town.frontline.pendingCounterattack
+        ? {}
+        : {
+            onRaid: (variant: number) => {
+              close();
+              this.selectTarget(variant);
+            },
+          }),
+      onClose: close,
+    });
+  }
+
   /**
    * The formation's file. Rank is the only thing here that touches the sim;
    * the rest is the reason the player cares which squad takes the losses.
@@ -920,6 +955,10 @@ export class RaidScene extends Scene {
           ? 'One-sided: the post was barely scratched.'
           : null;
     const mission = OBJECTIVES[res.objective];
+    // A third win takes the front's town (M25): the rung went up and its wins
+    // started again.
+    const theater = theaterFor(this.town.faction);
+    const took = res.cleared && !this.challenge && this.town.frontline.wins === 0;
     const lines = [
       ...(res.objective === 'post'
         ? []
@@ -953,7 +992,11 @@ export class RaidScene extends Scene {
         : []),
       ...(margin ? [margin] : []),
       res.cleared
-        ? `Front Line: ${this.town.frontline.wins}/3 to next tier` +
+        ? (took
+            ? `${columnName(theater, this.town.frontline.tier - 1)} TAKEN · ` +
+              `the front moves to ${columnName(theater, this.town.frontline.tier)}`
+            : `Front Line: ${this.town.frontline.wins}/3 to take ` +
+              `${columnName(theater, this.town.frontline.tier)}`) +
           (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')
         : res.withdrew
           ? 'The post stands, but you did what you came to do.'
@@ -1034,15 +1077,17 @@ export class RaidScene extends Scene {
         return [
           {
             id: 'h',
-            label: `${flavorFor(town.faction).enemy} POSTS · TIER ${tier} · CLEARED ${town.frontline.wins}/3`,
+            label: `${flavorFor(town.faction).enemy} POSTS AT ${frontLabel(town)} · CLEARED ${town.frontline.wins}/3`,
             heading: true,
           },
+          // The ground (M25): the front and its three posts, lane by lane.
+          { id: 'theater', label: 'THEATER MAP', sub: '▸', onTap: () => this.showTheater() },
           {
             id: 'target',
             // The SHAPE is free; the layout still costs Intel. Knowing which
             // of three targets is a bunker complex and which is an open camp
             // is the choice the archetypes exist to create.
-            label: `TARGET ${this.variant + 1}/${TARGETS_PER_TIER}`,
+            label: `TARGET ${this.variant + 1}/${TARGETS_PER_TIER} · ${laneFor(theaterFor(town.faction), this.variant).name}`,
             sub: `${shape.short} ▸`,
             onTap: () => this.cycleTarget(),
           },
@@ -1268,7 +1313,7 @@ export class RaidScene extends Scene {
     const town = this.town;
     const squad = this.squads[this.selectedSquad]!;
 
-    this.panel.setStatus(`FRONT LINE · TIER ${town.frontline.tier}`, [
+    this.panel.setStatus(`FRONT LINE · ${frontLabel(town)}`, [
       `TARGET ${this.base.name}${this.scouted() ? '' : ' · UNSCOUTED'}`,
       `MP ${armyManpower(town)}/${manpowerCapOf(town)} · SUP ${Math.floor(town.supplies)}`,
       `FUEL ${Math.floor(town.fuel)} · INTEL ${Math.floor(town.intel)}`,
