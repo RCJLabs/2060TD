@@ -1,4 +1,4 @@
-import type Phaser from 'phaser';
+import type { Scene } from './stage';
 import { CoachRunner, type CoachState, type CoachStep } from '../content/tutorial';
 import { css as cssPx, cssColor, sceneHost } from './dom/layer';
 import type { Layout } from './layout';
@@ -24,7 +24,7 @@ interface Plate {
 }
 
 /** One element, sized by its own text, and real text to read. */
-function makePlate(scene: Phaser.Scene, onTap: () => void): Plate {
+function makePlate(scene: Scene, onTap: () => void): Plate {
   const plate = document.createElement('div');
   plate.dataset['text'] = '';
   plate.dataset['ui'] = 'coach';
@@ -81,7 +81,7 @@ export class Coach {
   private pendingTab: string | null = null;
 
   constructor(
-    scene: Phaser.Scene,
+    scene: Scene,
     private layout: Layout,
     script: CoachStep[],
   ) {

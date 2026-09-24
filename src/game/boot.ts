@@ -1,11 +1,11 @@
-import Phaser from 'phaser';
+import { POST_RENDER, type Game } from './stage';
 
 /**
  * The boot card lives in index.html so it paints before any of this exists.
  * This is only the other half: taking it down once there are real pixels
  * behind it, and never leaving it up if something went wrong on the way.
  */
-export function dismissBootCard(game: Phaser.Game): void {
+export function dismissBootCard(game: Game): void {
   const card = document.getElementById('boot');
   if (!card) return;
 
@@ -27,7 +27,7 @@ export function dismissBootCard(game: Phaser.Game): void {
 
   // POST_RENDER rather than READY: the card comes down when there is
   // something behind it, not when the engine says it is willing to draw.
-  game.events.once(Phaser.Core.Events.POST_RENDER, hide);
+  game.events.once(POST_RENDER, hide);
   // Belt and braces — a renderer that never posts a frame must not leave the
   // card sitting on top of a game the player can already hear and tap.
   setTimeout(hide, 8000);

@@ -1,4 +1,4 @@
-import type Phaser from 'phaser';
+import type { Scene } from '../stage';
 import { COLORS, css as hex } from '../palette';
 import { MONO_FAMILY } from '../tokens';
 import { css, sceneHost } from './layer';
@@ -39,7 +39,7 @@ export interface SceneLabel {
  * A scene label (M30): real text, in a scene's host, which reports it to the
  * harness like any other text on screen and takes it down with the scene.
  */
-export function createLabel(scene: Phaser.Scene, text: string, style: LabelStyle): SceneLabel {
+export function createLabel(scene: Scene, text: string, style: LabelStyle): SceneLabel {
   const el = document.createElement('div');
   el.dataset['text'] = '';
   el.textContent = text;

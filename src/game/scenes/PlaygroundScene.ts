@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { clamp, Scene } from '../stage';
 import { TOWN_GRID } from '../../meta/town';
 import { TERRAIN_VERSION } from '../../sim/terrain';
 import { music } from '../music';
@@ -28,7 +28,7 @@ const LAB_TABS = [
  * full M1 sim: paint walls, drop M2 nests, spawn militia/sappers, and watch
  * the weighted paths reroute live. Free placement, no economy.
  */
-export class PlaygroundScene extends Phaser.Scene {
+export class PlaygroundScene extends Scene {
   private engine!: Engine;
   private battle!: BattleRenderer;
   private accumulator = 0;
@@ -172,7 +172,7 @@ export class PlaygroundScene extends Phaser.Scene {
     }
     if (this.accumulator > DT) this.accumulator = 0;
 
-    const alpha = Phaser.Math.Clamp(this.accumulator / DT, 0, 1);
+    const alpha = clamp(this.accumulator / DT, 0, 1);
     this.battle.draw(alpha, deltaMs / 1000, { showPaths: this.showPaths, ghost: this.ghost() });
     this.updateHud();
   }

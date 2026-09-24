@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { clamp, type Container, type Graphics, type Image, type Scene, type Text } from './stage';
 import type { Attacker, Engine } from '../sim/engine';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
 import { audio } from './audio';
@@ -76,31 +76,31 @@ export interface DrawOptions {
  * a thin, interpolated, immediate-mode layer over the deterministic sim.
  */
 export class BattleRenderer {
-  private readonly scene: Phaser.Scene;
+  private readonly scene: Scene;
   private readonly engine: Engine;
   private readonly cell: number;
-  private readonly container: Phaser.GameObjects.Container | undefined;
+  private readonly container: Container | undefined;
   private readonly hostileStructures: boolean;
   /** The baked page. The world container owns it, and `makeSheet` wires the
    *  canvas texture's release to this object's destroy. */
-  private sheet: Phaser.GameObjects.Image | null = null;
-  private readonly staticLayer: Phaser.GameObjects.Graphics;
-  private readonly dynLayer: Phaser.GameObjects.Graphics;
+  private sheet: Image | null = null;
+  private readonly staticLayer: Graphics;
+  private readonly dynLayer: Graphics;
   private effects: Effect[] = [];
   /** Last firing direction per structure id — barrels track their targets. */
   private readonly barrelDirs = new Map<number, number>();
   /** Last movement heading per attacker id — vehicles keep facing when halted. */
   private readonly facings = new Map<number, number>();
   /** Pooled lettering. Lives in the world container, so it pans and zooms. */
-  private readonly shouts: Phaser.GameObjects.Text[] = [];
+  private readonly shouts: Text[] = [];
 
   constructor(
-    scene: Phaser.Scene,
+    scene: Scene,
     engine: Engine,
     cellPx: number,
     hostileStructures = false,
     /** World container when the scene splits board and HUD across cameras. */
-    container?: Phaser.GameObjects.Container,
+    container?: Container,
   ) {
     this.scene = scene;
     this.engine = engine;
@@ -121,7 +121,7 @@ export class BattleRenderer {
     const g = this.staticLayer;
     // The sheet is a baked texture, not commands: it goes in behind the
     // static graphics rather than into them.
-    this.sheet = makeSheet(this.scene, {
+    this.sheet = makeSheet({
       width: grid.width,
       height: grid.height,
       cell: c,
@@ -266,7 +266,7 @@ export class BattleRenderer {
     this.drawEffects(g, dtSeconds);
   }
 
-  private drawWalls(g: Phaser.GameObjects.Graphics): void {
+  private drawWalls(g: Graphics): void {
     const grid = this.engine.grid;
     const c = this.cell;
     const wire = new Set(grid.walls.keys());
@@ -288,7 +288,7 @@ export class BattleRenderer {
     }
   }
 
-  private drawStructures(g: Phaser.GameObjects.Graphics): void {
+  private drawStructures(g: Graphics): void {
     const c = this.cell;
     for (const s of this.engine.structures) {
       const px = s.center.x * c;
@@ -321,7 +321,7 @@ export class BattleRenderer {
     }
   }
 
-  private drawPaths(g: Phaser.GameObjects.Graphics, alpha: number): void {
+  private drawPaths(g: Graphics, alpha: number): void {
     const grid = this.engine.grid;
     const c = this.cell;
     for (const attacker of this.engine.attackers) {
@@ -354,7 +354,7 @@ export class BattleRenderer {
     }
   }
 
-  private drawAttackers(g: Phaser.GameObjects.Graphics, alpha: number): void {
+  private drawAttackers(g: Graphics, alpha: number): void {
     const c = this.cell;
     // Ground layer first, then the air layer above it: altitude has to read
     // at a glance, because it decides which of your guns can answer.
@@ -435,12 +435,12 @@ export class BattleRenderer {
   }
 
 
-  private drawProjectiles(g: Phaser.GameObjects.Graphics, alpha: number): void {
+  private drawProjectiles(g: Graphics, alpha: number): void {
     const c = this.cell;
     for (const shell of this.engine.projectiles) {
       const flight = shell.impactTick - shell.firedTick;
       if (flight <= 0) continue;
-      const t = Phaser.Math.Clamp(
+      const t = clamp(
         (this.engine.tick - shell.firedTick - 1 + alpha) / flight,
         0,
         1,
@@ -457,7 +457,7 @@ export class BattleRenderer {
     }
   }
 
-  private drawGhost(g: Phaser.GameObjects.Graphics, ghost: GhostPreview): void {
+  private drawGhost(g: Graphics, ghost: GhostPreview): void {
     const grid = this.engine.grid;
     const c = this.cell;
     const x = grid.xOf(ghost.cell) * c;
@@ -481,7 +481,7 @@ export class BattleRenderer {
     }
   }
 
-  private drawPowerPreview(g: Phaser.GameObjects.Graphics, preview: PowerPreview): void {
+  private drawPowerPreview(g: Graphics, preview: PowerPreview): void {
     const def = this.engine.catalog.powers[preview.kind];
     if (!def) return;
     const c = this.cell;
@@ -505,7 +505,7 @@ export class BattleRenderer {
     g.lineBetween(x * c, y * c - 6, x * c, y * c + 6);
   }
 
-  private drawEffects(g: Phaser.GameObjects.Graphics, dtSeconds: number): void {
+  private drawEffects(g: Graphics, dtSeconds: number): void {
     const c = this.cell;
     this.effects = this.effects.filter((fx) => (fx.age += dtSeconds) < fx.life);
     /** Pool slots are handed out per FRAME, so a word that died frees its. */
@@ -629,7 +629,7 @@ export class BattleRenderer {
   }
 
   private hpBar(
-    g: Phaser.GameObjects.Graphics,
+    g: Graphics,
     centerX: number,
     y: number,
     width: number,
@@ -653,12 +653,12 @@ export class BattleRenderer {
   /**
    * A radius, as a ring of ink ticks.
    *
-   * Phaser `Graphics` has no dash support, so the dash is drawn: short radial
+   * The board's `Graphics` has no dash support, so the dash is drawn: short radial
    * strokes at a fixed arc spacing, which reads as a dashed circle and scales
    * with the radius for free.
    */
   private radius(
-    g: Phaser.GameObjects.Graphics,
+    g: Graphics,
     px: number,
     py: number,
     r: number,
@@ -692,7 +692,7 @@ export class BattleRenderer {
   }
 
   /** A pooled word, made on first use and reused for the rest of the battle. */
-  private shoutText(slot: number): Phaser.GameObjects.Text {
+  private shoutText(slot: number): Text {
     let t = this.shouts[slot];
     if (!t) {
       t = this.scene.add

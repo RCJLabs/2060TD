@@ -1,4 +1,4 @@
-import type Phaser from 'phaser';
+import type { Scene } from './stage';
 import { forgetCoach } from '../meta/coach';
 import { downloadSave, pickAndImportSave, saveTown, SAVE_FILENAME } from '../meta/save';
 import type { TownState } from '../meta/town';
@@ -42,7 +42,7 @@ export interface SettingsOptions {
 }
 
 export function buildSettings(
-  scene: Phaser.Scene,
+  scene: Scene,
   layout: Layout,
   opts: SettingsOptions,
 ): OverlayApi {

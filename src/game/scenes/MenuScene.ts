@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { Scene } from '../stage';
 import { music } from '../music';
 import { campaignFor, FACTION_IDS, flavorFor } from '../../content/factions';
 import { drawFactionMark } from '../glyphs';
@@ -27,7 +27,7 @@ import { createOverlay, type OverlayApi } from '../dom/overlay';
  * as it stands, NEW WAR clears the file and lets TownScene run its own
  * faction pick, which keeps one code path for starting a campaign.
  */
-export class MenuScene extends Phaser.Scene {
+export class MenuScene extends Scene {
   private layout!: Layout;
   private page: OverlayApi | null = null;
   /** Second tap confirms: erasing a war is destructive and has no undo. */

@@ -1,6 +1,6 @@
 /**
  * Mobile shell (v0.6.1): everything a phone needs that the scenes don't
- * know about. Pure DOM, no Phaser imports — it runs beside the game and
+ * know about. Pure DOM, no stage imports — it runs beside the game and
  * ships in the same bundle, so the Pages site and the single-file build
  * both get it for free.
  *

@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { DESTROY, RESIZE, SHUTDOWN, type Scene } from './stage';
 import { safeAreaInsets, type SafeArea } from './mobile';
 
 /**
@@ -417,7 +417,7 @@ export function computeLayout(
  * `aspect` is the scene's world, width over height; see `computeLayout`.
  */
 export function layoutOf(
-  scene: Phaser.Scene,
+  scene: Scene,
   drawer: DrawerState = DRAWER_REST,
   primaryH = 0,
   statusLines = 1,
@@ -442,13 +442,13 @@ export function layoutOf(
  * resizes, and the mobile URL bar sliding away. Auto-unsubscribes with the
  * scene so a restarted scene never leaks a stale handler.
  */
-export function onLayoutChange(scene: Phaser.Scene, handler: () => void): void {
+export function onLayoutChange(scene: Scene, handler: () => void): void {
   const onResize = (): void => handler();
-  scene.scale.on(Phaser.Scale.Events.RESIZE, onResize);
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-    scene.scale.off(Phaser.Scale.Events.RESIZE, onResize);
+  scene.scale.on(RESIZE, onResize);
+  scene.events.once(SHUTDOWN, () => {
+    scene.scale.off(RESIZE, onResize);
   });
-  scene.events.once(Phaser.Scenes.Events.DESTROY, () => {
-    scene.scale.off(Phaser.Scale.Events.RESIZE, onResize);
+  scene.events.once(DESTROY, () => {
+    scene.scale.off(RESIZE, onResize);
   });
 }

@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { Game, type SceneClass } from './game/stage';
 import { BriefingScene } from './game/scenes/BriefingScene';
 import { MenuScene } from './game/scenes/MenuScene';
 import { PlaygroundScene } from './game/scenes/PlaygroundScene';
@@ -28,7 +28,7 @@ const playground = params.has('playground');
 
 // Demos boot straight into the screen they exist to show; a real session
 // starts at the front door.
-const scene: Phaser.Types.Scenes.SceneType[] = playground
+const scenes: SceneClass[] = playground
   ? [PlaygroundScene]
   : demo === '1'
     ? [SiegeScene, TownScene, BriefingScene, RaidScene, ReplayScene, MenuScene]
@@ -52,17 +52,17 @@ let dpr = devicePixelRatioCapped();
 const start = viewportCss();
 
 /**
- * Scale.NONE with a manual DPR rig: the drawing buffer is viewport × DPR
- * (crisp text on phones) while `zoom` shrinks the CSS size back to the
- * viewport. Layout math lives in device px — see game/layout.ts.
+ * The drawing buffer is viewport × DPR (crisp lines on phones), and `zoom`
+ * shrinks the CSS size back to the viewport. Layout math lives in device px —
+ * see game/layout.ts.
  */
 /**
  * Wait for the display face before a single Text object exists.
  *
- * Canvas text does not trigger font loading, and Phaser measures a string the
- * moment a Text is constructed — so a game that starts first measures the
- * FALLBACK, caches those metrics, and lays every row, wrap and tap target out
- * for a font it is not drawing. The two weights are already in the bundle as
+ * Canvas text does not trigger font loading, and board text measures its
+ * string the first time it is laid out — so a game that starts first measures
+ * the FALLBACK, caches those metrics, and places the board's lettering for a
+ * font it is not drawing. The two weights are already in the bundle as
  * data URIs (see fonts.css); this is only the promise that they have been
  * parsed.
  *
@@ -77,22 +77,14 @@ await Promise.race([
   new Promise((resolve) => setTimeout(resolve, 2500)),
 ]);
 
-const game = new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: 'app',
+const game = new Game({
+  parent: host,
   width: start.w * dpr,
   height: start.h * dpr,
+  zoom: 1 / dpr,
   backgroundColor: css(COLORS.bgField),
-  // Right-click is the cancel gesture and long-press must not pop a menu.
-  disableContextMenu: true,
-  scale: {
-    mode: Phaser.Scale.NONE,
-    autoCenter: Phaser.Scale.NO_CENTER,
-    zoom: 1 / dpr,
-  },
-  input: { activePointers: 3 }, // two-finger pinch + a spare
-  fps: demo !== null ? { forceSetTimeOut: true, target: 60 } : undefined,
-  scene,
+  timer: demo !== null,
+  scenes,
 });
 
 // The boot card is DOM and comes down on the first rendered frame.

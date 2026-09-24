@@ -6,19 +6,20 @@ import type { DrawerState, Layout } from './layout';
  * of it.
  *
  * These lived with the canvas panel, until the DOM one had to read them
- * without importing the kit it was replacing. No Phaser in the file: a row's
- * icon draws with `Ink`, and a row picked up and carried onto the board hands
- * over a `CarryPointer`, both of which a Phaser object satisfies as it stands.
+ * without importing the kit it was replacing. No canvas code in the file: a
+ * row's icon draws with `Ink`, and a row picked up and carried onto the board
+ * hands over a `CarryPointer`, both of which a stage object satisfies as it
+ * stands.
  */
 
 /**
  * A press, as the board needs it to take over a carry (v1.29): where the
  * finger is in device px, whether it is still down, and which press it is.
  *
- * A Phaser pointer is one. A DOM press is not, and a touch that starts on a
+ * A stage pointer is one. A DOM press is not, and a touch that starts on a
  * DOM row belongs to that row — the board never hears it move. So a DOM carry
  * hands over one of these with `follow`, and the board subscribes to it
- * rather than to Phaser's input events.
+ * rather than to the stage's input events.
  */
 export interface CarryPointer {
   x: number;

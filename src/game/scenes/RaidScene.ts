@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { Scene, type Graphics, type Text } from '../stage';
 import { music } from '../music';
 import {
   ARCHETYPE_BY_ID,
@@ -161,7 +161,7 @@ function unitIcon(
  * into squads with sectors and doctrines, and launch. Resolution is
  * hands-off — the plan is the skill.
  */
-export class RaidScene extends Phaser.Scene {
+export class RaidScene extends Scene {
   private town!: TownState;
   private demoMode = false;
   private variant = 0;
@@ -179,10 +179,10 @@ export class RaidScene extends Phaser.Scene {
   private hintUntil = 0;
   private hintText!: SceneLabel;
 
-  private baseLayer!: Phaser.GameObjects.Graphics;
-  private dynLayer!: Phaser.GameObjects.Graphics;
+  private baseLayer!: Graphics;
+  private dynLayer!: Graphics;
   private fogText!: SceneLabel;
-  private sectorLabels: Phaser.GameObjects.Text[] = [];
+  private sectorLabels: Text[] = [];
   private board!: BoardView;
   private panel!: PanelApi;
   private layout!: Layout;
@@ -254,7 +254,7 @@ export class RaidScene extends Phaser.Scene {
       BASE_SPAWN_EDGE,
       MAP_CELL_SIZE,
     );
-    const sheet = makeSheet(this, {
+    const sheet = makeSheet({
       width: MAP_W,
       height: MAP_H,
       cell: CELL,

@@ -20,8 +20,8 @@
  * scale and multiplies the pitch by it, so a dot is `TONE_PITCH` world pixels
  * apart whether the sheet was baked at 1x or 4x.
  *
- * Canvas2D rather than Phaser `Graphics` for one reason: `createPattern` is
- * native here and does not exist there. A Graphics implementation would have
+ * Baked in Canvas2D rather than drawn with the board's `Graphics` for one
+ * reason: `createPattern` is native here and does not exist there. A Graphics implementation would have
  * to emit one `fillCircle` per dot — about 31,000 of them for a 32x24 board
  * at 2x — where this is a single `fillRect` per region.
  */

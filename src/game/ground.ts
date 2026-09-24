@@ -25,13 +25,12 @@
  *   and the dots stay on the ground; zoom and you lean in over the paper. A
  *   screen-locked dot screen crawls, and that is the usual way this style
  *   fails in a game.
- * - The texture is removed from the manager when the image is destroyed.
- *   Four board scenes holding 2048x1536x4 is 48 MB, which is real money on a
- *   phone, and unlike a RenderTexture an Image's destroy does not free the
- *   texture behind it.
+ * - The canvas is released when the image is destroyed. Four board scenes
+ *   holding 2048x1536x4 is 48 MB, which is real money on a phone, and an
+ *   image does not own what it draws.
  */
 
-import Phaser from 'phaser';
+import { Image, OBJECT_DESTROY } from './stage';
 import { Ground, type TerrainField } from '../sim/terrain';
 import type { SpawnEdge } from '../sim/types';
 import { COLORS, css } from './palette';
@@ -160,37 +159,31 @@ export interface SheetOptions {
   title?: string;
 }
 
-let sheetSeq = 0;
 
 /**
  * Bake the page and hand back the object to put in `board.world`.
  *
  * The caller owns it: add it to the world container and let scene shutdown
- * destroy it. Freeing the texture behind it is wired to that destroy here, so
+ * destroy it. Freeing the canvas behind it is wired to that destroy here, so
  * no call site has to remember.
  */
-export function makeSheet(scene: Phaser.Scene, opts: SheetOptions): Phaser.GameObjects.Image {
+export function makeSheet(opts: SheetOptions): Image {
   const { width, height, cell } = opts;
-  const pxW = width * cell;
-  const pxH = height * cell;
-  const key = `sheet-${++sheetSeq}`;
-
-  const tex = scene.textures.createCanvas(key, pxW * BAKE, pxH * BAKE);
-  if (tex) {
-    const ctx = tex.getContext();
+  const canvas = document.createElement('canvas');
+  canvas.width = width * cell * BAKE;
+  canvas.height = height * cell * BAKE;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
     ctx.imageSmoothingEnabled = false;
     paintSheet(ctx, opts, cell * BAKE, BAKE);
-    tex.refresh();
   }
-
-  // `false` keeps it off the scene's display list: only the finished object
-  // is added, and only to board.world, or the HUD camera draws a second copy.
-  const img = scene.make.image({ x: 0, y: 0, key }, false);
-  img.setOrigin(0, 0);
-  img.setScale(1 / BAKE);
-  // An Image does not own its texture, so nothing else would ever free this.
-  img.once(Phaser.GameObjects.Events.DESTROY, () => {
-    if (scene.textures.exists(key)) scene.textures.remove(key);
+  // Made off any display list: only the finished object is added, and only
+  // to `board.world`, where anything outside it is a stray.
+  const img = new Image(canvas).setOrigin(0, 0).setScale(1 / BAKE);
+  // A zero-sized canvas is how a browser is told it can have the memory back.
+  img.once(OBJECT_DESTROY, () => {
+    canvas.width = 0;
+    canvas.height = 0;
   });
   return img;
 }

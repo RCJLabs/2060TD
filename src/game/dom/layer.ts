@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { DESTROY, SHUTDOWN, type Scene } from '../stage';
 import { devicePixelRatioCapped, type Rect } from '../layout';
 import { textSources, type TextRect } from '../seam';
 
@@ -39,30 +39,23 @@ export function uiLayer(): HTMLDivElement {
     '-webkit-touch-callout:none',
     '-webkit-tap-highlight-color:transparent',
   ].join(';');
-  // Space and Enter on a focused control activate the control. Phaser listens
-  // for keys on the window, so without this the same press would also fire
-  // whatever the scene binds to Space — on the front door, CONTINUE.
+  // Space and Enter on a focused control activate the control. The stage
+  // listens for keys on the window, so without this the same press would also
+  // fire whatever the scene binds to Space — on the front door, CONTINUE.
   layer.addEventListener('keydown', (e) => {
     if (e.key === ' ' || e.key === 'Enter') e.stopPropagation();
   });
-  // A press on this layer is not a press on the board. Phaser listens for
-  // touches and mouse buttons on the WINDOW as well as the canvas, and it
-  // hit-tests the canvas for every one it hears, wherever it landed — so a tap
-  // on a DOM button also pressed whatever sat on the canvas under it. The
-  // canvas overlay this replaced never met that, because its scrim was the
-  // topmost canvas object and swallowed the press; a DOM overlay left the
-  // canvas drawer beneath it exposed, and the first harness run closed a spec
-  // card and changed tab in one tap. The drawer is DOM too now, but the board
-  // still hears every press: stopping the event here keeps it from reaching
-  // the window at all.
-  for (const type of ['touchstart', 'touchend', 'touchcancel', 'mousedown', 'mouseup'] as const) {
-    layer.addEventListener(type, (e) => e.stopPropagation());
-  }
+  // Presses need no such stopping. Phaser listened for touches and mouse
+  // buttons on the WINDOW and hit-tested the canvas for every one it heard,
+  // wherever it landed, so a tap on a DOM button pressed the board under it
+  // too, and this layer stopped them before the window could hear them. The
+  // stage listens on the canvas alone (M30 Phase 3), and a press on this
+  // layer never reaches it.
   document.body.appendChild(layer);
   return layer;
 }
 
-const hosts = new WeakMap<Phaser.Scene, HTMLDivElement>();
+const hosts = new WeakMap<Scene, HTMLDivElement>();
 
 /**
  * The element a scene's own DOM pieces hang from — its free buttons, its
@@ -71,10 +64,10 @@ const hosts = new WeakMap<Phaser.Scene, HTMLDivElement>();
  *
  * Above the panel (20), below the overlays (60): a CONFIRM sits over the
  * drawer, and a briefing sits over everything. It goes when the scene does,
- * because nothing else would take it down: a Phaser object dies with its
+ * because nothing else would take it down: a stage object dies with its
  * scene, and a DOM node dies when somebody removes it.
  */
-export function sceneHost(scene: Phaser.Scene): HTMLDivElement {
+export function sceneHost(scene: Scene): HTMLDivElement {
   let host = hosts.get(scene);
   if (host?.isConnected) return host;
   host = document.createElement('div');
@@ -104,8 +97,8 @@ export function sceneHost(scene: Phaser.Scene): HTMLDivElement {
     hosts.delete(scene);
     textSources.delete(texts);
   };
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, drop);
-  scene.events.once(Phaser.Scenes.Events.DESTROY, drop);
+  scene.events.once(SHUTDOWN, drop);
+  scene.events.once(DESTROY, drop);
   return host;
 }
 

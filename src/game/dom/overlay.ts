@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { DESTROY, POST_UPDATE, SHUTDOWN, type Scene } from '../stage';
 import type { Ink } from '../ink';
 import type { Layout, Rect } from '../layout';
 import { popModal, pushModal } from '../modal';
@@ -79,7 +79,7 @@ export interface OverlayOptions {
 }
 
 /** A full-screen overlay over this scene. */
-export function createOverlay(scene: Phaser.Scene, layout: Layout, opts: OverlayOptions = {}): OverlayApi {
+export function createOverlay(scene: Scene, layout: Layout, opts: OverlayOptions = {}): OverlayApi {
   return new DomOverlay(scene, layout, opts);
 }
 
@@ -113,7 +113,7 @@ export class DomOverlay implements OverlayApi {
   private contentH = 0;
   private closed = false;
 
-  constructor(scene: Phaser.Scene, layout: Layout, opts: OverlayOptions = {}) {
+  constructor(scene: Scene, layout: Layout, opts: OverlayOptions = {}) {
     this.layout = layout;
     this.depth = opts.depth ?? 60;
     const { width, height, pad, font } = layout;
@@ -214,11 +214,11 @@ export class DomOverlay implements OverlayApi {
 
     pushModal();
     // A scene change can drop an overlay without anyone closing it.
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.close());
-    scene.events.once(Phaser.Scenes.Events.DESTROY, () => this.close());
+    scene.events.once(SHUTDOWN, () => this.close());
+    scene.events.once(DESTROY, () => this.close());
     // Content is flowed by the caller right after this returns; centre it
     // vertically on the next frame if it does not fill the card.
-    scene.events.once(Phaser.Scenes.Events.POST_UPDATE, () => this.settle());
+    scene.events.once(POST_UPDATE, () => this.settle());
   }
 
   /** See `Overlay.settle`: centre short content, but not by more than two rows. */

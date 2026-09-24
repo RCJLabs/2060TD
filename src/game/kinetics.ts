@@ -22,7 +22,8 @@
  * for as long as it is on screen.
  */
 
-import type Phaser from 'phaser';
+import type { Graphics } from './stage';
+import type { InkPoint } from './ink';
 
 /**
  * Opacity over an effect's life: full ink, then a cut.
@@ -63,8 +64,8 @@ export function starPoints(
   inner: number,
   spokes: number,
   phase: number,
-): Phaser.Types.Math.Vector2Like[] {
-  const pts: Phaser.Types.Math.Vector2Like[] = [];
+): InkPoint[] {
+  const pts: InkPoint[] = [];
   for (let i = 0; i < spokes * 2; i++) {
     const long = i % 2 === 0;
     // A cheap deterministic wobble per spoke: enough to break the symmetry,
@@ -89,7 +90,7 @@ export function starPoints(
  * particle emitter, a texture and a blend mode.
  */
 export function focusLines(
-  g: Phaser.GameObjects.Graphics,
+  g: Graphics,
   x: number,
   y: number,
   inner: number,
@@ -128,7 +129,7 @@ export function focusLines(
  * caller passes the heading it already has rather than computing a tail.
  */
 export function speedLines(
-  g: Phaser.GameObjects.Graphics,
+  g: Graphics,
   x: number,
   y: number,
   angle: number,

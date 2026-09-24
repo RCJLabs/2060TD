@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { Container, Text, type GameObject, type Scene } from './stage';
 import { isBoardWorld } from './BoardView';
 import type { Layout } from './layout';
 import { buttonProbes, domTextRects, panelProbes, type ButtonProbe, type TextRect } from './seam';
@@ -6,10 +6,10 @@ import { buttonProbes, domTextRects, panelProbes, type ButtonProbe, type TextRec
 /**
  * The harness's side of the test seam: what `window.lastline` answers with.
  *
- * Everything the UI registers lives in `seam.ts`, which stays free of Phaser
- * so the DOM kit can register without importing it. Reading those registries
- * back needs Phaser for one thing, the text still drawn on the board, so the
- * reading side lives here.
+ * Everything the UI registers lives in `seam.ts`, which stays free of the
+ * canvas so the DOM kit can register without importing it. Reading those
+ * registries back needs the stage for one thing, the text still drawn on the
+ * board, so the reading side lives here.
  */
 
 /**
@@ -17,15 +17,15 @@ import { buttonProbes, domTextRects, panelProbes, type ButtonProbe, type TextRec
  * addressable by label, but a report, a banner or an overlay body is not a
  * button — this is how the headless harness reads the copy the player reads.
  */
-export function liveTexts(scenes: Phaser.Scene[]): string[] {
+export function liveTexts(scenes: Scene[]): string[] {
   const found: string[] = [];
-  const walk = (items: Phaser.GameObjects.GameObject[]): void => {
+  const walk = (items: GameObject[]): void => {
     for (const item of items) {
-      if (item instanceof Phaser.GameObjects.Container) {
+      if (item instanceof Container) {
         if (item.visible) walk(item.list);
         continue;
       }
-      if (item instanceof Phaser.GameObjects.Text && item.visible && item.text.length > 0) {
+      if (item instanceof Text && item.visible && item.text.length > 0) {
         found.push(item.text);
       }
     }
@@ -37,15 +37,15 @@ export function liveTexts(scenes: Phaser.Scene[]): string[] {
 }
 
 /** Every visible string with the rectangle it occupies. See `TextRect`. */
-export function liveTextRects(scenes: Phaser.Scene[]): TextRect[] {
+export function liveTextRects(scenes: Scene[]): TextRect[] {
   const found: TextRect[] = [];
-  const walk = (items: Phaser.GameObjects.GameObject[], onBoard: boolean): void => {
+  const walk = (items: GameObject[], onBoard: boolean): void => {
     for (const item of items) {
-      if (item instanceof Phaser.GameObjects.Container) {
+      if (item instanceof Container) {
         if (item.visible) walk(item.list, onBoard || isBoardWorld(item));
         continue;
       }
-      if (item instanceof Phaser.GameObjects.Text && item.visible && item.text.length > 0) {
+      if (item instanceof Text && item.visible && item.text.length > 0) {
         const b = item.getBounds();
         // Depth comes along so a harness can scope to the modal layer: an
         // overlay line and a panel row behind the scrim are not an overlap.

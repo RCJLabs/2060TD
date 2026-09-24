@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { clamp, Scene } from '../stage';
 import { music } from '../music';
 import { defenseCatalogFor, raidCatalogFor, type FactionId } from '../../content/factions';
 import { DT, Engine } from '../../sim/engine';
@@ -28,7 +28,7 @@ export interface ReplayData {
  * Deterministic replay viewer: re-runs the exact battle config live, with
  * playback speed, skip-to-end, and no player input. The sim IS the recording.
  */
-export class ReplayScene extends Phaser.Scene {
+export class ReplayScene extends Scene {
   private replay!: ReplayData;
   private engine!: Engine;
   private watch: ReturnType<typeof watchObjective> | null = null;
@@ -209,7 +209,7 @@ export class ReplayScene extends Phaser.Scene {
       this.placeStamp();
     }
 
-    const alpha = Phaser.Math.Clamp(this.accumulator / DT, 0, 1);
+    const alpha = clamp(this.accumulator / DT, 0, 1);
     this.battle.draw(this.ended() ? 1 : alpha, deltaMs / 1000, { showPaths: this.showPaths });
 
     const e = this.engine;

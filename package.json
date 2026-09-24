@@ -14,16 +14,13 @@
     "lint": "eslint .",
     "screenshot": "node scripts/screenshot.mjs",
     "balance": "tsx src/tools/balance.ts",
-    "build:single": "SINGLE_FILE=1 vite build --outDir dist-single --emptyOutDir && node scripts/single-file.mjs",
+    "build:single": "vite build --outDir dist-single --emptyOutDir && node scripts/single-file.mjs",
     "sheet": "node scripts/glyph-sheet.mjs",
     "zoom": "node scripts/zoom.mjs",
     "catch": "node scripts/catch.mjs",
     "icons": "node scripts/icons.mjs",
     "fit": "node scripts/fit.mjs",
     "e2e": "node scripts/e2e-all.mjs"
-  },
-  "dependencies": {
-    "phaser": "^3.85.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

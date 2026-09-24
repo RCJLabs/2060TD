@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { Scene } from '../stage';
 import { music } from '../music';
 import type { MissionDef } from '../../content/campaign';
 import { campaignFor, flavorFor, type FactionId } from '../../content/factions';
@@ -21,7 +21,7 @@ export interface BriefingData {
  * The radio log before the storm: mission briefing revealed line by line,
  * objective, bonus objective, and the launch decision.
  */
-export class BriefingScene extends Phaser.Scene {
+export class BriefingScene extends Scene {
   private briefing!: BriefingData;
   private revealed = 0;
   private revealTimer = 0;

@@ -1,4 +1,4 @@
-import type Phaser from 'phaser';
+import type { Scene } from '../stage';
 import { audio } from '../audio';
 import { haptic } from '../haptics';
 import { music } from '../music';
@@ -423,7 +423,7 @@ export type FreeButtonOptions = Partial<Omit<DomButtonOptions, 'clipTo'>>;
 
 /** A free button, in the scene's own host, so it goes when the scene does. */
 export function createButton(
-  scene: Phaser.Scene,
+  scene: Scene,
   x: number,
   y: number,
   width: number,

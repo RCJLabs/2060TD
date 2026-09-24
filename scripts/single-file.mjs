@@ -19,7 +19,7 @@ const chunks = readdirSync(join(OUT_DIR, 'assets')).filter((f) => f.endsWith('.j
 if (chunks.length !== 1) {
   throw new Error(
     `expected exactly one chunk to inline, found ${chunks.length}: ${chunks.join(', ')}. ` +
-      'Build with SINGLE_FILE=1 so the vendor split is off.',
+      'The game builds to one chunk; a second one means something imported a dependency.',
   );
 }
 const code = readFileSync(join(OUT_DIR, 'assets', chunks[0]), 'utf8');

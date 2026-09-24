@@ -1,4 +1,19 @@
-import Phaser from 'phaser';
+import {
+  clamp,
+  DESTROY,
+  POINTER_DOWN,
+  POINTER_MOVE,
+  POINTER_UP,
+  POINTER_UP_OUTSIDE,
+  POINTER_WHEEL,
+  SHUTDOWN,
+  Text,
+  UPDATE,
+  type Camera,
+  type Container,
+  type Pointer,
+  type Scene,
+} from './stage';
 import type { Layout, Rect } from './layout';
 import { modalOpen } from './modal';
 import type { CarryPointer } from './rows';
@@ -52,7 +67,7 @@ export function boardStrays(): string[] {
     if (!scene.sys.isActive()) continue;
     for (const object of scene.children.list) {
       if (object === rig.world) continue;
-      const text = (object as Partial<Phaser.GameObjects.Text>).text;
+      const text = object instanceof Text ? object.text : '';
       out.push(`${scene.scene.key}:${object.type}${text ? `("${text.slice(0, 24)}")` : ''}`);
     }
   }
@@ -101,7 +116,7 @@ export function boardWetAt(col: number, row: number): boolean {
  * and it lives here because `rigs` is the only place that knows which
  * containers are board layers.
  */
-export function isBoardWorld(container: Phaser.GameObjects.Container): boolean {
+export function isBoardWorld(container: Container): boolean {
   for (const rig of rigs) if (rig.world === container) return true;
   return false;
 }
@@ -146,15 +161,15 @@ export function boardCamera(): {
 }
 
 export class BoardView {
-  readonly world: Phaser.GameObjects.Container;
+  readonly world: Container;
   /**
    * Set by a scene that has ground under it, so `boardWetAt` can answer. Left
    * unset by scenes with no terrain, which then report every cell as dry.
    */
   passable?: (col: number, row: number) => boolean;
-  readonly camera: Phaser.Cameras.Scene2D.Camera;
+  readonly camera: Camera;
 
-  readonly scene: Phaser.Scene;
+  readonly scene: Scene;
   private readonly opts: BoardOptions;
   private rect: Rect = { x: 0, y: 0, w: 1, h: 1 };
   /**
@@ -196,7 +211,7 @@ export class BoardView {
   private dragHandler: ((col: number, row: number) => void) | null = null;
   private slop = TAP_SLOP;
 
-  constructor(scene: Phaser.Scene, opts: BoardOptions) {
+  constructor(scene: Scene, opts: BoardOptions) {
     this.scene = scene;
     this.opts = opts;
     this.world = scene.add.container(0, 0);
@@ -210,14 +225,14 @@ export class BoardView {
       this.centerY += this.edgePan.y / this.zoom;
       this.apply();
     };
-    scene.events.on(Phaser.Scenes.Events.UPDATE, drive);
+    scene.events.on(UPDATE, drive);
     rigs.add(this);
     const forget = (): void => {
-      scene.events.off(Phaser.Scenes.Events.UPDATE, drive);
+      scene.events.off(UPDATE, drive);
       rigs.delete(this);
     };
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, forget);
-    scene.events.once(Phaser.Scenes.Events.DESTROY, forget);
+    scene.events.once(SHUTDOWN, forget);
+    scene.events.once(DESTROY, forget);
   }
 
   get cols(): number {
@@ -300,7 +315,7 @@ export class BoardView {
     const context =
       Math.min(this.rect.w, this.rect.h) / (MIN_CELLS_IN_VIEW * this.opts.cell);
     const cap = Math.max(this.fitZoom, Math.min(this.fitZoom * 6, context));
-    this.zoom = Phaser.Math.Clamp(
+    this.zoom = clamp(
       Math.min(this.rect.w / rw, this.rect.h / rh),
       this.fitZoom,
       cap,
@@ -327,7 +342,7 @@ export class BoardView {
 
   private setZoom(next: number): void {
     const maxZoom = Math.max(this.fitZoom * 6, (this.rect.h / this.opts.cell) > 0 ? 4 : 4);
-    this.zoom = Phaser.Math.Clamp(next, this.fitZoom * 0.95, maxZoom);
+    this.zoom = clamp(next, this.fitZoom * 0.95, maxZoom);
     this.apply();
   }
 
@@ -338,11 +353,11 @@ export class BoardView {
     this.centerX =
       this.worldWidth <= halfW * 2
         ? this.worldWidth / 2
-        : Phaser.Math.Clamp(this.centerX, halfW, this.worldWidth - halfW);
+        : clamp(this.centerX, halfW, this.worldWidth - halfW);
     this.centerY =
       this.worldHeight <= halfH * 2
         ? this.worldHeight / 2
-        : Phaser.Math.Clamp(this.centerY, halfH, this.worldHeight - halfH);
+        : clamp(this.centerY, halfH, this.worldHeight - halfH);
     this.camera.setZoom(this.zoom);
     this.camera.centerOn(this.centerX, this.centerY);
   }
@@ -367,13 +382,15 @@ export class BoardView {
    * The world point under a screen point, from the rig's own centre, zoom and
    * rect — never the camera's, for an anchor read straight after a zoom.
    *
-   * Phaser rebuilds a camera's matrix at the next render, so `getWorldPoint`
-   * called between `setZoom` and that render mixes the new zoom with the old
+   * Phaser rebuilt a camera's matrix at the next render, so `getWorldPoint`
+   * called between `setZoom` and that render mixed the new zoom with the old
    * transform. Both zoom gestures anchored themselves that way: every notch
    * of the wheel slid the view toward the far corner of the world, not the
    * point under the cursor. On the 20x30 world six notches did not reach the
    * corner. On M34's 10x15 they pinned the camera in it, and the drag that
-   * should have panned the zoomed board had nowhere left to go.
+   * should have panned the zoomed board had nowhere left to go. The stage's
+   * camera has no matrix to go stale (M30 Phase 3); the rig still anchors on
+   * its own numbers, which were right both times.
    */
   private worldAt(x: number, y: number): { x: number; y: number } {
     return {
@@ -522,13 +539,13 @@ export class BoardView {
   private bindInput(): void {
     const input = this.scene.input;
 
-    input.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
+    input.on(POINTER_DOWN, (pointer: Pointer) => {
       if (!this.inBoard(pointer)) return;
       const [p1, p2] = [input.pointer1, input.pointer2];
       if (p1?.isDown && p2?.isDown) {
         this.pinching = true;
         this.dragging = false;
-        this.pinchDist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+        this.pinchDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
         this.pinchMidX = (p1.x + p2.x) / 2;
         this.pinchMidY = (p1.y + p2.y) / 2;
         return;
@@ -548,7 +565,7 @@ export class BoardView {
       if (this.placeMode) this.lastPlaceCell = this.cellAt(pointer);
     });
 
-    input.on(Phaser.Input.Events.POINTER_MOVE, (pointer: Phaser.Input.Pointer) => {
+    input.on(POINTER_MOVE, (pointer: Pointer) => {
       if (modalOpen()) {
         this.dragging = false;
         this.dragPress = -1;
@@ -559,7 +576,7 @@ export class BoardView {
       if (p1?.isDown && p2?.isDown) {
         // Pinch: scale by the change in finger separation, anchored so the
         // world point under the midpoint stays put.
-        const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
         const midX = (p1.x + p2.x) / 2;
         const midY = (p1.y + p2.y) / 2;
         if (this.pinchDist > 0 && dist > 0) {
@@ -615,7 +632,7 @@ export class BoardView {
       }
     });
 
-    const end = (pointer: Phaser.Input.Pointer): void => {
+    const end = (pointer: Pointer): void => {
       const wasPinching = this.pinching;
       if (!input.pointer1?.isDown && !input.pointer2?.isDown) {
         this.pinching = false;
@@ -667,13 +684,13 @@ export class BoardView {
       const cell = this.cellAt(pointer);
       if (cell) this.tapHandler?.(cell.col, cell.row);
     };
-    input.on(Phaser.Input.Events.POINTER_UP, end);
-    input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, end);
+    input.on(POINTER_UP, end);
+    input.on(POINTER_UP_OUTSIDE, end);
 
     // Desktop: wheel zooms around the cursor.
     input.on(
-      Phaser.Input.Events.POINTER_WHEEL,
-      (pointer: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      POINTER_WHEEL,
+      (pointer: Pointer, _o: unknown, _dx: number, dy: number) => {
         if (!this.inBoard(pointer)) return;
         const before = this.worldAt(pointer.x, pointer.y);
         this.setZoom(this.zoom * (dy > 0 ? 0.9 : 1.1));

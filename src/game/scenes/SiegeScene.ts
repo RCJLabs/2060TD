@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { clamp, Scene, type Pointer } from '../stage';
 import { music } from '../music';
 import { FIRST_SIEGE } from '../../content/tutorial';
 import { Coach } from '../coach';
@@ -70,7 +70,7 @@ const COMBAT_TOOL_KEYS = ['depmg', 'foxhole', 'claymore', 'hesco', 'manpads'] as
  * M1: the siege vertical slice. Build the permanent layer in setup/prep with
  * Supplies; fight waves live with CP-bought field defenses and powers.
  */
-export class SiegeScene extends Phaser.Scene {
+export class SiegeScene extends Scene {
   private engine!: Engine;
   private battle!: BattleRenderer;
   private accumulator = 0;
@@ -284,7 +284,7 @@ export class SiegeScene extends Phaser.Scene {
   private bindInput(): void {
     this.board.onTap((col, row) => this.handleCell(col, row, true));
     this.board.onPaint((col, row) => this.handleCell(col, row, false));
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    this.input.on('pointerdown', (pointer: Pointer) => {
       if (pointer.rightButtonDown()) this.setTool(null);
     });
 
@@ -426,7 +426,7 @@ export class SiegeScene extends Phaser.Scene {
     }
     if (this.accumulator > DT) this.accumulator = 0;
 
-    const alpha = Phaser.Math.Clamp(this.accumulator / DT, 0, 1);
+    const alpha = clamp(this.accumulator / DT, 0, 1);
     this.battle.draw(alpha, deltaMs / 1000, {
       showPaths: this.showPaths,
       ghost: this.currentGhost(),

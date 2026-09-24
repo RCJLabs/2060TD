@@ -30,7 +30,7 @@
  * the same reason: the table IS the counter system, and a hand-written
  * "strong against infantry" would be a second source of truth that drifts.
  */
-import type Phaser from 'phaser';
+import type { Scene } from './stage';
 import type { TownBuildingMeta } from '../content/buildings';
 import type { TrainMeta } from '../content/usaUnits';
 import type {
@@ -176,7 +176,7 @@ function outputAt(meta: TownBuildingMeta | undefined, level: number): string {
  * no card.
  */
 export function buildStructureSpec(
-  scene: Phaser.Scene,
+  scene: Scene,
   kind: string,
   opts: SpecOpts,
 ): OverlayApi | null {
@@ -288,7 +288,7 @@ export function buildStructureSpec(
 }
 
 /** The card for a wall or a gate: no weapon, but the HP is the whole point. */
-export function buildWallSpec(scene: Phaser.Scene, kind: string, opts: SpecOpts): OverlayApi | null {
+export function buildWallSpec(scene: Scene, kind: string, opts: SpecOpts): OverlayApi | null {
   const def: WallDef | undefined = opts.catalog.walls[kind];
   if (!def) return null;
   const { layout } = opts;
@@ -331,7 +331,7 @@ export function buildWallSpec(scene: Phaser.Scene, kind: string, opts: SpecOpts)
  * It was in the content files and nowhere on screen.
  */
 export function buildAttackerSpec(
-  scene: Phaser.Scene,
+  scene: Scene,
   kind: string,
   opts: SpecOpts & { train?: TrainMeta },
 ): OverlayApi | null {

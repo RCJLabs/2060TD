@@ -16,9 +16,10 @@ type PathStep =
  * device's resolution, so a glyph is laid out in the same device px it always
  * was.
  *
- * The one semantic that needs care is the PATH. Phaser keeps a path built by
- * `beginPath`/`moveTo`/`lineTo` apart from its one-shot shapes, so a
- * `fillCircle` in the middle of building one leaves it alone. A canvas has a
+ * The one semantic that needs care is the PATH. The board's `Graphics` keeps
+ * a path built by `beginPath`/`moveTo`/`lineTo` apart from its one-shot
+ * shapes, as Phaser's did, so a `fillCircle` in the middle of building one
+ * leaves it alone. A canvas has a
  * single current path, and a circle drawn with it would erase the caller's.
  * So the path is recorded here and replayed on `strokePath`, and every shape
  * starts a path of its own.

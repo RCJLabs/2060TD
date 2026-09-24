@@ -3665,9 +3665,46 @@ a harness. The default stays canvas until every harness passes both ways.
       flaked attempt said, because this one left nothing to tell it from a
       rare real failure.
 - [ ] **Phase 3 — revisit Phaser** now that the board is the only thing using it.
-      What it still does: draws the board's Graphics lists, owns the scene
-      lifecycle, pans and zooms one camera, and sets a handful of sector labels
-      as text. That is the brief a small Canvas2D renderer would have to meet.
+
+      **Measured first, on v1.48.0.** A preview build in headless Chromium,
+      phone-sized, five runs each, the median:
+
+      | | |
+      |---|---|
+      | Phaser's share of the download | 340 of 468 kB gzipped, 73% |
+      | parsing and running Phaser alone | 170 ms; 620 ms at 4x CPU slowdown |
+      | the whole boot, to the first frame | 441 ms; 1,640 ms at 4x |
+      | the game's own script in a siege frame | 1.3 ms; 4.0 ms at 4x |
+
+      On a phone-class CPU the engine is 38% of the boot before a byte of it
+      has come over a network. What it does for that is now a short list: one
+      camera per board (viewport, zoom, centre); one container; Graphics
+      command lists using 21 kinds of call, nearly all of them `Ink` already;
+      one image, the baked sheet; two styles of text, the raid's sector labels
+      and the battle's shouts; pointer input with a two-finger pinch and the
+      wheel; keys by name; fullscreen and resize; and a scene lifecycle of
+      init, create and update with four events. No tweens, physics, masks,
+      depth sorting, sprites, loader or audio: the game never used them.
+
+      **The decision: replace it with a stage of our own**, Canvas2D, that does
+      that list and nothing more. The bar, set before the first line:
+
+      - every harness passes, and the scenes look the same side by side;
+      - a frame costs no more than it does under Phaser, in the same browser;
+      - the download and the boot fall by what Phaser weighs.
+
+      If the frame bar fails, the stage caches the static layers and tries
+      again; if it still fails, Phaser stays and this entry says why.
+
+      - [ ] **3a — the stage.** `Game`, `Scene`, `Graphics`, `Container`,
+            `Image`, `Text`, `Camera` and input, under `src/game/stage/`, with
+            unit tests for what can be tested without a screen: the command
+            lists, the camera's arithmetic and the lifecycle's order.
+      - [ ] **3b — the port.** Every file that imports Phaser imports the
+            stage instead. The names match where the meanings do.
+      - [ ] **3c — the gate.** All 24 harnesses; screenshots of every scene
+            before and after; the frame and boot measurements above, again.
+      - [ ] **3d — the dependency goes**, and the vendor chunk with it.
 
 ## M31 — "Materiel": the total art and audio pass
 

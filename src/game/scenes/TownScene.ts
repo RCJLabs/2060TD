@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { clamp, Scene, SHUTDOWN, type Graphics, type Pointer } from '../stage';
 import { music } from '../music';
 import { BUILDABLE_KINDS, CHARGE_CAP, CHARGE_PRICES } from '../../content/buildings';
 import type { MissionDef } from '../../content/campaign';
@@ -165,7 +165,7 @@ type Tool =
  * shape the wall maze, stock ordnance, and launch the next assault on the
  * ladder. This layout IS the battlefield the siege inherits.
  */
-export class TownScene extends Phaser.Scene {
+export class TownScene extends Scene {
   private town!: TownState;
   private tool: Tool = { type: 'select' };
   /**
@@ -197,8 +197,8 @@ export class TownScene extends Phaser.Scene {
   /** FIT VIEW is a toggle: the whole grid, or the built-up part of it. */
   private wideView = false;
 
-  private dynLayer!: Phaser.GameObjects.Graphics;
-  private staticLayer!: Phaser.GameObjects.Graphics;
+  private dynLayer!: Graphics;
+  private staticLayer!: Graphics;
   private bannerText!: SceneLabel;
   private board!: BoardView;
   private panel!: PanelApi;
@@ -348,10 +348,10 @@ export class TownScene extends Phaser.Scene {
     this.selectedId = null;
     this.lastPaintedCell = -1;
     this.overlay = null;
-    // Phaser reuses the Scene INSTANCE across scene.start, so these fields
-    // outlive the objects they point at: `create` builds a fresh BoardView
-    // with a fresh `ui` container and the old buttons go down with the old
-    // one. Holding the stale refs means laying out a destroyed rectangle.
+    // A scene is the same INSTANCE across scene.start, as it was under
+    // Phaser, so these fields outlive the objects they point at: the old
+    // buttons go down with the old scene's host. Holding the stale refs means
+    // laying out a destroyed button.
     this.pendingCell = null;
     this.confirmBtn = null;
     this.cancelBtn = null;
@@ -364,7 +364,7 @@ export class TownScene extends Phaser.Scene {
     });
     this.staticLayer = this.add.graphics();
     this.dynLayer = this.add.graphics();
-    const sheet = makeSheet(this, {
+    const sheet = makeSheet({
       width: TOWN_GRID.width,
       height: TOWN_GRID.height,
       cell: CELL,
@@ -499,7 +499,7 @@ export class TownScene extends Phaser.Scene {
     // A build placed on release: the same handler a tap runs, at the cell the
     // finger finished over rather than the one it started on.
     this.board.onPlace((col, row) => this.handleCell(row * TOWN_GRID.width + col, true));
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    this.input.on('pointerdown', (pointer: Pointer) => {
       if (pointer.rightButtonDown()) this.setTool({ type: 'select' });
     });
 
@@ -1640,7 +1640,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   /** Grid cell under the pointer, undoing the board camera's pan and zoom. */
-  private cellFromPointer(pointer: Phaser.Input.Pointer): number | null {
+  private cellFromPointer(pointer: Pointer): number | null {
     const at = this.board.cellAt(pointer);
     return at ? at.row * TOWN_GRID.width + at.col : null;
   }
@@ -1689,7 +1689,7 @@ export class TownScene extends Phaser.Scene {
         g.fillRect(
           center.x - w / 2,
           center.y + (footprint === 2 ? CELL : CELL / 2) + 2,
-          w * Phaser.Math.Clamp(frac, 0.03, 1),
+          w * clamp(frac, 0.03, 1),
           4,
         );
       }
@@ -1704,7 +1704,7 @@ export class TownScene extends Phaser.Scene {
     this.updateConfirmBar();
   }
 
-  private drawGhost(g: Phaser.GameObjects.Graphics): void {
+  private drawGhost(g: Graphics): void {
     // Once something is aimed the ghost STAYS on the aimed cell — that is the
     // whole point of the two-step. Before then it tracks the pointer.
     const cell = this.pendingCell ?? this.cellFromPointer(this.input.activePointer);
@@ -1827,7 +1827,7 @@ export class TownScene extends Phaser.Scene {
       // of it: between `scene.start(...)` and the next `create`, a trailing
       // frame can still reach `updateConfirmBar` and lay out a button whose
       // host went down with the old scene.
-      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.events.once(SHUTDOWN, () => {
         this.confirmBtn = null;
         this.cancelBtn = null;
         this.pendingCell = null;

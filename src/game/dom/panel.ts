@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import { DESTROY, SHUTDOWN, UPDATE, type Scene } from '../stage';
 import { haptic } from '../haptics';
 import { DRAWER_FULL, snapDrawer, type DrawerState, type Layout } from '../layout';
 import { COLORS, css as hex } from '../palette';
@@ -59,7 +59,7 @@ export class DomPanel implements PanelApi, PanelProbe {
   onDrawerToggle?: () => void;
   onDrawerShare?: (share: DrawerState) => void;
 
-  private readonly scene: Phaser.Scene;
+  private readonly scene: Scene;
   private readonly tabs: PanelTab[];
   private readonly root: HTMLDivElement;
   private readonly bg: HTMLDivElement;
@@ -115,7 +115,7 @@ export class DomPanel implements PanelApi, PanelProbe {
     null;
   private handlePress: { id: number; y: number; from: number } | null = null;
 
-  constructor(scene: Phaser.Scene, tabs: PanelTab[]) {
+  constructor(scene: Scene, tabs: PanelTab[]) {
     this.scene = scene;
     this.tabs = tabs;
     this.activeTab = tabs[0]?.id ?? '';
@@ -168,13 +168,13 @@ export class DomPanel implements PanelApi, PanelProbe {
     panelProbes.add(this);
 
     const step = (): void => this.step();
-    scene.events.on(Phaser.Scenes.Events.UPDATE, step);
+    scene.events.on(UPDATE, step);
     const stop = (): void => {
-      scene.events.off(Phaser.Scenes.Events.UPDATE, step);
+      scene.events.off(UPDATE, step);
       this.destroy();
     };
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
-    scene.events.once(Phaser.Scenes.Events.DESTROY, stop);
+    scene.events.once(SHUTDOWN, stop);
+    scene.events.once(DESTROY, stop);
   }
 
   private readonly titleBox: HTMLDivElement;
@@ -798,6 +798,6 @@ export class DomPanel implements PanelApi, PanelProbe {
 }
 
 /** A scene's panel, with these tabs. It goes when the scene does. */
-export function createPanel(scene: Phaser.Scene, tabs: PanelTab[]): PanelApi {
+export function createPanel(scene: Scene, tabs: PanelTab[]): PanelApi {
   return new DomPanel(scene, tabs);
 }
