@@ -947,6 +947,15 @@ export const DEFENSE_LOG_CAP = 4;
 export const ORDERS_UPKEEP_SUPPLIES = 15;
 
 /**
+ * The town's own buildings still standing: not the post, and not a field work
+ * bought with CP, which expires with the battle as a played siege treats it.
+ */
+function ownStructures(engine: Engine): number {
+  return engine.structures.filter((s) => s.profile.kind !== 'cc' && s.hp > 0 && s.profile.cpCost === undefined)
+    .length;
+}
+
+/**
  * How hard the probes hit. Standing is visibility (M7): the higher the band,
  * the heavier the things that come looking while you are away. That is the
  * price of the loot bonus, and it is why the top of the board is a posting
@@ -986,12 +995,14 @@ function resolveProbe(
 
   const config = probeConfig(town, level, seed);
   const engine = new Engine(config, defenseCatalogFor(town.faction));
+  const standing = ownStructures(engine);
   engine.enqueue({ tick: 0, type: 'startAssault' });
   while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) {
     engine.step();
   }
 
   const held = engine.phase === 'victory';
+  const structuresLost = standing - ownStructures(engine);
   // Walls chewed during the probe stay chewed.
   const walls: { cell: CellIndex; kind: string }[] = [];
   for (const [cell, wall] of engine.grid.walls) {
@@ -1001,9 +1012,12 @@ function resolveProbe(
   }
   town.walls = walls;
 
-  const lossFraction = held
-    ? Math.min(0.03 * engine.stats.structuresLost, 0.1)
-    : 0.15;
+  // What the town lost, not what the battle did: a mine the garrison laid is
+  // gone the moment it goes off, and a gun it bought with CP was never the
+  // town's, so neither is billed as a building (M23 Phase 6). Until then both
+  // were, at 3% of the stockpile each, which made the two presets that lay
+  // them cost a held probe more than leaving no orders at all.
+  const lossFraction = held ? Math.min(0.03 * structuresLost, 0.1) : 0.15;
   const suppliesLost = Math.floor(town.supplies * lossFraction);
   const fuelLost = Math.floor(town.fuel * lossFraction);
   town.supplies -= suppliesLost;

@@ -214,6 +214,69 @@ describe('standing orders in the engine', () => {
   });
 });
 
+describe('rule order as priority (M23 Phase 6)', () => {
+  /** A rule that stands up a gun on the densest knot, at `cpAtLeast`. */
+  const gun = (cpAtLeast: number, minHostiles = 1): StandingOrders['rules'][number] => ({
+    cpAtLeast,
+    action: 'deploy',
+    kind: 'depmg',
+    target: 'densest',
+    minHostiles,
+    cooldownTicks: 20,
+  });
+  const mine = (cpAtLeast: number): StandingOrders['rules'][number] => ({
+    cpAtLeast,
+    action: 'deploy',
+    kind: 'claymore',
+    target: 'densest',
+    cooldownTicks: 20,
+  });
+
+  it('is inert unless asked for, and asked for it fights another battle', () => {
+    for (const seed of [41, 7]) {
+      const shipped = runOut(midConfig(seed, STANDING_ORDERS.tripwire));
+      const spelled = runOut(midConfig(seed, { ...STANDING_ORDERS.tripwire, priority: false }));
+      expect(shipped.ordersExecuted).toBeGreaterThan(0);
+      expect(spelled.stateHash()).toBe(shipped.stateHash());
+    }
+    // TRIPWIRE with its gun first, on a battle that starts with no CP, so the
+    // gun has to save for itself: evaluated first, the claymore spends as the
+    // CP comes in and the gun waits; funded first, the claymore waits for it.
+    const gunFirst = { ...STANDING_ORDERS.tripwire, rules: [1, 0, 2].map((k) => STANDING_ORDERS.tripwire.rules[k]!) };
+    const broke = (orders: StandingOrders): SimConfig => {
+      const config = midConfig(41, orders, 6);
+      return { ...config, siege: { ...config.siege!, startingCp: 0 } };
+    };
+    const evaluated = runOut(broke(gunFirst));
+    const funded = runOut(broke({ ...gunFirst, priority: true }));
+    expect(funded.stateHash()).not.toBe(evaluated.stateHash());
+  });
+
+  it('a rule saving for its reserve holds back every rule below it', () => {
+    // The gun can never be afforded, and wants to act the whole battle: the
+    // mine below it would be spending all battle without priority.
+    const orders: StandingOrders = { id: 'test', maxActions: 3, rules: [gun(10_000), mine(0)] };
+    const evaluated = runOut(midConfig(7, orders));
+    expect(evaluated.ordersExecuted).toBeGreaterThan(0);
+    const funded = runOut(midConfig(7, { ...orders, priority: true }));
+    expect(funded.ordersExecuted).toBe(0);
+    expect(funded.stats.cpSpent).toBe(0);
+  });
+
+  it('a rule that does not want to act holds nothing back', () => {
+    // The gun waits for a crowd that never comes, so it never saves for anything.
+    const orders: StandingOrders = { id: 'test', maxActions: 3, rules: [gun(10_000, 10_000), mine(0)], priority: true };
+    expect(runOut(midConfig(7, orders)).ordersExecuted).toBeGreaterThan(0);
+  });
+
+  it('keeps an action in hand for each rule above that has not acted', () => {
+    const orders: StandingOrders = { id: 'test', maxActions: 2, rules: [gun(0, 10_000), mine(0)] };
+    expect(runOut(midConfig(7, orders)).ordersExecuted).toBe(2);
+    // The gun above never acts, so of two actions the mine may have one.
+    expect(runOut(midConfig(7, { ...orders, priority: true })).ordersExecuted).toBe(1);
+  });
+});
+
 describe("the duty officer's aim (chain v5, M23 Phase 3c)", () => {
   /**
    * The town board with nothing on it but the post, and a file of walkers
@@ -434,7 +497,80 @@ describe('fire on the assault (chain v6, M23 Phase 5)', () => {
   });
 });
 
+/**
+ * A town with a garrison in it, last seen at `T`.
+ *
+ * A bare `newTown` breaches on the first probe at every level — nothing is
+ * built, so nothing defends — and a breach ends the sweep before the offer
+ * is ever reached. A test about probes that HOLD needs guns, walls and a CC
+ * that has been grown. Clear ground (`yardTown`) so the emplacements land
+ * where they are asked for.
+ */
+function gunnedTown(T: number): ReturnType<typeof newTown> {
+  const at = (u: number, v: number) => u * W + v;
+  const t = unlockAll(yardTown(T - 1_000_000, 'usa'));
+  t.supplies = 50_000;
+  t.fuel = 50_000;
+  upgrade(t, 1, T - 900_000);
+  tick(t, T - 800_000);
+  // A line with its gap over the post, three guns behind it and a mortar
+  // behind them — drawn for 10x15.
+  place(t, 'm2nest', at(10, 3), T - 700_000);
+  place(t, 'm2nest', at(10, 6), T - 700_000);
+  place(t, 'autocannon', at(10, 4), T - 700_000);
+  place(t, 'mortar', at(12, 3), T - 700_000);
+  for (let v = 1; v <= 3; v++) placeWall(t, at(9, v));
+  for (let v = 6; v <= 8; v++) placeWall(t, at(9, v));
+  tick(t, T);
+  t.assaultLevel = 4;
+  t.lastSeen = T;
+  // Inside the caps (1200 / 350 at CC2, no bunker). Only the live-defence
+  // path clamps to caps, so stores parked above them would come back as
+  // battle damage in a test that is measuring battle damage.
+  t.supplies = 1000;
+  t.fuel = 200;
+  return t;
+}
+
 describe('standing orders in the meta', () => {
+  it("a probe bills the town for its own buildings, not for the mines its garrison spent", () => {
+    // One nest by the post: enough to hold a level-6 probe with nothing lost,
+    // close enough in that TRIPWIRE's mines are walked into before it does.
+    const town = unlockAll(yardTown(T0 - 1_000_000, 'usa'));
+    town.supplies = 50_000;
+    town.fuel = 50_000;
+    upgrade(town, 1, T0 - 900_000);
+    tick(town, T0 - 800_000);
+    place(town, 'm2nest', 12 * W + 3, T0 - 700_000);
+    tick(town, T0);
+    town.standingOrders = 'tripwire';
+    // A probe's level is the rung, capped at one past the front line's tier.
+    town.assaultLevel = 6;
+    town.frontline.tier = 5;
+    expect(probeLevel(town)).toBe(6);
+    town.lastSeen = T0;
+    town.supplies = 1000;
+    town.fuel = 200;
+    const ran = runOfflineProbes(town, T0 + 2 * PROBE_INTERVAL_MS + 60_000);
+    expect(ran.length).toBeGreaterThan(0);
+    const probe = ran[0]!;
+    // Re-fight it to see what went: every structure the battle lost, and the
+    // town's own among them, told apart as a played siege tells them apart.
+    const engine = new Engine(probe.config, defenseCatalogFor('usa'));
+    const own = () => engine.structures.filter((s) => s.profile.kind !== 'cc' && s.hp > 0 && s.profile.cpCost === undefined).length;
+    const standing = own();
+    engine.enqueue({ tick: 0, type: 'startAssault' });
+    while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 8000) engine.step();
+    const ownLost = standing - own();
+    // Liveness: the garrison's mines went off, and the town held with every
+    // building standing — so the old bill would have charged for the mines.
+    expect(probe.held).toBe(true);
+    expect(engine.stats.structuresLost).toBeGreaterThan(ownLost);
+    expect(ownLost).toBe(0);
+    expect(probe.suppliesLost).toBe(0);
+    expect(probe.fuelLost).toBe(0);
+  });
+
   it('offline probes fight under the town orders and log them', () => {
     const town = unlockAll(newTown(T0, 'usa'));
     town.standingOrders = 'holdfast';
@@ -493,41 +629,7 @@ describe('standing orders in the meta', () => {
 });
 describe('the live-defence offer', () => {
   const T = 1_800_000_000_000;
-  const at = (u: number, v: number) => u * W + v;
-
-  /**
-   * A town with a garrison in it.
-   *
-   * A bare `newTown` breaches on the first probe at every level — nothing is
-   * built, so nothing defends — and a breach ends the sweep before the offer
-   * is ever reached. Every test below needs probes that HOLD, which needs
-   * guns, walls and a CC that has been grown. Clear ground (`yardTown`) so the
-   * emplacements land where they are asked for.
-   */
-  const town = () => {
-    const t = unlockAll(yardTown(T - 1_000_000, 'usa'));
-    t.supplies = 50_000;
-    t.fuel = 50_000;
-    upgrade(t, 1, T - 900_000);
-    tick(t, T - 800_000);
-    // A line with its gap over the post, three guns behind it and a mortar
-    // behind them — drawn for 10x15.
-    place(t, 'm2nest', at(10, 3), T - 700_000);
-    place(t, 'm2nest', at(10, 6), T - 700_000);
-    place(t, 'autocannon', at(10, 4), T - 700_000);
-    place(t, 'mortar', at(12, 3), T - 700_000);
-    for (let v = 1; v <= 3; v++) placeWall(t, at(9, v));
-    for (let v = 6; v <= 8; v++) placeWall(t, at(9, v));
-    tick(t, T);
-    t.assaultLevel = 4;
-    t.lastSeen = T;
-    // Inside the caps (1200 / 350 at CC2, no bunker). Only the live-defence
-    // path clamps to caps, so stores parked above them would come back as
-    // battle damage in a test that is measuring battle damage.
-    t.supplies = 1000;
-    t.fuel = 200;
-    return t;
-  };
+  const town = () => gunnedTown(T);
 
   it('holds the LAST probe of an absence back and resolves the rest', () => {
     const t = town();
