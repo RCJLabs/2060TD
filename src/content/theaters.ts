@@ -20,6 +20,7 @@
  */
 import { TARGETS_PER_TIER } from './bases';
 import type { FactionId } from './factions';
+import { DAY_MS, DECAY_GRACE_MS } from './leagues';
 
 export interface Lane {
   name: string;
@@ -189,3 +190,19 @@ export function laneFor(t: Theater, variant: number): Lane {
   const slot = ((variant % TARGETS_PER_TIER) + TARGETS_PER_TIER) % TARGETS_PER_TIER;
   return t.lanes.find((l) => l.slot === slot)!;
 }
+
+// ---- the enemy strikes back (M25 Phase 2) ----------------------------------------
+
+/**
+ * How long the front must be quiet before the enemy strikes back: standing
+ * decay's grace, so one clock tells a commander both things. Quiet means no
+ * raid, no counterattack and no defence fought in person, the actions that
+ * reset `frontline.activeAt`.
+ */
+export const QUIET_MS = DECAY_GRACE_MS;
+/** A quiet spell's later strikes land this far apart. */
+export const STRIKE_INTERVAL_MS = DAY_MS;
+/** The most sectors one quiet spell costs. Fewer than a town has, so one absence cannot push the front back from a town that was whole. */
+export const STRIKES_PER_QUIET = 2;
+/** The order the enemy comes down the lanes: its main road, the heavy lane, first. */
+export const STRIKE_ORDER: readonly number[] = [0, 1, 2];

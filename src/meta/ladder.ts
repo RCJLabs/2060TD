@@ -21,6 +21,7 @@ import {
   type League,
 } from '../content/leagues';
 import type { ObjectiveId } from './objectives';
+import { chargeStrikes, type EnemyStrike } from './strikes';
 import type { FrontlineState, SeasonRecord, StandingHistory, TownState } from './town';
 
 /**
@@ -161,13 +162,9 @@ export interface LadderSettlement {
   placement: SeasonRecord | null;
   /** What the placement paid. */
   payout: { supplies: number; fuel: number; intel: number };
+  /** Ground the enemy retook while the front was quiet (M25 Phase 2), oldest first. */
+  strikes: EnemyStrike[];
 }
-
-const NOTHING: LadderSettlement = {
-  decayed: 0,
-  placement: null,
-  payout: { supplies: 0, fuel: 0, intel: 0 },
-};
 
 /**
  * Bring the ladder up to `now`: bleed the decay owed, and if the season
@@ -179,14 +176,17 @@ const NOTHING: LadderSettlement = {
  */
 export function settleLadder(town: TownState, now: number): LadderSettlement {
   const fl = town.frontline;
-  // A clock that jumped backwards must not hand out free time later.
-  if (now <= fl.settledAt) return { ...NOTHING, payout: { ...NOTHING.payout } };
-
   const settlement: LadderSettlement = {
     decayed: 0,
     placement: null,
     payout: { supplies: 0, fuel: 0, intel: 0 },
+    // The enemy's clock keeps its own cursor, so it is charged before the
+    // decay's guard below: the two clocks can stand at different instants.
+    strikes: chargeStrikes(town, now),
   };
+  // A clock that jumped backwards must not hand out free time later.
+  if (now <= fl.settledAt) return settlement;
+
   const current = seasonAt(now);
 
   if (current > fl.season) {
@@ -242,7 +242,12 @@ export function awardStanding(
   chargeDecay(fl, now);
   fl.standing = Math.max(0, fl.standing + delta);
   if (fl.standing > fl.peak) fl.peak = fl.standing;
-  if (active) fl.activeAt = now;
+  if (active) {
+    // Whatever the quiet spell owed lands before the action ends it, or a
+    // strike already due would be forgotten rather than charged (M25 Phase 2).
+    chargeStrikes(town, now);
+    fl.activeAt = now;
+  }
   noteStanding(fl, now);
   return fl.standing;
 }

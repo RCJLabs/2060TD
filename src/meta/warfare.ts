@@ -58,6 +58,7 @@ import {
 } from './town';
 import { recordBattle } from './vault';
 import { creditContracts } from './contracts';
+import { chargeStrikes, retakeSector } from './strikes';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -831,13 +832,24 @@ export function applyRaidResult(
   }
 
   const frontline = town.frontline;
+  // Whatever the enemy retook while the raid was planned lands first, on the
+  // front as it stood when it did (M25 Phase 2).
+  chargeStrikes(town, now);
   if (resolution.cleared) {
-    frontline.wins++;
     frontline.totalWins++;
     town.victories++;
-    if (frontline.wins >= 3) {
-      frontline.tier++;
-      frontline.wins = 0;
+    if (base.tier === frontline.tier) {
+      frontline.wins++;
+      if (frontline.wins >= 3) {
+        frontline.tier++;
+        frontline.wins = 0;
+      }
+    } else {
+      // A sector behind the front that the enemy had retaken is the
+      // commander's again, and the pushes at the front do not move. A post
+      // the ground moved out from under (the front fell back while it was
+      // planned) pays like any post and moves nothing.
+      retakeSector(frontline, base.tier, base.variant);
     }
     // Every second cleared post triggers a counterattack on your base.
     if (frontline.totalWins % 2 === 0) frontline.pendingCounterattack = true;
@@ -930,11 +942,20 @@ export function scoutTarget(
 }
 
 export function targetFor(town: TownState, variant: number): GeneratedBase {
+  return postAt(town, town.frontline.tier, variant);
+}
+
+/**
+ * The post the ladder deals at `tier` in slot `variant`: at the front, or in a
+ * sector behind it that the enemy has retaken (M25 Phase 2), which is the same
+ * base it was when that town was the front.
+ */
+export function postAt(town: TownState, tier: number, variant: number): GeneratedBase {
   // The faction decides the DEAL (v1.21): which of the eight shapes lands in
   // which of the rung's three slots. Every other path that generates a ladder
   // base has to pass it too, or it is looking at a different front line from
   // the one the player is.
-  return generateBase(town.frontline.tier, variant, baseKitFor(town.faction), undefined, town.faction);
+  return generateBase(tier, variant, baseKitFor(town.faction), undefined, town.faction);
 }
 
 // ---- offline probe raids -----------------------------------------------------------------

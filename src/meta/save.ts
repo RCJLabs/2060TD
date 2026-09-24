@@ -2,6 +2,7 @@ import { rescaleLadder } from '../content/assaults';
 import { campaignFor, defenseCatalogFor, type FactionId } from '../content/factions';
 import { LEAGUES, seasonAt } from '../content/leagues';
 import { normalizeHistory, PLACEMENT_CAP } from './ladder';
+import { normalizeStrikes } from './strikes';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
@@ -194,6 +195,9 @@ function normalizeLadder(town: TownState): void {
         .filter((p) => p !== null && typeof p === 'object' && typeof p.season === 'number')
         .slice(0, PLACEMENT_CAP)
     : [];
+  // Held ground became state in M25 Phase 2. A file from before has lost
+  // nothing, and its enemy clock starts at the next charge.
+  normalizeStrikes(fl);
 }
 
 /**

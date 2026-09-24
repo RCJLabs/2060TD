@@ -166,6 +166,27 @@ export interface FrontlineState {
    * day on. Optional: a file written before the record has no line yet.
    */
   history?: StandingHistory;
+  /**
+   * Sectors behind the front the enemy has retaken (M25 Phase 2), nearest the
+   * front first. Absent when nothing is lost, which is every file from before.
+   */
+  lost?: LostSector[];
+  /**
+   * The enemy's clock has been charged through this instant (epoch ms), as
+   * `settledAt` is for decay. Absent in a file from before Phase 2: the clock
+   * starts at the load that upgrades it.
+   */
+  pressedAt?: number;
+}
+
+/** A sector behind the front that the enemy holds again (M25 Phase 2). */
+export interface LostSector {
+  /** The column: the town's tier. */
+  tier: number;
+  /** The lane, as the deal's slot: 0 the heavy lane. */
+  slot: number;
+  /** When the enemy retook it (epoch ms). */
+  at: number;
 }
 
 /** A run of daily standing samples, oldest first. */
@@ -512,6 +533,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
       settledAt: now,
       activeAt: now,
       placements: [],
+      pressedAt: now,
     },
     defenseLog: [],
     standingOrders: null,
