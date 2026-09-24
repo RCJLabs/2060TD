@@ -313,6 +313,12 @@ export function deserialize(json: string): TownState | null {
     if (!town.structures.some((s) => s.kind === 'cc')) return null;
     if (!town.campaign || !Array.isArray(town.unlocked)) return null;
     if (!town.frontline || typeof town.army !== 'object') return null;
+    // The grid arrived in v1.51 with the CC2 requisition (M24 Phase 3). A war
+    // that took CC2 before then gets it on this load, as the mission would
+    // have given it.
+    if (town.unlocked.includes('cc2') && !town.unlocked.includes('generator')) {
+      town.unlocked.push('generator');
+    }
     normalizeLadder(town);
     return town;
   } catch {

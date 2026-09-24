@@ -612,36 +612,225 @@ export function caps(town: TownState): { supplies: number; fuel: number; intel: 
 }
 
 /**
- * What the town makes an hour (M24 Phase 2). It was a rate per minute, twenty
+ * What the town makes an hour (M24 Phase 2), as its yard is laid out (Phase
+ * 3): each producer scaled by `yardOutput`. It was a rate per minute, twenty
  * times what these come to, until v1.50; see `TOWN_META`.
  */
-export function ratesPerHour(town: TownState): {
-  supplies: number;
-  fuel: number;
-  intel: number;
-} {
+export function ratesPerHour(town: TownState): { supplies: number; fuel: number; intel: number } {
+  return sumRates(town, (s) => yardOutput(town, s));
+}
+
+/**
+ * What the producers make an hour before the yard: every one powered, and
+ * none with a neighbour. It is what a building is rated at, and what the
+ * storage the town sells was sized against (M24 Phase 2).
+ */
+export function baseRatesPerHour(town: TownState): { supplies: number; fuel: number; intel: number } {
+  return sumRates(town, () => 1);
+}
+
+function sumRates(
+  town: TownState,
+  scale: (s: PlacedStructure) => number,
+): { supplies: number; fuel: number; intel: number } {
   let supplies = 0;
   let fuel = 0;
   let intel = 0;
   for (const s of town.structures) {
     if (!working(s)) continue;
     const meta = townMetaFor(town.faction)[s.kind];
-    if (meta?.generatesSupplies) {
-      supplies += meta.generatesSupplies[Math.min(s.level, meta.generatesSupplies.length) - 1]!;
+    if (!meta?.generatesSupplies && !meta?.generatesFuel && !meta?.generatesIntel) continue;
+    const k = scale(s);
+    if (meta.generatesSupplies) {
+      supplies += meta.generatesSupplies[Math.min(s.level, meta.generatesSupplies.length) - 1]! * k;
     }
-    if (meta?.generatesFuel) {
-      fuel += meta.generatesFuel[Math.min(s.level, meta.generatesFuel.length) - 1]!;
+    if (meta.generatesFuel) {
+      fuel += meta.generatesFuel[Math.min(s.level, meta.generatesFuel.length) - 1]! * k;
     }
-    if (meta?.generatesIntel) {
-      intel += meta.generatesIntel[Math.min(s.level, meta.generatesIntel.length) - 1]!;
+    if (meta.generatesIntel) {
+      intel += meta.generatesIntel[Math.min(s.level, meta.generatesIntel.length) - 1]! * k;
     }
   }
   const ratesMult = researchEffects(town).rates;
   return {
     supplies: Math.round(supplies * ratesMult),
     fuel: Math.round(fuel * ratesMult),
-    intel,
+    intel: Math.round(intel),
   };
+}
+
+// ---- the yard (M24 Phase 3) ---------------------------------------------------------
+
+/*
+ * Where a building stands decides what it does, not only whether the attack
+ * has to walk round it. Two rules, both about which cells a building shares.
+ *
+ * POWER. The Command Center powers every cell within two of it, and a working
+ * Generator every cell within its reach, diagonals included. The producers,
+ * the depots and the Signals Station, make half as much without power, and
+ * nothing else needs it.
+ *
+ * ADJACENCY. A building's neighbours are the four cells that share an edge
+ * with it. A depot makes a quarter more for each Storage Bunker beside it, up
+ * to two; the Signals Station half as much again beside a Generator; a
+ * Barracks trains a quarter cheaper beside a Supply Depot, and a Motor Pool
+ * or an Airfield beside a Fuel Depot; and a wreck beside the Engineering Bay
+ * repairs for half.
+ *
+ * None of it reaches a battle. The rules read the town and never a config, so
+ * no replay, harness row or balance table moves: the buildings were already
+ * obstacles and targets, and that is all the battle sees of them.
+ */
+
+/** How far the Command Center powers on its own. */
+export const POST_POWER_REACH = 2;
+/** The kinds that make half as much without power. */
+export const NEEDS_POWER: readonly string[] = ['supplyDepot', 'fuelDepot', 'radar'];
+/** What an unpowered producer makes, as a share of what it would. */
+export const UNPOWERED_OUTPUT = 0.5;
+/** What a depot gains for each Storage Bunker beside it... */
+export const BUNKER_BONUS = 0.25;
+/** ...counting this many at most. */
+export const BUNKER_BONUS_MAX = 2;
+/** What the Signals Station gains beside a Generator. */
+export const SIGNALS_BONUS = 0.5;
+/** What a facility's partner depot takes off its training price. */
+export const TRAINING_DISCOUNT = 0.25;
+/** What the Engineering Bay takes off a wreck's repair beside it. */
+export const REPAIR_DISCOUNT = 0.5;
+/** The depot each facility wants beside it. */
+export const TRAINING_PARTNER: Readonly<Record<string, string>> = {
+  barracks: 'supplyDepot',
+  motorpool: 'fuelDepot',
+  airfield: 'fuelDepot',
+};
+
+const colOf = (cell: CellIndex): number => cell % TOWN_GRID.width;
+const rowOf = (cell: CellIndex): number => Math.floor(cell / TOWN_GRID.width);
+
+/** Cells apart, a diagonal step counting as one: what a reach is measured in. */
+export function cellsApart(a: CellIndex, b: CellIndex): number {
+  return Math.max(Math.abs(colOf(a) - colOf(b)), Math.abs(rowOf(a) - rowOf(b)));
+}
+
+/** The cells on the board that share an edge with this one. */
+export function edgeNeighbours(cell: CellIndex): CellIndex[] {
+  const { width, height } = TOWN_GRID;
+  const x = colOf(cell);
+  const y = rowOf(cell);
+  const out: CellIndex[] = [];
+  if (y > 0) out.push(cell - width);
+  if (x > 0) out.push(cell - 1);
+  if (x < width - 1) out.push(cell + 1);
+  if (y < height - 1) out.push(cell + width);
+  return out;
+}
+
+/** How far a structure powers: the post always, a Generator while it works. */
+export function powerReachOf(town: TownState, s: PlacedStructure): number {
+  if (s.kind === 'cc') return POST_POWER_REACH;
+  const reach = townMetaFor(town.faction)[s.kind]?.powerReach;
+  if (!reach || !working(s)) return 0;
+  return reach[Math.min(s.level, reach.length) - 1]!;
+}
+
+/**
+ * Is this cell within reach of the post or of a working Generator? A generator
+ * being moved is left out by `ignoreId`, so its new reach is judged without its
+ * old one.
+ */
+export function isPoweredCell(town: TownState, cell: CellIndex, ignoreId?: number): boolean {
+  for (const s of town.structures) {
+    if (s.id === ignoreId) continue;
+    const reach = powerReachOf(town, s);
+    if (reach > 0 && cellsApart(s.cell, cell) <= reach) return true;
+  }
+  return false;
+}
+
+/** How many working structures of these kinds share an edge with `cell`. */
+export function besideCount(
+  town: TownState,
+  cell: CellIndex,
+  kinds: readonly string[],
+  ignoreId?: number,
+): number {
+  let n = 0;
+  for (const next of edgeNeighbours(cell)) {
+    const other = structureAt(town, next);
+    if (other && other.id !== ignoreId && kinds.includes(other.kind) && working(other)) n++;
+  }
+  return n;
+}
+
+/**
+ * What the yard does to a building's output, if `kind` stood at `cell`: its
+ * neighbours first, then power. `selfId` is the building itself when it is
+ * already standing somewhere, so a move is priced without it beside itself.
+ */
+export function yardOutputAt(town: TownState, kind: string, cell: CellIndex, selfId?: number): number {
+  let k = 1;
+  if (kind === 'supplyDepot' || kind === 'fuelDepot') {
+    k += BUNKER_BONUS * Math.min(BUNKER_BONUS_MAX, besideCount(town, cell, ['storageBunker'], selfId));
+  }
+  if (kind === 'radar' && besideCount(town, cell, ['generator'], selfId) > 0) k += SIGNALS_BONUS;
+  if (NEEDS_POWER.includes(kind) && !isPoweredCell(town, cell)) k *= UNPOWERED_OUTPUT;
+  return k;
+}
+
+/** What the yard does to a standing building's output (1 for a non-producer). */
+export function yardOutput(town: TownState, s: PlacedStructure): number {
+  return yardOutputAt(town, s.kind, s.cell, s.id);
+}
+
+/**
+ * The rule a building works by, for its card: one line, in the faction's own
+ * names for the buildings it mentions. Null for a kind the yard leaves alone.
+ */
+export function yardRuleText(kind: string, nameOf: (kind: string) => string): string | null {
+  const pct = (x: number): string => `${Math.round(x * 100)}%`;
+  const name = (k: string): string => nameOf(k).toUpperCase();
+  switch (kind) {
+    case 'supplyDepot':
+    case 'fuelDepot':
+      return (
+        `+${pct(BUNKER_BONUS)} FOR EACH ${name('storageBunker')} BESIDE IT, UP TO ` +
+        `${BUNKER_BONUS_MAX} · NEEDS POWER`
+      );
+    case 'radar':
+      return `+${pct(SIGNALS_BONUS)} BESIDE A ${name('generator')} · NEEDS POWER`;
+    case 'storageBunker':
+      return `EVERY DEPOT BESIDE IT MAKES ${pct(BUNKER_BONUS)} MORE`;
+    case 'generator':
+      return 'POWERS EVERY CELL WITHIN 1, 2 OR 3 OF IT, BY LEVEL';
+    case 'barracks':
+    case 'motorpool':
+    case 'airfield':
+      return `TRAINS ${pct(TRAINING_DISCOUNT)} CHEAPER BESIDE A ${name(TRAINING_PARTNER[kind]!)}`;
+    case 'engBay':
+      return `A WRECK BESIDE IT COSTS ${pct(REPAIR_DISCOUNT)} LESS TO REPAIR`;
+    default:
+      return null;
+  }
+}
+
+/** What a facility's partner depot takes off its training price, or 0. */
+export function trainingDiscount(town: TownState, s: PlacedStructure): number {
+  const partner = TRAINING_PARTNER[s.kind];
+  return partner && besideCount(town, s.cell, [partner], s.id) > 0 ? TRAINING_DISCOUNT : 0;
+}
+
+/** What training `kind` at this facility costs, with its yard counted. */
+export function trainingCost(
+  town: TownState,
+  structureId: number,
+  kind: string,
+): { supplies: number; fuel: number } {
+  const meta = trainMetaFor(town.faction)[kind];
+  if (!meta) return { supplies: 0, fuel: 0 };
+  const s = town.structures.find((x) => x.id === structureId);
+  const off = s ? trainingDiscount(town, s) : 0;
+  return { supplies: Math.round(meta.supplies * (1 - off)), fuel: Math.round(meta.fuel * (1 - off)) };
 }
 
 export function buildSpeedFactor(town: TownState): number {
@@ -813,7 +1002,8 @@ export function canTrain(town: TownState, structureId: number, kind: string): Tr
   if (!s || s.kind !== meta.facility) return 'facility';
   if (s.wrecked || (s.buildEndsAt !== undefined && s.upgradingTo === undefined)) return 'busy';
   if ((s.trainQueue?.length ?? 0) >= 5) return 'queue';
-  if (town.supplies < meta.supplies || town.fuel < meta.fuel) return 'cost';
+  const cost = trainingCost(town, structureId, kind);
+  if (town.supplies < cost.supplies || town.fuel < cost.fuel) return 'cost';
   if (armyManpower(town) + queuedManpower(town) + meta.manpower > manpowerCapOf(town)) {
     return 'manpower';
   }
@@ -824,8 +1014,9 @@ export function queueTrain(town: TownState, structureId: number, kind: string, n
   if (canTrain(town, structureId, kind) !== null) return false;
   const meta = trainMetaFor(town.faction)[kind]!;
   const s = town.structures.find((x) => x.id === structureId)!;
-  town.supplies -= meta.supplies;
-  town.fuel -= meta.fuel;
+  const cost = trainingCost(town, structureId, kind);
+  town.supplies -= cost.supplies;
+  town.fuel -= cost.fuel;
   s.trainQueue = s.trainQueue ?? [];
   s.trainQueue.push(kind);
   creditContracts(town, 'trained', 1, now);
@@ -1034,7 +1225,9 @@ export function sell(town: TownState, id: number): boolean {
 
 export function repairCost(town: TownState, s: PlacedStructure): { supplies: number; fuel: number } {
   const spent = cumulativeCost(town, s.kind, s.level);
-  const fraction = wreckRepairFractionFor(town.faction);
+  // A wreck beside a working Engineering Bay repairs for half (M24 Phase 3).
+  const beside = besideCount(town, s.cell, ['engBay'], s.id) > 0;
+  const fraction = wreckRepairFractionFor(town.faction) * (beside ? 1 - REPAIR_DISCOUNT : 1);
   return {
     supplies: Math.ceil(spent.supplies * fraction),
     fuel: Math.ceil(spent.fuel * fraction),

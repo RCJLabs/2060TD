@@ -86,6 +86,19 @@ import {
   townTerrain,
   wreckBill,
   wreckedIds,
+  besideCount,
+  cellsApart,
+  edgeNeighbours,
+  isPoweredCell,
+  powerReachOf,
+  researchEffects,
+  yardOutput,
+  yardOutputAt,
+  yardRuleText,
+  BUNKER_BONUS,
+  BUNKER_BONUS_MAX,
+  NEEDS_POWER,
+  TRAINING_PARTNER,
   TOWN_GRID,
   onSpawnLane,
   type DefenseLogEntry,
@@ -1457,6 +1470,7 @@ export class TownScene extends Scene {
       // and footprint the battle will actually give the thing on this board.
       catalog: scaleCatalog(defenseCatalogFor(this.town.faction), TOWN_GRID.cellSize),
       ...(meta ? { meta } : {}),
+      ...(yardRuleText(kind, this.nameOf) ? { yardRule: yardRuleText(kind, this.nameOf)! } : {}),
       onClose: close,
     };
     this.overlay = wall
@@ -1707,8 +1721,186 @@ export class TownScene extends Scene {
       }
     }
 
+    this.drawPowerOverlay(g);
     this.drawGhost(g);
     this.updateConfirmBar();
+  }
+
+  // ---- the yard (M24 Phase 3) -------------------------------------------------------
+
+  /** The kind being aimed and the cell under it, and the building if it is a move. */
+  private aimed(): { kind: string; cell: number; self?: PlacedStructure } | null {
+    const cell = this.pendingCell ?? this.cellFromPointer(this.input.activePointer);
+    if (cell === null) return null;
+    if (this.tool.type === 'build') return { kind: this.tool.kind, cell };
+    if (this.tool.type === 'move') {
+      const id = this.tool.id;
+      const self = this.town.structures.find((x) => x.id === id);
+      return self ? { kind: self.kind, cell, self } : null;
+    }
+    return null;
+  }
+
+  /**
+   * While a producer or a generator is being aimed, the edge of the powered
+   * ground, in the accent: the one thing on the board that decides whether
+   * the depot in your hand makes all of its output or half. A generator also
+   * shows the square it would power from where it is aimed.
+   */
+  private drawPowerOverlay(g: Graphics): void {
+    const aim = this.aimed();
+    if (!aim || (!NEEDS_POWER.includes(aim.kind) && aim.kind !== 'generator')) return;
+    const ignore = aim.self?.kind === 'generator' ? aim.self.id : undefined;
+    const { width, height } = TOWN_GRID;
+    const powered: boolean[] = [];
+    for (let c = 0; c < width * height; c++) powered.push(isPoweredCell(this.town, c, ignore));
+    g.lineStyle(2, COLORS.signal, 0.85);
+    for (let c = 0; c < width * height; c++) {
+      if (!powered[c]) continue;
+      const x = (c % width) * CELL;
+      const y = Math.floor(c / width) * CELL;
+      const col = c % width;
+      const row = Math.floor(c / width);
+      if (row === 0 || !powered[c - width]) g.lineBetween(x, y, x + CELL, y);
+      if (row === height - 1 || !powered[c + width]) g.lineBetween(x, y + CELL, x + CELL, y + CELL);
+      if (col === 0 || !powered[c - 1]) g.lineBetween(x, y, x, y + CELL);
+      if (col === width - 1 || !powered[c + 1]) g.lineBetween(x + CELL, y, x + CELL, y + CELL);
+    }
+    if (aim.kind === 'generator') {
+      const reach = this.meta('generator')?.powerReach?.[(aim.self?.level ?? 1) - 1] ?? 1;
+      const x0 = Math.max(0, (aim.cell % width) - reach);
+      const y0 = Math.max(0, Math.floor(aim.cell / width) - reach);
+      const x1 = Math.min(width - 1, (aim.cell % width) + reach);
+      const y1 = Math.min(height - 1, Math.floor(aim.cell / width) + reach);
+      g.lineStyle(1, COLORS.signal, 0.7);
+      g.strokeRect(x0 * CELL + 3, y0 * CELL + 3, (x1 - x0 + 1) * CELL - 6, (y1 - y0 + 1) * CELL - 6);
+    }
+  }
+
+  /** The faction's name for a kind, as a card or a hint says it. */
+  private nameOf = (kind: string): string => this.meta(kind)?.name ?? kind;
+
+  /** What a producer at `level` makes an hour with the yard's multiplier `k`. */
+  private outputLine(kind: string, level: number, k: number): string | null {
+    const meta = this.meta(kind);
+    if (!meta) return null;
+    const rates = researchEffects(this.town).rates;
+    const at = (list: number[] | undefined): number | undefined =>
+      list ? list[Math.min(level, list.length) - 1] : undefined;
+    const supplies = at(meta.generatesSupplies);
+    const fuel = at(meta.generatesFuel);
+    const intel = at(meta.generatesIntel);
+    if (supplies) return `${Math.round(supplies * k * rates)} SUP/h`;
+    if (fuel) return `${Math.round(fuel * k * rates)} FUEL/h`;
+    if (intel) return `${Math.round(intel * k)} INTEL/h`;
+    return null;
+  }
+
+  /**
+   * One line about what the thing being aimed would do on the aimed cell —
+   * its own output, or what it would do for its neighbours — shown where the
+   * banner goes for as long as something is being placed or moved.
+   */
+  private yardHint(): string | null {
+    const aim = this.aimed();
+    if (!aim) return null;
+    const { kind, cell, self } = aim;
+    const town = this.town;
+    const selfId = self?.id;
+    const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 'S'}`;
+    if (NEEDS_POWER.includes(kind)) {
+      const k = yardOutputAt(town, kind, cell, selfId);
+      const parts = [isPoweredCell(town, cell) ? 'POWERED' : 'NO POWER — HALF'];
+      if (kind === 'radar') {
+        if (besideCount(town, cell, ['generator'], selfId) > 0) parts.push(`${this.nameOf('generator').toUpperCase()} BESIDE`);
+      } else {
+        const n = Math.min(BUNKER_BONUS_MAX, besideCount(town, cell, ['storageBunker'], selfId));
+        parts.push(`${plural(n, this.nameOf('storageBunker').toUpperCase())} BESIDE`);
+        // A depot is somebody's training partner too.
+        const helps = edgeNeighbours(cell)
+          .map((c) => structureAt(town, c))
+          .filter((o): o is PlacedStructure => !!o && o.id !== selfId && TRAINING_PARTNER[o.kind] === kind && !o.wrecked)
+          .filter((o) => besideCount(town, o.cell, [kind], selfId) === 0);
+        if (helps.length > 0) parts.push(`${this.nameOf(helps[0]!.kind).toUpperCase()} TRAINS 25% CHEAPER`);
+      }
+      return `HERE: ${this.outputLine(kind, self?.level ?? 1, k)} — ${parts.join(', ')}`;
+    }
+    if (kind === 'storageBunker') {
+      const gains = edgeNeighbours(cell)
+        .map((c) => structureAt(town, c))
+        .filter(
+          (o): o is PlacedStructure =>
+            !!o && o.id !== selfId && (o.kind === 'supplyDepot' || o.kind === 'fuelDepot') && !o.wrecked,
+        )
+        .filter((o) => besideCount(town, o.cell, ['storageBunker'], selfId) < BUNKER_BONUS_MAX).length;
+      return gains > 0
+        ? `HERE: +${Math.round(BUNKER_BONUS * 100)}% TO ${plural(gains, 'DEPOT')} BESIDE IT`
+        : 'HERE: NO DEPOT BESIDE IT TO FEED';
+    }
+    if (kind === 'generator') {
+      const reach = this.meta('generator')?.powerReach?.[(self?.level ?? 1) - 1] ?? 1;
+      const lit = town.structures.filter(
+        (o) =>
+          NEEDS_POWER.includes(o.kind) &&
+          !o.wrecked &&
+          cellsApart(o.cell, cell) <= reach &&
+          !isPoweredCell(town, o.cell, selfId),
+      ).length;
+      const radar = besideCount(town, cell, ['radar'], selfId) > 0 ? ' · SIGNALS BESIDE IT +50%' : '';
+      return `HERE: POWERS ${plural(lit, 'BUILDING')} NOW WITHOUT POWER (REACH ${reach})${radar}`;
+    }
+    const partner = TRAINING_PARTNER[kind];
+    if (partner) {
+      return besideCount(town, cell, [partner], selfId) > 0
+        ? `HERE: TRAINS 25% CHEAPER — ${this.nameOf(partner).toUpperCase()} BESIDE`
+        : `HERE: FULL PRICE — A ${this.nameOf(partner).toUpperCase()} BESIDE IT TAKES 25% OFF`;
+    }
+    if (kind === 'engBay') {
+      const n = edgeNeighbours(cell).filter((c) => {
+        const o = structureAt(town, c);
+        return !!o && o.id !== selfId && o.kind !== 'cc';
+      }).length;
+      return `HERE: HALVES THE REPAIR OF ${plural(n, 'BUILDING')} BESIDE IT`;
+    }
+    return null;
+  }
+
+  /** What the yard is doing for a standing building, for the inspector. */
+  private yardLines(s: PlacedStructure): string[] {
+    const town = this.town;
+    const lines: string[] = [];
+    if (NEEDS_POWER.includes(s.kind)) {
+      lines.push(isPoweredCell(town, s.cell) ? 'POWER: ON' : 'POWER: OFF — HALF OUTPUT');
+    }
+    if (s.kind === 'supplyDepot' || s.kind === 'fuelDepot') {
+      const n = Math.min(BUNKER_BONUS_MAX, besideCount(town, s.cell, ['storageBunker'], s.id));
+      lines.push(`${this.nameOf('storageBunker').toUpperCase()} BESIDE: ${n} (+${Math.round(n * BUNKER_BONUS * 100)}%)`);
+    }
+    if (s.kind === 'radar') {
+      const beside = besideCount(town, s.cell, ['generator'], s.id) > 0;
+      lines.push(`${this.nameOf('generator').toUpperCase()} BESIDE: ${beside ? 'YES (+50%)' : 'NO'}`);
+    }
+    if (s.kind === 'storageBunker') {
+      const n = besideCount(town, s.cell, ['supplyDepot', 'fuelDepot'], s.id);
+      lines.push(`FEEDING ${n} DEPOT${n === 1 ? '' : 'S'} BESIDE IT`);
+    }
+    if (s.kind === 'generator') {
+      const reach = powerReachOf(town, s);
+      const n = town.structures.filter(
+        (o) => NEEDS_POWER.includes(o.kind) && cellsApart(o.cell, s.cell) <= reach && reach > 0,
+      ).length;
+      lines.push(reach > 0 ? `REACH ${reach} · POWERING ${n}` : 'POWERING NOTHING');
+    }
+    const partner = TRAINING_PARTNER[s.kind];
+    if (partner) {
+      lines.push(
+        besideCount(town, s.cell, [partner], s.id) > 0
+          ? 'TRAINING: 25% OFF'
+          : `TRAINING: FULL PRICE (NO ${this.nameOf(partner).toUpperCase()} BESIDE)`,
+      );
+    }
+    if (s.kind === 'engBay') lines.push('A WRECK BESIDE IT REPAIRS FOR HALF');
+    return lines;
   }
 
   private drawGhost(g: Graphics): void {
@@ -2057,9 +2249,9 @@ export class TownScene extends Scene {
     } else {
       info('STATUS: OPERATIONAL');
     }
-    if (meta?.generatesSupplies) info(`OUTPUT: ${meta.generatesSupplies[s.level - 1]} SUP/h`);
-    if (meta?.generatesFuel) info(`OUTPUT: ${meta.generatesFuel[s.level - 1]} FUEL/h`);
-    if (meta?.generatesIntel) info(`OUTPUT: ${meta.generatesIntel[s.level - 1]} INTEL/h`);
+    for (const line of this.yardLines(s)) info(line);
+    const output = this.outputLine(s.kind, s.level, yardOutput(town, s));
+    if (output) info(`OUTPUT: ${output}`);
     if (meta?.storage) {
       const t = meta.storage[s.level - 1]!;
       info(`STORAGE: +${t.supplies}S +${t.fuel}F`);
@@ -2476,8 +2668,11 @@ export class TownScene extends Scene {
     }
     this.lastActiveResearch = activeId;
 
-    this.bannerText.setText(this.bannerTtl > 0 ? this.banner : '');
-    this.bannerText.setVisible(this.bannerTtl > 0);
+    // While something is being placed or moved, the banner line says what it
+    // would do there (M24 Phase 3): a finished report can wait for the tap.
+    const hint = this.yardHint();
+    this.bannerText.setText(hint ?? (this.bannerTtl > 0 ? this.banner : ''));
+    this.bannerText.setVisible(hint !== null || this.bannerTtl > 0);
   }
 }
 

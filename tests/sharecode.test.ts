@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateBase, CHINA_BASE_KIT } from '../src/content/bases';
+import { BUILDABLE_KINDS } from '../src/content/buildings';
 import { raidCatalogFor, trainableFor } from '../src/content/factions';
 import {
   baseFromShare,
@@ -40,6 +41,21 @@ function fortified(faction: 'usa' | 'china' = 'usa'): TownState {
 }
 
 describe('share codes', () => {
+  it('carries every kind the town can build (M24 Phase 3)', () => {
+    // The kind table was the build menu until the Generator went into the
+    // middle of the menu. Written out now, so a new kind that nobody appends to
+    // it would silently drop out of every code rather than fail.
+    const town = unlockAll(newTown(T0, 'usa'));
+    town.structures = [{ id: 1, kind: 'cc', cell: TOWN_GRID.ccOrigin, level: 3, wrecked: false }];
+    BUILDABLE_KINDS.forEach((kind, i) => {
+      town.structures.push({ id: i + 2, kind, cell: at(2 + Math.floor(i / 8), 1 + (i % 8)), level: 1, wrecked: false });
+    });
+    const result = decodeBase(encodeBase(town, 'Every Kind'));
+    expect(result.ok, `decode failed: ${result.ok ? '' : result.error}`).toBe(true);
+    if (!result.ok) return;
+    expect(result.base.structures.map((s) => s.kind).sort()).toEqual([...BUILDABLE_KINDS].sort());
+  });
+
   it('round-trips a fortified base through a pasteable string', () => {
     const town = fortified();
     const code = encodeBase(town, 'Coos Bay Anvil');

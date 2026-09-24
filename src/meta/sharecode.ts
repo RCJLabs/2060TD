@@ -1,5 +1,4 @@
 import { MAP_H, MAP_W, type GeneratedBase } from '../content/bases';
-import { BUILDABLE_KINDS } from '../content/buildings';
 import { FACTION_IDS, type FactionId } from '../content/factions';
 import type { CellIndex, LayoutStructure, LayoutWall } from '../sim/types';
 import { TOWN_GRID, type TownState } from './town';
@@ -37,8 +36,28 @@ const FORMAT = 1;
 /**
  * Kind → byte, fixed forever. Appending is safe; reordering or removing is
  * not, because it would silently reinterpret every code already shared.
+ *
+ * Written out since M24 Phase 3. It was `['cc', 'wall', ...BUILDABLE_KINDS]`,
+ * which tied these bytes to the order of the build menu, and the Generator
+ * goes in the middle of the menu and at the end of this.
  */
-const SHARE_KINDS: string[] = ['cc', 'wall', ...BUILDABLE_KINDS];
+const SHARE_KINDS: string[] = [
+  'cc',
+  'wall',
+  'supplyDepot',
+  'fuelDepot',
+  'storageBunker',
+  'engBay',
+  'radar',
+  'barracks',
+  'motorpool',
+  'airfield',
+  'm2nest',
+  'autocannon',
+  'mortar',
+  'aa',
+  'generator',
+];
 const KIND_BYTE = new Map(SHARE_KINDS.map((kind, i) => [kind, i]));
 
 /** What a code decodes to: enough to build a raid, and who to blame for it. */

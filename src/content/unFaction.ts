@@ -161,6 +161,7 @@ export const UN_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   supplyDepot: rename(ECONOMY_STRUCTURES['supplyDepot']!, 'Logistics Depot'),
   fuelDepot: rename(ECONOMY_STRUCTURES['fuelDepot']!, 'Fuel Point'),
   storageBunker: rename(ECONOMY_STRUCTURES['storageBunker']!, 'Container Yard'),
+  generator: rename(ECONOMY_STRUCTURES['generator']!, 'Power Module'),
   engBay: {
     ...ECONOMY_STRUCTURES['engBay']!,
     name: 'Engineer Corps HQ',

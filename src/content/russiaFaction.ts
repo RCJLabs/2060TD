@@ -157,6 +157,7 @@ export const RUSSIA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   supplyDepot: rename(ECONOMY_STRUCTURES['supplyDepot']!, 'Supply Railhead'),
   fuelDepot: rename(ECONOMY_STRUCTURES['fuelDepot']!, 'POL Point'),
   storageBunker: rename(ECONOMY_STRUCTURES['storageBunker']!, 'Deep Bunker'),
+  generator: rename(ECONOMY_STRUCTURES['generator']!, 'Diesel Plant'),
   engBay: rename(ECONOMY_STRUCTURES['engBay']!, 'Engineer Battalion'),
   radar: rename(ECONOMY_STRUCTURES['radar']!, 'GRU Signals Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Conscript Barracks'),

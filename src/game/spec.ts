@@ -135,6 +135,12 @@ export interface SpecOpts {
    * screen in the game.
    */
   meta?: TownBuildingMeta;
+  /**
+   * The rule the yard holds it to (M24 Phase 3): what its neighbours and power
+   * do for it, in the faction's own names. Absent for a kind the yard leaves
+   * alone.
+   */
+  yardRule?: string;
   onClose: () => void;
 }
 
@@ -164,6 +170,8 @@ function outputAt(meta: TownBuildingMeta | undefined, level: number): string {
   if (intelCap) parts.push(`+${intelCap} INT CAP`);
   const speed = at(meta.buildSpeed);
   if (speed) parts.push(`${Math.round(speed * 100)}% FASTER BUILDS`);
+  const reach = at(meta.powerReach);
+  if (reach) parts.push(`POWERS WITHIN ${reach}`);
   return parts.join(' · ');
 }
 
@@ -229,6 +237,10 @@ export function buildStructureSpec(
     COLORS.ink,
     { gapAfter: gap * 2 },
   );
+
+  if (opts.yardRule) {
+    ov.paragraph(opts.yardRule, font.tiny, COLORS.ink, { gapAfter: gap * 2 });
+  }
 
   if (profile.weapon) {
     ov.paragraph(weaponLines(profile.weapon, opts.catalog.damage).join('\n'), font.tiny, COLORS.inkDim, {

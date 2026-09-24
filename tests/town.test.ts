@@ -34,6 +34,11 @@ import { TEST_CATALOG, yardTown } from './helpers';
 const T0 = 1_700_000_000_000;
 const minutes = (m: number) => m * 60_000;
 const idx = (x: number, y: number) => y * TOWN_GRID.width + x;
+/**
+ * A cell within the post's power reach (M24 Phase 3), for tests about what a
+ * depot makes: anywhere else it would make half.
+ */
+const NEAR_POST = idx(6, 13);
 
 /** Dev town: everything unlocked (campaign locks tested separately), rich. */
 const rich = (town: TownState): TownState => {
@@ -66,7 +71,7 @@ describe('town state', () => {
   it('placing a depot costs resources and takes construction time', () => {
     const town = yardTown(T0);
     const before = town.supplies;
-    expect(place(town, 'supplyDepot', idx(5, 5), T0)).toBe(true);
+    expect(place(town, 'supplyDepot', NEAR_POST, T0)).toBe(true);
     expect(town.supplies).toBe(before - 150);
     expect(ratesPerHour(town).supplies).toBe(0); // still scaffolding
 
@@ -96,9 +101,9 @@ describe('town state', () => {
     expect(upgradeError(town, depot)).toBe('max'); // CC1 caps everything at L1
 
     const cc2 = townAtCc(2);
-    place(cc2, 'supplyDepot', idx(5, 5), T0);
+    place(cc2, 'supplyDepot', NEAR_POST, T0);
     tick(cc2, T0 + minutes(1));
-    const depot2 = structureAt(cc2, idx(5, 5))!;
+    const depot2 = structureAt(cc2, NEAR_POST)!;
     expect(upgradeError(cc2, depot2)).toBe(null);
     expect(upgrade(cc2, depot2.id, T0 + minutes(1))).toBe(true);
     tick(cc2, T0 + minutes(3));
@@ -108,7 +113,7 @@ describe('town state', () => {
 
   it('accrues offline generation, capped by storage and the 8h window', () => {
     const town = rich(yardTown(T0));
-    place(town, 'supplyDepot', idx(5, 5), T0);
+    place(town, 'supplyDepot', NEAR_POST, T0);
     town.supplies = 0;
     town.fuel = 0;
     tick(town, T0 + minutes(1)); // build completes, accrual starts from T0 baseline
@@ -127,7 +132,7 @@ describe('town state', () => {
 
   it('keeps what was paid on top of the cap, and adds nothing to it until it is spent', () => {
     const town = rich(yardTown(T0));
-    place(town, 'supplyDepot', idx(5, 5), T0);
+    place(town, 'supplyDepot', NEAR_POST, T0);
     tick(town, T0 + minutes(1));
     const cap = caps(town).supplies;
     // Loot, the day's orders or a season placement, landed on a full store.

@@ -74,6 +74,17 @@ export const ECONOMY_STRUCTURES: Record<string, StructureProfile> = {
     targetable: true,
     levels: [{ maxHp: 520 }, { maxHp: 630 }],
   },
+  // M24 Phase 3: the grid. Soft and one cell, and everything within its
+  // reach goes dark when it is wrecked.
+  generator: {
+    kind: 'generator',
+    name: 'Generator',
+    maxHp: 360,
+    footprint: 2,
+    blocks: true,
+    targetable: true,
+    levels: [{ maxHp: 450 }, { maxHp: 540 }],
+  },
   // v1.0: the air layer's home. Big, soft, and the first thing a raider
   // with a doctrine goes looking for.
   airfield: {
@@ -116,6 +127,11 @@ export interface TownBuildingMeta {
   intelCap?: number[];
   /** Build-time reduction fraction at each level (Engineering Bay). */
   buildSpeed?: number[];
+  /**
+   * How far it powers, in cells, at each level (Generator, M24 Phase 3):
+   * every cell within this many of it, diagonals included.
+   */
+  powerReach?: number[];
 }
 
 /**
@@ -214,6 +230,16 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
     generatesIntel: [12, 21, 33],
     intelCap: [150, 300, 500],
   },
+  generator: {
+    kind: 'generator',
+    name: 'Generator',
+    levels: [
+      { supplies: 250, fuel: 60, seconds: 25 },
+      { supplies: 600, fuel: 150, seconds: 70 },
+      { supplies: 1300, fuel: 350, seconds: 160 },
+    ],
+    powerReach: [1, 2, 3],
+  },
   airfield: {
     kind: 'airfield',
     name: 'Airfield',
@@ -266,6 +292,7 @@ export const BUILDABLE_KINDS = [
   'supplyDepot',
   'fuelDepot',
   'storageBunker',
+  'generator',
   'engBay',
   'radar',
   'barracks',
@@ -297,7 +324,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 1,
     walls: 25,
     counts: {
-      supplyDepot: 2, fuelDepot: 1, storageBunker: 1, engBay: 0, radar: 0,
+      supplyDepot: 2, fuelDepot: 1, storageBunker: 1, generator: 0, engBay: 0, radar: 0,
       barracks: 1, motorpool: 0, airfield: 0,
       m2nest: 2, autocannon: 1, mortar: 0, aa: 0,
     },
@@ -306,7 +333,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 2,
     walls: 40,
     counts: {
-      supplyDepot: 3, fuelDepot: 2, storageBunker: 2, engBay: 1, radar: 1,
+      supplyDepot: 3, fuelDepot: 2, storageBunker: 2, generator: 1, engBay: 1, radar: 1,
       barracks: 1, motorpool: 1, airfield: 1,
       m2nest: 3, autocannon: 2, mortar: 1, aa: 2,
     },
@@ -315,7 +342,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 3,
     walls: 60,
     counts: {
-      supplyDepot: 4, fuelDepot: 3, storageBunker: 3, engBay: 1, radar: 1,
+      supplyDepot: 4, fuelDepot: 3, storageBunker: 3, generator: 2, engBay: 1, radar: 1,
       barracks: 2, motorpool: 1, airfield: 1,
       m2nest: 4, autocannon: 3, mortar: 2, aa: 3,
     },

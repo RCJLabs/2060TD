@@ -313,6 +313,25 @@ export function drawStructureGlyph(
       box(0.22, 0.2, trim, 0, 0.02);
       break;
     }
+    case 'generator': {
+      // A squat block with a bolt cut through it (M24 Phase 3). The bolt is
+      // the one diagonal zigzag on the board, so it reads at any zoom.
+      haloBox(S * 0.66, S * 0.66);
+      box(0.66, 0.66);
+      g.fillStyle(cut, 0.9);
+      g.fillPoints(
+        [
+          { x: px + S * 0.07, y: py - S * 0.27 },
+          { x: px - S * 0.13, y: py + S * 0.04 },
+          { x: px - S * 0.01, y: py + S * 0.04 },
+          { x: px - S * 0.07, y: py + S * 0.27 },
+          { x: px + S * 0.13, y: py - S * 0.06 },
+          { x: px + S * 0.01, y: py - S * 0.06 },
+        ],
+        true,
+      );
+      break;
+    }
     case 'engBay': {
       // A workshop with a gantry across it.
       shed();

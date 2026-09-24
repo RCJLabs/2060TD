@@ -45,6 +45,9 @@ export const ALL_UNLOCK_KEYS = [
   'hesco',
   'fuelDepot',
   'cc2',
+  // M24 Phase 3: the grid comes with the second post level, the first that
+  // allows a generator. `deserialize` grants it to a war that took CC2 first.
+  'generator',
   'autocannon',
   'engBay',
   'barracks',
@@ -197,8 +200,8 @@ export const CAMPAIGN: MissionDef[] = [
         ],
       },
     ],
-    unlocks: ['fuelDepot', 'cc2'],
-    unlockNote: 'REQUISITION: FUEL DEPOT · CC LEVEL 2 CLEARED',
+    unlocks: ['fuelDepot', 'cc2', 'generator'],
+    unlockNote: 'REQUISITION: FUEL DEPOT, GENERATOR · CC LEVEL 2 CLEARED',
     reward: { supplies: 400, fuel: 60 },
     bonus: { id: 'noStructuresLost', label: 'EVERY TRUCK HOME — no structures lost' },
   },

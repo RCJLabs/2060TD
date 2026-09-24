@@ -35,6 +35,7 @@ import {
   armyManpower,
   canFlyFrom,
   canTrain,
+  trainingCost,
   manpowerCapOf,
   newTown,
   place,
@@ -613,15 +614,42 @@ export class RaidScene extends Scene {
 
   // ---- training ---------------------------------------------------------------------
 
+  /**
+   * The facility this unit trains at: the cheapest one that can take it, since
+   * a facility beside its depot trains a quarter cheaper (M24 Phase 3).
+   */
   private facilityFor(kind: string): number | null {
     const meta = this.trainMeta[kind];
     if (!meta) return null;
+    let best: number | null = null;
+    let bestPrice = Infinity;
     for (const s of this.town.structures) {
       if (s.kind !== meta.facility || s.wrecked) continue;
       if (s.buildEndsAt !== undefined && s.upgradingTo === undefined) continue;
-      if (canTrain(this.town, s.id, kind) === null) return s.id;
+      if (canTrain(this.town, s.id, kind) !== null) continue;
+      const cost = trainingCost(this.town, s.id, kind);
+      if (cost.supplies + cost.fuel < bestPrice) {
+        best = s.id;
+        bestPrice = cost.supplies + cost.fuel;
+      }
     }
-    return null;
+    return best;
+  }
+
+  /**
+   * What this unit costs at the cheapest facility that could train it, whether
+   * or not the stock covers it right now: the price a player is saving for.
+   */
+  private cheapestPrice(kind: string): { supplies: number; fuel: number } {
+    const meta = this.trainMeta[kind]!;
+    let best = { supplies: meta.supplies, fuel: meta.fuel };
+    for (const s of this.town.structures) {
+      if (s.kind !== meta.facility || s.wrecked) continue;
+      if (s.buildEndsAt !== undefined && s.upgradingTo === undefined) continue;
+      const cost = trainingCost(this.town, s.id, kind);
+      if (cost.supplies + cost.fuel < best.supplies + best.fuel) best = cost;
+    }
+    return best;
   }
 
   private train(kind: string): void {
@@ -1074,7 +1102,8 @@ export class RaidScene extends Scene {
           },
         ];
         for (const meta of this.trainable) {
-          const cost = meta.fuel > 0 ? `${meta.supplies}S+${meta.fuel}F` : `${meta.supplies}S`;
+          const price = this.cheapestPrice(meta.kind);
+          const cost = price.fuel > 0 ? `${price.supplies}S+${price.fuel}F` : `${price.supplies}S`;
           rows.push({
             id: `train_${meta.kind}`,
             label: `${meta.name.toUpperCase()} ×${town.army[meta.kind] ?? 0}`,

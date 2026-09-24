@@ -180,7 +180,8 @@ describe('research program', () => {
     town.supplies = 9000;
     town.fuel = 2000;
     town.structures.find((s) => s.kind === 'cc')!.level = 2; // radar gate: CC2
-    place(town, 'radar', idx(2, 5), T0);
+    // Within the post's power reach (M24 Phase 3): anywhere else it makes half.
+    place(town, 'radar', idx(2, 13), T0);
     tick(town, T0 + 60_000); // built (35s)
     return town;
   }
@@ -211,7 +212,7 @@ describe('research program', () => {
 
   it('radar generates and caps intel; effects reshape the economy', () => {
     const town = radarTown();
-    place(town, 'supplyDepot', idx(5, 5), T0 + 60_000);
+    place(town, 'supplyDepot', idx(6, 13), T0 + 60_000);
     tick(town, T0 + 120_000); // depot built
     expect(ratesPerHour(town).intel).toBe(12);
     expect(ratesPerHour(town).supplies).toBe(120);
