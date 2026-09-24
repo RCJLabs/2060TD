@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import type { Ink } from '../ink';
 import type { Layout, Rect } from '../layout';
 import { popModal, pushModal } from '../modal';
-import type { OverlayApi, OverlayButton, OverlayText, TextExtra } from '../overlay';
 import { COLORS, css as hex } from '../palette';
 import { textSources, type TextRect } from '../seam';
 import { DISPLAY_FAMILY, DISPLAY_SCALE, MONO_FAMILY } from '../tokens';
@@ -10,21 +9,95 @@ import { domButton, type DomButton } from './button';
 import { inkCanvas } from './ink';
 import { css, cssColor, cssRect, deviceRect, dpr, place, uiLayer } from './layer';
 
+/** The styles a caller may add to overlay text: what the callers use, and no more. */
+export interface TextExtra {
+  lineSpacing?: number;
+  align?: 'left' | 'center' | 'right';
+  fontStyle?: string;
+}
+
+/** A block of overlay text, as a caller holds it: where it landed, and a way to change it. */
+export interface OverlayText {
+  readonly y: number;
+  readonly height: number;
+  setText(value: string): unknown;
+}
+
+/** An overlay button, as a caller holds it. */
+export interface OverlayButton {
+  setActive(active: boolean): void;
+  setEnabled(enabled: boolean): void;
+  setVisible(visible: boolean): void;
+  setLabel(text: string): void;
+  setSub(text: string): void;
+  setFont(size: number): void;
+  destroy(): void;
+}
+
 /**
- * The overlay, in the DOM (M30): `Overlay`'s API and geometry, drawn as
- * elements over the canvas.
+ * What a screen can do with an overlay (M30): the calls every briefing,
+ * report, log and menu is built from, and nothing of how they are drawn.
+ */
+export interface OverlayApi {
+  /** Content area for flowed rows, in device px. */
+  readonly card: Rect;
+  flow(height: number, gapAfter?: number): Rect;
+  text(rect: Rect, value: string, size: number, color?: number, extra?: TextExtra): OverlayText;
+  centered(rect: Rect, value: string, size: number, color?: number, extra?: TextExtra): OverlayText;
+  paragraph(
+    value: string,
+    size: number,
+    color?: number,
+    opts?: { gapAfter?: number; width?: number; minHeight?: number; center?: boolean; lineSpacing?: number },
+  ): OverlayText;
+  chart(values: number[], height: number, opts?: { color?: number; latest?: number; gapAfter?: number }): Rect;
+  sketch(size: number, draw: (g: Ink, x: number, y: number, size: number) => void, opts?: { gapAfter?: number }): Rect;
+  band(height: number, draw: (g: Ink, rect: Rect) => void, gapAfter?: number): Rect;
+  button(rect: Rect, label: string, onTap: () => void, opts?: { align?: 'left' | 'center'; sub?: string }): OverlayButton;
+  flowButton(
+    label: string,
+    onTap: () => void,
+    opts?: {
+      align?: 'left' | 'center';
+      sub?: string;
+      width?: number;
+      gapAfter?: number;
+      font?: number;
+      icon?: (g: Ink, x: number, y: number, size: number) => void;
+    },
+  ): OverlayButton;
+  footer(label: string, onTap: () => void, index?: number, of?: number): OverlayButton;
+  readonly scrollable: boolean;
+  close(): void;
+}
+
+export interface OverlayOptions {
+  title?: string;
+  subtitle?: string;
+  scrim?: number;
+  depth?: number;
+}
+
+/** A full-screen overlay over this scene. */
+export function createOverlay(scene: Phaser.Scene, layout: Layout, opts: OverlayOptions = {}): OverlayApi {
+  return new DomOverlay(scene, layout, opts);
+}
+
+/**
+ * Full-screen overlays (briefings, research, logs, the faction pick) as one
+ * responsive component (M30): a scrim, a card sized to the viewport, a
+ * scrolling body and a fixed footer, drawn as elements over the canvas.
  *
- * Same scrim, same sheet, same masthead, same card and footer, laid out by the
- * same arithmetic from the same `Layout`, so a caller that builds a page with
- * `flow`, `paragraph` and `footer` cannot tell which kit it got. The positions
- * it is handed are the canvas kit's device px as well: a caller that places a
- * button beside a paragraph by reading the paragraph's `y` places it in the
- * same spot here.
+ * Content is laid out by vertical flow rather than hardcoded coordinates, so
+ * the same overlay reads on a phone and a monitor, and the positions a caller
+ * is handed are device px like the rest of the layout: a caller that places a
+ * button beside a paragraph reads the paragraph's `y`.
  *
- * What changes is everything the canvas kit had to build by hand. The body
- * scrolls natively, with the platform's own momentum and overscroll, so the
- * drag, the fling and the wheel handler are gone. Text is real text a screen
- * reader can reach. And a press on a button is the browser's.
+ * It replaced a canvas overlay with the same API and geometry, and what
+ * changed is everything that kit had to build by hand. The body scrolls
+ * natively, with the platform's own momentum and overscroll, so the drag, the
+ * fling and the wheel handler are gone. Text is real text a screen reader can
+ * reach. And a press on a button is the browser's.
  */
 export class DomOverlay implements OverlayApi {
   private readonly layout: Layout;
@@ -40,12 +113,7 @@ export class DomOverlay implements OverlayApi {
   private contentH = 0;
   private closed = false;
 
-  constructor(
-    scene: Phaser.Scene,
-    layout: Layout,
-    // `container` is the canvas kit's: the DOM has no cameras to hide from.
-    opts: { title?: string; subtitle?: string; scrim?: number; depth?: number; container?: unknown } = {},
-  ) {
+  constructor(scene: Phaser.Scene, layout: Layout, opts: OverlayOptions = {}) {
     this.layout = layout;
     this.depth = opts.depth ?? 60;
     const { width, height, pad, font } = layout;
@@ -74,7 +142,7 @@ export class DomOverlay implements OverlayApi {
       return el;
     };
 
-    // The sheet the overlay is printed on (see `Overlay`).
+    // The sheet the overlay is printed on: the page under the card, a pad wider.
     const sheetX = Math.max(0, cardX - pad);
     const sheetY = Math.max(0, margin - pad);
     const sheetW = Math.min(width, cardW + pad * 2);

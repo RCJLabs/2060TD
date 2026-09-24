@@ -1,16 +1,15 @@
 import type { Layout } from './layout';
 
 /**
- * The test seam's registries (M30), shared by both UI implementations.
+ * The test seam's registries (M30): where the UI says what it is showing.
  *
  * Every harness addresses the UI through `window.lastline`: buttons by label
- * and rect, text by content and rect. Until M30 only the canvas kit drew UI,
- * so its registries lived inside `ui.ts`. The DOM kit has to answer the same
- * questions from the same lists, or a harness running against it would see a
- * screen with nothing on it. So the lists live here, and neither kit owns them.
+ * and rect, text by content and rect. Until M30 the canvas kit drew all of
+ * it, and its registries lived inside it. The DOM kit had to answer the same
+ * questions from the same lists while both kits shipped, so the lists moved
+ * here, and `probe.ts` reads them back for the harness.
  *
- * Plain data and no Phaser, so the DOM kit can register without importing the
- * canvas one.
+ * Plain data and no Phaser, so a component registers without importing it.
  */
 
 /** A button as the headless harness sees it: label + rect in device px. */
@@ -32,7 +31,7 @@ export interface ButtonProbe {
 /** A probe reads its button's state at call time, like a getter. */
 export type LiveProbe = () => ButtonProbe & { visible: boolean; dead: boolean };
 
-/** Every live button, from either kit. */
+/** Every live button. */
 export const buttonProbes = new Set<LiveProbe>();
 
 /**
@@ -78,7 +77,7 @@ export function domTextRects(): TextRect[] {
 /**
  * A panel as the harness reads it: the layout it was last given, the tab it is
  * showing, and how far its list is scrolled — or null when its scene is not
- * running. Both kits' panels register here.
+ * running. Every panel registers here.
  */
 export interface PanelProbe {
   liveLayout(): Layout | null;

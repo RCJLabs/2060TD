@@ -1,24 +1,53 @@
+import type Phaser from 'phaser';
 import { audio } from '../audio';
 import { haptic } from '../haptics';
 import { music } from '../music';
 import { COLORS, css as hex } from '../palette';
 import { buttonProbes, type LiveProbe } from '../seam';
 import { DISPLAY_FAMILY, DISPLAY_SCALE, DRAG_SLOP, HOLD_MS, MONO_FAMILY } from '../tokens';
-import { css, deviceRect, dpr } from './layer';
+import { css, deviceRect, dpr, sceneHost } from './layer';
 
 export interface DomButtonOptions {
-  /** Font size in device px, as the canvas kit takes it. */
+  /** Font size in device px. */
   font: number;
   align?: 'left' | 'center';
   /** Right-aligned secondary text (costs, counts). */
   sub?: string;
   /** Suppress the click sound (tab strips click a lot). */
   quiet?: boolean;
-  /** The one action this screen exists for — see `ButtonOptions.emphasis`. */
+  /**
+   * The one action this screen exists for: LAUNCH, CONFIRM, START ASSAULT.
+   *
+   * Drawn as a filled slab with a paper label and an alarm edge, so it is
+   * the only knocked-out thing on the page that is not a selection. A screen
+   * gets one, and a screen with no single obvious action gets none — the
+   * layout does not even reserve the band (see layout.ts `primary`).
+   */
   emphasis?: 'primary';
-  /** Accept a press that ends just off the edge — see `ButtonOptions.edgeGrace`. */
+  /**
+   * Accept a press that ends just off the button's edge (v1.17.2).
+   *
+   * Only for buttons with nothing behind them to scroll — overlay rows and
+   * footers. A row inside the drawer must NOT take this, or a scroll drag that
+   * happens to end in the gap between two rows would count as a tap on the row
+   * it started from.
+   */
   edgeGrace?: boolean;
-  /** Information on a long press — see `ButtonOptions.onHold`. */
+  /**
+   * The row's SECOND action, on a long press (v1.27).
+   *
+   * A phone has one button and no right mouse button, so anything a control
+   * can do beyond its main action has to come from the press itself. A hold
+   * is the one gesture available that costs no screen: no chevron, no "…"
+   * affordance, no second row.
+   *
+   * It is deliberately reserved for things that do not change state. A hold
+   * that spent resources would be a trap, because the gesture is discovered
+   * by accident — a thumb resting on a row while the player reads it is a
+   * long press, and the only safe thing to find there is information.
+   *
+   * Firing this CANCELS the tap: a press is one thing or the other.
+   */
   onHold?: () => void;
   /**
    * The scrolling viewport the button lives in. A probe reports the part of
@@ -28,7 +57,7 @@ export interface DomButtonOptions {
   clipTo?: HTMLElement;
 }
 
-/** The button a DOM component hands back: the canvas `Button`'s methods, less its Phaser objects. */
+/** The button a component holds: its element, and what the component calls on it. */
 export interface DomButton {
   readonly el: HTMLButtonElement;
   setActive(active: boolean): void;
@@ -47,6 +76,15 @@ export interface DomButton {
   labelHeight(): number;
   /** Measured width of the sub, in device px, or 0 when there is none. */
   subWidth(): number;
+  /**
+   * Give up the press this button is holding, without firing anything.
+   *
+   * For the tap that catches a coasting list: on every phone, the finger you
+   * put down to stop a flick stops it and does NOT activate what it landed
+   * on. Stopping the scroll and letting the release through would be worse
+   * than not stopping it, because the row the player was reaching for is not
+   * the row that slid under their thumb.
+   */
   cancelPress(): void;
   destroy(): void;
 }
@@ -55,20 +93,21 @@ export interface DomButton {
 const EDGE = 2;
 
 /**
- * A button in the DOM (M30), drawn and behaving as `makeButton` does.
+ * A button (M30): a real `<button>`, sized in device px and drawn in the page's
+ * control language.
  *
- * The three states are the canvas kit's control language unchanged: KNOCKOUT
- * (chosen, pressed or primary: solid ink, paper label), DISABLED (paper inside
- * a grey line) and RESTING (paper inside an ink line). So are the rules about
- * what a press was: the acknowledgement buzzes on the down, a press that
- * travelled past the drag slop was a pan and not a tap, a hold that stays put
- * for `HOLD_MS` is information and cancels the tap, and a footer forgives a
- * thumb rolling off its edge.
+ * Three states: KNOCKOUT (chosen, pressed or primary: solid ink, paper label),
+ * DISABLED (paper inside a grey line) and RESTING (paper inside an ink line).
+ * The rules about what a press was came across from the canvas kit this
+ * replaced: the acknowledgement buzzes on the down, a press that travelled
+ * past the drag slop was a pan and not a tap, a hold that stays put for
+ * `HOLD_MS` is information and cancels the tap, and a footer forgives a thumb
+ * rolling off its edge.
  *
- * What the DOM gives for nothing is the rest of what `makeButton` spends its
- * length on: a hit area that is the box, a release that arrives wherever the
- * finger lifts (pointer capture), a press the browser takes back when a list
- * scrolls (`pointercancel`), and keyboard activation.
+ * What the DOM gives for nothing is the rest of what that kit spent its length
+ * on: a hit area that is the box, a release that arrives wherever the finger
+ * lifts (pointer capture), a press the browser takes back when a list scrolls
+ * (`pointercancel`), and keyboard activation.
  */
 export function domButton(
   host: HTMLElement,
@@ -137,7 +176,6 @@ export function domButton(
     if (align === 'center') sub.style.right = `${css(pad)}px`;
   };
 
-  /** The canvas kit's `refresh`, colour for colour. */
   const refresh = (hover = false): void => {
     const primary = opts.emphasis === 'primary' && enabled;
     const knock = active || pressed || primary;
@@ -362,4 +400,44 @@ export function domButton(
       el.remove();
     },
   };
+}
+
+/**
+ * A button a scene places itself — CONFIRM, LAUNCH, the siege's one primary
+ * action — as a scene holds it: what the four of them call, and no more.
+ */
+export interface FreeButton {
+  setActive(active: boolean): void;
+  setEnabled(enabled: boolean): void;
+  setVisible(visible: boolean): void;
+  setLabel(text: string): void;
+  setSub(text: string): void;
+  /** Place the box, in device px. */
+  setRect(x: number, y: number, w: number, h: number): void;
+  setFont(size: number): void;
+  destroy(): void;
+}
+
+/** How a free button is set: a button's options, with a size to fit its height when none is given. */
+export type FreeButtonOptions = Partial<Omit<DomButtonOptions, 'clipTo'>>;
+
+/** A free button, in the scene's own host, so it goes when the scene does. */
+export function createButton(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  text: string,
+  onTap: () => void,
+  opts: FreeButtonOptions = {},
+): FreeButton {
+  const b = domButton(sceneHost(scene), text, onTap, {
+    ...opts,
+    font: opts.font ?? Math.max(11, Math.round(height * 0.42)),
+  });
+  // A free button has nothing behind it to scroll.
+  b.el.style.touchAction = 'manipulation';
+  b.setRect(x, y, width, height);
+  return b;
 }

@@ -83,7 +83,7 @@ try {
   // The two surfaces a label-driven harness cannot judge.
   //
   // The front door and a full-screen overlay are drawn almost entirely by
-  // `overlay.ts`, which has its own ground, its own type colours and its own
+  // `dom/overlay.ts`, which has its own ground, its own type colours and its own
   // border — and a regression there is INVISIBLE to every E2E check in the
   // suite, because the text objects are all still present and still report
   // their strings. The ink pass shipped exactly that bug for one commit:

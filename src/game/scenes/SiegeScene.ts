@@ -15,8 +15,11 @@ import { TERRAIN_VERSION } from '../../sim/terrain';
 import { siegeOnBoard } from '../../sim/board';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { createOverlay, type OverlayApi } from '../overlay';
-import { type PanelRow, createPanel, type PanelApi, createButton, createLabel, type FreeButton, type SceneLabel } from '../ui';
+import { createButton, type FreeButton } from '../dom/button';
+import { createLabel, type SceneLabel } from '../dom/label';
+import { createOverlay, type OverlayApi } from '../dom/overlay';
+import { createPanel } from '../dom/panel';
+import type { PanelApi, PanelRow } from '../rows';
 
 export type BattleTag =
   | { type: 'mission'; missionId: string }
@@ -173,7 +176,7 @@ export class SiegeScene extends Phaser.Scene {
     this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world);
     this.board.passable = (col, row) => this.engine.terrain.passable(row * GRID_W + col);
 
-    this.panel = createPanel(this, this.board.ui, SIEGE_TABS);
+    this.panel = createPanel(this, SIEGE_TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
@@ -188,9 +191,8 @@ export class SiegeScene extends Phaser.Scene {
     this.primary = createButton(this, 0, 0, 10, 10, '', () => this.advancePhase(), {
       emphasis: 'primary',
       align: 'center',
-      container: this.board.ui,
     });
-    this.pausedText = createLabel(this, this.board.ui, 'HOLDING', {
+    this.pausedText = createLabel(this, 'HOLDING', {
       size: 24,
       color: COLORS.ink,
       bold: true,
@@ -209,7 +211,7 @@ export class SiegeScene extends Phaser.Scene {
     // so it cannot be built before there is a layout to measure against.
     this.coach =
       this.wantCoach && !this.demoMode
-        ? new Coach(this, this.layout, this.board.ui, FIRST_SIEGE)
+        ? new Coach(this, this.layout, FIRST_SIEGE)
         : null;
 
     if (this.demoMode) this.applyDemoScript();
@@ -797,7 +799,6 @@ export class SiegeScene extends Phaser.Scene {
       title: victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST',
       subtitle: mission ? `M${mission.index + 1} — ${mission.codename}` : 'AFTER ACTION',
       scrim: 0.8,
-      container: this.board.ui,
     });
     this.overlay = ov;
     const { font } = this.layout;

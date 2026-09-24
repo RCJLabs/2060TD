@@ -8,7 +8,8 @@ import type { AttackerProfile } from '../../sim/types';
 import { BattleRenderer, type GhostPreview } from '../BattleRenderer';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { type PanelRow, createPanel, type PanelApi } from '../ui';
+import { createPanel } from '../dom/panel';
+import type { PanelApi, PanelRow } from '../rows';
 
 const CELL = 32;
 // The board is the town's board, not a second opinion about it.
@@ -68,7 +69,7 @@ export class PlaygroundScene extends Phaser.Scene {
     this.accumulator = 0;
     this.lastPaintedCell = -1;
 
-    this.panel = createPanel(this, this.board.ui, LAB_TABS);
+    this.panel = createPanel(this, LAB_TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();

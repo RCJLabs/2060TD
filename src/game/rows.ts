@@ -2,11 +2,11 @@ import type { Ink } from './ink';
 import type { DrawerState, Layout } from './layout';
 
 /**
- * What a panel is made of, whichever kit draws it (M30).
+ * What a panel is made of (M30): its rows and tabs, and what a scene can ask
+ * of it.
  *
- * These lived in `ui.ts` with the canvas `Panel`. The DOM panel draws the same
- * rows from the same data, and must not import the kit it is replacing, so the
- * shapes live here and both kits read them. No Phaser in the file: a row's
+ * These lived with the canvas panel, until the DOM one had to read them
+ * without importing the kit it was replacing. No Phaser in the file: a row's
  * icon draws with `Ink`, and a row picked up and carried onto the board hands
  * over a `CarryPointer`, both of which a Phaser object satisfies as it stands.
  */
@@ -75,8 +75,8 @@ export interface PanelRow {
    * a caller reuses `drawStructureGlyph`/`drawAttackerGlyph` rather than
    * inventing a second set of shapes that would drift from the board's.
    *
-   * The canvas kit calls it on every rebuild, which is every frame, and the
-   * DOM kit whenever the row changes — keep it to drawing.
+   * The panel calls it whenever the row changes, and a row that changes on
+   * every frame is redrawn on every frame — keep it to drawing.
    */
   icon?: (
     g: Ink,
@@ -104,8 +104,7 @@ export interface PanelTab {
 }
 
 /**
- * What every panel can do, whichever kit draws it: exactly what the five
- * scenes that have one ask of it.
+ * What a panel can do: exactly what the five scenes that have one ask of it.
  */
 export interface PanelApi {
   readonly tab: string;

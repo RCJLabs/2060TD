@@ -2,9 +2,9 @@
  * The UI's tokens that are not layout (M30): the two faces, and the two
  * thresholds that decide what a press was.
  *
- * They lived in `ui.ts` until the DOM kit needed them too. Neither kit owns
- * them, and the DOM one must not import the canvas one it is replacing, so
- * they live here, with no Phaser in the file.
+ * They lived in the canvas UI kit until the DOM kit needed them too, which
+ * could not import the kit it was replacing, so they moved here, with no
+ * Phaser in the file. The canvas kit went in v1.48; they stayed.
  */
 
 /**

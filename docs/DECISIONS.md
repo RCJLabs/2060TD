@@ -1062,3 +1062,12 @@ here with the change and its date.
   COUNTERBATTERY does not, and that is measured rather than overlooked: re-aimed
   it read 13 against 15, because its claymore spends the budget while a strike
   waits. Rule order is the open question M23 hands on.
+- 2026-09-24 — **The canvas UI kit is deleted (v1.48).** v1.47 went out
+  with `?ui=canvas` as the way back and nobody needed it, which was the bar
+  set when the DOM became the default. Two thousand lines went, and with
+  them the second camera, since the HUD container it drew was empty. The
+  factories the scenes call stayed, beside the DOM pieces they build, and
+  lost the `container` argument the DOM had been ignoring. The kit's API
+  interfaces stayed too. `OverlayApi` and `PanelApi` each have one
+  implementation now, and they are kept as the surface a scene may use
+  rather than folded into their classes.

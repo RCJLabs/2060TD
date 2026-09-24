@@ -32,8 +32,8 @@ export function uiLayer(): HTMLDivElement {
     // Under the share-code box (50), which opens over overlays.
     'z-index:10',
     'overflow:hidden',
-    // The canvas kit has no text to select and no long-press menu. Neither
-    // does this one: a thumb resting on a row reads it, it does not copy it.
+    // No text to select and no long-press menu, as there never was on the
+    // canvas: a thumb resting on a row reads it, it does not copy it.
     'user-select:none',
     '-webkit-user-select:none',
     '-webkit-touch-callout:none',
@@ -48,11 +48,13 @@ export function uiLayer(): HTMLDivElement {
   // A press on this layer is not a press on the board. Phaser listens for
   // touches and mouse buttons on the WINDOW as well as the canvas, and it
   // hit-tests the canvas for every one it hears, wherever it landed — so a tap
-  // on a DOM button also pressed whatever canvas button sat under it. The
-  // canvas overlay never met this because its scrim was the topmost canvas
-  // object and swallowed the press; a DOM overlay leaves the drawer beneath it
-  // exposed, and the first harness run closed a spec card and changed tab in
-  // one tap. Stopping the event here keeps it from reaching the window at all.
+  // on a DOM button also pressed whatever sat on the canvas under it. The
+  // canvas overlay this replaced never met that, because its scrim was the
+  // topmost canvas object and swallowed the press; a DOM overlay left the
+  // canvas drawer beneath it exposed, and the first harness run closed a spec
+  // card and changed tab in one tap. The drawer is DOM too now, but the board
+  // still hears every press: stopping the event here keeps it from reaching
+  // the window at all.
   for (const type of ['touchstart', 'touchend', 'touchcancel', 'mousedown', 'mouseup'] as const) {
     layer.addEventListener(type, (e) => e.stopPropagation());
   }
@@ -65,7 +67,7 @@ const hosts = new WeakMap<Phaser.Scene, HTMLDivElement>();
 /**
  * The element a scene's own DOM pieces hang from — its free buttons, its
  * labels over the board — placed at the canvas's origin, so a child placed
- * in device px lands where the canvas kit would have drawn it.
+ * in device px lands on the same spot of the board as a canvas object would.
  *
  * Above the panel (20), below the overlays (60): a CONFIRM sits over the
  * drawer, and a briefing sits over everything. It goes when the scene does,

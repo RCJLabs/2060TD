@@ -11,7 +11,7 @@ import { devicePixelRatioCapped } from './game/layout';
 import { initMobileShell } from './game/mobile';
 import { COLORS, css } from './game/palette';
 import { applySettings, loadSettings } from './game/settings';
-import { liveButtons, liveTextRects, liveTexts, panelLayout, panelScroll, panelTab } from './game/ui';
+import { liveButtons, liveTextRects, liveTexts, panelLayout, panelScroll, panelTab } from './game/probe';
 import { boardCamera, boardCellAt, boardGrid, boardStrays, boardWetAt } from './game/BoardView';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.

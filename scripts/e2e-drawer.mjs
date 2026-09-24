@@ -505,10 +505,11 @@ try {
       (want) => window.lastline.buttons().some((b) => b.label === want && b.active),
       firstRow.label,
     );
-    // This is also what pins the press-identity fix in `makeButton`: a button
-    // whose press ended without a scene-level up used to keep believing it was
-    // held, and the next up ANYWHERE fired it — measured two gestures and five
-    // seconds later, on a row the finger had long left. The hold is the
+    // This is also what pinned the press-identity fix in the canvas kit's
+    // button, and it holds the DOM one to the same rule: a button whose press
+    // ended without a scene-level up used to keep believing it was held, and
+    // the next up ANYWHERE fired it — measured two gestures and five seconds
+    // later, on a row the finger had long left. The hold is the
     // reliable way to reach that state, because opening a card puts a scrim
     // under the finger and the release over it is the one that completes
     // Phaser's up pass. Reverting the fix fails this line every time; a check
@@ -584,10 +585,10 @@ try {
   //
   // And then it is TRIED, up to four times, rather than pinned (M30). Where a
   // coasting list is when the finger lands depends on whose physics are
-  // coasting it — the canvas panel's decay, or the platform's own momentum
-  // under the DOM one, which moves the list differently — and the landing
-  // spot that suited one put the other on a locked SIGNALS STATION every
-  // time. A locked row says nothing about either, so an attempt that lands on
+  // coasting it — the canvas panel's decay when this was written, the
+  // platform's own momentum since, which moves the list differently — and the
+  // landing spot that suited one put the other on a locked SIGNALS STATION
+  // every time. A locked row says nothing about either, so an attempt that lands on
   // one is lifted and tried again elsewhere. Only the attempt that lands on a
   // row that can be pressed is judged.
   let coasting = 0;

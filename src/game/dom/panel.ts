@@ -29,13 +29,13 @@ interface Slot {
 }
 
 /**
- * The panel, in the DOM (M30): the rail in landscape, the drawer in portrait.
+ * The panel (M30): the rail in landscape, the drawer in portrait.
  *
- * `Panel`'s geometry from the same `Layout`, and its rows from the same data,
- * so a scene hands this the rows it hands the canvas panel. The list scrolls
- * natively: the platform's own momentum, its own overscroll, and its own
- * rule that a finger put down on a coasting list stops it. Most of what the
- * canvas panel spends six hundred lines on is that.
+ * Its geometry comes from the scene's `Layout` and its rows from the scene's
+ * data. The list scrolls natively: the platform's own momentum, its own
+ * overscroll, and its own rule that a finger put down on a coasting list
+ * stops it. Most of the canvas panel this replaced was spent imitating that,
+ * six hundred lines of it, until v1.48 deleted it.
  *
  * What the browser does NOT do, and this does by hand:
  *
@@ -115,7 +115,7 @@ export class DomPanel implements PanelApi, PanelProbe {
     null;
   private handlePress: { id: number; y: number; from: number } | null = null;
 
-  constructor(scene: Phaser.Scene, _container: unknown, tabs: PanelTab[]) {
+  constructor(scene: Phaser.Scene, tabs: PanelTab[]) {
     this.scene = scene;
     this.tabs = tabs;
     this.activeTab = tabs[0]?.id ?? '';
@@ -569,9 +569,10 @@ export class DomPanel implements PanelApi, PanelProbe {
     // The lift, as the list sees it. A touch the browser is scrolling for gets
     // a pointercancel when the pan begins and no pointerup at the end, so the
     // moment the finger leaves is read from the touch itself. The canvas panel
-    // knows its throw speed at the lift, because it is the one throwing; the
-    // browser does not say, so it is measured from the last few samples, and
-    // the per-frame reading takes over once the coast has moved the list.
+    // this replaced knew its throw speed at the lift, because it was the one
+    // throwing; the browser does not say, so it is measured from the last few
+    // samples, and the per-frame reading takes over once the coast has moved
+    // the list.
     list.addEventListener(
       'touchend',
       () => {
@@ -794,4 +795,9 @@ export class DomPanel implements PanelApi, PanelProbe {
     for (const s of this.slots) s.button.destroy();
     this.root.remove();
   }
+}
+
+/** A scene's panel, with these tabs. It goes when the scene does. */
+export function createPanel(scene: Phaser.Scene, tabs: PanelTab[]): PanelApi {
+  return new DomPanel(scene, tabs);
 }

@@ -7,13 +7,13 @@ import type { CarryPointer } from './rows';
 type At = { x: number; y: number };
 
 /**
- * The battlefield viewport (v0.9): a world camera confined to the layout's
- * board rect, with pinch-zoom, drag-pan and double-tap-to-fit, plus a fixed
- * UI camera for the HUD.
+ * The battlefield viewport (v0.9): a camera confined to the layout's board
+ * rect, with pinch-zoom, drag-pan and double-tap-to-fit.
  *
- * Objects are partitioned by container rather than per-object ignore lists:
- * everything the board draws goes in `world`, everything the HUD draws goes
- * in `ui`, and each camera ignores the other's container exactly once.
+ * Everything the board draws goes in `world`. Until M30 a second camera drew
+ * the HUD from a second container, at screen scale over the board; the HUD
+ * is the page's since v1.46, and the second camera went in v1.48 with the
+ * canvas UI kit that was the only thing it drew.
  *
  * Scenes keep working in grid coordinates — `cellAt()` undoes the camera
  * transform, so a tap means the same thing at any zoom or scroll.
@@ -33,14 +33,17 @@ const DOUBLE_TAP_MS = 320;
 /** Floor on how much ground `focusOn` keeps in frame, in cells. */
 const MIN_CELLS_IN_VIEW = 12;
 
-/** Live board rigs, so the harness can catch objects outside both layers. */
+/** Live board rigs, so the harness can catch objects outside the board. */
 const rigs = new Set<BoardView>();
 
 /**
- * Scene objects that belong to neither camera layer. The two cameras are
- * partitioned by container, so a loose object is drawn TWICE — once at board
- * zoom, once at HUD scale. That is always a bug; the E2E harness asserts this
- * list is empty on every screen.
+ * Scene objects outside the board's world layer.
+ *
+ * The canvas draws the board and nothing else (M30), so anything on it
+ * belongs in `world`. A loose object is a HUD piece drawn on the canvas by
+ * mistake, or a board piece the text probe would file as screen text. When
+ * a second camera drew the HUD, a loose object was also drawn twice. The E2E
+ * harness asserts this list is empty on every screen.
  */
 export function boardStrays(): string[] {
   const out: string[] = [];
@@ -48,7 +51,7 @@ export function boardStrays(): string[] {
     const scene = rig.scene;
     if (!scene.sys.isActive()) continue;
     for (const object of scene.children.list) {
-      if (object === rig.world || object === rig.ui) continue;
+      if (object === rig.world) continue;
       const text = (object as Partial<Phaser.GameObjects.Text>).text;
       out.push(`${scene.scene.key}:${object.type}${text ? `("${text.slice(0, 24)}")` : ''}`);
     }
@@ -144,14 +147,12 @@ export function boardCamera(): {
 
 export class BoardView {
   readonly world: Phaser.GameObjects.Container;
-  readonly ui: Phaser.GameObjects.Container;
   /**
    * Set by a scene that has ground under it, so `boardWetAt` can answer. Left
    * unset by scenes with no terrain, which then report every cell as dry.
    */
   passable?: (col: number, row: number) => boolean;
   readonly camera: Phaser.Cameras.Scene2D.Camera;
-  readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
 
   readonly scene: Phaser.Scene;
   private readonly opts: BoardOptions;
@@ -199,14 +200,7 @@ export class BoardView {
     this.scene = scene;
     this.opts = opts;
     this.world = scene.add.container(0, 0);
-    this.ui = scene.add.container(0, 0);
-
     this.camera = scene.cameras.main;
-    this.uiCamera = scene.cameras.add(0, 0, scene.scale.width, scene.scale.height);
-    this.uiCamera.transparent = true;
-    // One partition, applied once: cameras never see each other's layer.
-    this.camera.ignore(this.ui);
-    this.uiCamera.ignore(this.world);
 
     this.bindInput();
     // The edge auto-pan needs a heartbeat; the scene's own update is it.
@@ -270,8 +264,6 @@ export class BoardView {
     this.rect = layout.board;
     this.full = layout.boardFull;
     this.camera.setViewport(this.rect.x, this.rect.y, Math.max(1, this.rect.w), Math.max(1, this.rect.h));
-    this.uiCamera.setViewport(0, 0, layout.width, layout.height);
-    this.uiCamera.setSize(layout.width, layout.height);
     const previous = this.fitZoom;
     this.fitZoom = Math.min(this.full.w / this.worldWidth, this.full.h / this.worldHeight);
     if (!keepView || this.zoom <= 0) {

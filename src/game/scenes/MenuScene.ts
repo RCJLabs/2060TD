@@ -13,9 +13,9 @@ import {
 import { tick } from '../../meta/town';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
 import type { Ink } from '../ink';
-import { createOverlay, type OverlayApi } from '../overlay';
 import { COLORS } from '../palette';
 import { buildSettings } from '../settingsOverlay';
+import { createOverlay, type OverlayApi } from '../dom/overlay';
 
 /**
  * The front door (v1.1). Everything before this dropped the player straight

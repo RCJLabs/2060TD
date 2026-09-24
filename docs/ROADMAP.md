@@ -3611,8 +3611,63 @@ a harness. The default stays canvas until every harness passes both ways.
         `?ui=canvas` is the way back, kept one release while the DOM kit meets
         devices the harnesses never ran on. The unit suite has no window and
         keeps the canvas answer.
-- [ ] **Phase 2 — retire `ui.ts`, `overlay.ts` and the gesture layer.**
-- [ ] **Phase 3 — revisit Phaser** once the board is the only thing using it.
+- [x] **Phase 2 — retire `ui.ts`, `overlay.ts` and the gesture layer (v1.48.0).**
+      The canvas kit is gone, and the flag with it: `?ui=canvas` stopped meaning
+      anything once v1.47 had been out without anyone needing it. Deleted: the
+      canvas `Panel` and its hand-rolled drag, fling, swipe and carry, which is
+      the gesture layer the title means; the canvas `Overlay`; the canvas button
+      and labels; the coach's canvas plate; `dom/flag.ts`. What `ui.ts` held that
+      was not the kit moved beside what uses it. The harness probes went to
+      `probe.ts`, and `createPanel`, `createButton` and `createLabel` went to the
+      DOM modules they build, which lost their last `container` argument too:
+      every one of the 31 call sites that passed one passed a thing the DOM
+      ignored. `overlay.ts`'s API went into `dom/overlay.ts`, which had been
+      importing its own interface from the module that imported it.
+
+      | | before | after |
+      |---|---|---|
+      | the game's own code, built | 419 kB, 135 kB gzipped | 395 kB, 128 kB gzipped |
+      | TypeScript under `src/` | 41,041 lines | 38,951 lines |
+
+      Phaser itself is untouched, 1,482 kB and 340 kB gzipped, and is now the
+      whole of the question Phase 3 asks.
+
+      **Deleting it found one thing Phase 1 had missed, and one it had left.**
+      The replay's closing verdict, COMMAND POST DESTROYED and the rest, was
+      still Phaser text in the board's HUD container: 1d ported the loose
+      pieces it found by the kit's factories, and this one never went through
+      a factory. It is a scene label now, which also means it follows a
+      rotation where the canvas one stayed where it was drawn. And with it
+      gone the HUD container held nothing, so the second camera that drew it
+      went too. Every frame since v0.9 had two camera passes, one for the
+      board and one for the HUD over it, and since v1.46 the second had been
+      walking the scene to draw an empty container over the whole screen.
+
+      **And looking at that verdict found a bug every harness had passed for
+      two releases.** Moved into the DOM it came out one word to a line. A
+      scene label hangs from a host that is a point at the canvas's origin,
+      and a label left to wrap wraps against the width it has, which is none.
+      Canvas text only wraps when it is given a width, so a label now keeps
+      its lines as written until it is given one. The raid's RECON REQUIRED
+      notice and its hints had been set that way since v1.46 made the DOM the
+      default. Every check read their words and none read their shape.
+      `e2e-raid` reads the shape now, on the recon notice and on the verdict,
+      and fails with the old wrapping restored: 58x176 and 151x202, against
+      210x44 and 376x72. The verdict is also set in ink for a win, where the
+      pre-ink palette's olive had become a pale tone that read as nothing.
+
+      The strays check stays, with one layer: anything on the canvas belongs
+      to the board's world now, or the text probe would file it as screen text.
+
+      The gate: 23 of 24 with one batch flake in `e2e-defend`, which passed
+      alone and four more times, then 24 of 24, and 24 of 24 again on the
+      final tree with the two new checks in. `e2e-all` now prints what a
+      flaked attempt said, because this one left nothing to tell it from a
+      rare real failure.
+- [ ] **Phase 3 — revisit Phaser** now that the board is the only thing using it.
+      What it still does: draws the board's Graphics lists, owns the scene
+      lifecycle, pans and zooms one camera, and sets a handful of sector labels
+      as text. That is the brief a small Canvas2D renderer would have to meet.
 
 ## M31 — "Materiel": the total art and audio pass
 
@@ -4376,6 +4431,10 @@ it hands on is rule order: TRIPWIRE and now COUNTERBATTERY both lose a strike or
 gun to a cheaper rule that spends first. It is a standing-orders question with a
 replay-format half, and it can go before or after M30 Phase 2.*
 
+*M30 Phase 2 shipped in v1.48.0: the canvas UI kit is deleted. Phase 3, whether
+Phaser still earns its 340 kB gzipped for a board, is a measurement before it is
+a decision, and rule order is the other open item.*
+
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain
 is doing the same work twice, and this project has already learned that lesson in
@@ -4393,7 +4452,9 @@ was being read for.
   in sequence and **re-runs a failure once, alone, before calling it anything**
   — the rule that came out of the v1.41.2 gate, where two batches on the same
   commit failed different harnesses and none failed twice. A flake is reported
-  loudly and passes the gate; a real failure fails twice and does not.
+  loudly and passes the gate; a real failure fails twice and does not. Since
+  v1.48 a flake also prints what its failed attempt said: the v1.48 gate's one
+  flake left nothing behind to tell it from a rare real failure.
 - Sixteen of those harnesses poll for the UI to STOP CHANGING rather than
   sleeping a constant (v1.42). The six gesture-driven ones keep their sleeps on
   purpose: their waits are part of the test — a list has to still be COASTING

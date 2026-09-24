@@ -1,11 +1,9 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import { CoachRunner, type CoachState, type CoachStep } from '../content/tutorial';
-import { domUi } from './dom/flag';
 import { css as cssPx, cssColor, sceneHost } from './dom/layer';
 import type { Layout } from './layout';
 import { COLORS, css } from './palette';
 import { MONO_FAMILY } from './tokens';
-import { mono } from './ui';
 
 /** Where the plate goes and how it is set, in device px. */
 interface PlateBox {
@@ -17,7 +15,7 @@ interface PlateBox {
   lineSpacing: number;
 }
 
-/** The plate itself, whichever kit draws it (M30): it sizes itself around its text. */
+/** The plate: it sizes itself around its text. */
 interface Plate {
   setText(text: string): void;
   place(box: PlateBox): void;
@@ -25,52 +23,8 @@ interface Plate {
   destroy(): void;
 }
 
-/** The canvas plate: a rectangle, a text, and a hit area kept to the rectangle. */
-function canvasPlate(
-  scene: Phaser.Scene,
-  container: Phaser.GameObjects.Container,
-  size: number,
-  onTap: () => void,
-): Plate {
-  const plate = scene.add
-    .rectangle(0, 0, 10, 10, COLORS.bgPanel, 0.92)
-    .setOrigin(0, 0)
-    .setStrokeStyle(1, COLORS.signal)
-    .setInteractive({ useHandCursor: true });
-  const text = scene.add.text(0, 0, '', mono(size, COLORS.signal, { align: 'center' })).setOrigin(0.5, 0);
-  container.add([plate, text]);
-  plate.on('pointerup', (_p: unknown, _x: number, _y: number, ev?: { stopPropagation(): void }) => {
-    ev?.stopPropagation();
-    onTap();
-  });
-  return {
-    setText(value) {
-      text.setText(value);
-    },
-    place({ x, y, w, pad, size: font, lineSpacing }) {
-      text.setFontSize(font);
-      text.setWordWrapWidth(w - pad * 2);
-      text.setLineSpacing(lineSpacing);
-      text.setColor(css(COLORS.signal));
-      text.setPosition(x + w / 2, y + pad);
-      const h = Math.round(text.height + pad * 2);
-      plate.setPosition(x, y).setSize(w, h);
-      plate.setStrokeStyle(1, COLORS.signal);
-      plate.input?.hitArea?.setTo(0, 0, w, h);
-    },
-    retire() {
-      plate.setVisible(false).disableInteractive();
-      text.setVisible(false);
-    },
-    destroy() {
-      plate.destroy();
-      text.destroy();
-    },
-  };
-}
-
-/** The DOM plate: one element, sized by its own text, and real text to read. */
-function domPlate(scene: Phaser.Scene, onTap: () => void): Plate {
+/** One element, sized by its own text, and real text to read. */
+function makePlate(scene: Phaser.Scene, onTap: () => void): Plate {
   const plate = document.createElement('div');
   plate.dataset['text'] = '';
   plate.dataset['ui'] = 'coach';
@@ -129,12 +83,10 @@ export class Coach {
   constructor(
     scene: Phaser.Scene,
     private layout: Layout,
-    container: Phaser.GameObjects.Container,
     script: CoachStep[],
   ) {
     this.runner = new CoachRunner(script);
-    const skip = (): void => this.runner.skipDwell();
-    this.plate = domUi() ? domPlate(scene, skip) : canvasPlate(scene, container, layout.font.tiny, skip);
+    this.plate = makePlate(scene, () => this.runner.skipDwell());
     this.showStep();
   }
 

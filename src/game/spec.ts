@@ -43,8 +43,8 @@ import type {
 } from '../sim/types';
 import type { Layout } from './layout';
 import { COLORS } from './palette';
-import { createOverlay, type OverlayApi } from './overlay';
 import { ATTACKER_GLYPH_SPAN, drawAttackerGlyph, drawStructureGlyph } from './glyphs';
+import { createOverlay, type OverlayApi } from './dom/overlay';
 
 /**
  * What a player calls each armour class. The sim's names are about the model
@@ -135,7 +135,6 @@ export interface SpecOpts {
    * screen in the game.
    */
   meta?: TownBuildingMeta;
-  container?: Phaser.GameObjects.Container;
   onClose: () => void;
 }
 
@@ -192,7 +191,6 @@ export function buildStructureSpec(
     // block and the silhouette landed on a building. A card somebody READS
     // has nothing behind it worth seeing.
     scrim: 1,
-    ...(opts.container ? { container: opts.container } : {}),
   });
   const { font, gap } = layout;
 
@@ -297,7 +295,6 @@ export function buildWallSpec(scene: Phaser.Scene, kind: string, opts: SpecOpts)
   const ov = createOverlay(scene, layout, {
     title: def.name.toUpperCase(),
     scrim: 1,
-    ...(opts.container ? { container: opts.container } : {}),
   });
   const { font, gap } = layout;
   const cost =
@@ -344,7 +341,6 @@ export function buildAttackerSpec(
   const ov = createOverlay(scene, layout, {
     title: profile.name.toUpperCase(),
     scrim: 1,
-    ...(opts.container ? { container: opts.container } : {}),
   });
   const { font, gap } = layout;
 

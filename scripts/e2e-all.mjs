@@ -50,6 +50,11 @@ for (const file of files) {
   if (second.ok) {
     console.log('FLAKE (passed alone)');
     flakes.push(file);
+    // What the first attempt said. A flake that leaves nothing behind cannot
+    // be told from a real failure that happens to be rare, and the next run
+    // is no help: it passed.
+    const said = first.out.split('\n').filter((line) => !/^ok\b/.test(line)).slice(-12);
+    console.log(said.map((line) => `    | ${line}`).join('\n'));
   } else {
     console.log('FAIL');
     failures.push(file);

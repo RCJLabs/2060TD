@@ -6,7 +6,7 @@ import type { SimConfig } from '../../sim/types';
 import { audio } from '../audio';
 import { COLORS } from '../palette';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
-import { createOverlay, type OverlayApi, type OverlayText } from '../overlay';
+import { createOverlay, type OverlayApi, type OverlayText } from '../dom/overlay';
 
 export interface BriefingData {
   mission: MissionDef;

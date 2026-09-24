@@ -6,7 +6,7 @@ import { drawAttackerGlyph, drawStructureGlyph, drawWallGlyph, wallJoins } from 
 import { makeSheet } from './ground';
 import { focusLines, phaseAt, punch, speedLines, starPoints } from './kinetics';
 import { COLORS, css } from './palette';
-import { DISPLAY_FAMILY } from './ui';
+import { DISPLAY_FAMILY } from './tokens';
 
 interface Effect {
   kind:

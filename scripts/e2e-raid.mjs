@@ -113,6 +113,18 @@ try {
     }
   };
   const copy = async (re) => (await texts()).find((t) => re.test(t)) ?? '';
+  /**
+   * The rect of the first text matching `re`, or null. A label over the board
+   * is set on its own lines, and one left to wrap against its host, which is
+   * a point, sets a word to a line: taller than it is wide. v1.46 and v1.47
+   * shipped the recon notice that way and no text check could see it.
+   */
+  const rectOf = (re) =>
+    page.evaluate(
+      (src) => window.lastline.textRects().find((t) => new RegExp(src).test(t.text)) ?? null,
+      re.source,
+    );
+  const setAsWritten = (r) => r !== null && r.w > r.h * 2;
   /** How many units the planner says are committed. */
   const mustered = async () => {
     const hit = /·\s*(\d+)\s*UNITS/i.exec(await copy(/LAUNCH RAID/i));
@@ -146,10 +158,18 @@ try {
     firstAir || '(no air read)',
   );
   const flaks = [await flak()];
+  // One of the demo's three targets is unscouted, and says so over the board.
+  let recon = await rectOf(/RECON REQUIRED/);
   for (let i = 0; i < 2; i++) {
     await tap('TARGET ');
     flaks.push(await flak());
+    recon ??= await rectOf(/RECON REQUIRED/);
   }
+  check(
+    'an unscouted target says so over the board, on its own two lines',
+    setAsWritten(recon),
+    recon ? `${Math.round(recon.w)}x${Math.round(recon.h)}` : 'no recon notice on any of the three',
+  );
   await tap('TARGET '); // back to the first
   check(
     'the read is of the target, not a constant',
@@ -257,6 +277,16 @@ try {
     offered && (await until(async () => /REPLAY —/i.test((await texts()).join('\n')), 15000));
   check('the replay runs a clock', playing, await copy(/T\+\d+s/i));
   await page.screenshot({ path: 'screenshots/e2e-raid-replay.png' });
+  // And it ends on a verdict, set as written over the middle of the board.
+  await page.keyboard.press('Space'); // skip to the end
+  const verdictRe = /COMMAND POST DESTROYED|RAID REPELLED|WITHDRAWN/;
+  const ended = await until(async () => (await rectOf(verdictRe)) !== null, 15000);
+  const verdict = await rectOf(verdictRe);
+  check(
+    'the footage ends on its verdict, set as written',
+    ended && setAsWritten(verdict),
+    verdict ? `${verdict.text.split('\n')[0]} ${Math.round(verdict.w)}x${Math.round(verdict.h)}` : 'no verdict',
+  );
 
   await browser.close();
   if (errors.length) {

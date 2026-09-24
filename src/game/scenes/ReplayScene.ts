@@ -5,10 +5,12 @@ import { DT, Engine } from '../../sim/engine';
 import { OBJECTIVES, isObjectiveId, watchObjective } from '../../meta/objectives';
 import type { SimConfig } from '../../sim/types';
 import { BattleRenderer } from '../BattleRenderer';
-import { COLORS, css } from '../palette';
+import { COLORS } from '../palette';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { mono, type PanelRow, createPanel, type PanelApi } from '../ui';
+import { createLabel, type SceneLabel } from '../dom/label';
+import { createPanel } from '../dom/panel';
+import type { PanelApi, PanelRow } from '../rows';
 
 export interface ReplayData {
   config: SimConfig;
@@ -40,6 +42,8 @@ export class ReplayScene extends Phaser.Scene {
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
   private endShown = false;
+  /** The verdict, over the middle of the board once the battle is over. */
+  private stamp: SceneLabel | null = null;
 
   constructor() {
     super('replay');
@@ -50,6 +54,7 @@ export class ReplayScene extends Phaser.Scene {
     this.accumulator = 0;
     this.speedMult = 2;
     this.endShown = false;
+    this.stamp = null;
   }
 
   create(): void {
@@ -75,7 +80,7 @@ export class ReplayScene extends Phaser.Scene {
       this.replay.kind === 'raid',
       this.board.world,
     );
-    this.panel = createPanel(this, this.board.ui, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
+    this.panel = createPanel(this, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
@@ -102,6 +107,13 @@ export class ReplayScene extends Phaser.Scene {
     this.layout = layoutOf(this, this.drawer, 0, 1, this.board.cols / this.board.rows);
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
+    this.placeStamp();
+  }
+
+  private placeStamp(): void {
+    if (!this.stamp) return;
+    const { board, font } = this.layout;
+    this.stamp.setFontSize(font.title).setPosition(board.x + board.w / 2, board.y + board.h / 2);
   }
 
   private rows(): PanelRow[] {
@@ -180,18 +192,21 @@ export class ReplayScene extends Phaser.Scene {
           : 'PROBE REPELLED';
       const killer = this.engine.stats.ccKillerKind;
       const cause = attackersWon && !withdrew && killer ? `\nKILLING BLOW: ${killer.toUpperCase()}` : '';
-      const { board, font } = this.layout;
-      const stamp = this.add
-        .text(board.x + board.w / 2, board.y + board.h / 2, text + cause, {
-          ...mono(font.title, attackersWon === raid ? COLORS.olive : COLORS.alarm, {
-            fontStyle: 'bold',
-            align: 'center',
-          }),
-          backgroundColor: css(COLORS.bgPanel),
-          padding: { x: 16, y: 10 },
-        })
-        .setOrigin(0.5);
-      this.board.ui.add(stamp);
+      this.stamp = createLabel(this, text + cause, {
+        size: this.layout.font.title,
+        // Ink for the side the footage was shot from winning, alarm for it
+        // losing. It was the olive of the pre-ink palette, which the ink pass
+        // turned into a pale tone that read as nothing on paper.
+        color: attackersWon === raid ? COLORS.ink : COLORS.alarm,
+        bold: true,
+        align: 'center',
+        background: COLORS.bgPanel,
+        padX: 16,
+        padY: 10,
+        originX: 0.5,
+        originY: 0.5,
+      });
+      this.placeStamp();
     }
 
     const alpha = Phaser.Math.Clamp(this.accumulator / DT, 0, 1);

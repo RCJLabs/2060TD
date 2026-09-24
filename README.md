@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.47.0, in the browser. No install, no account, works on a phone.
+v1.48.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,26 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.47: a fire mission pins what it lands on
+## Current state — v1.48: the old drawing is gone
+
+**The game no longer carries its first UI.** Until v1.46 every menu, panel and
+button was painted onto the same canvas as the map. v1.46 made them ordinary page
+elements and kept the painted version one release as a way back, behind
+`?ui=canvas`. Nobody needed it, so it is deleted: 2,100 lines of code, and 24 kB
+of the game's script (6 kB of the download, compressed).
+
+Nothing looks different, except where it should have. The verdict at the end of a
+replay (COMMAND POST DESTROYED, PROBE REPELLED) is real text now: a screen reader
+can read it, it stays centred if you rotate the phone, and a win is printed in ink
+instead of a grey you could barely see. Each frame also does one drawing pass
+instead of two. The second pass drew the old interface over the board, and since
+v1.46 there had been nothing left for it to draw.
+
+**Fixed on the way:** since v1.46 the raid planner's RECON REQUIRED notice, and the
+hints it shows while you plan, were set one word to a line. They read as written
+again.
+
+## v1.47: a fire mission pins what it lands on
 
 **An A-10 gun run or a 155mm fire mission now pins everything on the ground it lands
 on for eight seconds.** A pinned unit does nothing else: it does not walk, shoot, dig

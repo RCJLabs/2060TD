@@ -1,10 +1,9 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import { forgetCoach } from '../meta/coach';
 import { downloadSave, pickAndImportSave, saveTown, SAVE_FILENAME } from '../meta/save';
 import type { TownState } from '../meta/town';
 import type { Layout } from './layout';
 import { haptic, hapticsSupported } from './haptics';
-import { createOverlay, type OverlayApi } from './overlay';
 import { COLORS } from './palette';
 import {
   applySettings,
@@ -13,6 +12,7 @@ import {
   saveSettings,
   volumeLabel,
 } from './settings';
+import { createOverlay, type OverlayApi } from './dom/overlay';
 
 /**
  * One settings screen, opened from the main menu and from inside the war
@@ -24,8 +24,6 @@ import {
  * keeps its scene bookkeeping (and the re-flow on rotation) correct.
  */
 export interface SettingsOptions {
-  /** HUD container, for scenes that partition world and UI across cameras. */
-  container?: Phaser.GameObjects.Container;
   /** The live campaign, when there is one: enables save export and import. */
   town?: TownState | null;
   /** Called with an imported save so the caller can adopt it. */
@@ -53,7 +51,6 @@ export function buildSettings(
     title: 'SETTINGS',
     subtitle: 'Sound and palette follow this device, not the campaign.',
     scrim: 0.94,
-    ...(opts.container ? { container: opts.container } : {}),
   });
   const { rowH, gap, font } = layout;
   const heading = (text: string): void => {

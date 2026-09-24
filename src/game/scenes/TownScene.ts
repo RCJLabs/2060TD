@@ -96,7 +96,6 @@ import { drawFactionMark, drawStructureGlyph, drawWallGlyph, wallJoins } from '.
 import { haptic } from '../haptics';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import type { Ink } from '../ink';
-import { createOverlay, type OverlayApi } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
 import { buildStructureSpec, buildWallSpec } from '../spec';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
@@ -112,8 +111,12 @@ import { COLORS } from '../palette';
 import { footprintOfKind } from '../../content/catalog';
 import { scaleCatalog } from '../../sim/scale';
 import { makeSheet } from '../ground';
-import { type PanelRow, createPanel, type PanelApi, createButton, createLabel, type FreeButton, type SceneLabel } from '../ui';
 import type { BattleTag } from './SiegeScene';
+import { createButton, type FreeButton } from '../dom/button';
+import { createLabel, type SceneLabel } from '../dom/label';
+import { createOverlay, type OverlayApi } from '../dom/overlay';
+import { createPanel } from '../dom/panel';
+import type { PanelApi, PanelRow } from '../rows';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
 /** What went wrong with a pasted code, in words a player can act on. */
@@ -374,7 +377,7 @@ export class TownScene extends Phaser.Scene {
     const ground = townTerrain(this.town);
     this.board.passable = (col, row) => ground.passable(row * TOWN_GRID.width + col);
 
-    this.panel = createPanel(this, this.board.ui, TABS);
+    this.panel = createPanel(this, TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
@@ -385,7 +388,7 @@ export class TownScene extends Phaser.Scene {
       this.drawer = share;
       this.applyLayout();
     };
-    this.bannerText = createLabel(this, this.board.ui, '', { size: 11, color: COLORS.signal });
+    this.bannerText = createLabel(this, '', { size: 11, color: COLORS.signal });
 
     this.applyLayout();
     this.focusBase();
@@ -639,7 +642,6 @@ export class TownScene extends Phaser.Scene {
     const ov = createOverlay(this, this.layout, {
       title: 'OPERATIONS MAP',
       subtitle: 'Replays of held sectors pay 35% of the original requisition.',
-      container: this.board.ui,
     });
     this.overlay = ov;
     const close = (): void => {
@@ -684,7 +686,6 @@ export class TownScene extends Phaser.Scene {
       subtitle: radar
         ? `INTEL ${Math.floor(this.town.intel)} · one project at a time`
         : 'A SIGNALS STATION MUST STAND TO RUN THE PROGRAM',
-      container: this.board.ui,
     });
     this.overlay = ov;
     const close = (): void => {
@@ -852,7 +853,6 @@ export class TownScene extends Phaser.Scene {
     const ov = createOverlay(this, this.layout, {
       title: `INBOUND — LEVEL ${pending.level}`,
       subtitle: `Contact in ${untilLabel(Math.max(0, pending.expiresAt - Date.now()))}.`,
-      container: this.board.ui,
     });
     this.overlay = ov;
     const close = (): void => {
@@ -926,7 +926,6 @@ export class TownScene extends Phaser.Scene {
     const ov = createOverlay(this, this.layout, {
       title: 'DEFENSE LOG',
       subtitle: 'Probes fought while you were away.',
-      container: this.board.ui,
     });
     this.overlay = ov;
     const close = (): void => {
@@ -1030,7 +1029,6 @@ export class TownScene extends Phaser.Scene {
       subtitle: `${done} of ${today.length} filled · new orders in ${untilLabel(
         contractsEndAt(now) - now,
       )}`,
-      container: this.board.ui,
     });
     this.overlay = ov;
     const { font, gap } = this.layout;
@@ -1111,7 +1109,6 @@ export class TownScene extends Phaser.Scene {
         vault.length > 0
           ? `${vault.length} of the last ${VAULT_CAP} battles`
           : 'Nothing fought yet',
-      container: this.board.ui,
     });
     this.overlay = ov;
     const { font, gap, rowH } = this.layout;
@@ -1229,7 +1226,6 @@ export class TownScene extends Phaser.Scene {
     const ov = createOverlay(this, this.layout, {
       title: 'SERVICE RECORD',
       subtitle: `${r.army} · DAY ${r.day}`,
-      container: this.board.ui,
     });
     this.overlay = ov;
     const { font, gap, px } = this.layout;
@@ -1322,7 +1318,6 @@ export class TownScene extends Phaser.Scene {
     const ov = createOverlay(this, this.layout, {
       title: `THE BOARD — ${league.label}`,
       subtitle: league.blurb,
-      container: this.board.ui,
     });
     this.overlay = ov;
     const close = (): void => {
@@ -1455,7 +1450,6 @@ export class TownScene extends Phaser.Scene {
       // and footprint the battle will actually give the thing on this board.
       catalog: scaleCatalog(defenseCatalogFor(this.town.faction), TOWN_GRID.cellSize),
       ...(meta ? { meta } : {}),
-      container: this.board.ui,
       onClose: close,
     };
     this.overlay = wall
@@ -1471,7 +1465,6 @@ export class TownScene extends Phaser.Scene {
       this.overlayBuilder = null;
     };
     this.overlay = buildSettings(this, this.layout, {
-      container: this.board.ui,
       town: this.town,
       onImport: (imported) => {
         this.town = imported;
@@ -1509,7 +1502,7 @@ export class TownScene extends Phaser.Scene {
     // composition as one block, which is what the main menu already does. The
     // scrim is opaque because a first-run card has nothing behind it worth
     // seeing — only a town HUD showing through the title.
-    const ov = createOverlay(this, this.layout, { scrim: 1, container: this.board.ui });
+    const ov = createOverlay(this, this.layout, { scrim: 1 });
     this.overlay = ov;
     const { gap, font } = this.layout;
     const air = this.layout.compact ? gap : Math.round(gap * 2);
@@ -1574,7 +1567,7 @@ export class TownScene extends Phaser.Scene {
     // Screen 2 of the same card, laid out the same way: everything measured,
     // everything in one centred block. An operation name is long enough to
     // wrap on a phone, and a pinned one would take the body's space with it.
-    const ov = createOverlay(this, this.layout, { scrim: 1, container: this.board.ui });
+    const ov = createOverlay(this, this.layout, { scrim: 1 });
     this.overlay = ov;
     const { gap, font } = this.layout;
     const air = this.layout.compact ? gap : Math.round(gap * 2);
@@ -1803,9 +1796,7 @@ export class TownScene extends Phaser.Scene {
 
   /**
    * The confirm pair, parked at the bottom of the board where a thumb is.
-   *
-   * They live in `board.ui` rather than on the scene root: anything on the
-   * root is drawn twice, once per camera, and two harnesses fail on it.
+   * Free buttons, in the scene's own host, so they go when the scene does.
    */
   private layoutConfirmBar(): void {
     const { primary, board, pad, gap, font, compact } = this.layout;
@@ -1823,7 +1814,6 @@ export class TownScene extends Phaser.Scene {
       this.confirmBtn = createButton(this, 0, 0, w, h, 'CONFIRM', () => this.commitPending(), {
         emphasis: 'primary',
         align: 'center',
-        container: this.board.ui,
       });
       // The affirmative reads as affirmative. `active` is the kit's own olive
       // highlight — the same one the armed build row wears — rather than a
@@ -1831,12 +1821,12 @@ export class TownScene extends Phaser.Scene {
       this.confirmBtn.setActive(true);
       this.cancelBtn = createButton(this, 0, 0, w, h, 'CANCEL', () => {
         this.pendingCell = null;
-      }, { align: 'center', container: this.board.ui, quiet: true });
+      }, { align: 'center', quiet: true });
       // Release the refs when the scene tears down, the way BoardView, the
-      // layout and Overlay all do. Nulling them in `create` is only half of
-      // it: between `scene.start(...)` and the next `create`, a trailing
+      // layout and the overlay all do. Nulling them in `create` is only half
+      // of it: between `scene.start(...)` and the next `create`, a trailing
       // frame can still reach `updateConfirmBar` and lay out a button whose
-      // container went down with the old BoardView.
+      // host went down with the old scene.
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
         this.confirmBtn = null;
         this.cancelBtn = null;

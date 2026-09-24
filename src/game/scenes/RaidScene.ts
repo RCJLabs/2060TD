@@ -93,16 +93,20 @@ import {
 import { baseOccupied, footprintOfKind } from '../../content/catalog';
 import { chainStalledAt } from '../../sim/killchain';
 import { scaleCatalog } from '../../sim/scale';
-import { COLORS } from '../palette';
+import { COLORS, css } from '../palette';
+import { MONO_FAMILY } from '../tokens';
 import { makeSheet } from '../ground';
 import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrain';
 import { BoardView } from '../BoardView';
 import { haptic } from '../haptics';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import type { Ink } from '../ink';
-import { createOverlay, type OverlayApi } from '../overlay';
 import { buildAttackerSpec } from '../spec';
-import { mono, type PanelRow, createPanel, type PanelApi, createButton, createLabel, type FreeButton, type SceneLabel } from '../ui';
+import { createButton, type FreeButton } from '../dom/button';
+import { createLabel, type SceneLabel } from '../dom/label';
+import { createOverlay, type OverlayApi } from '../dom/overlay';
+import { createPanel } from '../dom/panel';
+import type { PanelApi, PanelRow } from '../rows';
 
 /** A pasted base plus the fingerprint that stops it paying twice. */
 export interface Challenge {
@@ -261,7 +265,7 @@ export class RaidScene extends Phaser.Scene {
     this.board.world.add([sheet, this.baseLayer, this.dynLayer]);
     this.board.passable = (col, row) => raidGround.passable(row * MAP_W + col);
 
-    this.fogText = createLabel(this, this.board.ui, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {
+    this.fogText = createLabel(this, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {
       size: 18,
       color: COLORS.inkDim,
       align: 'center',
@@ -269,7 +273,7 @@ export class RaidScene extends Phaser.Scene {
       originX: 0.5,
       originY: 0.5,
     });
-    this.hintText = createLabel(this, this.board.ui, '', {
+    this.hintText = createLabel(this, '', {
       size: 12,
       color: COLORS.signal,
       bold: true,
@@ -299,13 +303,18 @@ export class RaidScene extends Phaser.Scene {
       const cells = sectorCells(id);
       const mid = cells[Math.floor(cells.length / 2)]!;
       const label = this.add
-        .text((mid.col + 0.5) * CELL, (mid.row + 0.5) * CELL, id, mono(13, COLORS.marg, { fontStyle: 'bold' }))
+        .text((mid.col + 0.5) * CELL, (mid.row + 0.5) * CELL, id, {
+          fontFamily: MONO_FAMILY,
+          fontSize: '13px',
+          fontStyle: 'bold',
+          color: css(COLORS.marg),
+        })
         .setOrigin(0.5);
       this.sectorLabels.push(label);
       this.board.world.add(label);
     }
 
-    this.panel = createPanel(this, this.board.ui, RAID_TABS);
+    this.panel = createPanel(this, RAID_TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
@@ -319,7 +328,6 @@ export class RaidScene extends Phaser.Scene {
     this.launchButton = createButton(this, 0, 0, 10, 10, '', () => this.launch(), {
       emphasis: 'primary',
       align: 'center',
-      container: this.board.ui,
     });
 
     // Demo raids for tunnel factions show a sited gallery out of the box.
@@ -727,7 +735,6 @@ export class RaidScene extends Phaser.Scene {
     const ov = createOverlay(this, this.layout, {
       title: 'THE FRONT LINE',
       subtitle: 'A raid is planned, not driven. The plan is the whole skill.',
-      container: this.board.ui,
     });
     this.overlay = ov;
     const { font } = this.layout;
@@ -820,7 +827,6 @@ export class RaidScene extends Phaser.Scene {
       // As the board scales it (M34): ranges and speeds in this board's cells.
       catalog: scaleCatalog(raidCatalogFor(this.town.faction), MAP_CELL_SIZE),
       ...(train ? { train } : {}),
-      container: this.board.ui,
       onClose: close,
     });
   }
@@ -833,7 +839,6 @@ export class RaidScene extends Phaser.Scene {
     const ov = createOverlay(this, this.layout, {
       title: squadName(this.town.faction, slot),
       subtitle: `${rank.name} — ${rank.tag}`,
-      container: this.board.ui,
     });
     this.overlay = ov;
     const { font } = this.layout;
@@ -943,7 +948,6 @@ export class RaidScene extends Phaser.Scene {
           : 'RAID REPELLED',
       subtitle: this.base.name,
       scrim: 0.82,
-      container: this.board.ui,
     });
     this.overlay = ov;
     const { font } = this.layout;

@@ -1,6 +1,7 @@
+import type Phaser from 'phaser';
 import { COLORS, css as hex } from '../palette';
 import { MONO_FAMILY } from '../tokens';
-import { css } from './layer';
+import { css, sceneHost } from './layer';
 
 /** How a scene label is set: the handful of text styles the scenes use over the board. */
 export interface LabelStyle {
@@ -22,7 +23,7 @@ export interface LabelStyle {
 
 /**
  * A line of text a scene puts over the board: a banner, a hint, HOLDING, the
- * recon notice. What the scenes call on a canvas Text, and no more.
+ * recon notice, the replay's verdict. What the scenes call on it, and no more.
  */
 export interface SceneLabel {
   setText(text: string): SceneLabel;
@@ -35,10 +36,10 @@ export interface SceneLabel {
 }
 
 /**
- * A scene label in the DOM (M30): real text, in a scene's host, which reports
- * it to the harness like any other text on screen.
+ * A scene label (M30): real text, in a scene's host, which reports it to the
+ * harness like any other text on screen and takes it down with the scene.
  */
-export function domLabel(host: HTMLElement, text: string, style: LabelStyle): SceneLabel {
+export function createLabel(scene: Phaser.Scene, text: string, style: LabelStyle): SceneLabel {
   const el = document.createElement('div');
   el.dataset['text'] = '';
   el.textContent = text;
@@ -47,7 +48,11 @@ export function domLabel(host: HTMLElement, text: string, style: LabelStyle): Sc
   el.style.cssText = [
     'position:absolute',
     'pointer-events:none',
-    'white-space:pre-wrap',
+    // Lines as written, and no wrapping until a width is given, as a canvas
+    // text sets them. The host is a point at the canvas's origin, so a label
+    // left to wrap wraps against nothing: v1.46-v1.47 set the raid's recon
+    // notice and its hints one word to a line.
+    'white-space:pre',
     `transform:translate(${-ox * 100}%,${-oy * 100}%)`,
     `font-family:${MONO_FAMILY}`,
     `color:${hex(style.color ?? COLORS.ink)}`,
@@ -64,7 +69,7 @@ export function domLabel(host: HTMLElement, text: string, style: LabelStyle): Sc
     el.style.padding = `${css(style.padY ?? 0)}px ${css(style.padX ?? 0)}px`;
   }
   // Reported to the harness by the host it hangs from (see `sceneHost`).
-  host.appendChild(el);
+  sceneHost(scene).appendChild(el);
 
   const label: SceneLabel = {
     setText(value) {
@@ -86,6 +91,7 @@ export function domLabel(host: HTMLElement, text: string, style: LabelStyle): Sc
     },
     setWordWrapWidth(width) {
       el.style.width = `${css(width)}px`;
+      el.style.whiteSpace = 'pre-wrap';
       return label;
     },
   };
