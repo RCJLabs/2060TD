@@ -83,15 +83,21 @@ export const CHAIN_LATCHED = 3;
  */
 export const CHAIN_ENGAGE = 4;
 /**
+ * Version 4 with the unattended commander's aim fixed twice over (M23 Phase
+ * 3c): its distances are measured on the board's own scale, and its fire
+ * missions are laid where the enemy will be. See `ChainModel.aimToScale` and
+ * `ChainModel.leadFire`.
+ */
+export const CHAIN_AIMED = 5;
+/**
  * The shipped model. New configs name this; nothing else should.
  *
- * Version 4 since M34. On the 10x15 board version 3 is held by its stall rule
- * rather than by the guns: mid and late rows plateau at 40-55% held and never
- * fall, and 54% of the defence matrix's defender wins include a stall
- * wipe-out. Version 4's crews go after the gun that is keeping them off the
- * post, and every row falls.
+ * Version 4 from M34: on the 10x15 board version 3 is held by its stall rule
+ * rather than by the guns, and version 4's crews go after the gun that is
+ * keeping them off the post. Version 5 from M23 Phase 3c, which is version 4
+ * with a duty officer who can aim.
  */
-export const CHAIN_CURRENT = CHAIN_ENGAGE;
+export const CHAIN_CURRENT = CHAIN_AIMED;
 
 /** Where a raid has got to. `down` means the post has fallen. */
 export type ChainStage = 'breach' | 'suppress' | 'charge' | 'burn' | 'down';
@@ -210,6 +216,44 @@ export interface ChainModel {
    * False is every version before this field existed.
    */
   readonly engageCover: boolean;
+  /**
+   * Are the distances the unattended commander aims by measured in physical
+   * units, like every other distance since M34? (M23 Phase 3c)
+   *
+   * There are three, and all three are the same 3: the radius inside which a
+   * standing order or a fire plan counts a cluster — of attackers, or of guns —
+   * and how far out from the post a `ccApproach` deploy is anchored. They are
+   * literals in the engine rather than catalog fields, so M34's inventory of
+   * everything a cell dimensions walked straight past them, and on the 10x15
+   * board every one of them reached twice as far as it was written to. The
+   * approach gun went down six units from the post instead of three, and a
+   * "cluster" was any two attackers within six units of each other.
+   *
+   * False reads the literal as cells of whatever board, which is what every
+   * version before this field existed does — and on a board of cell size 1,
+   * the only board those versions shipped on, the two readings are the same
+   * number.
+   */
+  readonly aimToScale: boolean;
+  /**
+   * Does a standing order's fire mission land where the enemy WILL be, on
+   * someone it can hit? (M23 Phase 3c)
+   *
+   * Through version 4 a fire mission ordered onto the densest knot of attackers
+   * is laid where the knot IS when the order is given, and it lands later —
+   * half a second for the A-10's first pass, a second and a half for the first
+   * shell. An infantry file walks well over a cell in that time and the A-10's
+   * strip is less than one cell deep, so on the contested band the A-10 was
+   * cast 920 times and killed nobody: not one kill different from never
+   * casting it, in 460 battles. It also counted aircraft into the knot, which
+   * a gun run and a barrage both pass beneath by design.
+   *
+   * True leads the knot's lead attacker by its own heading and speed, the rule
+   * a mortar already fires by, and counts only the ground force a strike can
+   * land on. Aiming at the post or a breach is aiming at a place, and does not
+   * change.
+   */
+  readonly leadFire: boolean;
 }
 
 const sponge: ChainModel = {
@@ -225,6 +269,8 @@ const sponge: ChainModel = {
   stallSeconds: 0,
   latchOpen: false,
   engageCover: false,
+  aimToScale: false,
+  leadFire: false,
 };
 
 /**
@@ -276,6 +322,8 @@ const theBreach: ChainModel = {
   stallSeconds: 0,
   latchOpen: false,
   engageCover: false,
+  aimToScale: false,
+  leadFire: false,
 };
 
 /**
@@ -335,6 +383,24 @@ const huntTheCover: ChainModel = {
   engageCover: true,
 };
 
+/**
+ * M23 Phase 3c: the same assault, met by a duty officer who can aim.
+ *
+ * Found by re-judging the defender's verbs against the contested band the
+ * lengthened ladder built. Version 4's standing orders aim by two rules that
+ * were each wrong in a way no table could show until the verbs were measured
+ * one at a time on battles that could move: three distances written as cells
+ * that M34 should have made units (`aimToScale`), and fire missions laid on
+ * where the enemy was rather than where it would be (`leadFire`).
+ */
+const aimed: ChainModel = {
+  ...huntTheCover,
+  version: CHAIN_AIMED,
+  label: 'breach, suppress, charge, burn; the crew hunts the guns; orders aim to scale and lead',
+  aimToScale: true,
+  leadFire: true,
+};
+
 /** The version registry. A version is frozen: a new model is a new number. */
 export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_NONE]: sponge,
@@ -342,6 +408,7 @@ export const CHAIN_MODELS: Record<number, ChainModel> = {
   [CHAIN_SPENT]: spentAssault,
   [CHAIN_LATCHED]: latched,
   [CHAIN_ENGAGE]: huntTheCover,
+  [CHAIN_AIMED]: aimed,
 };
 
 /**

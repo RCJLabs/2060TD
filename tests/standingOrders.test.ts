@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildAssault } from '../src/content/assaults';
 import { defenseCatalogFor, enemyRosterFor, FACTION_IDS } from '../src/content/factions';
-import { STANDING_ORDERS, STANDING_ORDER_IDS } from '../src/content/standingOrders';
+import { STANDING_ORDERS, STANDING_ORDER_IDS, standingOrdersFor } from '../src/content/standingOrders';
+import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
 import { deserialize, serialize } from '../src/meta/save';
 import {
   caps,
@@ -17,7 +18,7 @@ import {
   upgrade,
   TOWN_GRID,
 } from '../src/meta/town';
-import { yardTown } from './helpers';
+import { TEST_CATALOG, yardTown } from './helpers';
 import {
   applyLiveDefense,
   claimLiveDefense,
@@ -30,6 +31,7 @@ import {
 } from '../src/meta/warfare';
 import { siegeOnBoard } from '../src/sim/board';
 import { Engine } from '../src/sim/engine';
+import { CHAIN_AIMED, CHAIN_ENGAGE } from '../src/sim/killchain';
 import type { SimConfig, StandingOrders } from '../src/sim/types';
 
 const T0 = 1_700_000_000_000;
@@ -206,6 +208,138 @@ describe('standing orders in the engine', () => {
     const b = runOut(midConfig(1234, STANDING_ORDERS.holdfast));
     expect(a.stateHash()).toBe(b.stateHash());
     expect(a.tick).toBe(b.tick);
+  });
+});
+
+describe("the duty officer's aim (chain v5, M23 Phase 3c)", () => {
+  /**
+   * The town board with nothing on it but the post, and a file of walkers
+   * coming straight down column 4 onto it from the north edge: the geometry
+   * every siege on this board has, with nothing else in the way.
+   */
+  const fileConfig = (chain: number, orders: StandingOrders, cellSize: number = TOWN_GRID.cellSize): SimConfig => ({
+    width: W,
+    height: H,
+    cellSize,
+    seed: 5,
+    ccOrigin: TOWN_GRID.ccOrigin,
+    spawnLane: TOWN_GRID.spawnLane,
+    spawnEdge: TOWN_GRID.spawnEdge,
+    killChainVersion: chain,
+    siege: {
+      name: 'file',
+      startingSupplies: 0,
+      suppliesPerWave: 0,
+      startingCp: 200,
+      cpCap: 200,
+      cpPerSecond: 0,
+      prepSeconds: 0,
+      repairCostPerHp: 0,
+      waves: [{ entries: [0, 40, 80, 120].map((atTick) => ({ atTick, kind: 'walker', col: 4 })) }],
+    },
+    powerCharges: { a10: 1 },
+    standingOrders: orders,
+  });
+  const start = (config: SimConfig): Engine => {
+    const engine = new Engine(config, TEST_CATALOG);
+    engine.enqueue({ tick: 0, type: 'startAssault' });
+    return engine;
+  };
+
+  it('a gun run ordered onto a walking file lands on it, where v4 lands where it was', () => {
+    // Cast when the second walker arrives: the first has been walking for two
+    // seconds, so it has a heading to lead.
+    const strafe: StandingOrders = {
+      id: 'test',
+      maxActions: 1,
+      rules: [{ cpAtLeast: 0, action: 'power', kind: 'a10', target: 'densest', minHostiles: 2, cooldownTicks: 1 }],
+    };
+    const run = (chain: number) => {
+      const engine = start(fileConfig(chain, strafe));
+      let cast = -1;
+      for (let i = 0; i < 600 && (cast < 0 || engine.tick < cast + 40); i++) {
+        for (const ev of engine.step()) if (ev.type === 'powerCast') cast = engine.tick;
+      }
+      const hurt = engine.attackers.reduce((sum, a) => sum + (a.maxHp - Math.max(0, a.hp)), 0);
+      return { cast, kills: engine.stats.kills, hurt };
+    };
+    const v4 = run(CHAIN_ENGAGE);
+    const v5 = run(CHAIN_AIMED);
+    // Liveness: both cast it, at the same moment, at the same file.
+    expect(v4.cast).toBeGreaterThan(0);
+    expect(v5.cast).toBe(v4.cast);
+    // v4: half a second later the strip is where the file was, and the file
+    // has walked out of it. Nobody so much as scratched.
+    expect(v4.kills).toBe(0);
+    expect(v4.hurt).toBe(0);
+    // v5: laid ahead of the lead walker, which walks into it.
+    expect(v5.kills).toBeGreaterThan(0);
+  });
+
+  it('the approach gun goes down three units out, where it went on the 20x30 board', () => {
+    const approach: StandingOrders = {
+      id: 'test',
+      maxActions: 1,
+      rules: [{ cpAtLeast: 0, action: 'deploy', kind: 'depmg', target: 'ccApproach', minHostiles: 1, cooldownTicks: 1 }],
+    };
+    /** How far from the post's centre the order put its gun, in physical units. */
+    const reach = (chain: number, cellSize: number) => {
+      const engine = start(fileConfig(chain, approach, cellSize));
+      for (let i = 0; i < 600 && engine.ordersExecuted === 0; i++) engine.step();
+      const gun = engine.structures.find((st) => st.profile.kind === 'depmg');
+      expect(gun, `chain ${chain} at cell size ${cellSize} never deployed`).toBeDefined();
+      const dx = gun!.center.x - engine.cc.center.x;
+      const dy = gun!.center.y - engine.cc.center.y;
+      return Math.sqrt(dx * dx + dy * dy) * cellSize;
+    };
+    // The order is "three out", written when a cell was a unit. v4 reads it
+    // as three of this board's cells, six units: twice as far as written.
+    expect(reach(CHAIN_ENGAGE, 2)).toBe(6);
+    // v5 reads it as three units, and the first whole cell inside that is
+    // the one beside the post.
+    expect(reach(CHAIN_AIMED, 2)).toBeLessThanOrEqual(3);
+    // On a board of cell size 1 the two readings are one number.
+    expect(reach(CHAIN_AIMED, 1)).toBe(reach(CHAIN_ENGAGE, 1));
+  });
+
+  it('HOLDFAST meets them at the hole from v5, and a battle fought before it gets back its own', () => {
+    const now = standingOrdersFor('holdfast');
+    expect(now).toBe(STANDING_ORDERS.holdfast);
+    expect(now!.rules.filter((r) => r.action === 'deploy').every((r) => r.target === 'breach')).toBe(true);
+    // A probe fought on chain 4 re-fights with the inner-line gun it had.
+    const then = standingOrdersFor('holdfast', CHAIN_ENGAGE)!;
+    expect(then.rules.map((r) => r.target)).toEqual(['breach', 'ccApproach', 'densest']);
+    expect(standingOrdersFor('holdfast', CHAIN_AIMED)).toBe(now);
+    // And a code says which: the reader resolves the id against the chain.
+    for (const [chain, want] of [
+      [CHAIN_ENGAGE, then],
+      [CHAIN_AIMED, now],
+    ] as const) {
+      const config = { ...midConfig(3, want), killChainVersion: chain };
+      const round = decodeReplay(encodeReplay({ kind: 'probe', faction: 'usa', title: 'T', won: true, config }));
+      expect(round.ok).toBe(true);
+      if (round.ok) expect(round.replay.config.standingOrders).toEqual(want);
+    }
+    // The other two never changed, so every chain reads them the same.
+    for (const id of ['counterbattery', 'tripwire'] as const) {
+      expect(standingOrdersFor(id, CHAIN_ENGAGE)).toBe(STANDING_ORDERS[id]);
+    }
+  });
+
+  it('a board of cell size 1 fights a deploy-only doctrine identically on v4 and v5', () => {
+    // Every battle v4 and older ever shipped was on such a board, and the
+    // only other thing v5 changes is where a fire mission is laid.
+    const hash = (chain: number) => {
+      const engine = new Engine(
+        { ...midConfig(41, STANDING_ORDERS.tripwire), cellSize: 1, killChainVersion: chain },
+        defenseCatalogFor('usa'),
+      );
+      engine.enqueue({ tick: 0, type: 'startAssault' });
+      engine.run(3000);
+      expect(engine.ordersExecuted).toBeGreaterThan(0);
+      return engine.stateHash();
+    };
+    expect(hash(CHAIN_AIMED)).toBe(hash(CHAIN_ENGAGE));
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CHAIN_AIMED,
   CHAIN_CURRENT,
   CHAIN_ENGAGE,
   CHAIN_LATCHED,
@@ -332,10 +333,24 @@ describe('the kill chain', () => {
     }
   });
 
-  it('v4 is what a new battle gets, and every older chain stays frozen without the hunt', () => {
-    expect(CHAIN_CURRENT).toBe(CHAIN_ENGAGE);
-    expect(chainModelFor(CHAIN_CURRENT).engageCover).toBe(true);
+  it('v5 is what a new battle gets, and every older chain stays frozen as it shipped', () => {
+    expect(CHAIN_CURRENT).toBe(CHAIN_AIMED);
+    const now = chainModelFor(CHAIN_CURRENT);
+    expect(now.engageCover && now.aimToScale && now.leadFire).toBe(true);
     for (const v of [CHAIN_NONE, CHAIN_SPENT, CHAIN_LATCHED]) expect(chainModelFor(v).engageCover).toBe(false);
+    // The hunt without the aim: v4 is what every v1.45 battle was fought on.
+    expect(chainModelFor(CHAIN_ENGAGE).engageCover).toBe(true);
+    for (const v of [CHAIN_NONE, CHAIN_SPENT, CHAIN_LATCHED, CHAIN_ENGAGE]) {
+      expect(chainModelFor(v).aimToScale, `v${v} aims to scale`).toBe(false);
+      expect(chainModelFor(v).leadFire, `v${v} leads its fire`).toBe(false);
+    }
+    // And v5 is v4 with the aim and nothing else: whatever v5 does to a battle
+    // with no orders and no fire plan in it, it does as v4.
+    expect({ ...now, version: 0, label: '', aimToScale: false, leadFire: false }).toEqual({
+      ...chainModelFor(CHAIN_ENGAGE),
+      version: 0,
+      label: '',
+    });
   });
 
   it('the whole chain ends in a taken post, and the sim says who took it', () => {

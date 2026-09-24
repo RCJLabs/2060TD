@@ -643,12 +643,11 @@ export function decodeReplay(raw: string): ReplayDecode {
     config.reservedCells = reserved;
   }
 
+  // Read now and resolved at the end: which rules a preset id means depends on
+  // the kill chain the battle was fought on, and that block comes later.
   const orders = getString(cur);
   if (orders === null) return bad('truncated');
-  if (orders !== '') {
-    if (!isStandingOrdersId(orders)) return bad('content');
-    config.standingOrders = standingOrdersFor(orders);
-  }
+  if (orders !== '' && !isStandingOrdersId(orders)) return bad('content');
 
   // The ground, if this code was written after v1.19. Anything older simply
   // ends here, and flat is the right answer for it — that is the field the
@@ -732,6 +731,10 @@ export function decodeReplay(raw: string): ReplayDecode {
     if (size === null) return bad('truncated');
     if (size < 1 || size > MAX_CELL_SIZE) return bad('content');
     if (size > 1) config.cellSize = size;
+  }
+
+  if (orders !== '' && isStandingOrdersId(orders)) {
+    config.standingOrders = standingOrdersFor(orders, config.killChainVersion ?? CHAIN_NONE);
   }
 
   return {

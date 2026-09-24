@@ -1,3 +1,4 @@
+import { CHAIN_AIMED, CHAIN_CURRENT } from '../sim/killchain';
 import type { StandingOrders } from '../sim/types';
 
 /**
@@ -23,13 +24,25 @@ export const STANDING_ORDER_IDS: StandingOrdersId[] = [
 ];
 
 export const STANDING_ORDERS: Record<StandingOrdersId, StandingOrders> = {
-  /** Meet them at the hole: field guns onto the breaches, air on the mass. */
+  /**
+   * Meet them at the hole: field guns onto the breaches, air on the mass.
+   *
+   * Both guns go to the breach since M23 Phase 3c. The second went to the
+   * post's approach before that, which is where a doctrine called "at the
+   * hole" had no business putting it — and on kill chain 5, which aims three
+   * units out as the 20x30 board did rather than six, that puts it beside the
+   * post, inside the ring an assault clears first. Measured on the contested
+   * band, that one rule took HOLDFAST below leaving no orders at all on a CC2
+   * base (-7 held); at the breach it is +16 overall and positive on every
+   * stage. See `HOLDFAST_INNER_LINE` for the version battles before chain 5
+   * were fought with.
+   */
   holdfast: {
     id: 'holdfast',
     maxActions: 3,
     rules: [
       { cpAtLeast: 40, action: 'deploy', kind: 'depmg', target: 'breach', minHostiles: 4, cooldownTicks: 300 },
-      { cpAtLeast: 55, action: 'deploy', kind: 'foxhole', target: 'ccApproach', minHostiles: 3, cooldownTicks: 260 },
+      { cpAtLeast: 55, action: 'deploy', kind: 'foxhole', target: 'breach', minHostiles: 3, cooldownTicks: 260 },
       { cpAtLeast: 90, action: 'power', kind: 'a10', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
     ],
   },
@@ -61,10 +74,36 @@ export const STANDING_ORDER_LABEL: Record<StandingOrdersId, string> = {
   tripwire: 'TRIPWIRE',
 };
 
+/**
+ * HOLDFAST as it stood from v0.8 until M23 Phase 3c: its second gun on the
+ * post's approach. Frozen for the battles fought with it.
+ *
+ * A replay code carries its orders as a preset id and the reader rebuilds the
+ * rules from here, so a battle fought on kill chain 4 or older has to get back
+ * the doctrine it was actually fought under, or a probe the log says was held
+ * re-fights as one that fell.
+ */
+const HOLDFAST_INNER_LINE: StandingOrders = {
+  id: 'holdfast',
+  maxActions: 3,
+  rules: [
+    { cpAtLeast: 40, action: 'deploy', kind: 'depmg', target: 'breach', minHostiles: 4, cooldownTicks: 300 },
+    { cpAtLeast: 55, action: 'deploy', kind: 'foxhole', target: 'ccApproach', minHostiles: 3, cooldownTicks: 260 },
+    { cpAtLeast: 90, action: 'power', kind: 'a10', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
+  ],
+};
+
+/**
+ * The orders a battle on this kill chain fights with. Absent means a battle
+ * fought today.
+ */
 export function standingOrdersFor(
   id: StandingOrdersId | null | undefined,
+  killChainVersion: number = CHAIN_CURRENT,
 ): StandingOrders | undefined {
-  return id ? STANDING_ORDERS[id] : undefined;
+  if (!id) return undefined;
+  if (id === 'holdfast' && killChainVersion < CHAIN_AIMED) return HOLDFAST_INNER_LINE;
+  return STANDING_ORDERS[id];
 }
 
 export function isStandingOrdersId(value: unknown): value is StandingOrdersId {

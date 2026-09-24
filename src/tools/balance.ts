@@ -58,7 +58,7 @@ import {
 import { CONDITIONS } from '../content/conditions';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
-import { STANDING_ORDERS } from '../content/standingOrders';
+import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
 import { scaleFootprint } from '../sim/scale';
@@ -951,9 +951,12 @@ function siegeTraceOn(
  * equal to the thing's own price so every verb acts the moment it can afford
  * to. What varies is the verb and where it is aimed.
  *
- * Scoped to MID (CC2) levels 3-4, because that is where `--leverage` found the
- * only leverage on the board. A verb measured on a row that cannot move reads
- * zero for a reason that has nothing to do with the verb.
+ * Scoped to the contested band — every (faction, base, level) the permanent
+ * layer alone holds between 5% and 95% of seeds — because a verb measured on a
+ * row that cannot move reads zero for a reason that has nothing to do with the
+ * verb. Phase 2 ran it on MID (CC2) levels 3-4, the only place a row moved on
+ * the six-rung ladder; Phase 3c re-ran it on the band the longer ladder built,
+ * which is what found both of chain 5's reasons to exist.
  *
  * The prior worth testing: since M22, SUPPRESS gates the post on every live gun
  * within `coverRadius`, so a deployed GUN adds a gate the attacker must clear
@@ -979,35 +982,95 @@ function verbTable(seeds = 20): string {
     { label: 'claymore -> densest', action: 'deploy', kind: 'claymore', target: 'densest', price: 15 },
     { label: 'a10 -> densest', action: 'power', kind: 'a10', target: 'densest', price: 45 },
     { label: 'arty -> densest', action: 'power', kind: 'arty', target: 'densest', price: 60 },
+    // Fire on the post itself, where the charge crew and the burn's holders
+    // stand: the one aim a damage verb has that the chain can see (M23 3c).
+    { label: 'a10 -> ccApproach', action: 'power', kind: 'a10', target: 'ccApproach', price: 45 },
+    { label: 'arty -> ccApproach', action: 'power', kind: 'arty', target: 'ccApproach', price: 60 },
   ];
 
-  const mid = referenceBases().find((b) => b.name.startsWith('MID'))!;
-  const CELLS: [FactionId, number][] = [];
-  for (const faction of FACTION_IDS) for (const level of [3, 4]) CELLS.push([faction, level]);
+  // The band as it is NOW (M23 Phase 3c): every (faction, base, level) the
+  // bare permanent layer holds between 5% and 95%. Phase 2 scoped this table
+  // to MID levels 3-4 because on the six-rung ladder that was the only place a
+  // row moved; the ladder has been lengthened, the board shrunk and the chain
+  // changed since, and those cells are held every time now. A verb measured
+  // where the row cannot move reads zero for a reason that is not the verb.
+  type Cell = { faction: FactionId; base: ReferenceBase; level: number; bare: boolean[] };
+  const CELLS: Cell[] = [];
+  for (const faction of FACTION_IDS) {
+    for (const base of referenceBases()) {
+      for (const level of ASSAULT_LEVELS) {
+        const bare = Array.from(
+          { length: seeds },
+          (_, i) => siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), null).held,
+        );
+        const held = (bare.filter(Boolean).length / seeds) * 100;
+        if (held >= 5 && held <= 95) CELLS.push({ faction, base, level, bare });
+      }
+    }
+  }
+  const STAGES = ['EARLY', 'MID', 'LATE'];
+  const stageOf = (c: Cell) => STAGES.findIndex((st) => c.base.name.startsWith(st));
 
-  /** Hold rate and mean low-water mark over every scoped cell. */
-  const score = (policy: SiegePolicy): { held: number; low: number } => {
+  /**
+   * Hold rate and mean low-water mark over every scoped cell, and by stage —
+   * and the battles whose verdict the policy CHANGED, each way. The net is the
+   * hold rate; the gross is whether the policy decides battles or only stirs
+   * them, and a verb that flips as many losses into wins as wins into losses
+   * is not leverage, it is noise with a price.
+   */
+  const score = (
+    policy: SiegePolicy,
+  ): { held: number; low: number; byStage: number[]; acts: number; won: number; lost: number } => {
     let held = 0;
     let low = 0;
+    let acts = 0;
+    let won = 0;
+    let lost = 0;
     let n = 0;
-    for (const [faction, level] of CELLS) {
+    const stageHeld = [0, 0, 0];
+    const stageN = [0, 0, 0];
+    for (const c of CELLS) {
       for (let i = 0; i < seeds; i++) {
-        const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), policy);
-        if (r.held) held++;
+        const r = siegeTrace(c.faction, c.base, c.level, seedOf(c.level, c.base.ccLevel, i), policy);
+        if (r.held) {
+          held++;
+          stageHeld[stageOf(c)]!++;
+        }
+        if (r.held && !c.bare[i]) won++;
+        if (!r.held && c.bare[i]) lost++;
+        stageN[stageOf(c)]!++;
         low += r.low;
+        acts += r.acts;
         n++;
       }
     }
-    return { held: (held / n) * 100, low: low / n };
+    return {
+      held: (held / n) * 100,
+      low: low / n,
+      byStage: stageHeld.map((h, st) => (stageN[st] ? (h / stageN[st]!) * 100 : NaN)),
+      acts: acts / n,
+      won,
+      lost,
+    };
   };
+  /**
+   * The battles changed each way, starred when the net is more than a coin
+   * would give: a policy that changes W + L verdicts at random nets zero with
+   * a spread of sqrt(W + L), so a net beyond twice that is a direction.
+   */
+  const flips = (got: { won: number; lost: number }) =>
+    pad(`+${got.won} -${got.lost}${Math.abs(got.won - got.lost) > 2 * Math.sqrt(got.won + got.lost) ? ' *' : '  '}`, 11);
 
   const bare = score(null);
+  const perStage = STAGES.map((_, st) => CELLS.filter((c) => stageOf(c) === st).length);
+  const signed = (d: number) => (Number.isNaN(d) ? '—' : d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0));
   const lines = [
-    `VERBS — one rule at a time, MID (CC2) levels 3-4, ${seeds} seeds x ${CELLS.length} cells`,
-    'VERB                   | HELD | vs NONE |   LOW | vs NONE',
-    '-----------------------+------+---------+-------+--------',
+    `VERBS — one rule at a time, on the contested band: ${CELLS.length} cells ` +
+      `(EARLY ${perStage[0]}, MID ${perStage[1]}, LATE ${perStage[2]}) held 5-95% bare, ${seeds} seeds each`,
+    'VERB                   | HELD | vs NONE |   LOW | vs NONE | EARLY |   MID |  LATE |       FLIPS',
+    '-----------------------+------+---------+-------+---------+-------+-------+-------+------------',
     `${pad('(nothing)', 22)} | ${pad(`${bare.held.toFixed(0)}%`, 4)} |       — | ` +
-      `${bare.low.toFixed(3)} |       —`,
+      `${bare.low.toFixed(3)} |       — | ${bare.byStage.map((h) => pad(Number.isNaN(h) ? '—' : `${h.toFixed(0)}%`, 5)).join(' | ')} |           —`,
   ];
   for (const verb of VERBS) {
     const policy = {
@@ -1030,14 +1093,15 @@ function verbTable(seeds = 20): string {
     lines.push(
       `${pad(verb.label, 22)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
         `${pad(dHeld >= 0 ? `+${dHeld.toFixed(0)}` : dHeld.toFixed(0), 7)} | ` +
-        `${got.low.toFixed(3)} | ${pad(dLow >= 0 ? `+${dLow.toFixed(3)}` : dLow.toFixed(3), 7)}`,
+        `${got.low.toFixed(3)} | ${pad(dLow >= 0 ? `+${dLow.toFixed(3)}` : dLow.toFixed(3), 7)} | ` +
+        got.byStage.map((h, st) => pad(signed(h - bare.byStage[st]!), 5)).join(' | ') +
+        ` | ${flips(got)}`,
     );
   }
   lines.push('');
   lines.push(
-    'One matchup is 1/' +
-      `${CELLS.length * seeds} of a cell here, so treat anything inside ${(100 / (CELLS.length * seeds)).toFixed(0)}% of NONE as noise ` +
-      'and read LOW, which is continuous, when the verdict has not moved.',
+    'FLIPS: the battles the rule changed, each way, on the same seeds. * marks a net beyond twice ' +
+      'the square root of the gross — what changing that many verdicts at random would not give.',
   );
 
   // ---- and what the SHIPPED presets do with those verbs ------------------------
@@ -1046,7 +1110,8 @@ function verbTable(seeds = 20): string {
   // `maxActions`, so a cheap rule at the top with a short cooldown can eat the
   // whole budget before an expensive rule further down ever gets a turn. The
   // two repairs below change ONE thing each, to say whether that is what is
-  // happening rather than to fix anything yet.
+  // happening rather than to fix anything: TRIPWIRE's is still not shipped,
+  // because it would make one doctrine the answer on two stages of three.
   const gunAtApproach = {
     cpAtLeast: 45,
     action: 'deploy',
@@ -1073,31 +1138,23 @@ function verbTable(seeds = 20): string {
         rules: [gunAtApproach, ...STANDING_ORDERS.counterbattery.rules],
       } as unknown as StandingOrders,
     ],
+    // HOLDFAST as it was before Phase 3c moved its second gun to the breach,
+    // fought on today's chain: the rule that repair exists to take out.
+    ['HOLDFAST, gun at the post', standingOrdersFor('holdfast', CHAIN_ENGAGE)!],
   ];
   lines.push('');
-  lines.push(`PRESETS — the same cells, the shipped three and two one-line repairs`);
-  lines.push('PRESET                       | HELD | vs NONE |   LOW | ACTS');
-  lines.push('-----------------------------+------+---------+-------+-----');
+  lines.push(`PRESETS — the same cells: the shipped three, two one-line repairs, and HOLDFAST before 3c`);
+  lines.push('PRESET                       | HELD | vs NONE |   LOW | ACTS | EARLY |   MID |  LATE |       FLIPS');
+  lines.push('-----------------------------+------+---------+-------+------+-------+-------+-------+------------');
   for (const [label, policy] of PRESETS) {
-    let held = 0;
-    let low = 0;
-    let acts = 0;
-    let n = 0;
-    for (const [faction, level] of CELLS) {
-      for (let i = 0; i < seeds; i++) {
-        const r = siegeTrace(faction, mid, level, seedOf(level, mid.ccLevel, i), policy);
-        if (r.held) held++;
-        low += r.low;
-        acts += r.acts;
-        n++;
-      }
-    }
-    const pct = (held / n) * 100;
-    const d = pct - bare.held;
+    const got = score(policy);
+    const d = got.held - bare.held;
     lines.push(
-      `${pad(label, 28)} | ${pad(`${pct.toFixed(0)}%`, 4)} | ` +
-        `${pad(d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0), 7)} | ${(low / n).toFixed(3)} | ` +
-        `${pad((acts / n).toFixed(1), 4)}`,
+      `${pad(label, 28)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
+        `${pad(d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0), 7)} | ${got.low.toFixed(3)} | ` +
+        `${pad(got.acts.toFixed(1), 4)} | ` +
+        got.byStage.map((h, st) => pad(signed(h - bare.byStage[st]!), 5)).join(' | ') +
+        ` | ${flips(got)}`,
     );
   }
   return lines.join('\n');
@@ -1819,9 +1876,19 @@ function nativeCheck(): void {
     }
   }
 
-  // The v4 pass is today's game, so it has to BE the snapshot.
+  // The v4 pass is today's game, so it has to BE the snapshot. Version 5 is
+  // version 4 with standing orders and fire plans that aim, and a bare battle
+  // has neither, so it is today's game for a bare battle as long as that is
+  // ALL that separates them.
   const published = publishedDefense();
-  const current = CHAIN_CURRENT === CHAIN_ENGAGE ? 'v4' : null;
+  const bareModel = (version: number) => ({
+    ...chainModelFor(version),
+    version: 0,
+    label: '',
+    aimToScale: false,
+    leadFire: false,
+  });
+  const current = isDeepStrictEqual(bareModel(CHAIN_CURRENT), bareModel(CHAIN_ENGAGE)) ? 'v4' : null;
   if (current) {
     const cells = rows.flatMap((row) => row[current]);
     const agree = cells.filter((c, i) => published[Math.floor(i / 12)]?.[i % 12] === c).length;

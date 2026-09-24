@@ -37,6 +37,13 @@ export const TICKS_PER_SECOND = 20;
 export const DT = 1 / TICKS_PER_SECOND;
 /** How close a flyer gets to its target's edge before working it over. */
 const AIR_STANDOFF = 0.6;
+/**
+ * How far the unattended commander's aim reaches: the radius a cluster is
+ * counted within, and how far out from the post a `ccApproach` deploy goes.
+ * Cells of whatever board through chain version 4, physical units from 5
+ * (`ChainModel.aimToScale`).
+ */
+const AIM_REACH = 3;
 
 /**
  * Cells the terrain generator must leave dry.
@@ -192,6 +199,8 @@ export class Engine {
   readonly catalog: Catalog;
   /** `AIR_STANDOFF` in cells of this board (M34). */
   private readonly airStandoff: number;
+  /** `AIM_REACH` as this battle's chain reads it (M23 Phase 3c). */
+  private readonly aimReach: number;
   readonly grid: Grid;
   readonly attackers: Attacker[] = [];
   readonly structures: Structure[] = [];
@@ -353,6 +362,7 @@ export class Engine {
     this.rng = createRng(config.seed);
     this.combat = combatModelFor(config.combatVersion);
     this.chain = scaleChain(chainModelFor(config.killChainVersion), cellSize);
+    this.aimReach = this.chain.aimToScale ? AIM_REACH / cellSize : AIM_REACH;
     this.combatRng = createRng((config.combatSeed ?? config.seed ^ 0x9e3779b9) >>> 0);
     // Terrain draws from its OWN stream. Sharing `this.rng` would shift every
     // later roll and re-fight every archived battle on different ground.
@@ -861,7 +871,7 @@ export class Engine {
         if (other.hp <= 0 || !this.isDefenseStructure(other)) continue;
         const dx = other.center.x - s.center.x;
         const dy = other.center.y - s.center.y;
-        if (dx * dx + dy * dy <= 9) count++; // within 3 cells, itself included
+        if (dx * dx + dy * dy <= this.aimReach * this.aimReach) count++; // itself included
       }
       if (count > bestCount || (count === bestCount && s.id < best!.id)) {
         bestCount = count;
@@ -888,23 +898,63 @@ export class Engine {
 
   /** The attacker with the most nearby attackers — where the fight is. */
   private densestAttackerCluster(): Vec2 | null {
+    const best = this.densestAttacker(false);
+    return best ? { ...best.pos } : null;
+  }
+
+  /**
+   * The attacker at the heart of the densest knot. `groundOnly` leaves the
+   * aircraft out of it, both as the knot and as its neighbours: what a gun run
+   * or a barrage is aimed at, since both pass beneath anything flying.
+   */
+  private densestAttacker(groundOnly: boolean): Attacker | null {
     let best: Attacker | null = null;
     let bestCount = -1;
     for (const attacker of this.attackers) {
-      if (attacker.hp <= 0) continue;
+      if (attacker.hp <= 0 || (groundOnly && attacker.profile.air)) continue;
       let count = 0;
       for (const other of this.attackers) {
-        if (other.hp <= 0) continue;
+        if (other.hp <= 0 || (groundOnly && other.profile.air)) continue;
         const dx = other.pos.x - attacker.pos.x;
         const dy = other.pos.y - attacker.pos.y;
-        if (dx * dx + dy * dy <= 9) count++; // within 3 cells, itself included
+        if (dx * dx + dy * dy <= this.aimReach * this.aimReach) count++; // itself included
       }
       if (count > bestCount || (count === bestCount && attacker.id < best!.id)) {
         bestCount = count;
         best = attacker;
       }
     }
-    return best ? { ...best.pos } : null;
+    return best;
+  }
+
+  /**
+   * Where a fire mission on the densest knot is laid (`ChainModel.leadFire`):
+   * ahead of the knot's lead attacker, by as far as it will walk before the
+   * middle of the strike arrives.
+   */
+  private fireMissionAim(kind: string): Vec2 | null {
+    const lead = this.densestAttacker(true);
+    if (!lead) return null;
+    const def = this.catalog.powers[kind];
+    if (!def) return { ...lead.pos };
+    const ticks =
+      def.type === 'strafe'
+        ? def.delayTicks + ((def.pulses - 1) * def.pulseSpacingTicks) / 2
+        : def.delayTicks + ((def.shells - 1) * def.shellSpacingTicks) / 2;
+    return this.leadAim(lead, ticks / TICKS_PER_SECOND);
+  }
+
+  /**
+   * Where a moving attacker will be `seconds` from now, on its current heading.
+   * A little short of the full distance, because a route turns and the ground
+   * slows it: the rule a mortar has led with since it was written.
+   */
+  private leadAim(target: Attacker, seconds: number): Vec2 {
+    const lead = seconds * 0.85 * target.speed;
+    return {
+      x: target.pos.x + target.lastDir.x * lead,
+      y: target.pos.y + target.lastDir.y * lead,
+    };
   }
 
   /** Deterministic search ring: anchor first, then outward, fixed order. */
@@ -920,7 +970,7 @@ export class Engine {
     } else if (target === 'densest') {
       anchor = this.densestAttackerCluster();
     } else {
-      // ccApproach: between the post and the fight, three cells out.
+      // ccApproach: between the post and the fight, `AIM_REACH` out.
       const threat = this.densestAttackerCluster();
       if (threat) {
         const dx = threat.x - this.cc.center.x;
@@ -928,7 +978,10 @@ export class Engine {
         const len = Math.sqrt(dx * dx + dy * dy);
         anchor =
           len > 0.001
-            ? { x: this.cc.center.x + (dx / len) * 3, y: this.cc.center.y + (dy / len) * 3 }
+            ? {
+                x: this.cc.center.x + (dx / len) * this.aimReach,
+                y: this.cc.center.y + (dy / len) * this.aimReach,
+              }
             : null;
       }
     }
@@ -1000,7 +1053,9 @@ export class Engine {
             ? { ...this.cc.center }
             : rule.target === 'breach' && this.lastBreachCell !== null
               ? this.grid.centerOf(this.lastBreachCell)
-              : this.densestAttackerCluster();
+              : this.chain.leadFire
+                ? this.fireMissionAim(rule.kind)
+                : this.densestAttackerCluster();
         if (target) acted = this.castPowerAt(rule.kind, target, events);
       } else {
         const cell = this.orderDeployCell(rule.target, rule.kind);
@@ -1236,11 +1291,7 @@ export class Engine {
 
       if (weapon.flightSeconds !== undefined) {
         // Lobbed shell: lead the target by its current velocity.
-        const lead = weapon.flightSeconds * 0.85 * target.speed;
-        const aim: Vec2 = {
-          x: target.pos.x + target.lastDir.x * lead,
-          y: target.pos.y + target.lastDir.y * lead,
-        };
+        const aim = this.leadAim(target, weapon.flightSeconds);
         this.projectiles.push({
           id: this.nextId++,
           from: { ...structure.center },
