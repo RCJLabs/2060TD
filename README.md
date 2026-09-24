@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.50.0, in the browser. No install, no account, works on a phone.
+v1.51.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,28 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.50: the town runs on hours
+## Current state — v1.51: where it stands decides what it makes
+
+**Your town now has a power grid.** The Command Center powers the ground within two cells
+of it. The new **Generator** (unlocked with Command Center 2) powers the cells around
+itself, one, two or three cells out as you upgrade it. Supply depots, fuel depots and the
+signals station make half as much without power; nothing else needs it.
+
+**Neighbours matter.** A depot makes 25% more for each storage bunker beside it (up to
+two). The signals station makes 50% more beside a generator. A barracks trains 25%
+cheaper beside a supply depot, and a motor pool or airfield beside a fuel depot. Anything
+wrecked beside the engineering bay repairs for half.
+
+**The board tells you before you build.** While you aim a building, the line along the
+bottom of the board says what it would do on that cell, and depots and generators show
+the edge of the powered ground. Each building's card and inspector list its rule.
+
+Laid out well, a Command Center 3 town makes about 30% more supplies than the same
+buildings crammed around the post, and its buildings cost less than half as much to
+repair after a siege. Nothing here changes how a battle is fought: the rules only change
+what your buildings produce and cost.
+
+## v1.50: the town runs on hours
 
 **Depots make a twentieth of what they did, so the town takes days to build instead of
 hours.** Production now reads per hour: a level 1 supply depot makes 120 an hour, where it

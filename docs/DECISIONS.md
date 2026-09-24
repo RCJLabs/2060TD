@@ -1145,3 +1145,23 @@ here with the change and its date.
   the next siege for almost nothing. So a destroyed structure stays the unit of
   lasting damage, and what changed is that it is legible: a battle's banner
   prices what it broke, and the base tab repairs every wreck at once.
+- 2026-09-24 — **Where a building stands decides what it makes (v1.51).** Two
+  rules, both about the cells a building shares. Power: the Command Center
+  powers everything within two cells of it and a Generator everything within
+  its reach (one, two or three cells by level), and a depot or the Signals
+  Station makes half without power. Adjacency: a depot makes a quarter more
+  for each Storage Bunker beside it (up to two), the Signals Station half as
+  much again beside a Generator, a facility trains a quarter cheaper beside
+  its depot, and a wreck beside the Engineering Bay repairs for half. Every
+  rule is one line on the building's card and shows on the ghost while it is
+  aimed. None of it reaches a battle: the rules read the town, never a config,
+  so no replay or balance table moved. No rule switches anything off, so an
+  existing town loses at most half from producers standing out of reach, and a
+  Generator or a free move puts that back. Measured, the best yard behind the
+  lines makes 30% more supplies at CC3 than the same buildings nearest the
+  post, fits at every stage, and never holds less than the defence alone.
+- 2026-09-24 — **The share code's kind table is written out.** It was the build
+  menu (`['cc', 'wall', ...BUILDABLE_KINDS]`), so a building added anywhere
+  but the end of the menu would have renumbered every code already shared. The
+  Generator goes in the middle of the menu and at the end of the table, and a
+  test now fails if a buildable kind is missing from it.

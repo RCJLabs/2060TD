@@ -579,7 +579,7 @@ wreck at once. Offline probes never wreck anything; they bill the stockpile inst
 
 Command Center (HQ; its level gates everything), Supply Depot, Storage Bunker, Fuel Depot,
 Barracks, Motor Pool, Research Lab, Engineering Bay (build/repair speed), Radar Station
-(Intel + scouting, M6), Airfield (v1.0 — trains the faction's aircraft and raises the manpower cap), Walls & Gates (a gate is a wall the commander can open and close mid-siege for CP; see 5.2a — the older line about letting defenders through described a game where friendly units walk, and none do here), Emplacement foundations.
+(Intel + scouting, M6), Airfield (v1.0 — trains the faction's aircraft and raises the manpower cap), Generator (v1.51 — powers the cells around it; see 5.2d), Walls & Gates (a gate is a wall the commander can open and close mid-siege for CP; see 5.2a — the older line about letting defenders through described a game where friendly units walk, and none do here), Emplacement foundations.
 
 ### 5.2a Gates *(v1.17)*
 
@@ -681,6 +681,35 @@ structures, so a garrison barrage would shell its own base.
 
 A raid HUD shows the watch counting down — orders committed, and how many seconds of
 dawdling buys the next one — because a cost the player cannot see teaches nobody anything.
+
+### 5.2d The yard *(v1.51)*
+
+Where a building stands decides what it makes, not only which way the attack walks round
+it. Two rules, both about the cells a building shares, and every building is one cell on
+the 10x15 board.
+
+- **Power.** The Command Center powers every cell within two of it, diagonals included,
+  and a Generator every cell within its reach: one, two or three by level. The producers,
+  the depots and the Signals Station, make half as much without power. Nothing else needs
+  it. The Generator comes with the CC2 requisition, one at CC2 and two at CC3. In a battle
+  it is an obstacle and a target like any building, so wrecking one darkens its reach until
+  it is repaired.
+- **Adjacency.** A building's neighbours are the four cells that share an edge with it.
+  A depot makes a quarter more for each Storage Bunker beside it, up to two. The Signals
+  Station makes half as much again beside a Generator. A Barracks trains a quarter cheaper
+  beside a Supply Depot, and a Motor Pool or Airfield beside a Fuel Depot. A wreck beside
+  the Engineering Bay repairs for half.
+
+Each rule is one line on the building's card. While a building is aimed, the line along
+the foot of the board says what it would do on that cell, and a producer or a Generator
+shows the edge of the powered ground.
+
+None of it reaches a battle. The rules read the town and never a config, so no replay
+and no balance table moved. Measured (M24 Phase 3), the best yard behind the lines makes
+about a third more than the same buildings nearest the post and never holds less than
+the defence alone. Where the economy stands turned out to matter to the defence more than
+either rule. Nearest the post it can break a CC1 or CC2 defence and wall a CC3 post in,
+and the defence tables do not see it: they measure the permanent layer alone.
 
 ### 5.3 The maze rule (core mechanic)
 

@@ -3625,8 +3625,139 @@ costs a week of throughput.
       buy with.
 
       The gate: 24 of 24, clean, on the first batch.
-- [ ] **Phase 3 — adjacency and power.** Alone, these turn layout into two
+- [x] **Phase 3 — adjacency and power (v1.51.0).** Alone, these turn layout into two
       overlapping optimisation problems: the maze and the grid.
+
+      **The plan, before the build.** Today a building does the same job wherever
+      it stands, so layout is only a maze question. Two rules make it an economic
+      one as well, and both work on the same cells the maze needs.
+
+      *What the board has room for.* All buildings are one cell on the 10x15
+      board. Behind the reference defences, and not counting the one cell the
+      attack needs to reach the post, EARLY leaves plenty of room for CC1's five
+      economy buildings. MID leaves about 25 cells for CC2's twelve. LATE leaves 22
+      for CC3's sixteen. The allowance fits comfortably at CC1, easily at CC2 and
+      only just at CC3, so the puzzle gets harder as the town grows. A player who
+      lays more of the 60-segment wire allowance than LATE's 20 has less room
+      behind it and pushes buildings forward into the maze.
+
+      *Power.* A cell is powered if it is within 2 of the Command Center (5x5
+      around the post), or within a working Generator's reach: 1 at level 1, 2 at
+      level 2, 3 at level 3. Producers (the depots and the Signals Station) make
+      half as much without power. Nothing else needs it: bunkers, facilities,
+      the Engineering Bay, guns and walls work anywhere. The Generator is new: one
+      cell, 0/1/2 allowed at CC1/CC2/CC3, 250 S + 60 F to build, and 600+150 and
+      1,300+350 to upgrade. In a siege it is an obstacle and a target like any
+      other building, so wrecking it darkens its whole reach until it is
+      repaired. At CC1 the post alone powers everything the stage allows. Behind
+      LATE the post reaches 10 usable cells, so two generators are what power
+      the rest.
+
+      *Adjacency.* Neighbours are the four cells sharing an edge. Each rule is one
+      line on the building's card, and the ghost shows its effect while you aim:
+      - A Supply or Fuel Depot makes 25% more for each Storage Bunker beside it, up
+        to two.
+      - The Signals Station makes 50% more intel beside a Generator.
+      - A Barracks trains infantry for 25% less beside a Supply Depot.
+      - A Motor Pool or Airfield trains for 25% less beside a Fuel Depot. This is
+        the milestone's own example, made a price rather than a time, because
+        training takes seconds and time is not what is scarce.
+      - A wreck beside the Engineering Bay repairs for half.
+
+      *What it leaves alone.* The battle. Nothing here changes a config, so no
+      replay, harness row or balance table moves; the buildings were already
+      obstacles and targets. And no rule switches anything off: the worst an
+      existing town sees is half production from producers standing out of
+      reach, which a generator or a free move fixes.
+
+      *The instrument.* THE YARD in `--economy`. At each stage the reference
+      defence stands, and the stage's economy allowance is laid behind it three
+      ways: naively (nearest the post, the fortnight commander's rule), by a
+      local search for the best yard, and at random, many times, every draw
+      legal and leaving a way in. It reports output as a share of the unboosted
+      rate, generators used, and cells left for the maze. The played fortnight is
+      re-run with the naive yard and the best one. The best yard is also fought
+      through the reference band, for what its buildings do to the maze and what
+      it loses to wrecks on a hold.
+
+      *The bar.* The best yard makes clearly more than the naive one at CC3 (a
+      quarter more supplies or better), so layout is worth thinking about. It
+      fits behind every reference defence without closing the way in, or the
+      rules ask for more room than the board has. And it costs the defence
+      nothing it measurably holds.
+
+      *What it does not do.* A good yard finishes the town sooner and makes more
+      after it, so the surplus Phase 2 handed on gets bigger, not smaller. The
+      rules are about where things go, not about what the surplus is spent on.
+      Phase 4 has to be the sink.
+
+      **The record.** The yard does what the plan asked of it. The instrument also
+      found something about the maze that matters more than the yard does.
+
+      *Where things stand is worth about a third.* THE YARD, USA, on flat ground,
+      each stage's whole economy laid out on its reference defence (output as a
+      share of the rate before the yard, supplies/fuel/intel):
+
+      | stage | cells behind the lines | pieces | nearest the post | random, median | best behind the lines | best anywhere |
+      |---|---|---|---|---|---|---|
+      | CC1 | 36 | 5 | 125 / 100 / — | 50% | 125 / 125 / — | 125 / 125 / — |
+      | CC2 | 25 | 13 | 117 / 100 / 100 | 59% | 133 / 138 / 152 | 125 / 138 / 152 |
+      | CC3 | 23 | 18 | 106 / 109 / 52 | 75% | 138 / 125 / 152 | 125 / 142 / 152 |
+
+      At CC3 the best yard behind the lines makes 30% more supplies than the
+      same buildings nearest the post, 15% more fuel, and three times the
+      intel; nearest the post leaves the Signals Station out of reach. A random
+      yard makes half to three quarters of the rate, because most of the board
+      is unpowered. The search found as much behind the lines as anywhere, so
+      the rules do not pay a player to leave the lines. Every stage's allowance
+      fits behind its defence with a way in left open, at CC3 18 buildings in 23
+      cells, and three of the four facilities stand beside their depot. The
+      five factions come out the same, because the rules and the rates are
+      shared.
+
+      *The fortnight by placement.* A commander who puts each purchase on the
+      cell that makes the most buys the whole town in 2.5 days at two-hourly
+      sessions, against 3.0 for one who puts it nearest the post, and makes 23%
+      more supplies over the fortnight (616,000 against 500,000). At one session
+      a day it is 9 days against 10. Nearest the post is 3.0 days where v1.50 was
+      2.7, because the generators add a tenth to the town's price.
+
+      *The maze, and a blind spot.* Each best yard was fought through its
+      defence's band with nobody acting, beside the defence alone and the
+      economy nearest the post. The table gives held %, with the yard's own
+      wrecks on a hold, in supplies:
+
+      | USA | alone | nearest the post | best behind the lines | best anywhere |
+      |---|---|---|---|---|
+      | MID, level 8 | 67% | 42% (2,805) | 100% (1,470) | 83% (2,955) |
+      | LATE, level 15 | 25% | 100% (7,960) | 92% (3,225) | 50% (7,740) |
+      | LATE, level 19 | 8% | 100% (8,220) | 83% (3,225) | 0% |
+      | LATE, level 20 | 0% | 100% (8,220) | 67% (3,225) | 8% (7,740) |
+
+      For the three factions fought (USA, Russia, the UN), the best yard behind
+      the lines never holds less than the defence alone at any level, usually
+      holds more, and runs a third to a half of the repair bill of the economy
+      nearest the post. The yard anywhere is worse on both counts. It pushes
+      buildings forward into the maze, where they are wrecked on every hold
+      and change which way the attack goes.
+
+      The bigger number is the second column. Where the economy stands decides
+      what the defence holds more than any rule in this phase does. Nearest the
+      post it is erratic. At CC1 and CC2 it can break a defence that holds:
+      Russia's MID goes from 92% to 0% at level 7, and the UN's from 100% to 17%
+      at level 6. At CC3 it walls the post in and holds to the top of the band
+      for all three factions, where the defence alone breaks, at 5,500-13,400
+      supplies of wrecks a hold. Every contested band in `docs/BALANCE.md` is the
+      permanent layer alone. A real town is not that, and nothing had measured
+      how far apart the two are. That is the next balance question, not this
+      phase's: the yard makes it no worse, and a good yard makes it steadier.
+
+      **What it hands on.** Two things. The surplus Phase 2 handed on is bigger
+      now, by about a fifth for a commander who lays out well, and Phase 4 is
+      still the sink. And the reference defences need an economy on the board
+      before the defence tables describe a town anyone plays.
+
+      The gate: 24 of 24, clean, on the first batch.
 - [ ] **Phase 4 — chains and districts.** The tech tree becomes a graph rather
       than three ladders.
 
@@ -4850,6 +4981,14 @@ the town takes three days, and a siege pays hours. The damage that lasts turned
 out to be the wreck, which already existed; it is now priced where the player can
 see it. What is left is a surplus after day three that only the war spends, and
 filling it is Phase 3's job: adjacency and power.*
+
+*M24 Phase 3 (v1.51.0) made layout an economic decision: power from the post and
+from generators, and neighbours that feed each other. A good yard makes a third
+more and defends no worse. It also showed that where a town's economy stands moves
+what its defence holds by more than any rule does, and the defence tables measure
+the permanent layer alone. Phase 4 (chains and districts) is still the sink for the
+surplus, and a defence table with an economy on the board is the balance question
+it hands on.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain
