@@ -5,7 +5,8 @@ Front Line: American Theater — are kept here only as a record of what was cons
 Note the tension worth resolving one day: the campaign is set in **2027**, not 2060.*
 
 **Genre:** Hybrid tower defense / base builder with idle systems
-**Platform:** Web (desktop-first, mobile-friendly), TypeScript + Phaser 3
+**Platform:** Web (desktop-first, mobile-friendly), TypeScript, the DOM and a Canvas2D stage of
+its own (Phaser 3 until v1.49)
 **Mode:** Single-player vs AI (PvP-lite via share-codes planned post-1.0)
 **Tone:** Gritty, grounded modern warfare — alternate history
 **Status:** Design v1 (M0). All numbers provisional until the balance harness exists (M5).
@@ -1228,9 +1229,10 @@ Neither costs a request. Two weights of the latin subset are base64 data URIs in
 still fetches nothing. Barlow is SIL OFL 1.1; the licence travels in `LICENSES.md`.
 
 Loading is not automatic and the failure is silent. Canvas text does not trigger font
-loading, and Phaser measures a string the moment a `Text` is constructed — so a game that
-starts before the face is ready measures the FALLBACK, caches those metrics, and lays every
-row, wrap and tap target out for a font it is not drawing. `main.ts` waits on
+loading, and the board's `Text` measures a face the first time it sets a string and keeps
+those metrics — so a game that starts before the face is ready measures the FALLBACK and
+places the board's lettering for a font it is not drawing. Until M30 moved the UI into the
+DOM, that was every row, wrap and tap target too. `main.ts` waits on
 `document.fonts.load` for both weights before it constructs the game, raced against a
 timeout so a font that fails to decode costs the look and not the game.
 
@@ -1295,11 +1297,12 @@ Casualty reports use numbers, not adjectives. The war is never cool; the craft i
 ## 7. Technical design
 
 ```
-src/sim/       Pure TypeScript, zero Phaser imports. Fixed-tick (20 tps) deterministic
+src/sim/       Pure TypeScript, zero rendering imports. Fixed-tick (20 tps) deterministic
                engine: seeded PRNG, grid, weighted A*, combat, command queue.
                Replay = initial state + seed + timestamped commands.
-src/game/      Phaser 3 rendering & input: scenes (Town, Siege, RaidPlanner, Replay),
-               HUD, interpolated rendering on top of sim ticks.
+src/game/      Rendering & input: scenes (Town, Siege, RaidPlanner, Replay), the board
+               drawn by a Canvas2D stage of the game's own (Phaser 3 until v1.49), the
+               UI in the DOM over it, interpolated rendering on top of sim ticks.
 src/content/   Data-driven definitions: units, emplacements, buildings, waves, missions.
                Factions are data, not code.
 src/meta/      Saves (versioned JSON, three localStorage war slots + export/import

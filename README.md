@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.48.0, in the browser. No install, no account, works on a phone.
+v1.49.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,27 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.48: the old drawing is gone
+## Current state — v1.49: a third of the download
+
+**The game is a third of the size it was, and starts three times as fast.** It
+was built on Phaser, a general-purpose game engine. Since v1.46 moved the menus
+into the page, the engine drew one thing, the map, and for that it was three
+quarters of the download. v1.49 draws the map with 1,651 lines of the game's
+own instead.
+
+| | v1.48 | v1.49 |
+|---|---|---|
+| download, compressed | 502 kB | 178 kB |
+| start, on a phone-speed processor | 1.65 s | 0.53 s |
+
+The start is measured in a browser with the processor slowed four times, before
+any time on the network, and the network has a third as much to carry.
+
+The map looks the same. The one change you may notice is the lettering on it:
+the shouts, KRUMP and BLAM and the rest, and the raid planner's sector labels
+are drawn sharp at every zoom, where they used to be a small picture scaled up.
+
+## v1.48: the old drawing is gone
 
 **The game no longer carries its first UI.** Until v1.46 every menu, panel and
 button was painted onto the same canvas as the map. v1.46 made them ordinary page
@@ -1911,7 +1931,7 @@ FULLSCREEN lives in the `SYS` tab. Tap an armed tool's row again to cancel it
 
 ```
 docs/            Game design document, roadmap, locked decisions, balance snapshot
-src/sim/         Pure-TS deterministic simulation (no Phaser imports):
+src/sim/         Pure-TS deterministic simulation (no rendering imports):
                  fixed-tick engine, siege phase machine, weighted multi-goal A*,
                  combat resolution, structure levels, seeded PRNG, state hashing
 src/content/     Data, not code: damage table, both factions' defenses, armies,
@@ -1923,9 +1943,10 @@ src/meta/        The persistent layer: town state (timers, accrual, gating,
                  (standing, decay, seasons, the standing line), the service
                  record, the replay vault, share and replay codes (over one
                  shared codec), the day's orders, versioned saves
-src/game/        Phaser 3 presentation: responsive layout + board camera rig,
-                 shared glyphs + BattleRenderer, Town/Siege/Briefing/Raid/
-                 Replay scenes, touch UI kit, overlays, palette
+src/game/        Presentation: the stage (the Canvas2D runtime that draws the
+                 board), responsive layout + board camera rig, shared glyphs +
+                 BattleRenderer, Town/Siege/Briefing/Raid/Replay scenes, the
+                 DOM UI kit (panel, overlays, buttons), palette
 src/tools/       The headless balance harness (npm run balance)
 tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
                  assault ladder, doctrines, warfare, factions, leagues,
@@ -1934,10 +1955,12 @@ tests/           Vitest suites: pathfinding, engine, siege flow, town meta,
 scripts/         Playwright harnesses that drive the real build by button
                  label: first-run flow, menu, touch gestures, raids, share
                  codes, the league board and the condition rotation, the
-                 coach, the boot card, and the squad roster
+                 coach, the boot card, and the squad roster; perf.mjs
+                 measures a build's download, boot and frame cost
 ```
 
-**Architecture rule:** `src/sim` never imports Phaser. Same seed + same commands ⇒
+**Architecture rule:** `src/sim` never imports the stage, the DOM or anything else that
+draws. Same seed + same commands ⇒
 identical outcome (hash-tested), which is what makes replays, offline raid resolution,
 and the balance harness possible.
 

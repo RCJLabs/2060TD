@@ -1,7 +1,7 @@
 {
   "name": "2060td",
   "private": true,
-  "version": "1.48.0",
+  "version": "1.49.0",
   "description": "2060TD — hybrid tower defense / base builder set in a modern alternate-history war",
   "type": "module",
   "scripts": {
@@ -20,7 +20,8 @@
     "catch": "node scripts/catch.mjs",
     "icons": "node scripts/icons.mjs",
     "fit": "node scripts/fit.mjs",
-    "e2e": "node scripts/e2e-all.mjs"
+    "e2e": "node scripts/e2e-all.mjs",
+    "perf": "node scripts/perf.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

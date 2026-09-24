@@ -6,7 +6,7 @@ here with the change and its date.
 
 | # | Decision | Choice |
 |---|----------|--------|
-| 1 | Tech stack | TypeScript + Phaser 3 (Vite, web-first) |
+| 1 | Tech stack | TypeScript + Vite, web-first; Phaser 3 until v1.49, then a stage of its own |
 | 2 | Multiplayer | Single-player vs AI; PvP-lite (share-codes) later |
 | 3 | First factions | USA + China; Russia, North Korea, UN follow |
 | 4 | Art style | Flat vector top-down, tactical-map aesthetic |
@@ -21,7 +21,10 @@ here with the change and its date.
 
 1. **TypeScript + Phaser 3.** Battle-tested 2D web framework: instant iteration, runs anywhere,
    trivially shareable builds, and testable headlessly in CI. A full engine (Godot/Unity) buys
-   nothing this 2D grid game needs and slows the loop.
+   nothing this 2D grid game needs and slows the loop. *Changed 2026-09-24 (v1.49): once the
+   UI was DOM, Phaser drew one board, and a Canvas2D stage of the game's own replaced it. The
+   reasons above still hold, and are why the replacement is smaller rather than bigger. See
+   the change log.*
 
 2. **Single-player vs AI.** Servers, accounts, and matchmaking would double early scope before
    the game is fun. AI bases (templates + procedural mutation) deliver the raid fantasy alone.
@@ -1071,3 +1074,28 @@ here with the change and its date.
   interfaces stayed too. `OverlayApi` and `PanelApi` each have one
   implementation now, and they are kept as the surface a scene may use
   rather than folded into their classes.
+- 2026-09-24 — **Decision 1 changed: a stage of the game's own replaces Phaser
+  (v1.49).** With the UI in the DOM, Phaser drew one board: a camera, a
+  container, lists of shapes, one image, two styles of text, pointer and key
+  input. For that it was three quarters of the download and two thirds of a
+  phone's boot. `src/game/stage/` does that list in Canvas2D, with the names
+  and behaviour the game was written against, so the port changed imports and
+  little else. The bar was set before the first line: every harness passes,
+  the scenes look the same, a frame costs no more, and the download and the
+  boot fall by what Phaser weighed. All four hold; the numbers are in the
+  roadmap. What decision 1 was for still stands (fast iteration, the browser,
+  headless tests) and is why the replacement is smaller rather than bigger.
+  The DOM layer's press-stopping went with Phaser: the stage hears presses on
+  the canvas alone, so the two UIs no longer hear one finger.
+- 2026-09-24 — **Compare renderers that draw the same way.** Phaser picks
+  WebGL, and this container has no GPU, so its WebGL ran on a software
+  emulation of one: 34 frames a second in a siege, where its own Canvas
+  renderer held 60. Against that the stage looked far cheaper than it was.
+  Against the Canvas renderer it came out behind, 534 ms of main thread a
+  second to 292, because it drew the ground smoothed where that renderer did
+  not. The stage now keeps the ground resampled to the scale it is shown at,
+  as the bar said it would if the frame failed: level with the Canvas renderer
+  at full speed, ahead of it on a slow CPU, and with the smoothing kept. The
+  instrument was wrong too: Chrome's counters left out a canvas's paint, which
+  is most of this game's frame. `npm run perf` reads a trace now, and takes
+  `--no-webgl` to hold an old build to its Canvas renderer.

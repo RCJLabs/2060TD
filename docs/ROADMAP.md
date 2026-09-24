@@ -3446,6 +3446,11 @@ planning half feel like skill, because it teaches.
 
 ## M30 — "Render": stop paying 1.48 MB for a Graphics list
 
+**Done (v1.49.0), and it took both exits, one after the other.** The UI went
+to the DOM (Phases 1 and 2), and once the board was all Phaser drew, a stage
+of the game's own replaced it (Phase 3). The download went from 502 kB
+gzipped to 178, and a phone-speed boot from 1.65 s to 0.53.
+
 Phaser is 81% of the download and this game uses none of its texture, physics or
 scene-graph strengths — every frame re-walks and re-batches an immediate-mode
 command list, and `ui.ts` is 1,562 lines of hand-rolled hit testing because there
@@ -3664,7 +3669,10 @@ a harness. The default stays canvas until every harness passes both ways.
       final tree with the two new checks in. `e2e-all` now prints what a
       flaked attempt said, because this one left nothing to tell it from a
       rare real failure.
-- [ ] **Phase 3 — revisit Phaser** now that the board is the only thing using it.
+- [x] **Phase 3 — revisit Phaser (v1.49.0).** Phaser is gone. The board is
+      drawn by `src/game/stage/`, 1,651 lines of Canvas2D that do what the game
+      used Phaser for and nothing else, and the game has no runtime
+      dependencies at all.
 
       **Measured first, on v1.48.0.** A preview build in headless Chromium,
       phone-sized, five runs each, the median:
@@ -3696,15 +3704,110 @@ a harness. The default stays canvas until every harness passes both ways.
       If the frame bar fails, the stage caches the static layers and tries
       again; if it still fails, Phaser stays and this entry says why.
 
-      - [ ] **3a — the stage.** `Game`, `Scene`, `Graphics`, `Container`,
-            `Image`, `Text`, `Camera` and input, under `src/game/stage/`, with
-            unit tests for what can be tested without a screen: the command
-            lists, the camera's arithmetic and the lifecycle's order.
-      - [ ] **3b — the port.** Every file that imports Phaser imports the
-            stage instead. The names match where the meanings do.
-      - [ ] **3c — the gate.** All 24 harnesses; screenshots of every scene
-            before and after; the frame and boot measurements above, again.
-      - [ ] **3d — the dependency goes**, and the vendor chunk with it.
+      - [x] **3a — the stage.** `Game`, `Scene`, `Graphics`, `Container`,
+            `Image`, `Text`, `Camera`, input and an emitter, under
+            `src/game/stage/`, with 19 unit tests: the command lists, the
+            camera's arithmetic, what a container owns, where text says it
+            is, the order a scene lives in, the names keys go by, and the
+            image's resampled copy. The names and the behaviour are Phaser's
+            wherever the game leaned on them. Three places differ on purpose:
+
+            - **Presses are heard on the canvas alone**, with the pointer
+              captured, so a press on the DOM never reaches the board. Phaser
+              listened on the window and hit-tested every press wherever it
+              landed, which is why Phase 1 had the DOM layer stop presses on
+              their way up. That code is deleted.
+            - **Text is set with `fillText` every frame**, under the camera,
+              where Phaser set it on a canvas of its own and drew that as a
+              picture. The shouts were a picture scaled up, and soft;
+              they are sharp now at every zoom, and so are the raid's sector
+              labels. Lines are measured the way Phaser measured them, from
+              the ink of a sample, because a line height of 1.2 ems put the
+              sector labels five device px off.
+            - **The canvas is transparent.** It is painted edge to edge every
+              frame, so an opaque one would have been the obvious choice, but
+              on an opaque canvas Chrome sets text with subpixel antialiasing:
+              the newest shout on the page came out with its fill fattened
+              over its outline and fringed blue and orange. Found in a
+              magnified side-by-side, not by any harness.
+      - [x] **3b — the port.** 23 files changed their imports and very little
+            else. The baked ground became an `Image` of a plain canvas; the
+            demos' timer loop became an option of the game.
+      - [x] **3c — the gate.** 24 of 24, the first run on the stage and again
+            on the final tree. Side by side, the SAME battle in both builds:
+            a paused clock stepped the same way from the same load, so a
+            difference is the drawing and not the moment. Siege, town, raid
+            and a Russian siege at six moments: 1.1–1.7% of pixels differ
+            faintly, which is antialiasing along edges, and at most 0.15%
+            strongly. The strong ones are one column at the board's outer
+            frame, where WebGL and Canvas2D round an edge differently, and
+            the shouts, which are sharper.
+      - [x] **3d — the dependency goes.** `package.json` has no
+            `dependencies`, the vendor chunk is gone, the build is one chunk,
+            and `build:single` stops if a second one ever appears.
+
+      **What it bought.** `npm run perf`, a phone-sized headless Chromium,
+      each boot the median of five:
+
+      | | v1.48, Phaser | v1.49, the stage |
+      |---|---|---|
+      | download | 1,897 kB, 502 kB gzipped | 467 kB, 178 kB gzipped |
+      | boot to the first frame | 454 ms; 1,653 ms at 4x | 133 ms; 534 ms at 4x |
+      | the same, Phaser without WebGL | 303 ms; 1,138 ms at 4x | |
+
+      The second boot row is Phaser at its lightest: this container has no
+      GPU, so the shipped build's WebGL starts on a software emulation of one,
+      which a phone does not pay for. The stage boots in under half of even
+      that.
+
+      **The frame bar failed first, and the fallback written into it passed
+      it.** Measured properly — both builds painting with Canvas2D, rounds
+      taken in turn, the median — the stage came out behind: 534 ms of main
+      thread a second in a siege to Phaser's 292, and 23 frames a second to
+      37 with the CPU slowed 4x. It was the ground. The stage drew the baked
+      sheet smoothed, as Phaser's WebGL did; Phaser's Canvas renderer drew it
+      unsmoothed, which is cheap, and makes a dot screen shimmer as it pans.
+      Drawing it smoothed at a phone's fit zoom is about four milliseconds of
+      software resampling a frame here, for a picture that never changes. So the image keeps a copy resampled to the scale and
+      the fraction of a pixel it is drawn at, and draws that one to one: at
+      rest, the same pixels; while the board pans, the copy to the nearest
+      pixel, made again when the pan stops; through a pinch, the sheet
+      itself, and never a copy bigger than two canvases.
+
+      Five more rounds, on the final build:
+
+      | a frame, both on Canvas2D | Phaser | the stage |
+      |---|---|---|
+      | siege: main thread a second | 339 ms | 325 ms |
+      | siege: paint, script a frame | 3.99, 0.97 ms | 4.00, 0.83 ms |
+      | siege at 4x | 33 fps | 40 fps |
+      | town: main thread a second | 270 ms | 232 ms |
+      | town: paint, script a frame | 3.19, 0.73 ms | 2.69, 0.57 ms |
+      | town at 4x | 45 fps | 52 fps |
+
+      Level at full speed in a siege — a second session had it 312 to 292,
+      the other way, and this machine's runs vary that much — and ahead
+      everywhere else, with the ground smoothed.
+
+      **Two instruments were wrong before the bar could be read.** The first
+      frame figures compared the stage with Phaser as shipped, which here is
+      WebGL on the software GPU: 34 frames a second in a siege where its own
+      Canvas renderer holds 60, which made the stage look far better than it
+      was. And they came from Chrome's performance counters, which leave out a
+      canvas's paint: a canvas drawn from a timer is painted in a task they do
+      not count, and in this game that is most of a frame. They reported
+      1.9 ms where a trace found 8. `npm run perf` reads a trace now, takes
+      `--no-webgl` to hold an old build to Phaser's Canvas renderer, and says
+      in its header which comparisons mean something.
+
+      **Found on the way.** The demos' timer waited a sixtieth of a second
+      after each frame's work instead of from its start, so a demo slowed
+      down as its frames got dearer; it keeps time the way Phaser's did now.
+      And `npm run sheet`, the silhouette contact sheet, had not run since
+      v1.46: the DOM's own canvases made its screenshot ambiguous, and with
+      that fixed the DOM layer covered the sheet with the front door. It
+      hides the layer, and draws the glyphs with the `CanvasInk` the drawer's
+      rows use, where it had a shim of its own for Phaser's Graphics.
 
 ## M31 — "Materiel": the total art and audio pass
 
@@ -4472,6 +4575,9 @@ replay-format half, and it can go before or after M30 Phase 2.*
 Phaser still earns its 340 kB gzipped for a board, is a measurement before it is
 a decision, and rule order is the other open item.*
 
+*M30 Phase 3 shipped in v1.49.0: it did not, and the stage replaced it, so M30
+is done. Rule order, which M23 handed on, is the open item.*
+
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain
 is doing the same work twice, and this project has already learned that lesson in
@@ -4482,7 +4588,7 @@ was being read for.
 
 ## Working agreements
 
-- The sim stays Phaser-free and deterministic; every feature lands with sim tests first.
+- The sim stays free of anything that draws, and deterministic; every feature lands with sim tests first.
 - Balance numbers are provisional until M5's harness; resist hand-tuning before it exists.
 - Each milestone is pushed to the repo in a runnable state with green tests.
 - The 24 E2E harnesses gate every release with `npm run e2e`, which runs them
