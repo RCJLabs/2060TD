@@ -697,7 +697,7 @@ direct-fire weapons shooting "through" walls are an accepted abstraction — bot
 benefit symmetrically, and the readability win beats the realism loss. Revisit only if
 playtesting shows degenerate tactics.
 
-### 5.4a Taking a command post — the kill chain *(v1.41; spent assault v1.41.1; latched breach v1.41.2)*
+### 5.4a Taking a command post — the kill chain *(v1.41; spent assault v1.41.1; latched breach v1.41.2; pins v1.47)*
 
 For twenty-two milestones the post was an **HP sponge**, and it decided the game in a way
 nobody designed. Ranged fire is discounted hard against `structure` and `hqDps` only fires
@@ -764,6 +764,25 @@ units like every other distance since M34; they had been cells, so on 10x15 they
 twice as far. And a fire mission ordered onto the densest knot is laid where the knot will be
 when it lands, on the ground force it can hit. Until then the A-10 had never landed: it came
 down where the file had been half a second before, and the file had walked out of it.
+
+**A fire mission pins what it lands on (version 6, v1.47.0).** Every ground unit a gun run or
+a barrage lands on is pinned for eight seconds. It does not move, shoot, dig or hold, so while
+it is down it moves no stage of the chain: no demolition at BREACH, no fire at the guns holding
+SUPPRESS shut, no crew at CHARGE, nobody holding the ground while the post BURNS. Until then a
+strike did damage and nothing else, and killing a few of the men walking up to a post moves
+nothing the chain counts. Heavies are pinned as well, and most of the pin's worth is there: a
+strike that kills a rifleman leaves a tank standing, so for a tank the pin is all a fire
+mission does, and a tank is what shells the guns from standoff and holds the post while it
+burns. Only fire missions pin. A mortar or a mine fires all battle, and a pin
+from one would be a new permanent layer rather than a new verb.
+
+The duty officer learned when to call a strike in the same release. A standing order can aim
+at **the assault**, the densest knot of ground attackers inside the post's cover ring, and
+only while there is one, and it can wait for a knot of a given size. Fired the moment it could
+be paid for, a strike had gone onto the column still forming at the edge of the map, and that
+timing was half of why the fire missions only stirred battles. HOLDFAST's gun run waits for
+two in the ring now; COUNTERBATTERY keeps its aim, because its claymore spends the budget
+while a waiting strike holds its fire.
 
 **What it bought, measured.** Suppression stopped being a formality (97-99% of raids passed
 it; now 64-84%), the stages became monotone where the sponge's were incoherent, and the five

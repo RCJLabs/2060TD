@@ -38,8 +38,12 @@ export const STANDING_ORDERS: Record<StandingOrdersId, StandingOrders> = {
    * were fought with.
    *
    * The gun run goes onto the assault at the post since M23 Phase 5, and waits
-   * for two to be there; `counterbattery` below says why. See
-   * `HOLDFAST_AT_THE_HOLE` for the orders battles on chain 5 were fought with.
+   * for two to be there. On the densest knot on the board it went the moment
+   * it could be paid for, which is usually onto the column still forming at
+   * the edge of the map, well out of reach of any gun. Measured on the
+   * contested band on chain 6, that one rule takes HOLDFAST from +12 held to
+   * +22. See `HOLDFAST_AT_THE_HOLE` for the orders battles on chain 5 were
+   * fought with.
    */
   holdfast: {
     id: 'holdfast',
@@ -51,24 +55,23 @@ export const STANDING_ORDERS: Record<StandingOrdersId, StandingOrders> = {
     ],
   },
   /**
-   * Ordnance first: stocked fire missions on the assault, mines in between.
+   * Ordnance first: stocked fire missions on the mass, mines in between.
    *
-   * Until M23 Phase 5 its fire missions went onto the densest knot on the
-   * board the moment they could be afforded, which is usually the column
-   * still forming at the edge of the map, well out of reach of any gun. On
-   * the contested band that made both of them stir battles rather than
-   * decide them. Now each waits for the assault to reach the post: two in the
-   * ring for the gun run, whose strip is narrow, and three for the barrage,
-   * whose shells scatter. See `COUNTERBATTERY_ON_THE_MASS` for the orders
-   * battles before chain 6 were fought with.
+   * Its fire missions still go onto the densest knot on the board, and that
+   * is measured rather than overlooked. Aimed at the assault as HOLDFAST's
+   * gun run is (M23 Phase 5), the preset reads 13 held on the contested band
+   * against 15 as it stands, because its claymore spends the CP and the
+   * action budget while they wait for the post. That is TRIPWIRE's ordering
+   * trap in a second preset, and fixing it is making rule order mean
+   * priority, which is its own piece of work.
    */
   counterbattery: {
     id: 'counterbattery',
     maxActions: 6,
     rules: [
-      { cpAtLeast: 45, action: 'power', kind: 'a10', target: 'assault', minKnot: 2, minHostiles: 4, cooldownTicks: 300 },
+      { cpAtLeast: 45, action: 'power', kind: 'a10', target: 'densest', minHostiles: 4, cooldownTicks: 300 },
       { cpAtLeast: 28, action: 'deploy', kind: 'claymore', target: 'ccApproach', minHostiles: 2, cooldownTicks: 140 },
-      { cpAtLeast: 70, action: 'power', kind: 'arty', target: 'assault', minKnot: 3, minHostiles: 5, cooldownTicks: 400 },
+      { cpAtLeast: 70, action: 'power', kind: 'arty', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
     ],
   },
   /** Refuse the interior: mines early and often, guns close-in late. */
@@ -124,21 +127,6 @@ const HOLDFAST_AT_THE_HOLE: StandingOrders = {
 };
 
 /**
- * COUNTERBATTERY as it stood from v0.8 until M23 Phase 5: both fire missions
- * on the densest knot on the board, the moment they could be afforded.
- * Frozen for the battles fought with it.
- */
-const COUNTERBATTERY_ON_THE_MASS: StandingOrders = {
-  id: 'counterbattery',
-  maxActions: 6,
-  rules: [
-    { cpAtLeast: 45, action: 'power', kind: 'a10', target: 'densest', minHostiles: 4, cooldownTicks: 300 },
-    { cpAtLeast: 28, action: 'deploy', kind: 'claymore', target: 'ccApproach', minHostiles: 2, cooldownTicks: 140 },
-    { cpAtLeast: 70, action: 'power', kind: 'arty', target: 'densest', minHostiles: 5, cooldownTicks: 400 },
-  ],
-};
-
-/**
  * The orders a battle on this kill chain fights with. Absent means a battle
  * fought today.
  */
@@ -149,7 +137,6 @@ export function standingOrdersFor(
   if (!id) return undefined;
   if (id === 'holdfast' && killChainVersion < CHAIN_AIMED) return HOLDFAST_INNER_LINE;
   if (id === 'holdfast' && killChainVersion < CHAIN_PINNED) return HOLDFAST_AT_THE_HOLE;
-  if (id === 'counterbattery' && killChainVersion < CHAIN_PINNED) return COUNTERBATTERY_ON_THE_MASS;
   return STANDING_ORDERS[id];
 }
 

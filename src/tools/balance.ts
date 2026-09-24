@@ -1200,15 +1200,24 @@ function verbTable(seeds = 20): string {
     // HOLDFAST as it was before Phase 3c moved its second gun to the breach,
     // fought on today's chain: the rule that repair exists to take out.
     ['HOLDFAST, gun at the post', standingOrdersFor('holdfast', CHAIN_ENGAGE)!],
-    // And the two before Phase 5 aimed their fire missions at the assault,
-    // on today's chain: what the pin is worth to orders that fire on the mass.
+    // HOLDFAST before Phase 5 aimed its gun run at the assault, on today's
+    // chain, and COUNTERBATTERY with both its fire missions aimed there: the
+    // re-aim HOLDFAST took, and the one COUNTERBATTERY's claymore defeats.
     ['HOLDFAST, air on the mass', standingOrdersFor('holdfast', CHAIN_AIMED)!],
-    ['CBTY, fire on the mass', standingOrdersFor('counterbattery', CHAIN_AIMED)!],
+    [
+      'CBTY, fire on the assault',
+      {
+        ...STANDING_ORDERS.counterbattery,
+        rules: STANDING_ORDERS.counterbattery.rules.map((r) =>
+          r.action === 'power' ? { ...r, target: 'assault', minKnot: r.kind === 'a10' ? 2 : 3 } : r,
+        ),
+      } as StandingOrders,
+    ],
   ];
   lines.push('');
   lines.push(
     'PRESETS — the same cells: the shipped three, two one-line repairs, HOLDFAST before 3c, ' +
-      'and HOLDFAST and COUNTERBATTERY before Phase 5',
+      'HOLDFAST before Phase 5, and COUNTERBATTERY re-aimed as HOLDFAST was',
   );
   lines.push('PRESET                       | HELD | vs NONE |   LOW | ACTS | EARLY |   MID |  LATE |       FLIPS');
   lines.push('-----------------------------+------+---------+-------+------+-------+-------+-------+------------');
@@ -6395,6 +6404,13 @@ function main(): void {
       '> can hit. A bare defence row has neither orders nor a fire plan and reads exactly as',
       '> v1.45.2 did; the raid rows and every row fought under standing orders moved.',
       '> HOLDFAST\'s second gun goes to the breach in the same release (M23 Phase 3c).',
+      '>',
+      '> **v1.47.0 is kill chain 6: a fire mission pins what it lands on (M23 Phase 5).** A',
+      '> ground unit a gun run or a barrage lands on moves no stage of the chain for eight',
+      '> seconds: it does not move, shoot, dig or hold. Only fire missions pin, and nothing in a',
+      '> bare defence row or a raid calls one on the attack, so those rows read exactly as',
+      '> v1.46.0\'s did. The rows fought under standing orders moved, and HOLDFAST\'s gun run',
+      '> waits for the assault to reach the post now.',
       '',
       '```',
       body,
@@ -6606,6 +6622,17 @@ function main(): void {
       '  MID; at the breach HOLDFAST is +16 and positive on every stage. It is now the best',
       '  preset on an EARLY base and TRIPWIRE on MID and LATE, where on chain 4 HOLDFAST was',
       '  the best of the three on every stage.',
+      '- **The fire missions got a job the chain can see in v1.47.0 (`--pins`, `--verbs`).** Two',
+      '  things kept them stirring battles rather than deciding them, and each was priced alone.',
+      '  The duty officer called a strike the moment it could pay, onto the densest knot on the',
+      '  board, usually the column still forming at the edge of the map. Waiting for two or',
+      '  three in the post\'s cover ring already makes both starred verbs on chain 5: the A-10',
+      '  +6, the barrage +9. And a strike did damage and nothing else. On chain 6 it pins every',
+      '  ground unit it lands on for eight seconds, and a gun run on the assault is +13, winning',
+      '  74 battles for 13 lost. Nearly all of the pin is in the tanks: pinning heavies alone',
+      '  gives +12. HOLDFAST\'s gun run waits for the assault now, +22 against +12 on its old aim.',
+      '  COUNTERBATTERY keeps its aim, because its claymore spends the budget while a waiting',
+      '  strike holds its fire: 13 re-aimed against 15 as it stands.',
       '',
     ].join('\n');
     writeFileSync('docs/BALANCE.md', md);

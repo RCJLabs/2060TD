@@ -292,9 +292,10 @@ export interface ChainModel {
    * almost all in the heavies. On the band, pinning tanks alone gives a gun
    * run on the assault +12 of the +13 that pinning everything does, and
    * pinning only infantry and light vehicles gives +7, against +6 for the
-   * same order with no pin at all. A tank is the unit that digs hardest at
-   * BREACH and shells the guns from standoff, and the one a fire mission is
-   * least likely to kill.
+   * same order with no pin at all. A strike that kills a rifleman leaves a
+   * tank standing, so for a tank the pin is the only thing a fire mission
+   * does, and a tank is what shells the guns from standoff and holds the
+   * post while it burns.
    */
   readonly pinArmor: readonly ArmorClass[];
 }

@@ -1,4 +1,4 @@
-# Balance snapshot (v1.45.3)
+# Balance snapshot (v1.47.0)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -87,6 +87,13 @@ an active player defends one to two ladder levels above their probe floor.
 > can hit. A bare defence row has neither orders nor a fire plan and reads exactly as
 > v1.45.2 did; the raid rows and every row fought under standing orders moved.
 > HOLDFAST's second gun goes to the breach in the same release (M23 Phase 3c).
+>
+> **v1.47.0 is kill chain 6: a fire mission pins what it lands on (M23 Phase 5).** A
+> ground unit a gun run or a barrage lands on moves no stage of the chain for eight
+> seconds: it does not move, shoot, dig or hold. Only fire missions pin, and nothing in a
+> bare defence row or a raid calls one on the attack, so those rows read exactly as
+> v1.46.0's did. The rows fought under standing orders moved, and HOLDFAST's gun run
+> waits for the assault to reach the post now.
 
 ```
 RAID — UNITED STATES strike force (25 MP) vs PLA Front Line
@@ -840,9 +847,9 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  10
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — HOLDFAST standing orders
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |   70 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   70 |   50 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85
+EARLY (CC1) |  100 |  100 |   25 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   15 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   90
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — WITH AA COVER
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
@@ -868,9 +875,9 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  10
 DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |   90 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   50 |   40 |    0 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   45
+EARLY (CC1) |  100 |  100 |   80 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   70 |   45 |    5 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   75
 
 DEFENSE — PLA EXPEDITIONARY FORCE permanent layer vs US ARMY assault ladder (hold%) — WITH AA COVER
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
@@ -897,7 +904,7 @@ DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hol
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   95 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   65 |    5 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — WITH AA COVER
@@ -924,9 +931,9 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   5
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |   40 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   15 |    0 |    0 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   35 |   15
+EARLY (CC1) |  100 |  100 |   25 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   25 |    0 |    0 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   50 |   40
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — WITH AA COVER
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
@@ -939,8 +946,8 @@ DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |   35 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   15 |   15 |    0 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   10 |   15
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   20 |   15 |    0 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   35 |   15
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%) — TRIPWIRE standing orders
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
@@ -966,9 +973,9 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  10
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — HOLDFAST standing orders
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |   60 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   45 |   25 |    0 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   20
+EARLY (CC1) |  100 |  100 |   50 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   65 |   70 |   15 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   50
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — WITH AA COVER
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
@@ -991,7 +998,7 @@ EARLY (CC1) |  100 |  100 |   90 |    0 |    0 |    0 |    0 |    0 |    0 |    
 MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   50 |    5 |    0 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   20
 
-MISSIONS — every campaign on 10x15 (chain v5), standard, 40 seeds, permanent layer alone, against v1.44 on 20x30 (chain v3, frozen)
+MISSIONS — every campaign on 10x15 (chain v6), standard, 40 seeds, permanent layer alone, against v1.44 on 20x30 (chain v3, frozen)
 hold% v1.44 -> now per reference base · * the base the campaign allows by then · ! moved 24+ points (3x the noise floor of 7.9, never under 20)
 
 USA
@@ -1256,3 +1263,14 @@ THE MISSION AS TUNED (the * cells): mean shift -0.6 points over 33, mean |shift|
   MID; at the breach HOLDFAST is +16 and positive on every stage. It is now the best
   preset on an EARLY base and TRIPWIRE on MID and LATE, where on chain 4 HOLDFAST was
   the best of the three on every stage.
+- **The fire missions got a job the chain can see in v1.47.0 (`--pins`, `--verbs`).** Two
+  things kept them stirring battles rather than deciding them, and each was priced alone.
+  The duty officer called a strike the moment it could pay, onto the densest knot on the
+  board, usually the column still forming at the edge of the map. Waiting for two or
+  three in the post's cover ring already makes both starred verbs on chain 5: the A-10
+  +6, the barrage +9. And a strike did damage and nothing else. On chain 6 it pins every
+  ground unit it lands on for eight seconds, and a gun run on the assault is +13, winning
+  74 battles for 13 lost. Nearly all of the pin is in the tanks: pinning heavies alone
+  gives +12. HOLDFAST's gun run waits for the assault now, +22 against +12 on its old aim.
+  COUNTERBATTERY keeps its aim, because its claymore spends the budget while a waiting
+  strike holds its fire: 13 re-aimed against 15 as it stands.

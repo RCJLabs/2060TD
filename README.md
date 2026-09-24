@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.46.0, in the browser. No install, no account, works on a phone.
+v1.47.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,31 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.46: the menus are a page, the map is a canvas
+## Current state — v1.47: a fire mission pins what it lands on
+
+**An A-10 gun run or a 155mm fire mission now pins everything on the ground it lands
+on for eight seconds.** A pinned unit does nothing else: it does not walk, shoot, dig
+at your post or hold it. The unit wears four short red strokes while it is down, and
+the fire tab says so.
+
+Until now a strike did damage and nothing else, and on a close battle that was worth
+almost nothing. Taking a post is four stages (breach, suppress, charge, burn), and
+killing a few of the men walking up to it moves none of them. A pinned crew stops all
+four, which gives you something to aim for. Drop the gun run on the assault at your
+post: the crew goes down, the bar stops and the burn backs off. It pins tanks too, and
+that is where most of its worth is: a tank usually survives the strike, shells your
+guns from range, and is what holds your post while it burns.
+
+**The unattended defence learned to wait.** HOLDFAST, the doctrine your base fights
+with while you are away, used to call its gun run the moment it could afford it. That
+usually meant the column still forming at the edge of the map, out of reach of every
+gun. Now it waits for the assault to reach the post. On the battles close enough for
+a defender's choices to matter, HOLDFAST now holds 22 more in every hundred than a
+base with no orders at all. On its old aim it held 12 more.
+COUNTERBATTERY keeps its old aim, for a reason the roadmap spells out, and TRIPWIRE
+calls no strikes at all.
+
+## v1.46: the menus are a page, the map is a canvas
 
 **Every menu, panel, button and line of text in the game is now an ordinary page
 element.** Until now all of it was painted onto the same canvas as the map, so

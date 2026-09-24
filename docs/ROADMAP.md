@@ -3267,17 +3267,96 @@ premium", which converts idle attrition into sessions.
       fighting, because that is a question about a distribution and every test
       in the repo runs one battle at a time. The sweep took twenty minutes and
       changed the design.
-- [ ] **Phase 5 — a job for the damage verbs.** What Phase 3c's re-judgment
-      left open. On the contested band a gun decides battles and a fire mission
-      only stirs them. The A-10 and the barrage land now, and each changes about
-      a battle in four, nearly as often toward a loss as toward a hold. Nothing
-      the chain counts is moved by killing a few of the men walking up to it,
-      so COUNTERBATTERY, the doctrine built on them, is best on no stage. The
-      brief is a job the chain can SEE: something a strike does to BREACH,
-      SUPPRESS, CHARGE or BURN rather than to hit points. Judged on the same
-      table, by the same rule: a verb that wins no more battles than it loses
-      is decoration. TRIPWIRE's ordering trap belongs here too, and so does
-      Phase 2's third option for it: rule order as the player's choice.
+- [x] **Phase 5 — a job for the damage verbs (v1.47.0).** Phase 3c left the fire
+      missions stirring battles rather than deciding them: on the contested band the A-10
+      and the barrage each changed about a battle in four, nearly as often each way. The
+      brief was a job the chain can SEE, judged on the same table by the same rule.
+      `npm run balance -- --pins` prices the answer in two halves, because the first thing
+      it found was that there were two.
+
+      **Half of it was never the chain. It was when the duty officer called the strike.**
+      A fire mission went the moment it could be afforded, onto the densest knot on the
+      board, which is usually the column still forming at the edge of the map, out of reach
+      of every gun. 3c's other aim, the post itself, fired at the same moment: all 32 gun
+      runs sampled came down with the nearest attacker nine to eleven cells away, on an
+      empty post. So a standing order can now aim at the **assault**, the densest knot of
+      ground attackers inside the post's cover ring, and only while there is one, and it
+      can wait for a knot of a given size (`minKnot`). On chain 5, damage and nothing else:
+
+      | one rule, chain 5 | HELD | EARLY | MID | LATE | changed |
+      |---|---|---|---|---|---|
+      | `a10 -> densest` (3c) | +3 | +15 | +4 | −6 | +63 −49 |
+      | `a10 -> assault`, 2 in the ring | +6 | +1 | +10 | +5 | **+47 −19** |
+      | `arty -> densest` (3c) | +4 | +10 | −1 | +6 | +81 −64 |
+      | `arty -> assault`, 3 in the ring | +9 | +27 | +5 | +4 | **+57 −14** |
+
+      Both are starred now. Nearly every disciplined strike lands during BREACH, on the
+      first knot to reach the post, and killing the crew that is digging at it is something
+      the chain counts.
+
+      **The other half is kill chain 6: a fire mission pins what it lands on.** A pinned
+      unit does not move, shoot, dig or hold for eight seconds, so it moves no stage of the
+      chain: no demolition at BREACH, no fire at the guns holding SUPPRESS shut, no crew at
+      CHARGE, nobody holding while the post BURNS.
+
+      | the gun run on the assault | HELD | MID | LATE | changed |
+      |---|---|---|---|---|
+      | no pin (chain 5) | +6 | +10 | +5 | +47 −19 |
+      | pin 8s, infantry and light vehicles | +7 | +12 | +6 | +52 −18 |
+      | pin 8s, heavies only | +12 | +19 | +11 | +70 −14 |
+      | **pin 8s, every ground unit (chain 6)** | **+13** | **+21** | **+11** | **+74 −13** |
+      | pin 5s, every ground unit | +11 | +18 | +9 | +66 −16 |
+      | pin 12s, every ground unit | +15 | +23 | +13 | +80 −13 |
+
+      EARLY reads +1 in every row, which is the cost the last paragraph comes back to.
+
+      **The pin is almost all in the tanks.** The naive picture of suppression is infantry
+      going to ground, and pinning only infantry and light vehicles buys one point. A
+      strike that kills a rifleman leaves a tank standing, so for a tank the pin is the
+      only thing a fire mission does, and a tank is what shells the guns from standoff and
+      holds the post while it burns. Nor is
+      eight seconds a number tuned to a target: five and twelve are starred too. The barrage
+      gains less, +9 with or without the pin, having one charge and scattering its shells.
+
+      The verdict, by 3c's rule: the gun run on the assault wins 74 battles for every 13 it
+      loses, the barrage 57 for 14. The best guns still decide more, +20 to +26, and should:
+      a gun stays and a strike is spent.
+
+      **HOLDFAST's gun run waits for the assault now. COUNTERBATTERY keeps its aim, and the
+      reason is the finding.**
+
+      | preset, chain 6 | HELD | EARLY | MID | LATE | changed |
+      |---|---|---|---|---|---|
+      | HOLDFAST | **+22** | +1 | +26 | **+32** | +118 −15 |
+      | *HOLDFAST, gun run on the mass* | *+12* | *+7* | *+9* | *+20* | *+98 −41* |
+      | COUNTERBATTERY | +15 | +7 | +19 | +16 | +103 −34 |
+      | *COUNTERBATTERY, fire on the assault* | *+13* | *+3* | *+18* | *+13* | *+95 −36* |
+      | TRIPWIRE | +22 | +3 | +26 | +29 | +130 −28 |
+
+      Re-aimed, COUNTERBATTERY got no better, and nor did four other versions of it tried
+      alongside: all between +12 and +16. Its claymore is the middle rule of three, cheap
+      and on a short cooldown, and while a fire mission waits for the post the claymore
+      spends the CP and the action budget the strike was going to need. That is TRIPWIRE's
+      ordering trap in a second preset, and it is now the whole of what this phase leaves
+      open. Rule order still means "evaluated first", not "funded first". Making it mean
+      priority, or the player's to choose as Phase 2 proposed, is the next piece of work,
+      and it needs a replay code that can carry an order.
+
+      **What the re-aim cost HOLDFAST is EARLY.** 3c's HOLDFAST read +17 on an EARLY base.
+      The pin took its old orders to +7 there, and the re-aim to +1: on a CC1 base the
+      gun run on the column did more than the gun run on the post, which reaches it late.
+      MID and LATE rose by 17 and 12 and the preset by 10 overall, but EARLY is now a stage
+      no preset does much for, which in 3c it was not. The whole ladder says the same: in
+      the snapshot's HOLDFAST tables the contested EARLY cell fell in four factions of five,
+      the USA's level 3 from 70 to 25, while MID and LATE cells rose by as much as 45 (the
+      UN's MID level 8, 25 to 70). One MID cell fell, Russia's level 9, from 95 to 65. Of
+      the snapshot's 52 tables those five and the KPA's COUNTERBATTERY table moved, and
+      nothing else did.
+
+      Pinned units wear four short red strokes closing on them, and the fire tab says what a
+      strike does. Chain 5, and HOLDFAST's orders on it, are frozen for the battles fought
+      with them. Bare defence rows and raid rows cannot meet a pin, since nothing in them
+      calls a fire mission on the attack, so they read exactly as v1.46.0's did.
 
 ## M24 — "The Settlement": from nine buildings to a base builder
 
@@ -4291,6 +4370,11 @@ Nothing in M30 changes a number it would be judged on.*
 *M30 Phase 1 shipped in v1.46.0: the UI is DOM by default. Phase 2 deletes the
 canvas kit once v1.46 has been out a release without anyone needing
 `?ui=canvas`.*
+
+*M23 Phase 5 shipped in v1.47.0, so every phase M23 was written with is done. What
+it hands on is rule order: TRIPWIRE and now COUNTERBATTERY both lose a strike or a
+gun to a cheaper rule that spends first. It is a standing-orders question with a
+replay-format half, and it can go before or after M30 Phase 2.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

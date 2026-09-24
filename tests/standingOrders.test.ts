@@ -405,28 +405,31 @@ describe('fire on the assault (chain v6, M23 Phase 5)', () => {
     for (const cast of seen) expect(cast.inRing).toBeGreaterThanOrEqual(3);
   });
 
-  it('COUNTERBATTERY and HOLDFAST fire on the assault from v6, and older battles get their own back', () => {
-    for (const id of ['counterbattery', 'holdfast'] as const) {
-      const now = standingOrdersFor(id)!;
-      expect(now).toBe(STANDING_ORDERS[id]);
-      const fire = now.rules.filter((r) => r.action === 'power');
-      expect(fire.length).toBeGreaterThan(0);
-      for (const rule of fire) {
-        expect(rule.target).toBe('assault');
-        expect(rule.minKnot ?? 1).toBeGreaterThan(1);
-      }
-      // A battle fought on v5 re-fights with the orders it had, on the mass.
-      const v5 = standingOrdersFor(id, CHAIN_AIMED)!;
-      expect(v5.rules.filter((r) => r.action === 'power').every((r) => r.target === 'densest')).toBe(true);
-      for (const [chain, want] of [
-        [CHAIN_AIMED, v5],
-        [CHAIN_PINNED, now],
-      ] as const) {
-        const config = { ...midConfig(3, want), killChainVersion: chain };
-        const round = decodeReplay(encodeReplay({ kind: 'probe', faction: 'usa', title: 'T', won: true, config }));
-        expect(round.ok).toBe(true);
-        if (round.ok) expect(round.replay.config.standingOrders).toEqual(want);
-      }
+  it('HOLDFAST fires on the assault from v6, and a battle fought on v5 gets its own back', () => {
+    const now = standingOrdersFor('holdfast')!;
+    expect(now).toBe(STANDING_ORDERS.holdfast);
+    const fire = now.rules.filter((r) => r.action === 'power');
+    expect(fire.length).toBeGreaterThan(0);
+    for (const rule of fire) {
+      expect(rule.target).toBe('assault');
+      expect(rule.minKnot ?? 1).toBeGreaterThan(1);
+    }
+    // A battle fought on v5 re-fights with the orders it had, on the mass.
+    const v5 = standingOrdersFor('holdfast', CHAIN_AIMED)!;
+    expect(v5.rules.filter((r) => r.action === 'power').every((r) => r.target === 'densest')).toBe(true);
+    for (const [chain, want] of [
+      [CHAIN_AIMED, v5],
+      [CHAIN_PINNED, now],
+    ] as const) {
+      const config = { ...midConfig(3, want), killChainVersion: chain };
+      const round = decodeReplay(encodeReplay({ kind: 'probe', faction: 'usa', title: 'T', won: true, config }));
+      expect(round.ok).toBe(true);
+      if (round.ok) expect(round.replay.config.standingOrders).toEqual(want);
+    }
+    // COUNTERBATTERY was measured re-aimed and kept as it stands, so every
+    // chain reads it the same, as it does TRIPWIRE.
+    for (const chain of [CHAIN_ENGAGE, CHAIN_AIMED, CHAIN_PINNED]) {
+      expect(standingOrdersFor('counterbattery', chain)).toBe(STANDING_ORDERS.counterbattery);
     }
   });
 });

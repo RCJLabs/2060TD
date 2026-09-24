@@ -1040,3 +1040,25 @@ here with the change and its date.
   set before the first line of it was written. The canvas kit stays one more
   release behind `?ui=canvas`, as a way back while the DOM meets devices the
   harnesses never ran on, and then goes with the rest of Phase 2's deletions.
+- 2026-09-24 — **Kill chain 6: a fire mission pins what it lands on.** Every
+  ground unit a gun run or a barrage lands on moves no stage of the chain for
+  eight seconds: it does not move, shoot, dig or hold. That is the job M23
+  Phase 3c found the fire missions did not have, since killing a few of the
+  men walking up to a post moves nothing the chain counts. Heavies are pinned
+  too, against the picture of suppression as infantry going to ground,
+  because that is where the measurement put the pin's worth: pinning tanks
+  alone gives a gun run on the assault +12 of its +13 held, and pinning only
+  infantry and light vehicles +7 against +6 with no pin. Only fire missions
+  pin. A mortar or a mine fires all battle, and pinning from one would be a
+  new permanent layer rather than a new verb.
+- 2026-09-24 — **The duty officer waits for the assault before calling a
+  strike.** Half of what 3c measured was timing, not the chain. A fire
+  mission went the moment it could be paid for, onto the column still forming
+  at the edge of the map, or, aimed at the post, onto a post nobody had
+  reached. Orders can aim at the assault now (the densest knot inside the
+  post's cover ring, and only while there is one) and wait for a knot of a
+  given size, and on chain 5 alone that makes both strikes starred verbs.
+  HOLDFAST's gun run takes both, +22 on the band against +12 on its old aim.
+  COUNTERBATTERY does not, and that is measured rather than overlooked: re-aimed
+  it read 13 against 15, because its claymore spends the budget while a strike
+  waits. Rule order is the open question M23 hands on.
