@@ -157,12 +157,41 @@ export class Container extends GameObject {
 /** Anything a canvas can draw as an image. */
 export type ImageSource = HTMLCanvasElement | OffscreenCanvas | HTMLImageElement | ImageBitmap;
 
+/** Frames a scale and offset have to hold before an image resamples to them. */
+const SETTLE_FRAMES = 3;
+/** Scales this close are one scale: a copy 1,000 px across differs by 0.1 px. */
+const SAME_SCALE = 1e-4;
+/** The largest resampled copy an image keeps, in canvases' worth of pixels. */
+const MAX_COPY_CANVASES = 2;
+
+function sameScale(a: number, b: number): boolean {
+  return Math.abs(a - b) <= SAME_SCALE * Math.max(a, b);
+}
+
+function sameOffset(a: number, b: number): boolean {
+  return Math.abs(a - b) <= 1e-3;
+}
+
+/** A source resampled to a scale, at a fraction of a pixel's offset. */
+interface ScaledCopy {
+  canvas: HTMLCanvasElement;
+  source: ImageSource;
+  scale: number;
+  dx: number;
+  dy: number;
+}
+
 /**
  * A picture: the baked sheet. Centred on its position unless told otherwise,
  * as Phaser's is.
  */
 export class Image extends GameObject {
   readonly type = 'Image';
+  private caching = false;
+  private copy: ScaledCopy | null = null;
+  /** The scale and offset the image was last drawn at, and for how many frames running. */
+  private last = { scale: 0, dx: 0, dy: 0 };
+  private heldFor = 0;
 
   constructor(
     public source: ImageSource,
@@ -184,13 +213,99 @@ export class Image extends GameObject {
     return this.source.height;
   }
 
+  /**
+   * Keep a copy of the source resampled to the scale and the fraction of a
+   * pixel the image is drawn at, and draw that one to one. Only for a source
+   * that does not change after this.
+   *
+   * Resampling is what drawing the sheet costs. Where the canvas is painted
+   * on the CPU, the board's sheet drawn smoothed at a phone's fit zoom was
+   * 4 of a 7 ms paint, and Phaser's canvas renderer only came in under that
+   * by drawing it unsmoothed, which makes the dot screen shimmer as the board
+   * pans (M30 Phase 3).
+   *
+   * At rest the copy is the pixels the source would have drawn. While the
+   * board pans it is placed to the nearest pixel, and made again once the
+   * pan has stopped. A pinch draws the source straight through, because the
+   * copy is only made when a scale has held for a few frames, and only while
+   * it is no bigger than two canvases, so a deep zoom does not hold tens of
+   * megabytes.
+   */
+  cacheScaled(): this {
+    this.caching = true;
+    return this;
+  }
+
+  /** The resampled copy to draw under `m`, or null to draw the source. */
+  private scaledCopy(ctx: CanvasRenderingContext2D, m: DOMMatrix, left: number, top: number): ScaledCopy | null {
+    // A plain scale and nothing else: a rotated or stretched image is drawn as it is.
+    if (m.b !== 0 || m.c !== 0 || m.a <= 0 || !sameScale(m.a, m.d)) return null;
+    const scale = m.a;
+    const x0 = m.e + left * scale;
+    const y0 = m.f + top * scale;
+    const dx = x0 - Math.floor(x0);
+    const dy = y0 - Math.floor(y0);
+    const last = this.last;
+    const held = sameScale(scale, last.scale) && sameOffset(dx, last.dx) && sameOffset(dy, last.dy);
+    this.heldFor = held ? this.heldFor + 1 : 1;
+    this.last = { scale, dx, dy };
+    const copy = this.copy;
+    const fits = copy !== null && copy.source === this.source && sameScale(copy.scale, scale);
+    if (fits && ((sameOffset(copy.dx, dx) && sameOffset(copy.dy, dy)) || this.heldFor < SETTLE_FRAMES)) {
+      return copy;
+    }
+    if (this.heldFor < SETTLE_FRAMES || typeof document === 'undefined') return null;
+    const w = Math.ceil(dx + this.width * scale);
+    const h = Math.ceil(dy + this.height * scale);
+    if (w < 1 || h < 1 || w * h > MAX_COPY_CANVASES * ctx.canvas.width * ctx.canvas.height) {
+      this.dropCopy();
+      return null;
+    }
+    const canvas = copy?.canvas ?? document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const c = canvas.getContext('2d');
+    if (!c) return null;
+    c.imageSmoothingQuality = ctx.imageSmoothingQuality;
+    c.drawImage(this.source, dx, dy, this.width * scale, this.height * scale);
+    this.copy = { canvas, source: this.source, scale, dx, dy };
+    return this.copy;
+  }
+
+  /** A zero-sized canvas is how a browser is told it can have the memory back. */
+  private dropCopy(): void {
+    if (!this.copy) return;
+    this.copy.canvas.width = 0;
+    this.copy.canvas.height = 0;
+    this.copy = null;
+  }
+
+  override destroy(): void {
+    this.dropCopy();
+    super.destroy();
+  }
+
   render(ctx: CanvasRenderingContext2D, parentAlpha: number): void {
     const alpha = parentAlpha * this.alpha;
     if (!this.visible || alpha <= 0) return;
     ctx.save();
     this.transform(ctx);
     ctx.globalAlpha = alpha;
-    ctx.drawImage(this.source, -this.originX * this.width, -this.originY * this.height);
+    const left = -this.originX * this.width;
+    const top = -this.originY * this.height;
+    const m = this.caching ? ctx.getTransform() : null;
+    const copy = m ? this.scaledCopy(ctx, m, left, top) : null;
+    if (m && copy) {
+      // On a whole pixel, where a copy is drawn without being resampled
+      // again: exactly where it belongs at the offset it was made for, and
+      // under half a pixel from it while the board pans.
+      const x = Math.round(m.e + left * m.a - copy.dx);
+      const y = Math.round(m.f + top * m.d - copy.dy);
+      ctx.setTransform(1, 0, 0, 1, x, y);
+      ctx.drawImage(copy.canvas, 0, 0);
+    } else {
+      ctx.drawImage(this.source, left, top);
+    }
     ctx.restore();
   }
 }

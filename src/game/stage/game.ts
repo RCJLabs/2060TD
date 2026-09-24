@@ -58,7 +58,11 @@ export class Game implements SceneHost {
     this.canvas = document.createElement('canvas');
     this.canvas.style.display = 'block';
     config.parent.appendChild(this.canvas);
-    const ctx = this.canvas.getContext('2d', { alpha: false });
+    // Not `alpha: false`, although every frame paints the whole canvas. On an
+    // opaque canvas Chrome sets text with subpixel antialiasing: a shout's fill
+    // came out fatter than its outline and fringed blue and orange. Phaser set
+    // text on a canvas of its own, which was transparent, and so is this one.
+    const ctx = this.canvas.getContext('2d', { alpha: true });
     if (!ctx) throw new Error('no 2d context');
     this.ctx = ctx;
     this.background = config.backgroundColor;
@@ -99,8 +103,15 @@ export class Game implements SceneHost {
   }
 
   private schedule(): void {
-    if (this.timer) setTimeout(() => this.frame(performance.now()), 1000 / 60);
-    else requestAnimationFrame((now) => this.frame(now));
+    if (!this.timer) {
+      requestAnimationFrame((now) => this.frame(now));
+      return;
+    }
+    // Sixty a second from the START of each frame, as Phaser's timer kept
+    // them: waiting a whole sixtieth after the frame's own work ran a demo
+    // slower the more each frame cost.
+    const wait = this.last > 0 ? this.last + 1000 / 60 - performance.now() : 1000 / 60;
+    setTimeout(() => this.frame(performance.now()), Math.max(0, wait));
   }
 
   private frame(now: number): void {

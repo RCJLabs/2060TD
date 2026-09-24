@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { Camera, clamp, Container, Emitter, Graphics, keyName, Scene, Text } from '../src/game/stage';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Camera, clamp, Container, Emitter, Graphics, Image, keyName, Scene, Text } from '../src/game/stage';
 import type { SceneHost } from '../src/game/stage/scene';
 
 /**
@@ -161,6 +161,130 @@ describe('text on the board', () => {
     t.setScale(2);
     const scaled = t.getBounds();
     expect(scaled.width).toBeCloseTo(b.width * 2, 9);
+  });
+});
+
+/**
+ * Just enough of a 2D context to draw an image into: a matrix that translate,
+ * scale, rotate and setTransform move, a save stack, and a log of draws.
+ */
+function matrixContext(width: number, height: number) {
+  type M = { a: number; b: number; c: number; d: number; e: number; f: number };
+  let m: M = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+  const stack: M[] = [];
+  const draws: { source: unknown; matrix: M; args: number[] }[] = [];
+  const ctx = {
+    canvas: { width, height },
+    globalAlpha: 1,
+    imageSmoothingQuality: 'low',
+    save: () => void stack.push({ ...m }),
+    restore: () => void (m = stack.pop() ?? m),
+    translate: (x: number, y: number) => void (m = { ...m, e: m.e + m.a * x + m.c * y, f: m.f + m.b * x + m.d * y }),
+    scale: (x: number, y: number) => void (m = { ...m, a: m.a * x, b: m.b * x, c: m.c * y, d: m.d * y }),
+    rotate: (r: number) => {
+      const [cos, sin] = [Math.cos(r), Math.sin(r)];
+      m = {
+        ...m,
+        a: m.a * cos + m.c * sin,
+        b: m.b * cos + m.d * sin,
+        c: m.c * cos - m.a * sin,
+        d: m.d * cos - m.b * sin,
+      };
+    },
+    setTransform: (a: number, b: number, c: number, d: number, e: number, f: number) => void (m = { a, b, c, d, e, f }),
+    getTransform: () => ({ ...m }),
+    drawImage: (source: unknown, ...args: number[]) => void draws.push({ source, matrix: { ...m }, args }),
+  };
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, draws };
+}
+
+describe('an image kept at the scale it is drawn at', () => {
+  /** Canvases the image makes for its copy, each with the draws made into it. */
+  const made: { width: number; height: number; draws: unknown[][] }[] = [];
+  beforeEach(() => {
+    made.length = 0;
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const draws: unknown[][] = [];
+        const context = { drawImage: (...a: unknown[]) => void draws.push(a) };
+        const canvas = { width: 0, height: 0, draws, getContext: () => context };
+        made.push(canvas);
+        return canvas;
+      },
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** The board's sheet: 2x baked, shown at half scale, under a fit zoom and a pan. */
+  const sheet = () => new Image({ width: 640, height: 960 } as HTMLCanvasElement).setOrigin(0, 0).setScale(0.5);
+  const frame = (img: Image, ctx: CanvasRenderingContext2D, zoom: number, panX = 0.4): void => {
+    ctx.save();
+    ctx.translate(panX, 116.3);
+    ctx.scale(zoom, zoom);
+    img.render(ctx, 1);
+    ctx.restore();
+  };
+
+  it('draws its source until a scale has held, then a copy of what it drew, on a whole pixel', () => {
+    const img = sheet().cacheScaled();
+    const { ctx, draws } = matrixContext(824, 1830);
+    for (let i = 0; i < 4; i++) frame(img, ctx, 2.576);
+    expect(draws.slice(0, 2).map((d) => d.source)).toEqual([img.source, img.source]);
+    expect(made).toHaveLength(1);
+    const copy = made[0]!;
+    // The source at the fraction of a pixel it was being drawn at, 0.4 and 0.3,
+    // at the scale it was drawn at: the same pixels, made once.
+    expect([copy.width, copy.height]).toEqual([Math.ceil(0.4 + 640 * 1.288), Math.ceil(0.3 + 960 * 1.288)]);
+    expect(copy.draws).toHaveLength(1);
+    const [source, dx, dy, w, h] = copy.draws[0] as [unknown, number, number, number, number];
+    expect(source).toBe(img.source);
+    [dx, dy, w, h].forEach((v, i) => expect(v).toBeCloseTo([0.4, 0.3, 640 * 1.288, 960 * 1.288][i]!, 9));
+    for (const d of draws.slice(2)) {
+      expect(d.source).toBe(copy);
+      expect(d.matrix).toEqual({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 116 });
+    }
+  });
+
+  it('places the copy to the nearest pixel while the board pans, and remakes it once the pan stops', () => {
+    const img = sheet().cacheScaled();
+    const { ctx, draws } = matrixContext(824, 1830);
+    for (let i = 0; i < 3; i++) frame(img, ctx, 2.576);
+    const copy = made[0]!;
+    draws.length = 0;
+    for (const x of [3.1, 5.8, 9.7]) frame(img, ctx, 2.576, x);
+    expect(draws.map((d) => d.source)).toEqual([copy, copy, copy]);
+    expect(draws.map((d) => d.matrix.e)).toEqual([3, 5, 9]);
+    expect(copy.draws).toHaveLength(1);
+    for (let i = 0; i < 3; i++) frame(img, ctx, 2.576, 9.7);
+    expect(copy.draws).toHaveLength(2);
+    expect(copy.draws[1]![1]).toBeCloseTo(0.7, 9);
+    expect(draws.at(-1)!.matrix.e).toBe(9);
+  });
+
+  it('draws straight through a pinch, and lets go of a copy grown past two canvases', () => {
+    const img = sheet().cacheScaled();
+    const { ctx, draws } = matrixContext(824, 1830);
+    for (let i = 0; i < 3; i++) frame(img, ctx, 2.576);
+    const copy = made[0]!;
+    draws.length = 0;
+    for (const zoom of [2.7, 2.9, 3.1]) frame(img, ctx, zoom);
+    expect(draws.every((d) => d.source === img.source)).toBe(true);
+    for (let i = 0; i < 3; i++) frame(img, ctx, 12);
+    expect(draws.at(-1)!.source).toBe(img.source);
+    expect([copy.width, copy.height]).toEqual([0, 0]);
+    expect(made).toHaveLength(1);
+  });
+
+  it('draws a turned image as it is, and makes no copy unless asked', () => {
+    const turned = sheet().cacheScaled().setAngle(90);
+    const plain = sheet();
+    const { ctx, draws } = matrixContext(824, 1830);
+    for (let i = 0; i < 4; i++) {
+      frame(turned, ctx, 2.576);
+      frame(plain, ctx, 2.576);
+    }
+    expect(draws.every((d) => d.source === turned.source || d.source === plain.source)).toBe(true);
+    expect(made).toHaveLength(0);
   });
 });
 

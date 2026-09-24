@@ -2,25 +2,25 @@
  * The page the whole game is drawn on.
  *
  * This is the one place terrain becomes pixels. It is baked rather than drawn
- * live for a reason that is easy to miss: a Phaser `Graphics` command list is
- * re-walked and re-batched EVERY FRAME, and a screentone board is tens of
- * thousands of dots. Baking makes that a one-off.
+ * live for a reason that is easy to miss: a `Graphics` command list is
+ * replayed EVERY FRAME, and a screentone board is tens of thousands of dots.
+ * Baking makes that a one-off.
  *
- * It bakes onto a **Canvas2D texture** rather than into a `RenderTexture`,
- * which is the change that made the ink direction possible at all. Screentone
- * is a repeating pattern fill, `createPattern` is native to Canvas2D, and
- * Phaser `Graphics` has no equivalent — a Graphics implementation would have
- * to emit one `fillCircle` per dot, about 31,000 of them for a 32x24 board at
- * 2x, where this is one `fillRect` per region. Canvas2D also brings real
- * clipping, dashes and line joins, which the keyline style leans on.
+ * It bakes onto a **canvas of its own**. Under Phaser that was a Canvas2D
+ * texture where a `RenderTexture` had been, and it is the change that made
+ * the ink direction possible at all. Screentone is a repeating pattern fill,
+ * `createPattern` is native to Canvas2D, and `Graphics` has no equivalent —
+ * it would have to take one `fillCircle` per dot, about 31,000 of them for a
+ * 32x24 board at 2x, where this is one `fillRect` per region. The sheet's own
+ * context also brings clipping, dashes and line joins, which the keyline
+ * style leans on.
  *
  * Three rules keep it safe:
  *
- * - The image is created OFF the display list (`scene.make.image` with
- *   `false`), and only the finished object is added, and only to
- *   `board.world`. Anything sitting on the scene root is drawn twice — once
- *   by each camera — and `boardStrays()` fails the E2E harness on exactly
- *   that.
+ * - The image is created OFF the display list (`new Image`, not
+ *   `scene.add.image`), and only the finished object is added, and only to
+ *   `board.world`. Anything sitting on the scene root is a stray, and
+ *   `boardStrays()` fails the E2E harness on exactly that.
  * - Because it lives in `board.world`, the tone is locked to the WORLD. Pan
  *   and the dots stay on the ground; zoom and you lean in over the paper. A
  *   screen-locked dot screen crawls, and that is the usual way this style
@@ -178,8 +178,9 @@ export function makeSheet(opts: SheetOptions): Image {
     paintSheet(ctx, opts, cell * BAKE, BAKE);
   }
   // Made off any display list: only the finished object is added, and only
-  // to `board.world`, where anything outside it is a stray.
-  const img = new Image(canvas).setOrigin(0, 0).setScale(1 / BAKE);
+  // to `board.world`, where anything outside it is a stray. Never repainted,
+  // so it can keep a copy at the scale the board shows it.
+  const img = new Image(canvas).setOrigin(0, 0).setScale(1 / BAKE).cacheScaled();
   // A zero-sized canvas is how a browser is told it can have the memory back.
   img.once(OBJECT_DESTROY, () => {
     canvas.width = 0;
