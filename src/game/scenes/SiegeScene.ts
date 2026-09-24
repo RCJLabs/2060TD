@@ -16,7 +16,7 @@ import { siegeOnBoard } from '../../sim/board';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import { createOverlay, type OverlayApi } from '../overlay';
-import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
+import { makeButton, mono, type Button, type PanelRow, createPanel, type PanelApi } from '../ui';
 
 export type BattleTag =
   | { type: 'mission'; missionId: string }
@@ -91,7 +91,7 @@ export class SiegeScene extends Phaser.Scene {
   private casts = 0;
 
   private board!: BoardView;
-  private panel!: Panel;
+  private panel!: PanelApi;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
@@ -175,7 +175,7 @@ export class SiegeScene extends Phaser.Scene {
     this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world);
     this.board.passable = (col, row) => this.engine.terrain.passable(row * GRID_W + col);
 
-    this.panel = new Panel(this, this.board.ui, SIEGE_TABS);
+    this.panel = createPanel(this, this.board.ui, SIEGE_TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();

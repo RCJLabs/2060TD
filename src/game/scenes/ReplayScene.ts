@@ -8,7 +8,7 @@ import { BattleRenderer } from '../BattleRenderer';
 import { COLORS, css } from '../palette';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { mono, Panel, type PanelRow } from '../ui';
+import { mono, type PanelRow, createPanel, type PanelApi } from '../ui';
 
 export interface ReplayData {
   config: SimConfig;
@@ -35,7 +35,7 @@ export class ReplayScene extends Phaser.Scene {
   private speedMult = 2;
   private showPaths = true;
   private board!: BoardView;
-  private panel!: Panel;
+  private panel!: PanelApi;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
@@ -75,7 +75,7 @@ export class ReplayScene extends Phaser.Scene {
       this.replay.kind === 'raid',
       this.board.world,
     );
-    this.panel = new Panel(this, this.board.ui, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
+    this.panel = createPanel(this, this.board.ui, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();

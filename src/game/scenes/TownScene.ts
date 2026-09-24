@@ -95,6 +95,7 @@ import { BoardView } from '../BoardView';
 import { drawFactionMark, drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
 import { haptic } from '../haptics';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
+import type { Ink } from '../ink';
 import { createOverlay, type OverlayApi } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
 import { buildStructureSpec, buildWallSpec } from '../spec';
@@ -111,7 +112,7 @@ import { COLORS } from '../palette';
 import { footprintOfKind } from '../../content/catalog';
 import { scaleCatalog } from '../../sim/scale';
 import { makeSheet } from '../ground';
-import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
+import { makeButton, mono, type Button, type PanelRow, createPanel, type PanelApi } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
@@ -197,7 +198,7 @@ export class TownScene extends Phaser.Scene {
   private staticLayer!: Phaser.GameObjects.Graphics;
   private bannerText!: Phaser.GameObjects.Text;
   private board!: BoardView;
-  private panel!: Panel;
+  private panel!: PanelApi;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
@@ -373,7 +374,7 @@ export class TownScene extends Phaser.Scene {
     const ground = townTerrain(this.town);
     this.board.passable = (col, row) => ground.passable(row * TOWN_GRID.width + col);
 
-    this.panel = new Panel(this, this.board.ui, TABS);
+    this.panel = createPanel(this, this.board.ui, TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
@@ -1905,7 +1906,7 @@ export class TownScene extends Phaser.Scene {
       // drift from it. A locked row still draws one: the point of the list is
       // to show what the base could become, and a blank is not an answer.
       const icon = (
-        g: Phaser.GameObjects.Graphics,
+        g: Ink,
         x: number,
         y: number,
         size: number,

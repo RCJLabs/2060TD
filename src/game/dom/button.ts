@@ -246,10 +246,16 @@ export function domButton(
     fire();
   });
   el.addEventListener('pointercancel', cancel);
-  // Keyboard activation arrives as a click with no pointer behind it. A
-  // pointer's own click is ignored: the release above already decided it.
-  el.addEventListener('click', (e) => {
-    if (e.detail !== 0 || !enabled) return;
+  // The keyboard, answered on the key rather than on the click it would turn
+  // into. Clicks are ignored altogether: a pointer's is decided by the release
+  // above, and a touch whose release closed the page it landed on has its
+  // click delivered to whatever the page uncovered — with no pointer detail
+  // on it, so reading `detail === 0` as "the keyboard" fired the tab under a
+  // spec card's CLOSE, and the drawer changed tab as the card went away.
+  el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    if (!enabled || e.repeat) return;
     fire();
   });
   el.addEventListener('pointerenter', (e) => {

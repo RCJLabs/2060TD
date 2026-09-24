@@ -581,63 +581,88 @@ try {
   // A press on a DISABLED row is not a press at all — it returns before the
   // button takes ownership — so a check that lands on one proves nothing, and
   // this one landed on an unaffordable AIRFIELD until it was pinned down.
-  const topBox = await shape();
-  for (let n = 0; n < 6; n++) {
-    const ty = topBox.list.y + topBox.list.h * 0.3;
-    const tx = topBox.list.x + topBox.list.w / 2;
-    await touch('touchStart', tx, ty);
-    for (let i = 1; i <= 6; i++) {
-      await touch('touchMove', tx, ty + (180 * i) / 6);
-      await wait(16);
-    }
-    await touch('touchEnd', tx, ty + 180);
-    await wait(200);
-  }
-  await wait(700);
-
-  // A flick: fast, so the list is still coasting when the finger returns.
-  const flickBox = await shape();
-  const fx = flickBox.list.x + flickBox.list.w / 2;
-  const fy = flickBox.list.y + flickBox.list.h * 0.75;
-  await touch('touchStart', fx, fy);
-  for (let i = 1; i <= 5; i++) {
-    await touch('touchMove', fx, fy - (150 * i) / 5);
-    await wait(8);
-  }
-  await touch('touchEnd', fx, fy - 150);
-  // POLLED, not sampled at a fixed delay. A single read 60ms after the lift
-  // caught a slow frame about one run in three and reported no coast at all —
-  // the same shape as the `e2e-gates` flake, where a harness waited a flat
-  // 800ms and hoped. The finger has to land WHILE the list is moving, so wait
-  // for the coast to exist and then go straight in.
+  //
+  // And then it is TRIED, up to four times, rather than pinned (M30). Where a
+  // coasting list is when the finger lands depends on whose physics are
+  // coasting it — the canvas panel's decay, or the platform's own momentum
+  // under the DOM one, which moves the list differently — and the landing
+  // spot that suited one put the other on a locked SIGNALS STATION every
+  // time. A locked row says nothing about either, so an attempt that lands on
+  // one is lifted and tried again elsewhere. Only the attempt that lands on a
+  // row that can be pressed is judged.
   let coasting = 0;
-  for (let n = 0; n < 40 && coasting <= 0.5; n++) {
-    coasting = await page.evaluate(() => Math.abs(window.lastline.scroll()?.fling ?? 0));
-    if (coasting <= 0.5) await wait(16);
+  let flickBox = null;
+  let cx = 0;
+  let cy = 0;
+  let landed = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) {
+      await touch('touchEnd', cx, cy);
+      await wait(600);
+    }
+    const topBox = await shape();
+    for (let n = 0; n < 6; n++) {
+      const ty = topBox.list.y + topBox.list.h * 0.3;
+      const tx = topBox.list.x + topBox.list.w / 2;
+      await touch('touchStart', tx, ty);
+      for (let i = 1; i <= 6; i++) {
+        await touch('touchMove', tx, ty + (180 * i) / 6);
+        await wait(16);
+      }
+      await touch('touchEnd', tx, ty + 180);
+      await wait(200);
+    }
+    await wait(700);
+
+    // A flick: fast, so the list is still coasting when the finger returns.
+    flickBox = await shape();
+    const fx = flickBox.list.x + flickBox.list.w / 2;
+    const fy = flickBox.list.y + flickBox.list.h * 0.75;
+    await touch('touchStart', fx, fy);
+    for (let i = 1; i <= 5; i++) {
+      await touch('touchMove', fx, fy - (150 * i) / 5);
+      await wait(8);
+    }
+    await touch('touchEnd', fx, fy - 150);
+    // POLLED, not sampled at a fixed delay. A single read 60ms after the lift
+    // caught a slow frame about one run in three and reported no coast at all —
+    // the same shape as the `e2e-gates` flake, where a harness waited a flat
+    // 800ms and hoped. The finger has to land WHILE the list is moving, so wait
+    // for the coast to exist and then go straight in.
+    coasting = 0;
+    for (let n = 0; n < 40 && coasting <= 0.5; n++) {
+      coasting = await page.evaluate(() => Math.abs(window.lastline.scroll()?.fling ?? 0));
+      if (coasting <= 0.5) await wait(16);
+    }
+
+    // Now put a finger down on a row and hold it still, the way a thumb does.
+    // The point is computed from the box measured BEFORE the flick, so there is
+    // no round-trip between seeing the coast and landing on it. Each attempt
+    // lands somewhere else in the list: a coast is as repeatable as the
+    // physics under it, so landing on the same spot again lands on the same
+    // locked row again. The spread is wider than the longest run of locked
+    // rows, so one of the four has to find a row that can be pressed.
+    cx = flickBox.list.x + flickBox.list.w / 2;
+    cy = flickBox.list.y + flickBox.list.h * [0.4, 0.55, 0.3, 0.7][attempt];
+    await touch('touchStart', cx, cy);
+    await wait(250);
+    landed = await page.evaluate(
+      (pt) => {
+        const a = window.lastline;
+        const d = a.dpr;
+        const b = a
+          .buttons()
+          .find(
+            (x) =>
+              pt.x * d >= x.x && pt.x * d <= x.x + x.w && pt.y * d >= x.y && pt.y * d <= x.y + x.h,
+          );
+        return b ? { label: b.label, enabled: b.enabled, active: b.active } : null;
+      },
+      { x: cx, y: cy },
+    );
+    if (coasting > 0.5 && landed?.enabled && !landed.active) break;
   }
   check('the flick leaves the list coasting', coasting > 0.5, `fling ${coasting.toFixed(1)}`);
-
-  // Now put a finger down on a row and hold it still, the way a thumb does.
-  // The point is computed from the box measured BEFORE the flick, so there is
-  // no round-trip between seeing the coast and landing on it.
-  const cx = flickBox.list.x + flickBox.list.w / 2;
-  const cy = flickBox.list.y + flickBox.list.h * 0.4;
-  await touch('touchStart', cx, cy);
-  await wait(250);
-  const landed = await page.evaluate(
-    (pt) => {
-      const a = window.lastline;
-      const d = a.dpr;
-      const b = a
-        .buttons()
-        .find(
-          (x) =>
-            pt.x * d >= x.x && pt.x * d <= x.x + x.w && pt.y * d >= x.y && pt.y * d <= x.y + x.h,
-        );
-      return b ? { label: b.label, enabled: b.enabled, active: b.active } : null;
-    },
-    { x: cx, y: cy },
-  );
   const stoppedAt = await page.evaluate(() => ({
     fling: Math.abs(window.lastline.scroll()?.fling ?? 0),
     scrollY: window.lastline.scroll()?.scrollY ?? -1,

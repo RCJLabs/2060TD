@@ -91,6 +91,8 @@ export class DomPanel implements PanelApi, PanelProbe {
   /** Scroll bookkeeping, for the probe and for catching a coast. */
   private lastScrollTop = 0;
   private fling = 0;
+  /** When the list last moved with no finger on it: a coast, however brief. */
+  private coastAt = -Infinity;
   private fingers = new Set<number>();
 
   /** The press this panel is judging: which way it is going, and from where. */
@@ -571,10 +573,18 @@ export class DomPanel implements PanelApi, PanelProbe {
     list.addEventListener(
       'pointerdown',
       (e) => {
-        if (e.pointerType !== 'mouse') this.fingers.add(e.pointerId);
         // A finger on a coasting list stops it — the browser does that — and
         // is spent doing so. The row never hears the press.
-        if (this.fling > 0.5) {
+        //
+        // "Coasting" is read from the recent past, not the present: the
+        // browser stops the coast the instant the touch arrives, before the
+        // page sees the press, and a frame can pass in between. Reading the
+        // live speed saw a list already at rest, and the finger that caught a
+        // flick on BARRACKS armed it.
+        const coasting =
+          this.fling > 0.5 || (this.fingers.size === 0 && performance.now() - this.coastAt < 120);
+        if (e.pointerType !== 'mouse') this.fingers.add(e.pointerId);
+        if (coasting) {
           this.fling = 0;
           e.stopPropagation();
           this.press = null;
@@ -699,6 +709,7 @@ export class DomPanel implements PanelApi, PanelProbe {
     const moved = Math.abs(top - this.lastScrollTop) * dpr();
     this.lastScrollTop = top;
     this.fling = this.fingers.size === 0 && !this.press ? moved : 0;
+    if (this.fling > 0.5) this.coastAt = performance.now();
   }
 
   /** Every panel text a player can see: the list's only while inside the list. */

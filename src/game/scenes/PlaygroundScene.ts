@@ -8,7 +8,7 @@ import type { AttackerProfile } from '../../sim/types';
 import { BattleRenderer, type GhostPreview } from '../BattleRenderer';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { Panel, type PanelRow } from '../ui';
+import { type PanelRow, createPanel, type PanelApi } from '../ui';
 
 const CELL = 32;
 // The board is the town's board, not a second opinion about it.
@@ -37,7 +37,7 @@ export class PlaygroundScene extends Phaser.Scene {
   private lastPaintedCell = -1;
 
   private board!: BoardView;
-  private panel!: Panel;
+  private panel!: PanelApi;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
@@ -68,7 +68,7 @@ export class PlaygroundScene extends Phaser.Scene {
     this.accumulator = 0;
     this.lastPaintedCell = -1;
 
-    this.panel = new Panel(this, this.board.ui, LAB_TABS);
+    this.panel = createPanel(this, this.board.ui, LAB_TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();

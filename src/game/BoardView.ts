@@ -1,6 +1,10 @@
 import Phaser from 'phaser';
 import type { Layout, Rect } from './layout';
 import { modalOpen } from './modal';
+import type { CarryPointer } from './rows';
+
+/** A point in device px: all a hit test needs of a pointer. */
+type At = { x: number; y: number };
 
 /**
  * The battlefield viewport (v0.9): a world camera confined to the layout's
@@ -356,7 +360,7 @@ export class BoardView {
     return { zoom: this.zoom, cx: this.centerX, cy: this.centerY, rect: { ...this.rect } };
   }
 
-  private inBoard(pointer: Phaser.Input.Pointer): boolean {
+  private inBoard(pointer: At): boolean {
     // A modal owns every gesture: the board must not pan under a briefing.
     if (modalOpen()) return false;
     return (
@@ -387,7 +391,7 @@ export class BoardView {
   }
 
   /** Grid cell under a pointer, or null when it is off the board/grid. */
-  cellAt(pointer: Phaser.Input.Pointer): { col: number; row: number } | null {
+  cellAt(pointer: At): { col: number; row: number } | null {
     if (!this.inBoard(pointer)) return null;
     const p = this.camera.getWorldPoint(pointer.x, pointer.y);
     const col = Math.floor(p.x / this.opts.cell);
@@ -454,7 +458,7 @@ export class BoardView {
    * lift is the decision. Refused otherwise rather than silently starting a
    * pan the player did not ask for.
    */
-  adopt(pointer: Phaser.Input.Pointer): boolean {
+  adopt(pointer: CarryPointer): boolean {
     if (!this.placeMode || this.pinching) return false;
     this.dragging = true;
     this.dragPress = pointer.downTime;
@@ -468,7 +472,59 @@ export class BoardView {
     // this is called, so waiting for the next move would leave a frame with a
     // tool armed and nothing under it.
     this.lastPlaceCell = this.cellAt(pointer);
+    // A press the board cannot hear for itself — one that began on a DOM row,
+    // whose touch belongs to that row until it lifts — is FOLLOWED instead of
+    // listened for (M30): the panel reports its moves and its lift, and they
+    // go through the same drag and release a press on the board does.
+    pointer.follow?.(
+      (x, y) => this.followMove(pointer.downTime, x, y),
+      (x, y) => this.followEnd(pointer.downTime, x, y),
+    );
     return true;
+  }
+
+  /**
+   * One step of a drag with a tool in hand: paint the cell, or move the ghost,
+   * and scroll the board when the finger reaches its edge — so a wall line, or
+   * a building, can be carried off the screen it started on.
+   */
+  private toolDrag(pointer: At): void {
+    const cell = this.cellAt(pointer);
+    if (cell && this.paintMode) this.dragHandler?.(cell.col, cell.row);
+    if (cell && this.placeMode) this.lastPlaceCell = cell;
+    const margin = Math.min(this.rect.w, this.rect.h) * 0.12;
+    const speed = 12;
+    this.edgePan.x =
+      pointer.x < this.rect.x + margin ? -speed : pointer.x > this.rect.x + this.rect.w - margin ? speed : 0;
+    this.edgePan.y =
+      pointer.y < this.rect.y + margin ? -speed : pointer.y > this.rect.y + this.rect.h - margin ? speed : 0;
+  }
+
+  /** A followed press moved (see `adopt`). */
+  private followMove(press: number, x: number, y: number): void {
+    if (!this.dragging || this.dragPress !== press) return;
+    if (modalOpen()) {
+      this.dragging = false;
+      this.dragPress = -1;
+      return;
+    }
+    this.movedBy += Math.abs(x - this.lastX) + Math.abs(y - this.lastY);
+    this.lastX = x;
+    this.lastY = y;
+    if (this.placeMode) this.toolDrag({ x, y });
+  }
+
+  /** A followed press lifted: the placement is decided where it landed. */
+  private followEnd(press: number, x: number, y: number): void {
+    this.edgePan.x = 0;
+    this.edgePan.y = 0;
+    if (!this.dragging || this.dragPress !== press) return;
+    this.dragging = false;
+    this.dragPress = -1;
+    if (!this.placeMode) return;
+    const cell = this.cellAt({ x, y }) ?? this.lastPlaceCell;
+    this.lastPlaceCell = null;
+    if (cell) this.placeHandler?.(cell.col, cell.row);
   }
 
   private bindInput(): void {
@@ -555,25 +611,7 @@ export class BoardView {
       this.lastX = pointer.x;
       this.lastY = pointer.y;
       if (this.paintMode || this.placeMode) {
-        const cell = this.cellAt(pointer);
-        if (cell && this.paintMode) this.dragHandler?.(cell.col, cell.row);
-        if (cell && this.placeMode) this.lastPlaceCell = cell;
-        // Dragging to the edge scrolls the board under the finger, so a wall
-        // line — or a building — can be carried off the screen it started on.
-        const margin = Math.min(this.rect.w, this.rect.h) * 0.12;
-        const speed = 12;
-        this.edgePan.x =
-          pointer.x < this.rect.x + margin
-            ? -speed
-            : pointer.x > this.rect.x + this.rect.w - margin
-              ? speed
-              : 0;
-        this.edgePan.y =
-          pointer.y < this.rect.y + margin
-            ? -speed
-            : pointer.y > this.rect.y + this.rect.h - margin
-              ? speed
-              : 0;
+        this.toolDrag(pointer);
         return;
       }
       this.edgePan.x = 0;

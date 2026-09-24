@@ -99,9 +99,10 @@ import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrai
 import { BoardView } from '../BoardView';
 import { haptic } from '../haptics';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
+import type { Ink } from '../ink';
 import { createOverlay, type OverlayApi } from '../overlay';
 import { buildAttackerSpec } from '../spec';
-import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
+import { makeButton, mono, type Button, type PanelRow, createPanel, type PanelApi } from '../ui';
 
 /** A pasted base plus the fingerprint that stops it paying twice. */
 export interface Challenge {
@@ -142,7 +143,7 @@ const FIRE_TARGETS = ['guns', 'cc'] as const;
  */
 function unitIcon(
   kind: string,
-): (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number, onDark: boolean) => void {
+): (g: Ink, x: number, y: number, size: number, onDark: boolean) => void {
   return (g, x, y, size, onDark) => {
     drawAttackerGlyph(g, kind, x + size / 2, y + size / 2, size / ATTACKER_GLYPH_SPAN, {
       friendly: true,
@@ -179,7 +180,7 @@ export class RaidScene extends Phaser.Scene {
   private fogText!: Phaser.GameObjects.Text;
   private sectorLabels: Phaser.GameObjects.Text[] = [];
   private board!: BoardView;
-  private panel!: Panel;
+  private panel!: PanelApi;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
@@ -297,7 +298,7 @@ export class RaidScene extends Phaser.Scene {
       this.board.world.add(label);
     }
 
-    this.panel = new Panel(this, this.board.ui, RAID_TABS);
+    this.panel = createPanel(this, this.board.ui, RAID_TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();

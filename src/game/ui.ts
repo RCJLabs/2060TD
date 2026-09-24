@@ -6,12 +6,16 @@ import { music } from './music';
 import { DRAWER_FULL, snapDrawer, type DrawerState, type Layout, type Rect } from './layout';
 import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
-import { buttonProbes, domTextRects, type ButtonProbe, type TextRect } from './seam';
+import { DomPanel } from './dom/panel';
+import { domUi } from './dom/flag';
+import type { PanelApi, PanelRow, PanelTab } from './rows';
+import { buttonProbes, domTextRects, panelProbes, type ButtonProbe, type PanelProbe, type TextRect } from './seam';
 import { DISPLAY_FAMILY, DISPLAY_SCALE, DRAG_SLOP, HOLD_MS, MONO_FAMILY } from './tokens';
 
 export { DISPLAY_FAMILY, DISPLAY_SCALE, DRAG_SLOP, MONO_FAMILY } from './tokens';
 
 export type { ButtonProbe, TextRect } from './seam';
+export type { CarryPointer, PanelApi, PanelRow, PanelTab } from './rows';
 
 /**
  * Touch-first UI kit (v0.9). Buttons take real thumb-sized rects and their
@@ -668,83 +672,12 @@ export function makeButton(
 
 // ---- the responsive panel -------------------------------------------------
 
-export interface PanelRow {
-  id: string;
-  label: string;
-  /** Right-aligned detail: cost, count, timer. */
-  sub?: string;
-  enabled?: boolean;
-  active?: boolean;
-  onTap?: () => void;
-  /**
-   * The row's second action, on a long press (v1.27) — see
-   * `ButtonOptions.onHold`. Rows are pooled, so this is looked up by slot at
-   * fire time rather than bound into the button: the row a slot carries
-   * changes on every rebuild.
-   */
-  onHold?: () => void;
-  /**
-   * This row can be picked up and carried onto the map (v1.29).
-   *
-   * Called when a drag starts on the row's SILHOUETTE and leaves the list.
-   * Return true to take the gesture: the panel then gives up its own drag, so
-   * the finger is moving one thing and not two.
-   *
-   * The silhouette rather than the whole row, because in portrait the drawer
-   * sits BELOW the board — dragging a row onto the map and scrolling the list
-   * are the same stroke in the same direction, and no amount of slop or
-   * velocity tells them apart. A dedicated grab area does, and the obvious
-   * one is the picture of the thing being carried.
-   */
-  onPick?: (pointer: Phaser.Input.Pointer) => boolean;
-  /** A full-width heading instead of a button. */
-  heading?: boolean;
-  /**
-   * The thing this row IS, drawn into the row's left edge.
-   *
-   * The game has had a silhouette for every structure and every unit since
-   * v1.19 and drew them only on the board, so the drawer stayed a spreadsheet:
-   * `SUPPLY DEPOT .......... 150S 2/3` is a table cell, and a list of them is
-   * scanned by reading rather than by looking. The callback gets a Graphics
-   * that has already been cleared and positioned, plus the box it may draw in,
-   * so a caller reuses `drawStructureGlyph`/`drawAttackerGlyph` rather than
-   * inventing a second set of shapes that would drift from the board's.
-   *
-   * Called on every rebuild, which is every frame — keep it to drawing.
-   */
-  icon?: (
-    g: Phaser.GameObjects.Graphics,
-    x: number,
-    y: number,
-    size: number,
-    /**
-     * This row is a KNOCKOUT — solid ink with a paper label — so the icon has
-     * to invert with it.
-     *
-     * The parameter exists because inverting the drawer made the old answer
-     * wrong in silence. Every supplier hard-coded `onDark: true` back when the
-     * rail was dark, which on a paper row draws a white silhouette on white
-     * and leaves only its grey trim behind. Nothing fails; the icon is just
-     * not there. Only the row knows which state it is in, so only the row can
-     * answer this.
-     */
-    onDark: boolean,
-  ) => void;
-}
-
-export interface PanelTab {
-  id: string;
-  label: string;
-}
-
 /**
  * The panel: a right rail in landscape, a collapsible bottom drawer in
  * portrait. Rows are data — scenes hand over a fresh list each frame and the
  * panel diffs it against a pooled set of buttons, so scrolling, re-layout and
  * orientation flips need no bookkeeping from the caller.
  */
-/** Live panels, so the harness can read the drawer's scroll offset. */
-const livePanels = new Set<Panel>();
 
 /**
  * Live drawer scroll offset and list rect (device px), or null when no panel
@@ -760,7 +693,7 @@ const livePanels = new Set<Panel>();
  * The panel stores what it was given; that is the only copy that is true.
  */
 export function panelLayout(): Layout | null {
-  for (const panel of livePanels) {
+  for (const panel of panelProbes) {
     const live = panel.liveLayout();
     if (live) return live;
   }
@@ -769,7 +702,7 @@ export function panelLayout(): Layout | null {
 
 /** Test seam: which tab a live panel is showing. */
 export function panelTab(): string | null {
-  for (const panel of livePanels) {
+  for (const panel of panelProbes) {
     if (panel.liveLayout()) return panel.tab;
   }
   return null;
@@ -782,14 +715,14 @@ export function panelScroll(): {
   fling: number;
   rect: { x: number; y: number; w: number; h: number };
 } | null {
-  for (const panel of livePanels) {
+  for (const panel of panelProbes) {
     const at = panel.probe();
     if (at) return at;
   }
   return null;
 }
 
-export class Panel {
+export class Panel implements PanelApi, PanelProbe {
   private readonly scene: Phaser.Scene;
   private readonly root: Phaser.GameObjects.Container;
   private readonly rowRoot: Phaser.GameObjects.Container;
@@ -919,9 +852,9 @@ export class Panel {
     ]);
 
     this.bindScroll();
-    livePanels.add(this);
+    panelProbes.add(this);
     const forget = (): void => {
-      livePanels.delete(this);
+      panelProbes.delete(this);
     };
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, forget);
     scene.events.once(Phaser.Scenes.Events.DESTROY, forget);
@@ -1641,4 +1574,13 @@ export class Panel {
     this.clampScroll();
     this.relayoutRows();
   }
+}
+
+/** A panel from whichever kit the flag names (M30). */
+export function createPanel(
+  scene: Phaser.Scene,
+  container: Phaser.GameObjects.Container,
+  tabs: PanelTab[],
+): PanelApi {
+  return domUi() ? new DomPanel(scene, container, tabs) : new Panel(scene, container, tabs);
 }
