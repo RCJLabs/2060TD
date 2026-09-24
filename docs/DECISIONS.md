@@ -961,3 +961,17 @@ here with the change and its date.
   thing being tuned moves with the tuning. The v1.44 campaign is now frozen in
   the harness, as v1.44's defence tables were, measured from the content before
   it moved.
+- 2026-09-24 — **The wall price stays where it is.** A wall segment on the
+  10x15 board is two units of wire at the one-unit price, so a line costs half
+  the Supplies it did. The owner kept it. Cheaper wire is part of the new
+  board, the migration's refunds already assume it, and nothing measured says
+  it needs taking back.
+- 2026-09-24 — **When a shape is a wall for some forces and not others, look at
+  what separates the forces before touching the shape.** The 10x15 keep held
+  off Russia's, the UN's and the KPA's reference raids almost every time and
+  let the USA's and China's through half the time. Walls, gates and the post
+  were each tried, and moved the hunters little or not at all. The split was
+  doctrine: the three that
+  hunt guns walked into a keep whose guns all covered each other, and the two
+  that go for the post walked past them. Spreading the guns, the property the
+  20x30 keep had and the redraw lost, fixed it without removing one.

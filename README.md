@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.45.1, in the browser. No install, no account, works on a phone.
+v1.45.2, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -86,6 +86,19 @@ a player who hasn't built the command post level the campaign unlocked two
 missions earlier. With no tanks in it at all, a CC2 base holds it 15% of the time.
 The campaign is now a table in the balance snapshot, so the next change that moves
 it will show.
+
+**v1.45.2 — the keep, redesigned.** On the new board the keep had become a wall
+for any raid that hunts guns. Russia's, the UN's and the KPA's reference forces
+took it 7, 0 and 11 times in 144, while the USA's and China's, which go for the
+post, took it about half the time. To keep its corridors open, the redraw had put
+every gun in the keep's front and back bands, so each covered all the others,
+and a raid hunting them met all of them at once. They stand spread again, as they
+did around the old keep's wide ring: one in each corner of the bands, the rest in
+outworks just outside the outer ring. There are no fewer guns, and it now seats
+every gun a rung asks for, which it did not before. Those three forces now take
+it 54, 12 and 58 times, and it is still their third hardest shape. Every faction
+is dealt all eight base shapes again. Walls keep their price: a segment is twice
+as long for the same Supplies, and that stays.
 
 ## v1.44: the whole board, with the drawer open
 
