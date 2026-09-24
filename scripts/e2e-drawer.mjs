@@ -583,7 +583,7 @@ try {
   // button takes ownership — so a check that lands on one proves nothing, and
   // this one landed on an unaffordable AIRFIELD until it was pinned down.
   //
-  // And then it is TRIED, up to six times, rather than pinned (M30). Where a
+  // And then it is TRIED, up to ten times, rather than pinned (M30). Where a
   // coasting list is when the finger lands depends on whose physics are
   // coasting it — the canvas panel's decay when this was written, the
   // platform's own momentum since, which moves the list differently — and the
@@ -596,8 +596,23 @@ try {
   let cx = 0;
   let cy = 0;
   let landed = null;
-  const landings = [0.4, 0.55, 0.3, 0.7, 0.15, 0.85];
-  for (let attempt = 0; attempt < landings.length; attempt++) {
+  // Each attempt changes the flick as well as the landing: the flick decides
+  // where the coast ends, and a run of locked rows can cover every landing
+  // one coast offers (v1.52.1: four of them in a row, measured under load).
+  const attempts = [
+    { flick: 150, landing: 0.4 },
+    { flick: 150, landing: 0.55 },
+    { flick: 110, landing: 0.3 },
+    { flick: 190, landing: 0.7 },
+    { flick: 130, landing: 0.15 },
+    { flick: 170, landing: 0.85 },
+    { flick: 90, landing: 0.5 },
+    { flick: 120, landing: 0.25 },
+    { flick: 180, landing: 0.6 },
+    { flick: 100, landing: 0.35 },
+  ];
+  for (let attempt = 0; attempt < attempts.length; attempt++) {
+    const { flick, landing } = attempts[attempt];
     if (attempt > 0) {
       await touch('touchEnd', cx, cy);
       await wait(600);
@@ -622,10 +637,10 @@ try {
     const fy = flickBox.list.y + flickBox.list.h * 0.75;
     await touch('touchStart', fx, fy);
     for (let i = 1; i <= 5; i++) {
-      await touch('touchMove', fx, fy - (150 * i) / 5);
+      await touch('touchMove', fx, fy - (flick * i) / 5);
       await wait(8);
     }
-    await touch('touchEnd', fx, fy - 150);
+    await touch('touchEnd', fx, fy - flick);
     // POLLED, not sampled at a fixed delay. A single read 60ms after the lift
     // caught a slow frame about one run in three and reported no coast at all —
     // the same shape as the `e2e-gates` flake, where a harness waited a flat
@@ -642,13 +657,12 @@ try {
     // no round-trip between seeing the coast and landing on it. Each attempt
     // lands somewhere else in the list: a coast is as repeatable as the
     // physics under it, so landing on the same spot again lands on the same
-    // locked row again. The spread is wider than the longest run of locked
-    // rows, so one of them has to find a row that can be pressed. That run
-    // grew by two in v1.52, when the research-locked works went in between
-    // the Generator and the Signals Station, and four landings from 0.3 to 0.7
-    // of the list could all fall inside it.
+    // locked row again. That run of locked rows grew by two in v1.52, when
+    // the research-locked works went in between the Generator and the Signals
+    // Station, and under load every landing one coast offered could fall
+    // inside it, so each attempt flicks differently as well (`attempts`).
     cx = flickBox.list.x + flickBox.list.w / 2;
-    cy = flickBox.list.y + flickBox.list.h * landings[attempt];
+    cy = flickBox.list.y + flickBox.list.h * landing;
     await touch('touchStart', cx, cy);
     await wait(250);
     landed = await page.evaluate(
