@@ -2,23 +2,30 @@
  * M24 Phase 1: where a player's time and supply actually go.
  *
  * Every instrument before this one pointed at a battle. This one points at
- * the town, and reads it off the real town functions — `caps`, `ratesPerMinute`,
+ * the town, and reads it off the real town functions — `caps`, `ratesPerHour`,
  * `tick`, `place`, `upgrade`, `startResearch` — rather than off a model of them,
  * so what it says about the economy is what the game does.
  *
- * Two tables. STAGES has no player in it: a Command Center level with its whole
- * allowance built, and what that town makes, keeps and costs. A PLAYED FORTNIGHT
- * has one: a commander who checks in at a fixed cadence and buys production,
- * then storage, intel, the Command Center and the rest, the cheapest first
- * within each, with every resource that moves booked to where it came from and
- * where it went.
+ * STAGES has no player in it: a Command Center level with its whole allowance
+ * built, and what that town makes, keeps and costs. A PLAYED FORTNIGHT has one:
+ * a commander who checks in at a fixed cadence and buys production, then
+ * storage, intel, the Command Center and the rest, the cheapest first within
+ * each, with every resource that moves booked to where it came from and where
+ * it went. WHAT A DEFENCE COSTS (M24 Phase 2) puts the war back in: what a
+ * siege pays against what it breaks, both in hours of the stage's production.
  */
-import { assaultLoot } from '../content/assaults';
+import { assaultLoot, buildAssault } from '../content/assaults';
 import { generateBase, lootFor } from '../content/bases';
 import { BUILDABLE_KINDS, CC_GATING, OFFLINE_CAP_HOURS } from '../content/buildings';
 import { CONTRACTS, CONTRACTS_PER_DAY, contractsAt } from '../content/contracts';
 import { creditContracts } from '../meta/contracts';
-import { baseKitFor, townMetaFor, type FactionId } from '../content/factions';
+import {
+  baseKitFor,
+  defenseCatalogFor,
+  enemyRosterFor,
+  townMetaFor,
+  type FactionId,
+} from '../content/factions';
 import { LADDER_EPOCH } from '../content/leagues';
 import { TECHS } from '../content/research';
 import {
@@ -29,8 +36,11 @@ import {
   cumulativeCost,
   gating as gatingOf,
   newTown,
+  outcomeFromEngine,
   place,
-  ratesPerMinute,
+  ratesPerHour,
+  repairCost,
+  siegeConfig,
   startResearch,
   tick,
   townCc,
@@ -40,6 +50,8 @@ import {
   TOWN_GRID,
   type TownState,
 } from '../meta/town';
+import { Engine } from '../sim/engine';
+import { referenceBases, type ReferenceBase } from './referenceBases';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -131,38 +143,47 @@ function isBuiltOut(town: TownState, cc: number): boolean {
 function stageTable(faction: FactionId): string[] {
   const lines = [
     `STAGES — ${faction.toUpperCase()}: a Command Center level with its whole allowance built, every piece at the stage's top level`,
-    'STAGE | MAKES A MINUTE     | STORES               | FULL FROM EMPTY (min) | 8 HOURS MAKE   | 8 HOURS KEEP (S F) | BUILD-OUT FROM THE STAGE BEFORE',
+    'STAGE | MAKES AN HOUR      | STORES               | FULL FROM EMPTY (h) | 8 HOURS MAKE   | 8 HOURS KEEP (S F) | BUILD-OUT FROM THE STAGE BEFORE',
   ];
   let before = worth(unlockAll(newTown(LADDER_EPOCH, faction)));
   let beforeRate: Amounts | null = null;
   for (let cc = 1; cc <= 3; cc++) {
     const town = builtOut(faction, cc);
-    const rate = ratesPerMinute(town);
+    const rate = ratesPerHour(town);
     const cap = caps(town);
-    const full = RESOURCES.map((r) => (rate[r] > 0 ? (cap[r] / rate[r]).toFixed(0) : '—'));
-    const made8 = { supplies: rate.supplies * 480, fuel: rate.fuel * 480 };
-    const kept = `${pct(cap.supplies, made8.supplies)} ${pct(cap.fuel, made8.fuel)}`;
+    const full = RESOURCES.map((r) => (rate[r] > 0 ? (cap[r] / rate[r]).toFixed(1) : '—'));
+    const made8 = { supplies: rate.supplies * 8, fuel: rate.fuel * 8 };
+    const kept =
+      `${pct(Math.min(cap.supplies, made8.supplies), made8.supplies)} ` +
+      `${pct(Math.min(cap.fuel, made8.fuel), made8.fuel)}`;
     const now = worth(town);
     const cost = { supplies: now.supplies - before.supplies, fuel: now.fuel - before.fuel };
-    // In minutes of the production the stage before it had, fully built: what
+    // In hours of the production the stage before it had, fully built: what
     // saving for this stage takes. The first stage has no stage before it, so
     // it is priced in its own.
     const paying = beforeRate ?? rate;
-    const minutes = Math.max(cost.supplies / Math.max(1, paying.supplies), cost.fuel / Math.max(1, paying.fuel));
+    const hours = Math.max(cost.supplies / Math.max(1, paying.supplies), cost.fuel / Math.max(1, paying.fuel));
     lines.push(
       `CC${cc}   | ${pad(`${rate.supplies} S ${rate.fuel} F ${rate.intel} I`, 18)} | ` +
         `${pad(`${cap.supplies} S ${cap.fuel} F ${cap.intel} I`, 20)} | ` +
-        `${pad(full.join(' / '), 21)} | ${pad(`${k(made8.supplies)} S ${k(made8.fuel)} F`, 14)} | ` +
-        `${pad(kept, 18)} | ${k(cost.supplies)} S ${k(cost.fuel)} F, ${minutes.toFixed(0)} min of ` +
+        `${pad(full.join(' / '), 19)} | ${pad(`${k(made8.supplies)} S ${k(made8.fuel)} F`, 14)} | ` +
+        `${pad(kept, 18)} | ${k(cost.supplies)} S ${k(cost.fuel)} F, ${hours.toFixed(1)} h of ` +
         `${beforeRate ? `CC${cc - 1}'s` : 'its own'} production`,
     );
     before = now;
     beforeRate = rate;
   }
 
-  // What the battles pay, in minutes of each stage's production.
+  // What the battles pay, in hours of each stage's production. A siege pays
+  // for every wave it holds and a bonus for holding the lot; Phase 1 read the
+  // bonus alone, which is under half of it. Salvage, the CP left unspent at the
+  // end, is left out: it is whatever the commander did not use.
   const contractDay =
     (CONTRACTS.reduce((sum, c) => sum + c.pay.supplies, 0) / CONTRACTS.length) * CONTRACTS_PER_DAY;
+  const siege = (level: number): number => {
+    const def = buildAssault(level, enemyRosterFor(faction));
+    return assaultLoot(level).supplies + def.waves.length * def.suppliesPerWave;
+  };
   const raid = (tier: number): number => {
     const base = generateBase(tier, 0, baseKitFor(faction), undefined, faction);
     let loot = lootFor('cc', tier).supplies;
@@ -170,21 +191,156 @@ function stageTable(faction: FactionId): string[] {
     return loot;
   };
   const pays: [string, number][] = [
-    ['a siege held at level 3', assaultLoot(3).supplies],
-    ['a siege held at level 8', assaultLoot(8).supplies],
+    ['a siege held at level 3', siege(3)],
+    ['a siege held at level 8', siege(8)],
+    ['a siege held at level 15', siege(15)],
     ['a day of three orders, on average', contractDay],
     ['a tier-1 post razed to the ground', raid(1)],
     ['a tier-5 post razed to the ground', raid(5)],
   ];
   lines.push('');
-  lines.push('WHAT THE BATTLES PAY, in supplies and in minutes of each stage\'s supply production');
-  lines.push(`${pad('', 36)} | SUPPLIES |  CC1 |  CC2 |  CC3`);
-  const rates = [1, 2, 3].map((cc) => ratesPerMinute(builtOut(faction, cc)).supplies);
+  lines.push("WHAT THE BATTLES PAY, in supplies and in hours of each stage's supply production");
+  lines.push(`${pad('', 36)} | SUPPLIES |   CC1 |   CC2 |   CC3`);
+  const rates = [1, 2, 3].map((cc) => ratesPerHour(builtOut(faction, cc)).supplies);
   for (const [label, supplies] of pays) {
     lines.push(
-      `${pad(label, 36)} | ${pad(k(supplies), 8)} | ` + rates.map((r) => pad((supplies / r).toFixed(0), 4)).join(' | '),
+      `${pad(label, 36)} | ${pad(k(supplies), 8)} | ` + rates.map((r) => pad((supplies / r).toFixed(1), 5)).join(' | '),
     );
   }
+  return lines;
+}
+
+// ---- WHAT A DEFENCE COSTS -------------------------------------------------------------
+
+/**
+ * A reference defence as a town: the post at the base's level, and the guns
+ * and walls where the balance harness draws them, with nothing in the store.
+ */
+function referenceTown(base: ReferenceBase, faction: FactionId): TownState {
+  const town = unlockAll(newTown(LADDER_EPOCH, faction));
+  town.structures = [{ id: 1, kind: 'cc', cell: TOWN_GRID.ccOrigin, level: base.ccLevel, wrecked: false }];
+  let id = 2;
+  for (const s of base.structures) {
+    town.structures.push({ id: id++, kind: s.kind, cell: s.cell, level: s.level ?? 1, wrecked: false });
+  }
+  town.nextId = id;
+  town.walls = base.walls.map((w) => ({ ...w }));
+  town.supplies = 0;
+  town.fuel = 0;
+  return town;
+}
+
+interface Fought {
+  held: boolean;
+  /** What the battle's own supply line paid, its waves and salvage, and the bonus on a hold. */
+  pay: { supplies: number; fuel: number };
+  /** What putting back everything it wrecked costs. */
+  wrecks: { supplies: number; fuel: number };
+}
+
+/**
+ * One siege against a reference town, fought as the town fights one — through
+ * `siegeConfig` — with nobody acting, which is the harness's bare row, and on
+ * the flat ground the harness fights on, so the levels line up with the
+ * defence tables in docs/BALANCE.md. Priced as `foldBattle` and
+ * `applySiegeResult` price it: the battle's own supplies come home, a hold
+ * adds the bonus, and everything that did not come out of it is a wreck at the
+ * town's own repair price.
+ */
+function fightSiege(town: TownState, level: number, seed: number): Fought {
+  town.assaultLevel = level;
+  const config = siegeConfig(town, seed);
+  delete config.terrainSeed;
+  delete config.terrainVersion;
+  const engine = new Engine(config, defenseCatalogFor(town.faction));
+  engine.enqueue({ tick: 0, type: 'startAssault' });
+  while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) engine.step();
+  const outcome = outcomeFromEngine(engine);
+  const standing = new Set(outcome.survivors.map((s) => s.cell));
+  const wrecks = { supplies: 0, fuel: 0 };
+  for (const s of town.structures) {
+    if (s.kind === 'cc' || standing.has(s.cell)) continue;
+    const cost = repairCost(town, s);
+    wrecks.supplies += cost.supplies;
+    wrecks.fuel += cost.fuel;
+  }
+  const bonus = outcome.victory ? assaultLoot(level) : { supplies: 0, fuel: 0 };
+  return {
+    held: outcome.victory,
+    pay: { supplies: outcome.supplies + bonus.supplies, fuel: bonus.fuel },
+    wrecks,
+  };
+}
+
+/**
+ * WHAT A DEFENCE COSTS (M24 Phase 2): each reference defence fought through
+ * its band, from the last level it holds every time to the first it never
+ * holds, with what a hold pays and what the battle wrecks, in supplies and in
+ * hours of that stage's production.
+ *
+ * Guns only: the harness's defences have no depots on the board, and where a
+ * player puts theirs is theirs to decide. So a real town's bill is this one
+ * plus whatever of its economy stood in the way.
+ */
+function defenceTable(faction: FactionId, seeds = 12): string[] {
+  const lines = [
+    `WHAT A DEFENCE COSTS — ${faction.toUpperCase()}: the reference defences through their band, ` +
+      `nobody acting, ${seeds} seeds a level; S+F, then hours of the stage's supply production`,
+  ];
+  const sf = (a: { supplies: number; fuel: number }): string => `${Math.round(a.supplies)}+${Math.round(a.fuel)}`;
+  for (const base of referenceBases()) {
+    const town = referenceTown(base, faction);
+    const perHour = ratesPerHour(builtOut(faction, base.ccLevel)).supplies;
+    const flattened = { supplies: 0, fuel: 0 };
+    for (const s of town.structures) {
+      if (s.kind === 'cc') continue;
+      const cost = repairCost(town, s);
+      flattened.supplies += cost.supplies;
+      flattened.fuel += cost.fuel;
+    }
+    lines.push('');
+    lines.push(
+      `${base.name}: ${town.structures.length - 1} guns; every one of them wrecked is ${sf(flattened)} ` +
+        `to repair, ${(flattened.supplies / perHour).toFixed(1)} h of CC${base.ccLevel}'s production`,
+    );
+    lines.push('LEVEL | HELD | A HOLD PAYS | ITS WRECKS | NET, IN HOURS | A LOSS PAYS | ITS WRECKS');
+    let pending: string | null = null;
+    for (let level = 1; level <= 30; level++) {
+      const held: Fought[] = [];
+      const lost: Fought[] = [];
+      for (let i = 0; i < seeds; i++) {
+        const fought = fightSiege(town, level, (level * 7919 + i * 104_729 + base.ccLevel) >>> 0);
+        (fought.held ? held : lost).push(fought);
+      }
+      const mean = (xs: Fought[], pick: (f: Fought) => { supplies: number; fuel: number }) => ({
+        supplies: xs.reduce((n, f) => n + pick(f).supplies, 0) / Math.max(1, xs.length),
+        fuel: xs.reduce((n, f) => n + pick(f).fuel, 0) / Math.max(1, xs.length),
+      });
+      const holdPay = mean(held, (f) => f.pay);
+      const holdWrecks = mean(held, (f) => f.wrecks);
+      const lossPay = mean(lost, (f) => f.pay);
+      const lossWrecks = mean(lost, (f) => f.wrecks);
+      const row =
+        `${pad(String(level), 5)} | ${pad(pct(held.length, seeds), 4)} | ` +
+        `${pad(held.length ? sf(holdPay) : '—', 11)} | ${pad(held.length ? sf(holdWrecks) : '—', 10)} | ` +
+        `${pad(held.length ? `${((holdPay.supplies - holdWrecks.supplies) / perHour).toFixed(1)}` : '—', 13)} | ` +
+        `${pad(lost.length ? sf(lossPay) : '—', 11)} | ${lost.length ? sf(lossWrecks) : '—'}`;
+      if (held.length === seeds) {
+        // Only the last level it holds every time is worth a row.
+        pending = row;
+        continue;
+      }
+      if (pending) lines.push(pending);
+      pending = null;
+      lines.push(row);
+      if (held.length === 0) break;
+    }
+  }
+  lines.push('');
+  lines.push(
+    'A loss also costs 15% of what is in the store (DEFEAT_LOSS_FRACTION). A hold with nobody acting ' +
+      'banks every CP it earned as salvage, which a commander spends.',
+  );
   return lines;
 }
 
@@ -261,12 +417,12 @@ function playFortnight(faction: FactionId, cadenceHours: number, days: number, s
   const advance = (now: number): void => {
     const elapsed = Math.max(0, now - town.lastSeen);
     const counted = Math.min(elapsed, OFFLINE_CAP_HOURS * HOUR);
-    const rate = ratesPerMinute(town);
+    const rate = ratesPerHour(town);
     const cap = caps(town);
     const expected = zero();
     for (const r of RESOURCES) {
-      const made = (rate[r] * elapsed) / MIN;
-      const gain = (rate[r] * counted) / MIN;
+      const made = (rate[r] * elapsed) / HOUR;
+      const gain = (rate[r] * counted) / HOUR;
       const held = town[r];
       ledger.made[r] += made;
       ledger.pastOffline[r] += made - gain;
@@ -460,5 +616,13 @@ function overflowTable(faction: FactionId): string[] {
 }
 
 export function economyTable(faction: FactionId = 'usa'): string {
-  return [...stageTable(faction), '', ...overflowTable(faction), '', ...fortnightTable(faction)].join('\n');
+  return [
+    ...stageTable(faction),
+    '',
+    ...defenceTable(faction),
+    '',
+    ...overflowTable(faction),
+    '',
+    ...fortnightTable(faction),
+  ].join('\n');
 }
