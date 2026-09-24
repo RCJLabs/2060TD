@@ -91,6 +91,13 @@ export function deviceRect(el: Element): Rect {
   return { x: (r.left - o.left) * d, y: (r.top - o.top) * d, w: r.width * d, h: r.height * d };
 }
 
+/** A page point in CSS px, as the device px the board and the layout use. */
+export function devicePoint(clientX: number, clientY: number): { x: number; y: number } {
+  const o = canvasOrigin();
+  const d = dpr();
+  return { x: (clientX - o.left) * d, y: (clientY - o.top) * d };
+}
+
 /** Set an element's absolute box from a rect in CSS px. */
 export function place(
   el: HTMLElement,

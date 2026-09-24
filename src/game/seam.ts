@@ -1,3 +1,5 @@
+import type { Layout } from './layout';
+
 /**
  * The test seam's registries (M30), shared by both UI implementations.
  *
@@ -72,3 +74,22 @@ export function domTextRects(): TextRect[] {
   for (const source of textSources) out.push(...source());
   return out;
 }
+
+/**
+ * A panel as the harness reads it: the layout it was last given, the tab it is
+ * showing, and how far its list is scrolled — or null when its scene is not
+ * running. Both kits' panels register here.
+ */
+export interface PanelProbe {
+  liveLayout(): Layout | null;
+  readonly tab: string;
+  probe(): {
+    scrollY: number;
+    max: number;
+    /** Speed the list is still coasting at; 0 when it is at rest. */
+    fling: number;
+    rect: { x: number; y: number; w: number; h: number };
+  } | null;
+}
+
+export const panelProbes = new Set<PanelProbe>();
