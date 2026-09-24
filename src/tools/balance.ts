@@ -59,6 +59,7 @@ import { CONDITIONS } from '../content/conditions';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
+import { economyTable } from './economy';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
 import { scaleFootprint } from '../sim/scale';
@@ -6121,6 +6122,11 @@ function main(): void {
   if (process.argv.includes('--pins')) {
     const arg = process.argv[process.argv.indexOf('--pins') + 1];
     console.log(pinTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--economy')) {
+    console.log(economyTable());
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
