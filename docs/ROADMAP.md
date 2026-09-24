@@ -4148,8 +4148,150 @@ north", and it is where an endgame can live.
       beach lane's posts on sand) would move battles, so it waits for the
       harness. And the ladder runs past the stronghold as its rear, a name
       that holds until Phase 4 decides what reaching it means.
-- [ ] **Phase 2 — enemy agency.** An AI that takes territory back offline, so the
-      map moves without the player.
+- [x] **Phase 2 — enemy agency.** An AI that takes territory back offline, so the
+      map moves without the player. *(v1.54.0)*
+
+      **The plan, before the build.** Phase 1 drew the Front Line as ground
+      and read all of it off the rung. Phase 2 lets the enemy take some of it
+      back, so held ground becomes state.
+
+      *What the survey found.* The enemy already does three things while the
+      player is away, and none of them can carry this. Offline probes hit the
+      town, but a probe is two waves with the defender's economy switched
+      off, which GDD 5.7 calls unloseable for a built town: ground tied to a
+      breached probe would move for a weak town and never for a strong one.
+      Counterattacks follow the player's own wins, and wait for the player to
+      fight them. Standing decay is the one that fits. Thirty-six hours after
+      the last thing done on the Front Line, the board starts forgetting the
+      commander, a fixed amount a day, because sitting behind a garrison is
+      not playing. The week at war says who that reaches: a commander raiding
+      every two or eight hours climbs from the first rung to the sixth in a
+      week, and one who raids once a day reaches the third.
+
+      *The enemy strikes back when the front goes quiet.* On decay's clock:
+      36 hours after the last raid, counterattack or defence fought in
+      person, the enemy retakes one sector, and a day later a second. Two is
+      the most one quiet spell costs, and any of those actions starts the
+      clock again. A commander who raids every day never loses ground.
+
+      *Where it strikes.* Always the town directly behind the front, the last
+      one taken, and it goes for the roads. It takes the sector of a lane
+      that still reaches the front, down its main road first (the heavy lane,
+      then the middle, then the light), and only when every road is cut does
+      it take what is left of that town. At the first rung there is nothing
+      behind the front but the base, and the base is never taken.
+
+      *What a lost sector does.* It cuts its lane: the front post in that lane
+      cannot be raided until the sector is retaken. Any three wins still take
+      the front's town, through whichever lanes are open. When all three
+      sectors of the town behind the front are lost, the front falls back to
+      it: the rung goes down one and its pushes start again from none. Since
+      one quiet spell takes at most two, one absence can never push the front
+      back from a town that was whole; it takes a second quiet spell with the
+      first losses left standing.
+
+      *Retaking.* A lost sector is a target, and its post is the one the
+      ladder dealt at that tier and lane: the same base, and scouted if it
+      was scouted then. A raid that takes it retakes the sector, and reopens
+      the lane if nothing else cuts it. It pays loot and standing like taking
+      a post at that tier, it counts toward counterattacks like any post, and
+      it moves no pushes at the front.
+
+      *What is stored.* Two optional fields on the Front Line: the lost
+      sectors (tier, lane, and when), and how far the enemy's clock has been
+      charged. A file from before has lost nothing, and its clock starts at
+      the load that upgrades it, so no absence before the update is charged.
+
+      *What the player sees.* The map marks the lost sectors and the roads
+      they cut, and says how long the front has been quiet and when the enemy
+      strikes. Under it, a front post in a cut lane says where its road is
+      cut, and each lost sector has a RETAKE button that opens the planner on
+      it. The planner's targets are the open front posts, then the retakes.
+      Coming back, a banner says what the enemy retook and whether the front
+      fell back.
+
+      *The bar.* A commander who raids daily loses nothing. The week at war,
+      run at one, two, three and seven days between sessions, with the enemy
+      striking and without, measures ground lost and retaken and the rung
+      reached. The enemy should slow a commander who is away for days and
+      never undo more than one quiet spell's worth at a time. No battle
+      changes, since every post is one the ladder already deals. Old saves
+      load, and the e2e harnesses pass unchanged.
+
+      **The record (v1.54.0).** Built as planned. The measurement kept every
+      number, and it found what the strikes cost and who pays.
+
+      *Where it lives.* The rules are `meta/strikes.ts`, pure and on an
+      explicit clock like the decay. `tick()` charges the enemy's clock
+      through the ladder's settlement, which now reports the strikes that
+      landed. So does anything that ends a quiet spell, before it ends it, so
+      a strike already due is never forgotten, and a raid lands what its
+      planning owed before it moves the front. A raid on a lost sector's post
+      retakes it: `applyRaidResult` reads the base's tier and slot, and a
+      post the ground moved out from under pays like any post and moves
+      nothing. Scouting a sector to retake is priced at its own tier. Twenty-
+      one new tests cover the clock, the targeting, the fall-back, retaking,
+      the map and the save.
+
+      *What the player sees.* THE FRONT WENT QUIET — THE PLA RETOOK HIGHWAY
+      101 AT NEWPORT, CUTTING ITS ROAD, on the town screen, or THE FRONT FELL
+      BACK when it did. The THEATER row counts what is lost, or warns of a
+      strike due within 12 hours. The map strikes lost sectors out in red and
+      breaks their roads, writes CUT on the front posts they cut off, and
+      says how long the front has been quiet and when the enemy strikes. A
+      front post in a cut lane says where its road is cut, and each loss has
+      a RETAKE button. The planner's targets are the open front posts, then
+      the retakes (TARGET 3/3 · RETAKE THE COAST RANGE AT YACHATS), and it
+      re-aims itself when the map moves under it. Its report says what a
+      retake did: THE BEACHES AT NEWPORT RETAKEN, and whether the road is
+      open. Read at 412 px portrait and 1440 px.
+
+      *The measurement.* The week at war now plays any rhythm: a session
+      every so many days, up to three raids in one, with a commander who
+      pushes (retakes only when no road reaches the front) or holds (retakes
+      everything first), and the enemy's clock running or stopped. Its own
+      table did not move by a number. THE ENEMY STRIKES BACK (`npm run balance
+      -- --front`): the same CC3 town raiding for four weeks, up to three
+      raids a session at the easiest open post, and the rung it ends on with
+      no strikes, then with them, pushing / holding:
+
+      | every | USA | China | Russia | KPA | UN |
+      |---|---|---|---|---|---|
+      | day | 9: 9 / 9 | 11: 11 / 11 | 6: 6 / 6 | 8: 8 / 8 | 8: 8 / 6 |
+      | 2 days | 8: 6 / 6 | 7: 6 / 6 | 6: 6 / 6 | 6: 6 / 5 | 6: 6 / 6 |
+      | 3 days | 6: 3 / 5 | 6: 3 / 5 | 6: 3 / 5 | 6: 3 / 4 | 6: 3 / 4 |
+      | 7 days | 5: 3 / 3 | 5: 3 / 3 | 5: 3 / 3 | 4: 3 / 3 | 4: 2 / 3 |
+
+      A commander who raids every day loses nothing, but for the UN, whose
+      force is not always retrained by the next day: a day without a raid can
+      make 36 quiet hours, and it lost one sector in four weeks pushing and
+      three holding. Every other day, about one raid in three goes to
+      retaking, and it costs up to two rungs a month (the USA), or nothing
+      (Russia, the UN). The retakes are easier posts than the front's and pay
+      like them.
+      Every three days or weekly it costs one to three rungs. The front falls
+      back only for a commander who leaves losses standing: pushing at a
+      three-day rhythm, it fell back four times in four weeks for every
+      faction; holding, it never did, but once for the KPA, whose force was
+      not always ready to retake everything.
+
+      *One experiment, not taken.* The enemy strikes the heavy lane first.
+      For the USA, striking the light one first, the road most commanders
+      use, ends every run on the same rung: what the strikes cost is how many
+      land, not where. So the order stays the one the map can explain, down
+      the enemy's main road.
+
+      *The gate.* 699 unit tests, 21 of them new, and the 24 e2e harnesses,
+      none of which needed a change. A retake was also launched through the
+      planner in the browser: a small force stalled at CHARGE and left the
+      sector lost, and the whole yard took it back, reported THE COAST RANGE AT
+      FLORENCE RETAKEN · its road to the front is open, paid standing as a
+      tier-2 post and left the pushes at the front where they were.
+
+      *What it hands on.* Holding ground now takes playing, and costs a
+      commander who is away a raid in three. Phase 3 is where holding ground
+      costs supplies, and it will read against the same table: a cost that
+      grows with what a commander holds is one a daily commander pays too.
 - [ ] **Phase 3 — supply and attrition.** Holding ground costs; overextending
       punishes.
 - [ ] **Phase 4 — the endgame.** The front reaches their capital, or yours.
@@ -5388,6 +5530,12 @@ real road from its base toward the enemy's stronghold, twelve towns and three
 lanes, and the rung is how far up it the front has been pushed. The map is
 derived from the rung and adds nothing to the save, so no battle moved. Phase 2,
 enemy agency, is where held ground has to become state.*
+
+*M25 Phase 2 (v1.54.0) made it state. When the front is quiet for 36 hours, the
+enemy retakes a sector of the town behind it, and a day later a second, cutting
+roads to the front; losses left standing can push the front back. A commander who
+raids daily loses nothing, and one away for days loses a raid in three to
+retaking. Phase 3, supply and attrition, reads against the same table.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

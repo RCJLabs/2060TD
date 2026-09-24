@@ -30,6 +30,7 @@ import {
 } from '../content/factions';
 import { LADDER_EPOCH } from '../content/leagues';
 import { TECHS } from '../content/research';
+import type { LadderSettlement } from '../meta/ladder';
 import {
   accrue,
   canPlace,
@@ -494,7 +495,7 @@ export function yardValue(town: TownState): number {
  * the converters' part of them is booked apart from what the producers made.
  * Anything else `tick` pays is a season placement.
  */
-export function advanceBooked(town: TownState, now: number, books: Accruals): void {
+export function advanceBooked(town: TownState, now: number, books: Accruals): LadderSettlement {
   const elapsed = Math.max(0, now - town.lastSeen);
   const counted = Math.min(elapsed, OFFLINE_CAP_HOURS * HOUR);
   const rate = productionPerHour(town);
@@ -515,7 +516,7 @@ export function advanceBooked(town: TownState, now: number, books: Accruals): vo
     books.atCap[r] += (r === 'supplies' ? gain - taken : gain + taken) - banked;
     expected[r] = gained[r];
   }
-  tick(town, now);
+  const settled = tick(town, now);
   // Anything else `tick` paid is a season placement; nothing else pays there,
   // and nothing in it takes away.
   for (const r of RESOURCES) {
@@ -523,6 +524,7 @@ export function advanceBooked(town: TownState, now: number, books: Accruals): vo
     if (extra < -1e-6) throw new Error(`the economy instrument lost track of ${r}: ${town[r]} against ${expected[r]}`);
     if (extra > 1e-6) books.placements[r] += extra;
   }
+  return settled;
 }
 
 export function playFortnight(
@@ -568,7 +570,9 @@ export function playFortnight(
     bin.fuel += cost.fuel;
   };
 
-  const advance = (now: number): void => advanceBooked(town, now, ledger);
+  const advance = (now: number): void => {
+    advanceBooked(town, now, ledger);
+  };
 
   /**
    * One purchase, and the contract pay it earned; false when the commander is

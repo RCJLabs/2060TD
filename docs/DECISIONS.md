@@ -1226,3 +1226,20 @@ here with the change and its date.
   and stores nothing. Held ground becomes state only when something can take
   it back, which is Phase 2, and storing it before then would have been a
   save field that meant nothing.
+- 2026-09-24 — **The enemy strikes back when the front goes quiet (M25 Phase 2,
+  v1.54.0).** Held ground is state now. Thirty-six hours after the last raid,
+  counterattack or defence fought in person, the enemy retakes a sector of the
+  town behind the front, and a day later a second, and no more until the
+  commander acts. It runs on standing decay's clock rather than on the probes,
+  because a probe is unloseable for a built town: ground tied to a breached
+  probe would move for a weak town and never for a strong one. It cuts roads,
+  heavy lane first: a front post whose lane has a loss behind it cannot be
+  raided until the loss is retaken, and if the whole town behind the front is
+  lost, the front falls back to it. Two strikes a quiet spell is fewer than a
+  town has, so one absence cannot push the front back from a whole town. A
+  retake is a raid on the post the ladder dealt at that tier, and pays like
+  one. Measured over four weeks, a commander who raids daily loses nothing,
+  one who plays every other day spends about a raid in three retaking, and the
+  front falls back only when losses are left standing. A file from before
+  starts the enemy's clock on its first load, so no absence before the update
+  is charged.

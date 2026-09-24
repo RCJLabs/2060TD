@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.53.0, in the browser. No install, no account, works on a phone.
+v1.54.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,31 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.53.0: the Front Line is a road
+## Current state — v1.54.0: the enemy strikes back
+
+**Leave the front quiet and the enemy takes ground back.** If you go 36 hours without a raid,
+a counterattack, or a defence you fought yourself, the enemy retakes a sector of the town
+behind your front. A day later it takes a second. That's the most one quiet spell can cost
+you, and your next raid resets the clock. Raid at least every 36 hours and it never happens.
+
+**It cuts your roads.** The enemy comes down its main road first, the heavy lane. A lane with
+a lost sector behind the front is cut, and you can't raid that lane's front post until you
+take the ground back. You can still take the front through the other lanes. If every sector
+of the town behind the front falls, the front falls back to it. One absence can't do that on
+its own: the enemy only gets there if you left earlier losses standing.
+
+**Take it back.** Every lost sector gets a RETAKE button on the theater map, and the raid
+planner lists it after the open front posts. A retake is the same post that town had when it
+was the front, a tier or more below the current front, and it pays like any post. The map
+marks lost ground in red and shows how long the front has been quiet and when the enemy will
+strike. When you come back, a banner tells you what was retaken.
+
+**What it costs, measured.** Over four simulated weeks: a commander who raids every day loses
+nothing. One who plays every other day spends about one raid in three retaking ground, and
+gets up to two towns less far in a month. Older saves start the enemy's clock when they first
+load, so no time away before this update counts.
+
+## v1.53.0: the Front Line is a road
 
 **The war has a map.** The Front Line used to be a number: tier 3, tier 4. Now each
 nation's war runs up a real road from its home base toward the enemy's stronghold, and the

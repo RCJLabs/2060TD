@@ -64,8 +64,9 @@ import {
   scoutTarget,
   slotOf,
   squadVet,
-  targetFor,
+  postAt,
 } from '../meta/warfare';
+import { raidTargetKeys } from '../meta/theater';
 import { Engine } from '../sim/engine';
 import type { SimConfig } from '../sim/types';
 import { advanceBooked, RESOURCES, zero, type Accruals, type Amounts } from './economy';
@@ -79,6 +80,27 @@ const DAY = 24 * HOUR;
 
 /** Who is playing: nobody fights, the Front Line is raided, or that and the skirmish ladder too. */
 export type WarPolicy = 'peace' | 'raids' | 'raids+skirmish';
+
+/**
+ * How a commander answers ground the enemy retook (M25 Phase 2): 'push' raids
+ * the front while any road reaches it and retakes only when none does, and
+ * 'hold' retakes everything lost before pushing again.
+ */
+export type RetakePolicy = 'push' | 'hold';
+
+export interface WarOptions {
+  /** Raids a session, each once the last one's losses are retrained. The week at war fights one. */
+  raidsPerSession?: number;
+  retake?: RetakePolicy;
+  /**
+   * Which front post: 'cycle' raids the three in turn, as the week at war
+   * does, and 'easiest' the lightest band whose road is open, as a commander
+   * who reads the deal's bands does.
+   */
+  front?: 'cycle' | 'easiest';
+  /** False stops the enemy's clock, for the same war with nothing retaken. */
+  strikes?: boolean;
+}
 
 export interface WarBooks extends Accruals {
   /** Each action's net effect on the three stores, by name. */
@@ -105,7 +127,15 @@ export interface WarRun {
   skirmishesHeld: number;
   /** The Front Line rung and the skirmish level at the end of the week. */
   tier: number;
+  /** The highest rung it held. */
+  peakTier: number;
   assaultLevel: number;
+  /** Sectors the enemy retook, how many the commander took back, and times the front fell back (M25 Phase 2). */
+  lost: number;
+  retaken: number;
+  fellBack: number;
+  /** Days between sessions: one below a day's cadence. */
+  everyDays: number;
   /** Days into the week the graph was finished, or null if it never was. */
   graph: number | null;
 }
@@ -163,6 +193,29 @@ function facilityFor(town: TownState, kind: string): number | undefined {
 const seedAt = (at: number, k: number): number =>
   ((Math.floor(at / MIN) + k * 7919) * 2654435761) >>> 0;
 
+/** Minutes a commander waits between raids in one session for the losses to be retrained. */
+const RAID_TURNAROUND_MIN = 15;
+
+/**
+ * What the commander raids next (M25 Phase 2). Pushing cycles the front posts
+ * whose roads are open, as the week at war cycled all three, and retakes the
+ * loss nearest the front only when no road is open; holding retakes first.
+ */
+function chooseTarget(
+  town: TownState,
+  retake: RetakePolicy,
+  pick: 'cycle' | 'easiest',
+  turn: number,
+): { tier: number; slot: number } {
+  const keys = raidTargetKeys(town);
+  const front = keys.filter((k) => k.tier === town.frontline.tier);
+  const back = keys.filter((k) => k.tier < town.frontline.tier);
+  if (retake === 'hold' && back.length > 0) return back[0]!;
+  if (front.length > 0) return pick === 'easiest' ? front[front.length - 1]! : front[turn % front.length]!;
+  // No road reaches the front: the loss that is easiest to take back.
+  return pick === 'easiest' ? [...back].sort((a, b) => b.slot - a.slot || b.tier - a.tier)[0]! : back[0]!;
+}
+
 /**
  * One week, played. Each session: the probes the absence owed, then the time
  * itself; the defence the last probe offers (declined in peace, fought
@@ -178,9 +231,16 @@ export function playWarWeek(
   cadenceHours: number,
   days = 7,
   sessionMinutes = 10,
+  opts: WarOptions = {},
 ): WarRun {
   const town: TownState = structuredClone(start);
   const faction = town.faction;
+  const raidsPerSession = opts.raidsPerSession ?? 1;
+  const retake = opts.retake ?? 'push';
+  // Stopped by charging it through the end of time.
+  if (opts.strikes === false) town.frontline.pressedAt = Number.POSITIVE_INFINITY;
+  // A cadence of a day or more is a session every that many days.
+  const everyDays = cadenceHours >= 24 ? Math.max(1, Math.round(cadenceHours / 24)) : 1;
   const books: WarBooks = {
     made: zero(),
     banked: zero(),
@@ -210,7 +270,12 @@ export function playWarWeek(
     skirmishes: 0,
     skirmishesHeld: 0,
     tier: 0,
+    peakTier: town.frontline.tier,
     assaultLevel: 0,
+    lost: 0,
+    retaken: 0,
+    fellBack: 0,
+    everyDays,
     graph: null,
   };
   const wire = town.walls.map((w) => ({ ...w }));
@@ -244,15 +309,31 @@ export function playWarWeek(
     act(name, fn);
     restore(at);
   };
+  /** The force made whole again, as far as the facilities and the stores go. */
+  const retrain = (at: number): void => {
+    act('training', () => {
+      for (const [kind, n] of Object.entries(wanted)) {
+        let queued = 0;
+        for (const s of town.structures) queued += (s.trainQueue ?? []).filter((k) => k === kind).length;
+        for (let short = n - (town.army[kind] ?? 0) - queued; short > 0; short--) {
+          const facility = facilityFor(town, kind);
+          if (facility === undefined || !queueTrain(town, facility, kind, at)) break;
+        }
+      }
+    });
+  };
 
   for (let day = 0; day < days; day++) {
+    if (day % everyDays !== 0) continue;
     for (let session = 0; session < perDay; session++) {
       const at = begin + day * DAY + Math.min(waking, session * cadenceHours * HOUR);
       // Arriving: what the absence owed, then the time itself.
       const probes = act('probes', () => runOfflineProbes(town, at));
       run.probes += probes.length;
       run.probesHeld += probes.filter((p) => p.held).length;
-      advanceBooked(town, at, books);
+      const settled = advanceBooked(town, at, books);
+      run.lost += settled.strikes.length;
+      run.fellBack += settled.strikes.filter((s) => s.fellBack).length;
 
       // The defence the last probe offers: stood and fought, or handed to the
       // garrison, which resolves it as the probe it would have been.
@@ -274,36 +355,51 @@ export function playWarWeek(
           if (outcome.victory) run.defencesHeld++;
         }
       }
-      if (town.frontline.pendingCounterattack) {
-        const outcome = fight(counterattackConfig(town, seedAt(at, 1)), faction);
-        siege('counterattacks', at, () => applyCounterResult(town, outcome, at));
+      const counterattack = (when: number): void => {
+        if (!town.frontline.pendingCounterattack) return;
+        const outcome = fight(counterattackConfig(town, seedAt(when, 1)), faction);
+        siege('counterattacks', when, () => applyCounterResult(town, outcome, when));
         run.counters++;
         if (outcome.victory) run.countersHeld++;
-      }
+      };
+      counterattack(at);
 
-      // The raid, when the whole force is home and trained.
-      const ready = Object.entries(wanted).every(([kind, n]) => (town.army[kind] ?? 0) >= n);
-      if (policy !== 'peace' && ready) {
-        const tier = town.frontline.tier;
-        const v = variant++ % 3;
-        act('scouting', () => scoutTarget(town, tier, v, at));
-        const base = targetFor(town, v);
+      // The raids, each when the whole force is home and trained. A second
+      // one waits out the first one's retraining, minute by minute.
+      let clock = at;
+      for (let r = 0; r < raidsPerSession && policy !== 'peace'; r++) {
+        if (r > 0) {
+          for (let m = 1; m <= RAID_TURNAROUND_MIN; m++) advanceBooked(town, clock + m * MIN, books);
+          clock += RAID_TURNAROUND_MIN * MIN;
+          // A counterattack the last raid earned is fought before the next one goes.
+          counterattack(clock);
+        }
+        const ready = Object.entries(wanted).every(([kind, n]) => (town.army[kind] ?? 0) >= n);
+        if (!ready) break;
+        const when = clock;
+        const target = chooseTarget(town, retake, opts.front ?? 'cycle', variant++);
+        act('scouting', () => scoutTarget(town, target.tier, target.slot, when));
+        const base = postAt(town, target.tier, target.slot);
+        const retaking = target.tier < town.frontline.tier;
         const squads = plan.map((s, i) => {
           const slot = slotOf(s, i);
           return { ...s, slot, vet: squadVet(town, slot) };
         });
         const fx = researchEffects(town);
-        const config = raidConfig(base, squads, seedAt(at, 2), trainableFor(faction), {
+        const config = raidConfig(base, squads, seedAt(when, 2 + r * 5), trainableFor(faction), {
           objective: 'post',
           ...(fx.unitHp !== 1 || fx.unitDamage !== 1 ? { mods: { hp: fx.unitHp, damage: fx.unitDamage } } : {}),
-          autoPowers: DOCTRINE_SUPPORT.autoPowers!.filter((r) => (town.charges[r.kind] ?? 0) > 0),
+          autoPowers: DOCTRINE_SUPPORT.autoPowers!.filter((rule) => (town.charges[rule.kind] ?? 0) > 0),
           powerCharges: { ...town.charges },
-          condition: conditionAt(at),
+          condition: conditionAt(when),
         });
-        const res = resolveRaid(config, squads, base.tier, raidCatalogFor(faction), ladderPayout(town, at));
-        act('raids', () => applyRaidResult(town, base, res, config, at));
+        const res = resolveRaid(config, squads, base.tier, raidCatalogFor(faction), ladderPayout(town, when));
+        act('raids', () => applyRaidResult(town, base, res, config, when));
         run.raids++;
         if (res.cleared) run.cleared++;
+        if (res.cleared && retaking) run.retaken++;
+        run.peakTier = Math.max(run.peakTier, town.frontline.tier);
+        if (r + 1 < raidsPerSession) retrain(when);
       }
       // A skirmish at the town's level, climbing while it holds. A loss ends
       // the day's skirmishing: a commander tries a level again tomorrow rather
@@ -317,17 +413,8 @@ export function playWarWeek(
       }
 
       // The losses retrained, and the next project.
-      act('training', () => {
-        for (const [kind, n] of Object.entries(wanted)) {
-          let queued = 0;
-          for (const s of town.structures) queued += (s.trainQueue ?? []).filter((k) => k === kind).length;
-          for (let short = n - (town.army[kind] ?? 0) - queued; short > 0; short--) {
-            const facility = facilityFor(town, kind);
-            if (facility === undefined || !queueTrain(town, facility, kind, at)) break;
-          }
-        }
-      });
-      restore(at);
+      retrain(clock);
+      restore(clock);
       act('charges', () => {
         for (const power of Object.keys(CHARGE_PRICES)) while (buyCharge(town, power)) continue;
       });
@@ -339,11 +426,12 @@ export function playWarWeek(
         if (next) startResearch(town, next.id, at);
       });
 
-      for (let m = 1; m < sessionMinutes; m++) advanceBooked(town, at + m * MIN, books);
+      for (let m = 1; m < sessionMinutes; m++) advanceBooked(town, clock + m * MIN, books);
       if (run.graph === null && town.research.completed.length === TECHS.length) run.graph = (at - begin) / DAY;
     }
   }
   run.tier = town.frontline.tier;
+  run.peakTier = Math.max(run.peakTier, town.frontline.tier);
   run.assaultLevel = town.assaultLevel;
   run.span = (town.lastSeen - booksFrom) / DAY;
   return run;
@@ -407,6 +495,38 @@ export function warTable(faction: FactionId = 'usa'): string {
       if (a.supplies === 0 && a.fuel === 0 && a.intel === 0) continue;
       const d = fullest.span;
       lines.push(`  ${name.padEnd(15)} ${pad(k(a.supplies / d), 7)} ${pad(k(a.fuel / d), 7)} ${pad(k(a.intel / d), 6)}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * M25 Phase 2: what the enemy's strikes cost a commander, by how often they
+ * play. The town of the week at war raids the Front Line for four weeks, up
+ * to three raids a session, at one, two, three and seven days between
+ * sessions: with the enemy's clock stopped, then with it running and each way
+ * of answering it.
+ */
+export function frontTable(faction: FactionId = 'usa', days = 28): string {
+  const start = warTown(faction);
+  const lines = [
+    `THE ENEMY STRIKES BACK — ${faction.toUpperCase()}: the town of the week at war raiding the Front Line for ` +
+      `${days} days, up to three raids a session`,
+    'EVERY | ENEMY | ANSWER | RAIDS CLEARED | RETAKEN | LOST | FELL BACK | RUNG (PEAK)',
+  ];
+  for (const every of [1, 2, 3, 7]) {
+    const runs: [string, string, WarOptions][] = [
+      ['off', '—', { raidsPerSession: 3, front: 'easiest', strikes: false }],
+      ['on', 'push', { raidsPerSession: 3, front: 'easiest', retake: 'push' }],
+      ['on', 'hold', { raidsPerSession: 3, front: 'easiest', retake: 'hold' }],
+    ];
+    for (const [enemy, answer, opts] of runs) {
+      const run = playWarWeek(start, 'raids', every * 24, days, 10, opts);
+      lines.push(
+        `${pad(`${every} d`, 5)} | ${enemy.padEnd(5)} | ${answer.padEnd(6)} | ` +
+          `${pad(`${run.cleared}/${run.raids}`, 13)} | ${pad(run.retaken, 7)} | ${pad(run.lost, 4)} | ` +
+          `${pad(run.fellBack, 9)} | ${pad(`${run.tier} (${run.peakTier})`, 11)}`,
+      );
     }
   }
   return lines.join('\n');

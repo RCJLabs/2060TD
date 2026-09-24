@@ -86,6 +86,10 @@ your Command Center.
   against your permanent layer only. You return to a **defense log**: outcomes, losses, loot
   changes, and watchable replays. Probes are frequency-capped and loss-capped (never punishing),
   and a defeat grants a shield window.
+- **The enemy strikes back** *(v1.54)*: when the front has been quiet for 36 hours, the enemy
+  retakes ground behind it, one sector and a day later a second, and no more until you act on
+  the Front Line again. It is on standing decay's clock, and a commander who raids daily never
+  sees it. See "The Front Line" in section 3.
 
 ---
 
@@ -134,6 +138,28 @@ off the tier and its wins and is not stored: towns behind the front are held, th
 contested with its three pushes marked, and the rest is enemy ground. THEATER in the WAR tab
 (or G) draws it, and choosing a front post there opens the raid planner on it. The towns are
 places on a road: taking one is taking its three posts, under the guardrails above.
+
+**The enemy strikes back** *(v1.54)*. Held ground is stored now, because the enemy takes some
+of it back. When the front has been quiet for 36 hours (no raid, no counterattack, no defence
+fought in person: what resets standing decay), the enemy retakes one sector of the town
+directly behind the front, and a day later a second. Two is the most one quiet spell costs.
+
+- **It cuts roads.** It takes the sector of a lane that still reaches the front, down its main
+  road first (heavy, then middle, then light), and a front post whose lane has a loss anywhere
+  behind it cannot be raided until the loss is retaken. Any three wins still take the front's
+  town, through whichever lanes are open.
+- **The front can fall back.** Only when every road is cut does the enemy take what is left of
+  the town behind the front, and when all three of its sectors are lost the front falls back to
+  it: the rung goes down one and the pushes start from none. Since a quiet spell takes at most
+  two, one absence never pushes the front back from a town that was whole.
+- **Retaking is a raid.** A lost sector's post is the one the ladder dealt at that tier and
+  lane. Taking it retakes the sector and pays loot and standing like any post at that tier;
+  it moves no pushes at the front.
+
+The map strikes lost sectors out and says how long the front has been quiet and when the enemy
+strikes; the planner lists the open front posts, then the ground to retake. Over four measured
+weeks a commander who raids daily loses nothing, and one who plays every other day spends about
+one raid in three retaking.
 
 ### Base archetypes *(v1.6)*
 
