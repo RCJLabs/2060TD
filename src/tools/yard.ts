@@ -295,6 +295,17 @@ function search(yard: Yard, rng: Rng, region: number[] = yard.free, restarts = 4
   return best;
 }
 
+/**
+ * A stage's reference defence with its whole economy laid out behind the lines
+ * by the search: the town the week at war fights (M24 Phase 4). Null when the
+ * allowance does not fit behind the defence with the way in left open.
+ */
+export function laidOutTown(ref: ReferenceBase, faction: FactionId): TownState | null {
+  const yard = new Yard(ref, faction, allowance(faction, ref.ccLevel));
+  const rng = createRng((0x9a5d + ref.ccLevel * 7919) >>> 0);
+  return search(yard, rng, yard.behindTheLines()) ? yard.town : null;
+}
+
 const shareText = (s: { supplies: number; fuel: number; intel: number | null }): string =>
   `${pad(pct(s.supplies), 4)} ${pad(pct(s.fuel), 4)} ${pad(s.intel === null ? '—' : pct(s.intel), 4)}`;
 
@@ -395,7 +406,7 @@ export function yardTable(faction: FactionId = 'usa'): string {
 }
 
 /** Levels from the last one a defence holds every time to the first it never holds, a few seeds each. */
-function bandOf(town: TownState): number[] {
+export function bandOf(town: TownState): number[] {
   const out: number[] = [];
   let lastAll = 1;
   for (let level = 1; level <= 30; level++) {

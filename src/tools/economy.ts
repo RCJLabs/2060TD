@@ -63,10 +63,10 @@ import { referenceBases, type ReferenceBase } from './referenceBases';
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
-const RESOURCES = ['supplies', 'fuel', 'intel'] as const;
+export const RESOURCES = ['supplies', 'fuel', 'intel'] as const;
 type Resource = (typeof RESOURCES)[number];
-type Amounts = Record<Resource, number>;
-const zero = (): Amounts => ({ supplies: 0, fuel: 0, intel: 0 });
+export type Amounts = Record<Resource, number>;
+export const zero = (): Amounts => ({ supplies: 0, fuel: 0, intel: 0 });
 
 const pad = (s: string, n: number): string => (s.length >= n ? s : ' '.repeat(n - s.length) + s);
 const k = (n: number): string => (Math.abs(n) >= 10_000 ? `${(n / 1000).toFixed(0)}k` : `${Math.round(n)}`);
@@ -385,7 +385,8 @@ function defenceTable(faction: FactionId, seeds = 12): string[] {
 
 // ---- A PLAYED FORTNIGHT ---------------------------------------------------------------
 
-interface Ledger {
+/** What `advanceBooked` books of the time that passes. */
+export interface Accruals {
   /** What the depots made, whether or not anything kept it. */
   made: Amounts;
   /** What reached the stockpile. */
@@ -396,9 +397,12 @@ interface Ledger {
   pastOffline: Amounts;
   /** Supplies the converters took, and the fuel and intel they made of them. */
   converted: Amounts;
-  contracts: Amounts;
   /** What a season closing paid, which `tick` pays on top of the cap. */
   placements: Amounts;
+}
+
+interface Ledger extends Accruals {
+  contracts: Amounts;
   spent: Record<string, { supplies: number; fuel: number }>;
   /** What research cost, in all three. */
   research: Amounts;
@@ -484,6 +488,43 @@ export function yardValue(town: TownState): number {
   return value;
 }
 
+/**
+ * Advance a town to `now` through the real `tick`, booking what it did. The
+ * stores it should reach come from `accrue`, which is what `tick` applies, and
+ * the converters' part of them is booked apart from what the producers made.
+ * Anything else `tick` pays is a season placement.
+ */
+export function advanceBooked(town: TownState, now: number, books: Accruals): void {
+  const elapsed = Math.max(0, now - town.lastSeen);
+  const counted = Math.min(elapsed, OFFLINE_CAP_HOURS * HOUR);
+  const rate = productionPerHour(town);
+  const gained = accrue(town, counted);
+  const expected = zero();
+  for (const r of RESOURCES) {
+    const made = (rate[r] * elapsed) / HOUR;
+    const gain = (rate[r] * counted) / HOUR;
+    const held = town[r];
+    books.made[r] += made;
+    books.pastOffline[r] += made - gain;
+    const banked = gained[r] - held;
+    books.banked[r] += banked;
+    // Lost to a full store: what came in and was neither kept nor handed on
+    // to a converter. Supplies go into the works and fuel and intel come out.
+    const taken = gained.converted[r];
+    books.converted[r] += taken;
+    books.atCap[r] += (r === 'supplies' ? gain - taken : gain + taken) - banked;
+    expected[r] = gained[r];
+  }
+  tick(town, now);
+  // Anything else `tick` paid is a season placement; nothing else pays there,
+  // and nothing in it takes away.
+  for (const r of RESOURCES) {
+    const extra = town[r] - expected[r];
+    if (extra < -1e-6) throw new Error(`the economy instrument lost track of ${r}: ${town[r]} against ${expected[r]}`);
+    if (extra > 1e-6) books.placements[r] += extra;
+  }
+}
+
 export function playFortnight(
   faction: FactionId,
   cadenceHours: number,
@@ -527,41 +568,7 @@ export function playFortnight(
     bin.fuel += cost.fuel;
   };
 
-  /**
-   * Advance to `now` through the real `tick`, booking what it did. The stores
-   * it should reach come from `accrue`, which is what `tick` applies, and the
-   * converters' part of them is booked apart from what the producers made.
-   */
-  const advance = (now: number): void => {
-    const elapsed = Math.max(0, now - town.lastSeen);
-    const counted = Math.min(elapsed, OFFLINE_CAP_HOURS * HOUR);
-    const rate = productionPerHour(town);
-    const gained = accrue(town, counted);
-    const expected = zero();
-    for (const r of RESOURCES) {
-      const made = (rate[r] * elapsed) / HOUR;
-      const gain = (rate[r] * counted) / HOUR;
-      const held = town[r];
-      ledger.made[r] += made;
-      ledger.pastOffline[r] += made - gain;
-      const banked = gained[r] - held;
-      ledger.banked[r] += banked;
-      // Lost to a full store: what came in and was neither kept nor handed on
-      // to a converter. Supplies go into the works and fuel and intel come out.
-      const taken = gained.converted[r];
-      ledger.converted[r] += taken;
-      ledger.atCap[r] += (r === 'supplies' ? gain - taken : gain + taken) - banked;
-      expected[r] = gained[r];
-    }
-    tick(town, now);
-    // Anything else `tick` paid is a season placement; nothing else pays there,
-    // and nothing in it takes away.
-    for (const r of RESOURCES) {
-      const extra = town[r] - expected[r];
-      if (extra < -1e-6) throw new Error(`the economy instrument lost track of ${r}: ${town[r]} against ${expected[r]}`);
-      if (extra > 1e-6) ledger.placements[r] += extra;
-    }
-  };
+  const advance = (now: number): void => advanceBooked(town, now, ledger);
 
   /**
    * One purchase, and the contract pay it earned; false when the commander is
