@@ -1763,15 +1763,38 @@ function applyDefeat(town: TownState): void {
   town.defeats++;
 }
 
-function clampToCaps(town: TownState): void {
-  const cap = caps(town);
-  town.supplies = Math.min(town.supplies, cap.supplies);
-  town.fuel = Math.min(town.fuel, cap.fuel);
-  town.intel = Math.min(town.intel, cap.intel);
+type Stores = { supplies: number; fuel: number; intel: number };
+
+/** The stores, and the caps they are held against, as a battle begins. */
+function beforeBattle(town: TownState): { cap: Stores; held: Stores } {
+  return { cap: caps(town), held: { supplies: town.supplies, fuel: town.fuel, intel: town.intel } };
+}
+
+/**
+ * A battle's pay never lifts a store past its cap: this is what the clamp is
+ * for. Two things it used to do as well, which it does not since M24 Phase 4:
+ *
+ * - It read the caps the town was left with, after `foldBattle`'s wrecks, so a
+ *   bunker or Signals Station the battle wrecked took everything it was
+ *   holding with it, in a siege the town won as much as one it lost, and
+ *   nothing said so. It reads the caps the battle began with now. What stands
+ *   above a wrecked town's cap stays until it is spent; production waits for
+ *   the repair.
+ * - It cut back whatever already stood above the cap, raid loot and the day's
+ *   orders included, which are paid on top of it to stay until spent
+ *   (2026-09-24). A store above its cap keeps what it had, and the battle adds
+ *   nothing to it.
+ */
+function clampToCaps(town: TownState, before: { cap: Stores; held: Stores }): void {
+  const limit = (r: keyof Stores): number => Math.max(before.cap[r], before.held[r]);
+  town.supplies = Math.min(town.supplies, limit('supplies'));
+  town.fuel = Math.min(town.fuel, limit('fuel'));
+  town.intel = Math.min(town.intel, limit('intel'));
 }
 
 /** Fold a finished SKIRMISH (ladder assault) back into the persistent town. */
 export function applySiegeResult(town: TownState, outcome: SiegeOutcome, now: number): void {
+  const before = beforeBattle(town);
   foldBattle(town, outcome, now);
   if (outcome.victory) {
     const loot = assaultLoot(town.assaultLevel);
@@ -1783,7 +1806,7 @@ export function applySiegeResult(town: TownState, outcome: SiegeOutcome, now: nu
   } else {
     applyDefeat(town);
   }
-  clampToCaps(town);
+  clampToCaps(town, before);
 }
 
 /**
@@ -1809,7 +1832,7 @@ export function applyDefenseResult(
   bounty: { supplies: number; fuel: number },
   now: number,
 ): { suppliesLost: number; fuelLost: number } {
-  const before = { supplies: town.supplies, fuel: town.fuel };
+  const before = beforeBattle(town);
   foldBattle(town, outcome, now);
   if (outcome.victory) {
     town.supplies += bounty.supplies;
@@ -1818,15 +1841,16 @@ export function applyDefenseResult(
   } else {
     applyDefeat(town);
   }
-  clampToCaps(town);
+  clampToCaps(town, before);
   return {
-    suppliesLost: Math.max(0, Math.floor(before.supplies - town.supplies)),
-    fuelLost: Math.max(0, Math.floor(before.fuel - town.fuel)),
+    suppliesLost: Math.max(0, Math.floor(before.held.supplies - town.supplies)),
+    fuelLost: Math.max(0, Math.floor(before.held.fuel - town.fuel)),
   };
 }
 
 /** Fold a fought-off (or lost) Front Line counterattack into the town. */
 export function applyCounterResult(town: TownState, outcome: SiegeOutcome, now: number): void {
+  const before = beforeBattle(town);
   foldBattle(town, outcome, now);
   if (outcome.victory) {
     town.supplies += 120 + 60 * town.frontline.tier;
@@ -1840,7 +1864,7 @@ export function applyCounterResult(town: TownState, outcome: SiegeOutcome, now: 
   // A counterattack is the ladder reaching back, so it settles on the board
   // like a rung does — and it is fought in person, which resets the grace.
   awardStanding(town, counterAward(outcome.victory), now);
-  clampToCaps(town);
+  clampToCaps(town, before);
 }
 
 export interface MissionResult {
@@ -1859,11 +1883,12 @@ export function applyMissionResult(
   outcome: SiegeOutcome,
   now: number,
 ): MissionResult {
+  const before = beforeBattle(town);
   foldBattle(town, outcome, now);
 
   if (!outcome.victory) {
     applyDefeat(town);
-    clampToCaps(town);
+    clampToCaps(town, before);
     return {
       victory: false,
       firstClear: false,
@@ -1900,7 +1925,7 @@ export function applyMissionResult(
     town.campaign.bonuses.push(mission.id);
   }
 
-  clampToCaps(town);
+  clampToCaps(town, before);
   return {
     victory: true,
     firstClear,

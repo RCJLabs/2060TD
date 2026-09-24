@@ -329,6 +329,68 @@ describe('the siege bridge', () => {
     expect(town.charges['a10']).toBe(1);
   });
 
+  it('a wrecked bunker keeps what it held: the clamp reads the caps the battle began with', () => {
+    // M24 Phase 4's week at war found held sieges burning the stockpile. The
+    // clamp read the caps AFTER the battle's wrecks, so a bunker wrecked in a
+    // siege the town won took everything it was holding with it, unannounced.
+    const town = unlockAll(yardTown(T0));
+    town.supplies = 5000;
+    town.fuel = 1000;
+    expect(place(town, 'storageBunker', idx(5, 12), T0)).toBe(true);
+    tick(town, T0 + minutes(5));
+    const full = caps(town);
+    town.supplies = full.supplies;
+    town.fuel = full.fuel;
+    const outcome: SiegeOutcome = {
+      victory: true,
+      supplies: full.supplies,
+      chargesLeft: { a10: 0, arty: 0 },
+      walls: [],
+      survivors: [], // the bunker fell
+      stats: {
+        spawned: 0, kills: 0, wallsBuilt: 0, wallsLost: 0,
+        structuresLost: 1, suppliesSpent: 0, cpSpent: 0, salvage: 0,
+      },
+      ccHpFraction: 1,
+    };
+    applySiegeResult(town, outcome, T0 + minutes(10));
+    expect(structureAt(town, idx(5, 12))!.wrecked).toBe(true);
+    expect(caps(town).supplies).toBeLessThan(full.supplies);
+    // Kept, above what the wrecked town can store, until it is spent: and the
+    // pay still does not lift it past the cap it went in with.
+    expect(town.supplies).toBe(full.supplies);
+    expect(town.fuel).toBe(full.fuel);
+  });
+
+  it('what stood above the cap before a siege stays; the siege pays nothing on top of it', () => {
+    // Raid loot and the day's orders land above the cap and stay until spent
+    // (2026-09-24). A siege's clamp used to cut them back with its own pay.
+    const town = unlockAll(yardTown(T0));
+    const cap = caps(town);
+    town.supplies = cap.supplies + 900;
+    town.fuel = cap.fuel + 90;
+    const outcome: SiegeOutcome = {
+      victory: true,
+      supplies: town.supplies,
+      chargesLeft: { a10: 0, arty: 0 },
+      walls: [],
+      survivors: [],
+      stats: {
+        spawned: 0, kills: 0, wallsBuilt: 0, wallsLost: 0,
+        structuresLost: 0, suppliesSpent: 0, cpSpent: 0, salvage: 0,
+      },
+      ccHpFraction: 1,
+    };
+    applySiegeResult(town, outcome, T0 + minutes(10));
+    expect(town.supplies).toBe(cap.supplies + 900);
+    expect(town.fuel).toBe(cap.fuel + 90);
+    // A defeat still takes its 15% of all of it.
+    const lost = unlockAll(yardTown(T0));
+    lost.supplies = cap.supplies + 900;
+    applySiegeResult(lost, { ...outcome, victory: false, supplies: lost.supplies }, T0 + minutes(10));
+    expect(lost.supplies).toBe(Math.floor((cap.supplies + 900) * 0.85));
+  });
+
   it('reads a battle outcome from the engine, excluding the battle layer', () => {
     const engine = new Engine(
       {
