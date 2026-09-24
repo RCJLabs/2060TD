@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.51.0, in the browser. No install, no account, works on a phone.
+v1.52.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,32 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.51: where it stands decides what it makes
+## Current state — v1.52: the surplus goes to work
+
+**Two new buildings turn spare supplies into fuel and intel.** Once a town is built, it makes
+more supplies than it can spend, while fuel and intel run short. The **Refinery** makes fuel
+and the **Intel Bureau** makes intel out of what your supply depots produce: 120 supplies an
+hour at level 1, up to 400 at level 3, for 16-60 fuel or 6-24 intel. You can build one of
+each at Command Center 3. They never touch your stockpile, so when your supply store is full
+they run on production that would have been wasted. Each one stops on its own when the store
+it fills is full. They need power, like the depots. Research unlocks them, not the campaign:
+Deep Stockpiles for the Refinery and Signals Intercepts for the Bureau. When your supply store
+isn't full, they cost you what they take, so you can **stand one down** from its card and set
+it back to work later.
+
+**Research goes past the first nine techs.** Each of the three branches has two more tiers,
+and each new tech also needs one from another branch, so the tree is a web now. The new
+techs cost supplies and fuel as well as intel, take four or ten hours, and give bonuses about
+the size of the first tiers': stronger walls and guns, tougher and harder-hitting raiders with
+one more stocked strike of each kind, cheaper wreck repairs, and more from the new buildings. The
+research board lists each tech's price in all three resources and which techs it still
+needs.
+
+If you only build, the whole tree is done about three days after your town is: around day
+five or six if you play several times a day. A top-tier defence tech moves the level your
+base holds about half a level, as the first ones did.
+
+## v1.51: where it stands decides what it makes
 
 **Your town now has a power grid.** The Command Center powers the ground within two cells
 of it. The new **Generator** (unlocked with Command Center 2) powers the cells around

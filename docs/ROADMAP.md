@@ -3761,6 +3761,180 @@ costs a week of throughput.
 - [ ] **Phase 4 — chains and districts.** The tech tree becomes a graph rather
       than three ladders.
 
+      **The plan, before the build.** Two things are handed on. Phases 2 and 3
+      left a surplus that only the war spends: after day three a good CC3 yard
+      makes about 41,000 supplies a day, and the war spends perhaps a third of
+      that. And research is nine techs, 990 intel, finished by day two or three.
+      Phase 4 is in two steps, and this step is 4a: chains, and the graph.
+
+      *Chains: the surplus becomes what is short.* After the build-out, supplies
+      are what piles up. Fuel runs short for a commander who raids in vehicles,
+      and intel is what scouting and research both want. Two new buildings turn
+      the one into the others. The **Refinery** makes fuel and the **Intel
+      Bureau** makes intel, each out of the town's supply production:
+      120/240/400 supplies an hour in, by level, for 16/34/60 fuel or 6/13/24
+      intel out. A converter never draws on the stockpile. It diverts production,
+      so on a full store it runs on what would have been thrown away, and it
+      idles while the store it fills is full rather than burn supplies into it.
+      Both need power, like the producers. One of each is allowed from CC2, and
+      research unlocks them: the Refinery with Deep Stockpiles, the Bureau with
+      Signals Intercepts. The LOGISTICS doctrine builds the works.
+
+      *The graph: something worth the surplus.* The nine techs stay as they are.
+      Six more go on top, a fourth and fifth tier for each branch, and each needs
+      a tech from another branch as well as its own, so the tree stops being three
+      ladders:
+      - FORTIFY 4, *Layered Defence* (Rapid Entrenchment + Signals Intercepts):
+        walls +15% more HP, weapons +8% more.
+      - FORTIFY 5, *Kill Zones* (Layered Defence + Rapid Mobilization): weapons
+        +10% more, CP a further 10% cheaper.
+      - STRIKE 4, *Veteran Cadres* (Rapid Mobilization + Interlocking Fire): raid
+        units +12% more HP.
+      - STRIKE 5, *Deep Strike* (Veteran Cadres + Forward Logistics): raid units
+        +12% more damage, and one more charge of each ordnance in stock.
+      - LOGISTICS 4, *Field Engineering* (Forward Logistics + Interlocking Fire):
+        wreck repairs 30% cheaper.
+      - LOGISTICS 5, *Strategic Reserve* (Field Engineering + Marksmanship
+        Doctrine): converters make 25% more from the same supplies, and storage
+        +20% more.
+
+      They cost intel, supplies and fuel, 400 intel and 6,000-8,000 supplies at
+      tier 4 and 800 intel and 16,000-20,000 supplies at tier 5, and take 4 and
+      10 hours to research. The battle multipliers stay in the config the way the
+      nine always have, rounded to the thousandths a replay code carries, so a
+      replay rebuilds them exactly.
+
+      *The bar.* The graph is still being bought a week after the build-out for a
+      commander who only builds (the fortnight has no war in it, so a
+      commander at war takes longer). The supplies made with nothing to buy
+      fall well below Phase 3's 83-86%. The full FORTIFY and STRIKE doctrines are
+      measured in the harness beside the three-tier ones they extend, and a
+      tier's worth of multiplier moves a band by about half a level, the way the
+      first tiers do. A converter on a full store turns waste into intel or fuel,
+      and one on a store that is filling costs exactly what it diverts.
+
+      *4b, districts, comes after this is measured.* Phase 3's adjacency already
+      pulls buildings into clusters, and CC3 now has 20 economy pieces for 23
+      cells behind the lines. A third spatial rule has to earn that room, and
+      what 4a leaves unspent is what it would be judged against.
+
+      **The record, 4a (v1.52.0).** The works and the graph are built as planned,
+      except for three things the instrument corrected, one lever the plan did not
+      have, and a bar that is half met. What 4a found about the surplus is where
+      4b has to start.
+
+      *The top tier did not fit the stores.* The plan priced tier 5 at 800 intel
+      and 16,000-20,000 supplies. A built-out CC3 town holds 660 intel (its one
+      Signals Station at level 3) and 17,520 supplies with Deep Stockpiles, which
+      every tier-5 tech needs on the way. The first fortnight bought the nine and
+      the three tier-4 techs and never finished. Tier 5 now costs 600 intel and
+      12,000-14,000 supplies. A test prices every tech against a built-out CC3
+      town's stores, counting only the storage research its own prerequisites
+      bring.
+
+      *The works come with CC3, not CC2.* At CC2 the two works at level 2 take
+      480 of the 630 supplies an hour a built town makes, 76%, while the town is
+      still being bought. Their two cells also crowded the CC2 yard into the
+      maze. With them in it, the best yard behind the lines held less than the
+      defence alone at one MID level for all three factions fought: Russia 0%
+      at level 9 against 50%, the UN 17% at level 8 against 42%, the USA 58%
+      against 67%. At CC3 only, the MID yard is Phase 3's again (Russia 75%, the
+      UN 83%, the USA 100% at those levels). At CC3 the yard takes 20 pieces in
+      23 cells behind the lines. Its rates are unchanged, one fewer facility
+      stands beside its depot (2 of 4), and it holds more than the defence alone
+      at every level measured. At the top of the USA's band it holds less than
+      Phase 3's yard did (58% at level 19 against 83%).
+
+      *A lever: standing the works down.* At level 3 at CC3 the works take 61% of
+      what the producers make, as long as their stores have room. On a full
+      supply store that costs nothing, which is the case the plan was written
+      for. On a filling one it is a price, and a commander saving supplies could
+      only stop paying it by selling the works. Either one can be stood down
+      from its card now, and set back to work. A stood-down works draws as a
+      building not yet working. THE WORKS, in the economy report, puts them
+      against the producers: at CC3 they add 30% to the fuel and 73% to the
+      intel, and 38% and 91% with Strategic Reserve.
+
+      *The graph is bought about three days after the build-out, not a week.* A
+      PLAYED FORTNIGHT, USA (the five factions share the economy), the commander
+      who builds nearest the post, as the report prints it:
+
+      | every | all bought | the nine | the graph | made after the build-out | made with nothing to buy | lost to a full store | converted |
+      |---|---|---|---|---|---|---|---|
+      | 30 min | 3.0 d | 2.0 d | 5.5 d | 82% | 66% | 62% | 9% |
+      | 2 h | 3.0 d | 2.1 d | 5.6 d | 83% | 66% | 61% | 11% |
+      | 8 h | 3.3 d | 3.0 d | 6.3 d | 82% | 63% | 63% | 8% |
+      | 24 h | 10.0 d | 8.0 d | never | 30% | 0% | 3% | 6% |
+
+      "Made after the build-out" is how Phase 3 read "made with nothing to buy"
+      (83-86%). The new column counts the graph as something to buy. A commander
+      who builds for the yard is a little ahead: the graph on day 5.0-6.0, and
+      66-71% made with nothing to buy, out of a fifth more.
+
+      The bar asked for the graph to still be being bought a week after the
+      build-out, and for "made with nothing to buy" to fall well below 83-86%.
+      It falls to 63-66%: below, not well below. The graph is done 2.5-3 days
+      after the build-out. What paces it is the research timers. The stores
+      bound the prices, one Signals Station bounds the intel, and that leaves
+      time as the only lever, so stretching it was measured. For the commander
+      who builds for the yard, tier 4 at 12 hours and tier 5 at 42 put the graph
+      on day 10-11, a week after the build-out, with 37-44% made with nothing to
+      buy. It was not shipped. GDD 2.3 keeps
+      timers to hours, and a research timer measured in days is the lever a
+      game without a shop has no reason to pull. The plan's four and ten hours
+      stand: an afternoon and a night.
+
+      *The works run on what research spends, and here research is all that
+      spends.* With no war in the fortnight, the fuel and intel stores fill and
+      the works idle. So they convert 8-11% of the supplies the town makes,
+      55,000 over the fortnight at two-hourly sessions for 5,000 fuel and 1,500
+      intel, and 61-63% is still lost to a full store. The graph is now the
+      biggest thing the town buys, 62,000 of the 122,000 supplies spent, and
+      that is still an eighth of what the town makes. It is the war that spends
+      fuel and intel, and the fortnight has none.
+
+      *In battle the top tiers move about as far as the first.* THE GRAPH IN
+      BATTLE (`npm run balance -- --graph`), with the multipliers read from the
+      techs as shipped. Defence is the levels of L1-L20 each reference defence
+      holds (a level held half the time counts a half), meaned over the three.
+      Raids are the tiers of T1-T5 the reference force clears:
+
+      | | defence, tiers 1-3 | defence, tiers 4-5 on top | raid, tiers 1-3 and the fire plan | raid, tiers 4-5 on top |
+      |---|---|---|---|---|
+      | USA | +0.77 | +0.85 | +0.72 | +0.51 |
+      | China | +0.90 | +0.90 | +0.41 | +0.32 |
+      | Russia | +0.77 | +0.40 | +0.43 | +0.14 |
+      | KPA | +0.60 | +0.75 | +0.32 | +0.09 |
+      | UN | +0.73 | +1.52 | +0.94 | +0.53 |
+
+      FORTIFY's top two tiers move a defence about as far as the three below
+      them, +0.88 levels on average against +0.75: about half a level a tier.
+      STRIKE's move a raid less than the first three with their fire plan, and
+      least where the force already clears T4 (Russia, the KPA). The raid table
+      stops at T5, so the more a force clears, the less a multiplier can show.
+      The first version of this table read where each row crossed 50%, and
+      was dropped: the late defence's hold curve is not monotone past L10. Deep
+      Strike's extra charge is not in the table. A third call inside one raid
+      moved nothing, because a raid that clears is over in about a minute,
+      before either power is off cooldown. The charge is one more raid's fire
+      plan between restocks.
+
+      **What it hands on.** 4b, districts, was to be judged against what 4a
+      leaves unspent. In a fortnight without a war that is most of it: 61-63% of
+      what a town makes is lost to a full store. Neither the graph nor the works
+      can touch that, because nothing in the fortnight spends fuel or intel but
+      research. The war is what spends them, and the war is the one thing the
+      economy instrument does not have, as the economy was the one thing the
+      battle harness did not have (Phase 3). A fortnight at war comes before 4b,
+      or 4b is judged against a town nobody plays.
+
+      The gate: 23 of 24 on the first batch. `e2e-drawer` failed and passed
+      alone, and the failure was this phase's. It lands a finger on a coasting
+      build list at four spots and needs one of them to be a row that can be
+      pressed, and the two research-locked works lengthened the run of locked
+      rows past that spread. It lands at six spots now, and the second batch
+      was 24 of 24.
+
 ## M25 — "The Theater": give the war a map
 
 "Front line, tier 3" is an abstraction with no geography. Replace it with a
@@ -4989,6 +5163,15 @@ what its defence holds by more than any rule does, and the defence tables measur
 the permanent layer alone. Phase 4 (chains and districts) is still the sink for the
 surplus, and a defence table with an economy on the board is the balance question
 it hands on.*
+
+*M24 Phase 4a (v1.52.0) built the works, which turn supply production into fuel and
+intel, and made research a graph, with two tiers on each branch that need a tech
+from another branch. The graph is bought about three days after the town, and its
+top tiers move a defence about as far as the first ones did. The week the plan
+wanted would have taken timers measured in days, and GDD 2.3 refuses those. In a
+fortnight with no war, most of what the town makes is still lost to a full store,
+because only the war spends fuel and intel. A fortnight at war is the measurement
+4b needs first.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

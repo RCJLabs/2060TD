@@ -1165,3 +1165,29 @@ here with the change and its date.
   but the end of the menu would have renumbered every code already shared. The
   Generator goes in the middle of the menu and at the end of the table, and a
   test now fails if a buildable kind is missing from it.
+- 2026-09-24 — **The works divert production, and research unlocks them
+  (v1.52).** The Refinery and the Intel Bureau turn supplies into fuel and
+  intel. They take from what the depots make, never from the stockpile, so on
+  a full store they run on production that would have been lost, and they
+  idle while their own store is full. Research unlocks them (Deep Stockpiles
+  the Refinery, Signals Intercepts the Bureau): the first buildings research
+  unlocks rather than the campaign. They need power, like the producers, and
+  one of each is allowed at CC3. The plan allowed them from CC2, where they
+  would take 76% of what the town makes while it is still being bought, and
+  where their two cells pushed the best yard behind the lines into the maze
+  (Russia's MID held 0% at level 9 against 50% for the defence alone). A
+  commander can stand either one down, which the plan did not have either: at
+  their top level they take 61% of a CC3 town's supply production while their
+  stores have room, and on a supply store that is filling the only way to stop
+  paying that was to sell them.
+- 2026-09-24 — **The research graph's prices fit the stores, and its timers
+  stay in hours.** Tiers 4 and 5 each need a tech from another branch and cost
+  intel, supplies and fuel. The plan priced tier 5 at 800 intel against a CC3
+  store of 660, so the graph could never be finished. Now every price fits a
+  built-out CC3 town's stores with the storage research its own prerequisites
+  bring, and a test holds it. The plan also wanted the graph still being bought
+  a week after the build-out. Tier-5 timers of 42 hours would have done that,
+  and were refused under GDD 2.3: a research timer measured in days is the
+  lever a game without a shop has no reason to pull. Four and ten hours stand,
+  and a commander who only builds has the graph about three days after the
+  town.

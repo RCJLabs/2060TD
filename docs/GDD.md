@@ -79,7 +79,9 @@ your Command Center.
 
 - **Offline resource generation:** depots keep producing while you're away, capped by storage.
 - **Build & research timers:** construction and tech complete in real time. Timers are short and
-  generous (minutes to a few hours) — there is no monetization pressure, only pacing.
+  generous (minutes to a few hours) — there is no monetization pressure, only pacing. The longest
+  are the research graph's top tiers *(v1.52)*: four hours and ten, an afternoon and a night. A
+  week-long graph was measured and refused on this line (see 5.2e).
 - **Offline probe raids:** AI factions test your base while you're gone. Resolved by the sim
   against your permanent layer only. You return to a **defense log**: outcomes, losses, loot
   changes, and watchable replays. Probes are frequency-capped and loss-capped (never punishing),
@@ -550,9 +552,9 @@ Two consequences run through the whole codebase:
 
 | Resource | Source | Spent on |
 |---|---|---|
-| **Supplies** | Supply Depots, raid loot | Buildings, walls, infantry, field defenses stockpile |
-| **Fuel** | Fuel Depots, raid loot | Vehicles, powers, emplacement ammo reserves |
-| **Intel** *(M6)* | Radar/Comms, defense victories | Research, scouting raid targets |
+| **Supplies** | Supply Depots, raid loot | Buildings, walls, infantry, field defenses stockpile, the research graph's top tiers, the works |
+| **Fuel** | Fuel Depots, the Refinery *(v1.52)*, raid loot | Vehicles, powers, emplacement ammo reserves, the research graph's top tiers |
+| **Intel** *(M6)* | Radar/Comms, the Intel Bureau *(v1.52)*, defense victories | Research, scouting raid targets |
 | **Manpower** | Camps (soft cap, not a currency) | Army size limit |
 
 Offline accrual caps at storage capacity, and at eight hours. Production is stated per hour, and
@@ -579,7 +581,7 @@ wreck at once. Offline probes never wreck anything; they bill the stockpile inst
 
 Command Center (HQ; its level gates everything), Supply Depot, Storage Bunker, Fuel Depot,
 Barracks, Motor Pool, Research Lab, Engineering Bay (build/repair speed), Radar Station
-(Intel + scouting, M6), Airfield (v1.0 — trains the faction's aircraft and raises the manpower cap), Generator (v1.51 — powers the cells around it; see 5.2d), Walls & Gates (a gate is a wall the commander can open and close mid-siege for CP; see 5.2a — the older line about letting defenders through described a game where friendly units walk, and none do here), Emplacement foundations.
+(Intel + scouting, M6), Airfield (v1.0 — trains the faction's aircraft and raises the manpower cap), Generator (v1.51 — powers the cells around it; see 5.2d), Refinery and Intel Bureau (v1.52 — turn supply production into fuel and intel; see 5.2e), Walls & Gates (a gate is a wall the commander can open and close mid-siege for CP; see 5.2a — the older line about letting defenders through described a game where friendly units walk, and none do here), Emplacement foundations.
 
 ### 5.2a Gates *(v1.17)*
 
@@ -710,6 +712,47 @@ about a third more than the same buildings nearest the post and never holds less
 the defence alone. Where the economy stands turned out to matter to the defence more than
 either rule. Nearest the post it can break a CC1 or CC2 defence and wall a CC3 post in,
 and the defence tables do not see it: they measure the permanent layer alone.
+
+### 5.2e The works and the research graph *(v1.52)*
+
+After the build-out a town makes more supplies than anything spends, and fuel and intel are
+what run short. Two buildings turn the one into the others, and research gets a top.
+
+- **The works.** The Refinery makes fuel and the Intel Bureau makes intel, out of the town's
+  supply production: 120, 240 or 400 supplies an hour in by level, for 16, 34 or 60 fuel or 6,
+  13 or 24 intel. A converter never draws on the stockpile. It takes from what the depots make,
+  so on a full supply store it runs on production that would have been lost, and it idles
+  while the store it fills is full. When the depots make less than the works want, each gets
+  its share. Both need power, like the producers, and one of each is allowed at CC3, where
+  the surplus is: at CC2 they would take three quarters of what the town makes while it is
+  still being bought, and their two cells crowded the CC2 yard into the maze. Research
+  unlocks them, not the campaign: the Refinery comes with Deep Stockpiles and the Intel
+  Bureau with Signals Intercepts. On a supply store that is filling, what they take is a
+  price, three fifths of a CC3 town's production, so a commander can stand either down from
+  its card and set it back to work; stood down, it draws as a building not yet working. Its card and the aiming line say what it takes and
+  makes on that cell.
+- **The graph.** The nine doctrines stay as they were. Each branch gains a fourth and a fifth
+  tier, and each of those needs a tech from another branch as well as its own:
+
+  | tech | needs | does | costs |
+  |---|---|---|---|
+  | FORTIFY 4, Layered Defence | Rapid Entrenchment, Signals Intercepts | walls +15% more HP, weapons +8% more | 400 I, 8,000 S, 1,500 F, 4 h |
+  | FORTIFY 5, Kill Zones | Layered Defence, Rapid Mobilization | weapons +10% more, CP 10% cheaper again | 600 I, 14,000 S, 3,000 F, 10 h |
+  | STRIKE 4, Veteran Cadres | Rapid Mobilization, Interlocking Fire | raid units +12% more HP | 400 I, 8,000 S, 2,000 F, 4 h |
+  | STRIKE 5, Deep Strike | Veteran Cadres, Forward Logistics | raid units +12% more damage, one more charge of each ordnance | 600 I, 14,000 S, 4,000 F, 10 h |
+  | LOGISTICS 4, Field Engineering | Forward Logistics, Interlocking Fire | wreck repairs 30% cheaper | 400 I, 6,000 S, 1,000 F, 4 h |
+  | LOGISTICS 5, Strategic Reserve | Field Engineering, Marksmanship Doctrine | the works make 25% more, storage +20% more | 600 I, 12,000 S, 2,500 F, 10 h |
+
+  Every price fits a built-out CC3 town's stores with the storage research its own
+  prerequisites bring; a CC3 town holds 660 intel. The battle multipliers ride in the config
+  the way the nine always have, at the thousandths a replay code carries.
+
+Measured (M24 Phase 4), a commander who only builds has the graph about three days after the
+town, on day five or six, and the top tiers move a defence about as far as the three below
+them: about half a level a tier. Stretching the timers to a week was measured and refused
+(2.3). With no war to spend fuel and intel, the works run on what research takes and idle the
+rest of the time: most of what a built town makes is still lost to a full store until the war
+spends it.
 
 ### 5.3 The maze rule (core mechanic)
 
