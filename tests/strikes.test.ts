@@ -39,7 +39,7 @@ describe('the enemy clock', () => {
     const town = atFront();
     expect(chargeStrikes(town, T0 + QUIET_MS - 1)).toEqual([]);
     const first = chargeStrikes(town, T0 + QUIET_MS);
-    expect(first).toEqual([{ at: T0 + QUIET_MS, tier: 4, slot: 0, fellBack: false }]);
+    expect(first).toEqual([{ at: T0 + QUIET_MS, tier: 4, slot: 0, fellBack: false, cause: 'quiet' }]);
     expect(chargeStrikes(town, T0 + QUIET_MS + DAY_MS - 1)).toEqual([]);
     expect(chargeStrikes(town, T0 + QUIET_MS + DAY_MS)).toHaveLength(1);
     // Two is the most one quiet spell costs, however long it lasts.
@@ -96,6 +96,9 @@ describe('the enemy clock', () => {
   it('is charged by tick, which reports what landed', () => {
     const town = atFront();
     town.lastSeen = T0;
+    // A new town cannot feed a line five rungs deep: this reads the quiet
+    // clock alone, so the supply line's hunger (Phase 3) is stopped.
+    town.frontline.fedAt = Number.POSITIVE_INFINITY;
     const settled = tick(town, T0 + 3 * DAY_MS);
     expect(settled.strikes.map((s) => [s.tier, s.slot])).toEqual([
       [4, 0],
@@ -139,7 +142,7 @@ describe('where the enemy strikes', () => {
       { tier: 2, slot: 2, at: T0 },
     ];
     const [strike] = chargeStrikes(town, T0 + QUIET_MS);
-    expect(strike).toEqual({ at: T0 + QUIET_MS, tier: 4, slot: 2, fellBack: true });
+    expect(strike).toEqual({ at: T0 + QUIET_MS, tier: 4, slot: 2, fellBack: true, cause: 'quiet' });
     expect(town.frontline.tier).toBe(4);
     expect(town.frontline.wins).toBe(0);
     // The town that fell is the front again, contested; the deeper loss stays.

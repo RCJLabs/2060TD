@@ -48,6 +48,7 @@ import type { StoredPlan } from './warfare';
 import type { Engine } from '../sim/engine';
 import type { CellIndex, SimConfig, SimStats, SpawnEdge } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
+import { chargeHunger, lineFed } from './supply';
 import { creditContracts, normalizeContracts, type ContractState } from './contracts';
 
 /**
@@ -177,6 +178,13 @@ export interface FrontlineState {
    * starts at the load that upgrades it.
    */
   pressedAt?: number;
+  /**
+   * How long an underfed front has gone hungry, in wholly-unfed ms (M25
+   * Phase 3): a day of it and the enemy retakes a sector. Absent when fed.
+   */
+  hunger?: number;
+  /** The hunger has been charged through this instant (epoch ms); absent in a file from before Phase 3. */
+  fedAt?: number;
 }
 
 /** A sector behind the front that the enemy holds again (M25 Phase 2). */
@@ -534,6 +542,7 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
       activeAt: now,
       placements: [],
       pressedAt: now,
+      fedAt: now,
     },
     defenseLog: [],
     standingOrders: null,
@@ -651,12 +660,14 @@ export function caps(town: TownState): { supplies: number; fuel: number; intel: 
 export function ratesPerHour(town: TownState): { supplies: number; fuel: number; intel: number } {
   const made = productionPerHour(town);
   const cap = caps(town);
-  const conv = conversionPerHour(town, made.supplies, {
+  // The line to the front is fed first (M25 Phase 3), and the works convert what is left.
+  const produced = made.supplies - lineFed(town.frontline, made.supplies);
+  const conv = conversionPerHour(town, produced, {
     fuel: town.fuel < cap.fuel,
     intel: town.intel < cap.intel,
   });
   return {
-    supplies: made.supplies - conv.input,
+    supplies: produced - conv.input,
     fuel: made.fuel + conv.fuel,
     intel: made.intel + conv.intel,
   };
@@ -748,7 +759,9 @@ export function converterAt(town: TownState, s: PlacedStructure): ConverterState
   const demand = converterDemand(town, running);
   const own = demand.find((d) => d.id === s.id)!;
   const wanted = demand.reduce((n, d) => n + d.input, 0);
-  const scale = converterShare(wanted, productionPerHour(town).supplies);
+  // What the depots make after the line to the front is fed (M25 Phase 3).
+  const made = productionPerHour(town).supplies;
+  const scale = converterShare(wanted, made - lineFed(town.frontline, made));
   return {
     to: c.to,
     input: Math.round(own.input * scale),
@@ -1022,6 +1035,8 @@ export interface Accrual {
   intel: number;
   /** Supplies the converters diverted, and the fuel and intel they made. */
   converted: { supplies: number; fuel: number; intel: number };
+  /** Supplies the line to the front took (M25 Phase 3). */
+  fed: number;
 }
 
 /**
@@ -1044,7 +1059,11 @@ export function accrue(town: TownState, elapsedMs: number): Accrual {
   const hours = Math.max(0, elapsedMs) / 3_600_000;
   const made = productionPerHour(town);
   const cap = caps(town);
-  const conv = conversionPerHour(town, made.supplies, {
+  // The line to the front takes its supplies first (M25 Phase 3), out of
+  // production like the works, and they convert what is left.
+  const line = lineFed(town.frontline, made.supplies);
+  const produced = made.supplies - line;
+  const conv = conversionPerHour(town, produced, {
     fuel: town.fuel < cap.fuel,
     intel: town.intel < cap.intel,
   });
@@ -1060,10 +1079,11 @@ export function accrue(town: TownState, elapsedMs: number): Accrual {
   const fill = (held: number, cap: number, delta: number): number =>
     Math.max(held, Math.min(cap, held + delta));
   return {
-    supplies: fill(town.supplies, cap.supplies, made.supplies * hours - diverted),
+    supplies: fill(town.supplies, cap.supplies, produced * hours - diverted),
     fuel: fill(town.fuel, cap.fuel, made.fuel * hours + conv.fuel * tFuel),
     intel: fill(town.intel, cap.intel, made.intel * hours + conv.intel * tIntel),
     converted: { supplies: diverted, fuel: conv.fuel * tFuel, intel: conv.intel * tIntel },
+    fed: line * hours,
   };
 }
 
@@ -1125,9 +1145,15 @@ export function tick(town: TownState, now: number): LadderSettlement {
     }
   }
 
+  // A front the depots cannot feed goes hungry (M25 Phase 3), charged
+  // through the whole absence rather than the offline window: the line is a
+  // rate, and it runs whether or not anyone is banking the rest.
+  const hungry = chargeHunger(town, now, productionPerHour(town).supplies);
   // Last, so a season placement lands on top of the storage cap rather than
   // being clipped by the accrual above — the same way raid loot does.
-  return settleLadder(town, now);
+  const settled = settleLadder(town, now);
+  if (hungry.length > 0) settled.strikes = [...hungry, ...settled.strikes].sort((a, b) => a.at - b.at);
+  return settled;
 }
 
 // ---- the army ---------------------------------------------------------------------

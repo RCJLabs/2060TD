@@ -206,3 +206,15 @@ export const STRIKE_INTERVAL_MS = DAY_MS;
 export const STRIKES_PER_QUIET = 2;
 /** The order the enemy comes down the lanes: its main road, the heavy lane, first. */
 export const STRIKE_ORDER: readonly number[] = [0, 1, 2];
+
+// ---- the supply line (M25 Phase 3) -------------------------------------------------
+
+/**
+ * Supplies an hour each sector held behind the front takes, for each rung of
+ * its town's distance from home: a whole town at the fifth rung takes 75. A
+ * line grows with the square of its depth, which is what makes a front deeper
+ * than its town can feed an overextended one.
+ */
+export const SUPPLY_PER_RUNG = 5;
+/** How long a wholly unfed front holds before the enemy retakes a sector; half fed, twice as long. */
+export const HUNGER_MS = DAY_MS;

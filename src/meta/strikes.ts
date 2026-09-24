@@ -36,6 +36,8 @@ export interface EnemyStrike {
   slot: number;
   /** The whole town was lost with it, and the front fell back to `tier`. */
   fellBack: boolean;
+  /** The front was quiet, or it was short of supply (Phase 3). */
+  cause: 'quiet' | 'hunger';
 }
 
 /** The sectors the enemy holds behind the front, nearest the front first. */
@@ -73,8 +75,15 @@ function setLost(fl: FrontlineState, lost: LostSector[]): void {
   fl.lost = [...lost].sort((a, b) => b.tier - a.tier || a.slot - b.slot);
 }
 
-/** One strike, landing at `at` on the front as it stands. Null when there is nothing to take. */
-function strikeOnce(fl: FrontlineState, at: number): EnemyStrike | null {
+/**
+ * One strike, landing at `at` on the front as it stands, whatever brought it:
+ * a quiet front, or a hungry one (Phase 3). Null when there is nothing to take.
+ */
+export function landStrike(
+  fl: FrontlineState,
+  at: number,
+  cause: EnemyStrike['cause'] = 'quiet',
+): EnemyStrike | null {
   const rear = fl.tier - 1;
   if (rear < 1) return null;
   // A lane that still reaches the front has its sector here held, by
@@ -89,10 +98,10 @@ function strikeOnce(fl: FrontlineState, at: number): EnemyStrike | null {
     fl.tier = rear;
     fl.wins = 0;
     setLost(fl, lost.filter((l) => l.tier < rear));
-    return { at, tier: rear, slot, fellBack: true };
+    return { at, tier: rear, slot, fellBack: true, cause };
   }
   setLost(fl, lost);
-  return { at, tier: rear, slot, fellBack: false };
+  return { at, tier: rear, slot, fellBack: false, cause };
 }
 
 /**
@@ -114,7 +123,7 @@ export function chargeStrikes(town: TownState, now: number): EnemyStrike[] {
   for (const at of strikeTimes(fl)) {
     if (at <= fl.pressedAt) continue;
     if (at > now) break;
-    const strike = strikeOnce(fl, at);
+    const strike = landStrike(fl, at);
     if (strike) struck.push(strike);
   }
   fl.pressedAt = now;

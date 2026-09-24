@@ -3,6 +3,7 @@ import { campaignFor, defenseCatalogFor, type FactionId } from '../content/facti
 import { LEAGUES, seasonAt } from '../content/leagues';
 import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { normalizeStrikes } from './strikes';
+import { normalizeSupply } from './supply';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
@@ -198,6 +199,8 @@ function normalizeLadder(town: TownState): void {
   // Held ground became state in M25 Phase 2. A file from before has lost
   // nothing, and its enemy clock starts at the next charge.
   normalizeStrikes(fl);
+  // And its supply line's hunger in Phase 3.
+  normalizeSupply(fl);
 }
 
 /**
