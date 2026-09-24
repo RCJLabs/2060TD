@@ -6356,6 +6356,12 @@ function main(): void {
       '  now field two heavies, chosen per mission by measurement (`--missions fit`). One cell',
       '  still off is LANDFALL fought without the CC3 the campaign has unlocked by then: with no',
       '  heavies at all a CC2 base holds it 15% of the time, so it is the mission, not the tanks.',
+      '- **The keep\'s guns spread in v1.45.2.** Drawn for 10x15 with every gun in the bands',
+      '  in front of and behind the post, it was a wall for the three reference forces that',
+      '  hunt guns — Russia 7, the UN 0 and the KPA 11 clears in 144 at T4-T5 — because each',
+      '  gun covered every other. With the same guns in the bands\' corners and in outworks',
+      '  outside the outer ring, 54, 12 and 58, still each one\'s third hardest shape, and the',
+      '  deal hands the keep to all five factions again.',
       '',
     ].join('\n');
     writeFileSync('docs/BALANCE.md', md);

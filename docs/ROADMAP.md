@@ -3922,17 +3922,18 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       from 18.8 points of spread to 8.0. The keep now reaches three factions of
       five. At T4 and T5 Russia's reference force clears it 0-8% on 22 of its 24
       layouts and the UN's on all 24, so the selection does not deal it to them.
+      *Redesigned in v1.45.2; see the follow-up below.*
 
       Shipped as v1.45.0, with `docs/BALANCE.md` regenerated. `--native`
       reproduces its bare defence tables 180 of 180 cells.
 
-      **Open: a wall segment still costs what it did.** A segment is two units
-      of wire now, and the budget halved with it, so a line across the approach
-      costs half the Supplies: a full CC3 budget of the USA's plain wall is 600
-      where it was 1200. The migration's refund assumes that price, and the
-      harness does not see it, because its defence rows are the permanent layer
-      with nothing spent. It is a live-play economy question, and it is not
-      decided here.
+      **Decided (v1.45.2): a wall segment still costs what it did.** A segment is
+      two units of wire now, and the budget halved with it, so a line across the
+      approach costs half the Supplies: a full CC3 budget of the USA's plain wall
+      is 600 where it was 1200. The migration's refund assumes that price, and
+      the harness does not see it, because its defence rows are the permanent
+      layer with nothing spent. The owner kept the price: cheaper wire is the
+      new board's, and nothing measured says it needs taking back.
 - [x] **Follow-up (v1.45.1) — the campaign, which nothing had measured.** The
       balance harness has always priced the assault ladder and never a mission, so
       Phase 8 re-tuned the one and could not see the other. `--missions` fights every
@@ -3971,6 +3972,36 @@ It is the pattern `TERRAIN_VERSION`, `CHAIN_CURRENT` and `spawnEdge` already fol
       where it held 88%. With no heavies at all it holds 15%, so no armour fit can
       reach it. Its own base, CC3, holds 90% against 100%, and it is left as it is.
       The campaign is now a table in `docs/BALANCE.md`, which it had never been.
+- [x] **Follow-up (v1.45.2) — the keep, which two factions could not take.**
+      The owner chose a redesign over dealing Russia and the UN seven shapes.
+      Their raids on the keep never passed the first stage of the kill chain:
+      108 and 132 of 144 failed at BREACH, with the force dead and 2.8 and 4.9
+      guns still standing. So it was not the post. The walls were not it either:
+      a second inner gate changed nothing, and a wider outer gate or no inner ring
+      barely moved Russia and left the UN at zero. The split was by doctrine. The
+      three reference forces that HUNT guns (Russia, UN, KPA) cleared it 7, 0 and
+      11 times in 144, and the two that go for the post (USA, China) 54 and 58.
+
+      The 20x30 keep stood its guns around a wide ring, at its corners and axis
+      points twelve units apart. The 10x15 redraw had to keep one-column side
+      corridors clear, so every gun went into the bands in front of and behind
+      the post, inside every other gun's arc, and a raid that hunts guns met all
+      of them at once. Fewer guns was a blunt lever: at 1.0x instead of 1.2x
+      Russia cleared 36 and the UN still 6, and at 0.8x the UN reached 20 only as
+      the USA reached 96. Spreading them is the precise one. Now one gun
+      stands in each corner of the two bands and the rest in outworks a row
+      outside the outer ring. That is the same number of guns, and it seats them
+      all: the old spots came up short on 180 of 840 keeps.
+
+      | T4-T5, of 144 | Russia | UN | KPA | China | USA |
+      |---|---|---|---|---|---|
+      | guns in the bands | 7 | 0 | 11 | 58 | 54 |
+      | guns spread | 54 | 12 | 58 | 86 | 59 |
+
+      For Russia, the UN and the KPA it is still the third hardest of the eight
+      shapes. The deal was chosen again, and the keep is dealt to all five
+      factions: Russia at T4 on a layout it clears 58%, the UN at T4 on one it
+      clears 67%. Every faction meets all eight shapes again.
 - [ ] **Later, and optional — landscape rotates the VIEW, not the sim.** A deep board
       in a short screen is 27px in phone landscape; the same board turned sideways is
       41px. The sim keeps its edge; only the camera turns.

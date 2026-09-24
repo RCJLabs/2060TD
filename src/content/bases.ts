@@ -507,51 +507,53 @@ export type DealPair = readonly [ArchetypeId, number];
  * The score also carries a small penalty for a shape the faction has already
  * met, because difficulty alone collapses the roster — `compound`, `camp` and
  * `corridor` have the widest layout ranges, so they can hit any target and the
- * other five stop being dealt at all. With the nudge, all eight reached every
- * faction across the ladder on 20x30. On 10x15 the keep reaches three of the
- * five. At T4 and T5 Russia's reference force clears it 0-8% on 22 of its 24
- * layouts and the UN's on all 24, so dealing it to them would be dealing a
- * wall, and the nudge rightly loses to that.
+ * other five stop being dealt at all. With the nudge, all eight reach every
+ * faction across the ladder. For one release on 10x15 the keep reached only
+ * three of the five: its guns stood so close that a raid hunting them met all
+ * of them at once, and Russia's and the UN's reference forces cleared it 0-8%
+ * on 46 of their 48 T4-T5 layouts. Spread again (v1.45.2, `planKeep`), it is
+ * dealt to all five.
  *
  * The numbers after each row are the clear rates the row was selected for.
  * Selected again for the 10x15 board (M34): the eight plans were redrawn, so a
  * layout index names a different base than it did, and the old pairs' rates
- * described bases nobody is dealt any more.
+ * described bases nobody is dealt any more. And again when the keep's guns
+ * spread (v1.45.2).
  */
 export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
   usa: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
     [['compound', 0], ['camp', 0], ['star', 0]], // T2 100/100/100
     [['corridor', 7], ['depot', 10], ['strongpoints', 2]], // T3 67/83/100
-    [['camp', 10], ['keep', 6], ['compound', 9]], // T4 58/67/83
-    [['bunker', 8], ['compound', 7], ['keep', 5]], // T5 42/58/67
+    [['keep', 5], ['camp', 7], ['compound', 9]], // T4 50/67/83
+    [['bunker', 8], ['compound', 7], ['camp', 6]], // T5 42/58/75
   ],
   china: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
     [['star', 11], ['corridor', 7], ['compound', 0]], // T2 83/92/100
     [['compound', 7], ['corridor', 2], ['depot', 0]], // T3 67/83/100
-    [['camp', 2], ['strongpoints', 9], ['compound', 8]], // T4 58/75/83
-    [['keep', 2], ['corridor', 10], ['bunker', 4]], // T5 33/58/67
+    [['keep', 2], ['strongpoints', 9], ['compound', 8]], // T4 58/75/83
+    [['keep', 5], ['corridor', 10], ['bunker', 4]], // T5 42/58/67
   ],
   russia: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
     [['corridor', 2], ['compound', 1], ['star', 0]], // T2 75/92/100
     [['corridor', 5], ['strongpoints', 8], ['depot', 0]], // T3 67/83/100
-    [['compound', 9], ['corridor', 11], ['camp', 8]], // T4 58/67/83
+    [['keep', 10], ['compound', 11], ['camp', 8]], // T4 58/67/83
     [['compound', 2], ['camp', 6], ['bunker', 9]], // T5 42/50/67
   ],
   nk: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
     [['compound', 2], ['corridor', 11], ['star', 0]], // T2 92/92/100
     [['star', 0], ['strongpoints', 2], ['depot', 0]], // T3 75/83/100
-    [['keep', 0], ['compound', 3], ['camp', 1]], // T4 50/67/83
-    [['corridor', 5], ['compound', 6], ['bunker', 10]], // T5 42/58/67
+    [['compound', 11], ['keep', 0], ['camp', 1]], // T4 58/67/83
+    [['compound', 2], ['keep', 11], ['bunker', 10]], // T5 42/58/67
   ],
   un: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
     [['corridor', 11], ['star', 4], ['compound', 0]], // T2 75/92/100
     [['compound', 6], ['depot', 4], ['strongpoints', 0]], // T3 67/83/100
-    [['compound', 5], ['corridor', 3], ['strongpoints', 1]], // T4 50/67/92
+    [['compound', 5], ['keep', 1], ['corridor', 1]], // T4 50/67/92
     [['compound', 9], ['bunker', 8], ['camp', 1]], // T5 42/50/67
   ],
 };
@@ -890,10 +892,24 @@ function planKeep(c: PlanContext): void {
       if (Math.max(Math.abs(du), Math.abs(dv)) === 2) c.keepClear(ccU + du, ccV + dv);
     }
   }
+  // The guns SPREAD, as they did around the 20x30 keep's wide ring (v1.45.2):
+  // one in each corner of the two bands, and what the rung adds beyond four
+  // stands in an outwork a row outside the outer ring. Filling the bands'
+  // middles instead put every gun inside every other's arc, and a raid that
+  // hunts guns walked into all of them at once: the reference forces of Russia,
+  // the UN and the KPA cleared it 7, 0 and 11 times in 144 at T4-T5. Spread,
+  // with the same number of guns, 54, 12 and 58, and for each of the three it
+  // is still the third hardest of the eight shapes. China's force rose from 58
+  // to 86, and the USA's, which goes for the post and not the guns, from 54 to
+  // 59. The bands' middles are the fallback for an outwork that will not fit
+  // on the board, and ten spots seat every gun a rung asks for: the old eight
+  // came up short on 180 of 840 keeps across T4-T10 and the five kits.
   const band = outerU - 1;
+  const out = outerU + 1;
   towerSpots.push(
     [ccU - band, ccV - 2], [ccU - band, ccV + 2], [ccU + band, ccV - 2], [ccU + band, ccV + 2],
-    [ccU - band, ccV], [ccU + band, ccV], [ccU - band, ccV - 1], [ccU + band, ccV + 1],
+    [ccU - out, ccV - 2], [ccU + out, ccV + 2], [ccU - out, ccV + 2], [ccU + out, ccV - 2],
+    [ccU - band, ccV], [ccU + band, ccV],
   );
 }
 
