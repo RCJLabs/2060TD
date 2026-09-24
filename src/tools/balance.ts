@@ -62,7 +62,7 @@ import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
 import { economyTable } from './economy';
 import { yardTable } from './yard';
-import { frontTable, warTable } from './war';
+import { frontTable, supplyTable, warTable } from './war';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
 import { DOCTRINE_SUPPORT, RAID_PLANS } from './plans';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
@@ -5594,6 +5594,11 @@ function main(): void {
   if (process.argv.includes('--shapes')) {
     console.log(archetypeTable('usa'));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--supply')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${supplyTable(faction)}\n`);
     return;
   }
   if (process.argv.includes('--front')) {

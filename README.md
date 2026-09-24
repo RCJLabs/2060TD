@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.54.0, in the browser. No install, no account, works on a phone.
+v1.55.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,32 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.54.0: the enemy strikes back
+## Current state — v1.55.0: the supply line
+
+**Holding ground costs supplies.** Every town you hold behind the front is fed from what your
+supply depots make, and the further it is from home, the more it takes: 5 supplies an hour per
+lane for each rung of distance. A whole town at the fifth rung takes 75 an hour, and a front
+pushed to the sixth rung takes 225. The front itself is free until you take it, and so is any
+ground the enemy has retaken. The line is fed before anything reaches your stores and before
+the Refinery and Intel Bureau take their share, and it never touches the supplies you've
+already banked.
+
+**Push too far and the front starves.** If your depots make less than the line needs, the front
+is short of supply, and the enemy retakes ground from it: a sector a day if it's getting
+nothing, one every two days if it's half fed. Each loss makes the line cheaper, so the front
+shrinks back to what your town can feed. Feed it again and the hunger is forgotten. Built out,
+CC1 can feed a front to the 6th rung, CC2 to the 9th, and CC3 to the 13th, the enemy's
+stronghold (further with the yard and research).
+
+**It's where the surplus goes.** A built town fills its stores and wastes most of what it makes.
+Now the front uses some of it: about a tenth while your front is young, a fifth or more by the
+eighth rung. In testing, no built town ever ran its front short.
+
+**Where you see it.** Each held town on the theater map shows what it costs an hour, and the map
+says whether your depots are keeping up. The supplies line on the status strip shows the draw:
+`SUPPLIES 600/2000 (+270/h · FRONT −225)`. A short front is marked SHORT on the WAR tab.
+
+## v1.54.0: the enemy strikes back
 
 **Leave the front quiet and the enemy takes ground back.** If you go 36 hours without a raid,
 a counterattack, or a defence you fought yourself, the enemy retakes a sector of the town

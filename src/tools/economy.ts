@@ -400,6 +400,8 @@ export interface Accruals {
   converted: Amounts;
   /** What a season closing paid, which `tick` pays on top of the cap. */
   placements: Amounts;
+  /** Supplies the line to the front took (M25 Phase 3). */
+  front: number;
 }
 
 interface Ledger extends Accruals {
@@ -509,11 +511,14 @@ export function advanceBooked(town: TownState, now: number, books: Accruals): La
     books.pastOffline[r] += made - gain;
     const banked = gained[r] - held;
     books.banked[r] += banked;
+    if (r === 'supplies') books.front += gained.fed;
     // Lost to a full store: what came in and was neither kept nor handed on
     // to a converter. Supplies go into the works and fuel and intel come out.
     const taken = gained.converted[r];
     books.converted[r] += taken;
-    books.atCap[r] += (r === 'supplies' ? gain - taken : gain + taken) - banked;
+    // The line to the front is fed out of supplies before anything is banked.
+    const fed = r === 'supplies' ? gained.fed : 0;
+    books.atCap[r] += (r === 'supplies' ? gain - taken - fed : gain + taken) - banked;
     expected[r] = gained[r];
   }
   const settled = tick(town, now);
@@ -542,6 +547,7 @@ export function playFortnight(
     converted: zero(),
     contracts: zero(),
     placements: zero(),
+    front: 0,
     spent: {},
     research: zero(),
   };

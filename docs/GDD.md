@@ -90,6 +90,9 @@ your Command Center.
   retakes ground behind it, one sector and a day later a second, and no more until you act on
   the Front Line again. It is on standing decay's clock, and a commander who raids daily never
   sees it. See "The Front Line" in section 3.
+- **The supply line** *(v1.55)*: the towns you hold behind the front are fed from what your
+  depots make, before anything is banked, and a front they cannot feed loses ground. See "The
+  Front Line" in section 3.
 
 ---
 
@@ -160,6 +163,35 @@ The map strikes lost sectors out and says how long the front has been quiet and 
 strikes; the planner lists the open front posts, then the ground to retake. Over four measured
 weeks a commander who raids daily loses nothing, and one who plays every other day spends about
 one raid in three retaking.
+
+**The supply line** *(v1.55)*. Holding ground costs. Every sector held behind the front takes
+five supplies an hour for each rung of its town's distance from home: a whole town at the fifth
+rung takes 75, and the line to a front at the sixth rung 225. The front costs nothing until it
+is taken, and neither does ground the enemy holds. The line is fed out of what the depots make
+before anything is banked and before the works take their share, and never out of the
+stockpile. It grows with the square of the front's depth, so the depots bound how deep a front
+a town can hold:
+
+| Built out | Supplies an hour | Feeds a front to |
+|---|---|---|
+| CC1 | 240 | the 6th rung |
+| CC2 | 630 | the 9th |
+| CC3 | 1,320 | the 13th, the enemy's stronghold |
+| CC3, the yard and the research | about 1,900 | the 16th |
+
+- **Overextending punishes.** When the depots make less than the line takes, the front is
+  short and goes hungry at the share it is short by. A day of hunger costs a sector, struck the
+  way a quiet front's is: wholly unfed, a sector a day; half fed, one every two days. Each loss
+  lightens the line, so an overextended front shrinks to what its town can feed, and a front fed
+  again forgets its hunger.
+- **It is the economy's sink.** On a full store most of what the line takes would have been
+  lost. Measured, it takes a tenth of production while the front is young and a fifth or more at
+  the eighth rung, where a full store at war then loses 24-47% of what the town makes instead of
+  44-75%.
+
+The map says what each held town takes an hour and whether the depots feed the line, the status
+strip shows the line's draw beside the supplies rate, and a short front is bannered and marked
+SHORT on the WAR tab.
 
 ### Base archetypes *(v1.6)*
 

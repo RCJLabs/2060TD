@@ -4292,8 +4292,127 @@ north", and it is where an endgame can live.
       commander who is away a raid in three. Phase 3 is where holding ground
       costs supplies, and it will read against the same table: a cost that
       grows with what a commander holds is one a daily commander pays too.
-- [ ] **Phase 3 — supply and attrition.** Holding ground costs; overextending
-      punishes.
+- [x] **Phase 3 — supply and attrition.** Holding ground costs; overextending
+      punishes. *(v1.55.0)*
+
+      **The plan, before the build.** Two things are handed on. M24 left a
+      surplus: a built CC3 town makes about 46,000 supplies a day, and even a
+      commander at war every session loses 44-60% of it to a full store,
+      against 70% in peace. Its record said the sink belongs here, as a cost
+      of holding ground that grows with what a commander holds. And Phase 2
+      made held ground state: towns behind the front are held a sector at a
+      time, and the enemy can take one back.
+
+      *What the survey found.* Production is a rate the depots make and the
+      stores bank, capped at eight hours offline. The works already divert
+      supplies from production, never from the stockpile, and slow down
+      rather than overdraw it. Built out, CC1 makes 240 supplies an hour, CC2
+      630 and CC3 1,320, about 1,900 with the yard and the research. The
+      Front Line opens at mission 5 with CC2 on the table, and CC3 comes with
+      mission 7. The week at war's commander reaches the sixth rung in a week
+      and the ninth to eleventh in four.
+
+      *Holding ground costs supplies.* Every sector held behind the front
+      takes supplies an hour from what the depots make: five for each rung of
+      its town's distance from home, so a whole town at the fifth rung takes
+      75 an hour and the line to a front at the sixth rung takes 225. The
+      front itself costs nothing until it is taken, and a lost sector costs
+      nothing, since the enemy is feeding it. The line is fed before the
+      works take their share and never from the stockpile, as the works are.
+      A line grows with the square of its depth, so a front as deep as a town
+      can feed is: CC1's at the sixth rung, CC2's at the ninth, and CC3's at
+      the thirteenth, the enemy's stronghold, or the sixteenth with the yard
+      and the research. On a full store most of it is what would have been
+      lost: the sink, where M24 left one.
+
+      *Overextending punishes.* When the depots make less than the line takes,
+      the front is short, and it goes hungry at the share it is short by:
+      fully unfed, the enemy retakes a sector a day, and half fed, one every
+      two days. It strikes as Phase 2's enemy does, at the town behind the
+      front, cutting roads first and taking the whole town only when every
+      road is cut, when the front falls back to it. Each loss lightens the
+      line, so an overextended front shrinks to what the town can feed. A
+      front fed again forgets its hunger, so a depot wrecked in a siege and
+      repaired inside a day costs nothing.
+
+      *What is stored.* Two optional fields on the Front Line, the hunger and
+      how far its clock has been charged, which start at the load that
+      upgrades a file.
+
+      *What the player sees.* The map shows the line: what it takes an hour
+      against what the depots make, and each held town's share. When it is
+      short it says so, and how soon the front loses ground. The status strip
+      shows the supplies rate after the line, and the line's draw beside it.
+      A works card that is short says whether the front took the difference.
+      A hungry front's loss is bannered like a quiet one's, and the THEATER
+      row says SHORT.
+
+      *The bar.* The week at war, rerun with the line fed: supplies lost to a
+      full store should fall for a deep front and hardly move at the first
+      rungs. A week begun from a front eight rungs deep measures the sink
+      where it is meant to work. The Phase 2 table, rerun, shows no built
+      town short at the depths it reaches. No battle changes. Old saves load
+      and the e2e harnesses pass unchanged.
+
+      **The record (v1.55.0).** Built as planned, at five supplies a rung, and
+      the bar is met.
+
+      *Where it lives.* `meta/supply.ts` prices the line and charges the
+      hunger, pure and on an explicit clock like the strikes. The accrual,
+      the supplies rate and the works' cards all feed the line first and
+      give the works what is left, and the accrual books what the line took.
+      `tick()` charges the hunger through the whole absence, not the eight-
+      hour window: the line is a rate, and it runs whether or not anyone is
+      banking the rest. A hungry front's loss is a strike like a quiet
+      front's, tagged with its cause, and the town banners it as THE FRONT
+      WENT SHORT OF SUPPLY. Fourteen new tests.
+
+      *What the player sees.* Each held town on the map says what it takes
+      an hour to hold, under its name, and a line under the map says what
+      the whole line takes of what the depots make, or, in red, that the
+      front is short and when it loses ground. The status strip reads
+      SUPPLIES 600/2000 (+270/h · FRONT −225). The THEATER row says SHORT,
+      and a works card that is short says whether the front took the
+      difference. Read at 412 px portrait and 1440 px.
+
+      *The measurement.* THE SUPPLY LINE (`npm run balance -- --supply`): the
+      week at war's commanders for a week, from the first rung as the week at
+      war starts and from the eighth, a month or so into a war. What the line
+      took of production, and what a full store still lost, at two-hourly
+      sessions:
+
+      | | line, from 1st | full store lost | line, from 8th | full store lost |
+      |---|---|---|---|---|
+      | peace | 0% | 70% | 20% | 50% |
+      | raids | 10-14% | 57-63% | 22-36% | 38-47% |
+      | raids and skirmishes | 10-14% | 40-52% | 22-36% | 24-39% |
+
+      Before this phase the week at war's raids lost 58-75% at two- and
+      eight-hourly sessions, and with skirmishes 44-60%. Every faction reads
+      within these ranges.
+      Eight-hourly the line takes 4-6% from the first rung and 20-25% from
+      the eighth. Once a day it takes at most 8%, because a day's absence
+      only accrues eight hours of what the depots make and the line is fed
+      out of those. No line went short in any run, and THE ENEMY STRIKES
+      BACK, rerun for four weeks, did not move by a number: a built CC3
+      town feeds a front sixteen rungs deep, and no commander the instrument
+      plays gets past the eleventh.
+
+      *What the numbers mean.* The line is the sink M24 left, and it grows
+      as planned: a tenth of what the depots make while the front is young,
+      a fifth or more at the eighth rung, over half past the twelfth. The
+      hunger is a guardrail rather than a pace: it binds a town that is not
+      built for its front (CC1 past the sixth rung, CC2 past the ninth, CC3
+      without its yard past the thirteenth), and a front shrinks to what
+      its depots can feed.
+
+      *The gate.* 713 unit tests, and the 24 e2e harnesses, none of which
+      needed a change.
+
+      *What it hands on.* Phase 4 is the endgame, and the line has already
+      put the enemy's stronghold at the thirteenth rung where a CC3 town
+      without its yard runs out of supply: reaching the capital asks for the
+      whole economy.
 - [ ] **Phase 4 — the endgame.** The front reaches their capital, or yours.
 
 ## M26 — "Asymmetry": factions become different games
@@ -5536,6 +5655,13 @@ enemy retakes a sector of the town behind it, and a day later a second, cutting
 roads to the front; losses left standing can push the front back. A commander who
 raids daily loses nothing, and one away for days loses a raid in three to
 retaking. Phase 3, supply and attrition, reads against the same table.*
+
+*M25 Phase 3 (v1.55.0) made holding ground cost supplies: five an hour for each
+rung of a held sector's distance from home, out of what the depots make. It is
+the sink M24 left: a tenth of production while the front is young and a fifth or
+more at the eighth rung, and a full store at war loses 24-47% there instead of
+44-75%. A front its town cannot feed loses ground until it can. Phase 4, the
+endgame, is what is left.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

@@ -100,6 +100,8 @@ export interface WarOptions {
   front?: 'cycle' | 'easiest';
   /** False stops the enemy's clock, for the same war with nothing retaken. */
   strikes?: boolean;
+  /** The rung the front starts at, every town behind it held (M25 Phase 3). The week at war starts at the first. */
+  startTier?: number;
 }
 
 export interface WarBooks extends Accruals {
@@ -134,6 +136,8 @@ export interface WarRun {
   lost: number;
   retaken: number;
   fellBack: number;
+  /** Of the sectors lost, how many a short supply line cost (M25 Phase 3). */
+  hungry: number;
   /** Days between sessions: one below a day's cadence. */
   everyDays: number;
   /** Days into the week the graph was finished, or null if it never was. */
@@ -239,6 +243,7 @@ export function playWarWeek(
   const retake = opts.retake ?? 'push';
   // Stopped by charging it through the end of time.
   if (opts.strikes === false) town.frontline.pressedAt = Number.POSITIVE_INFINITY;
+  if (opts.startTier !== undefined) town.frontline.tier = opts.startTier;
   // A cadence of a day or more is a session every that many days.
   const everyDays = cadenceHours >= 24 ? Math.max(1, Math.round(cadenceHours / 24)) : 1;
   const books: WarBooks = {
@@ -248,6 +253,7 @@ export function playWarWeek(
     pastOffline: zero(),
     converted: zero(),
     placements: zero(),
+    front: 0,
     actions: {},
   };
   const waking = 16 * HOUR;
@@ -275,6 +281,7 @@ export function playWarWeek(
     lost: 0,
     retaken: 0,
     fellBack: 0,
+    hungry: 0,
     everyDays,
     graph: null,
   };
@@ -286,6 +293,13 @@ export function playWarWeek(
   let variant = 0;
   let lostSkirmishOn = -1;
 
+  /** Time passing, booked, and whatever ground the enemy took in it counted. */
+  const advance = (at: number): void => {
+    const settled = advanceBooked(town, at, books);
+    run.lost += settled.strikes.length;
+    run.fellBack += settled.strikes.filter((s) => s.fellBack).length;
+    run.hungry += settled.strikes.filter((s) => s.cause === 'hunger').length;
+  };
   /** Run one action and book what it did to the stores. */
   const act = <T>(name: string, fn: () => T): T => {
     const before = { supplies: town.supplies, fuel: town.fuel, intel: town.intel };
@@ -331,9 +345,7 @@ export function playWarWeek(
       const probes = act('probes', () => runOfflineProbes(town, at));
       run.probes += probes.length;
       run.probesHeld += probes.filter((p) => p.held).length;
-      const settled = advanceBooked(town, at, books);
-      run.lost += settled.strikes.length;
-      run.fellBack += settled.strikes.filter((s) => s.fellBack).length;
+      advance(at);
 
       // The defence the last probe offers: stood and fought, or handed to the
       // garrison, which resolves it as the probe it would have been.
@@ -369,7 +381,7 @@ export function playWarWeek(
       let clock = at;
       for (let r = 0; r < raidsPerSession && policy !== 'peace'; r++) {
         if (r > 0) {
-          for (let m = 1; m <= RAID_TURNAROUND_MIN; m++) advanceBooked(town, clock + m * MIN, books);
+          for (let m = 1; m <= RAID_TURNAROUND_MIN; m++) advance(clock + m * MIN);
           clock += RAID_TURNAROUND_MIN * MIN;
           // A counterattack the last raid earned is fought before the next one goes.
           counterattack(clock);
@@ -426,7 +438,7 @@ export function playWarWeek(
         if (next) startResearch(town, next.id, at);
       });
 
-      for (let m = 1; m < sessionMinutes; m++) advanceBooked(town, clock + m * MIN, books);
+      for (let m = 1; m < sessionMinutes; m++) advance(clock + m * MIN);
       if (run.graph === null && town.research.completed.length === TECHS.length) run.graph = (at - begin) / DAY;
     }
   }
@@ -527,6 +539,37 @@ export function frontTable(faction: FactionId = 'usa', days = 28): string {
           `${pad(`${run.cleared}/${run.raids}`, 13)} | ${pad(run.retaken, 7)} | ${pad(run.lost, 4)} | ` +
           `${pad(run.fellBack, 9)} | ${pad(`${run.tier} (${run.peakTier})`, 11)}`,
       );
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * M25 Phase 3: what the supply line takes of the surplus. The week at war's
+ * three commanders, from the first rung as the week at war starts and from the
+ * eighth, a month or so into a war, every town behind it held: what the depots
+ * made, what the line took, what a full store still lost, and whether the line
+ * ever went short.
+ */
+export function supplyTable(faction: FactionId = 'usa'): string {
+  const start = warTown(faction);
+  const lines = [
+    `THE SUPPLY LINE — ${faction.toUpperCase()}: the town of the week at war for a week; per day`,
+    'EVERY | WHO            | FROM | MADE S | THE LINE S | LOST FULL S | THE WAR, NET S | RUNG | LOST HUNGRY',
+  ];
+  for (const hours of [2, 8, 24]) {
+    for (const from of [1, 8]) {
+      for (const policy of POLICIES) {
+        const run = playWarWeek(start, policy, hours, 7, 10, { startTier: from });
+        const B = run.books;
+        const perDay = (n: number): string => k(n / run.span);
+        lines.push(
+          `${pad(`${hours} h`, 5)} | ${policy.padEnd(14)} | ${pad(from, 4)} | ${pad(perDay(B.made.supplies), 6)} | ` +
+            `${pad(`${perDay(B.front)} ${pct(B.front, B.made.supplies)}`, 10)} | ` +
+            `${pad(pct(B.atCap.supplies, B.made.supplies), 11)} | ${pad(perDay(warNet(B).supplies), 14)} | ` +
+            `${pad(run.tier, 4)} | ${pad(run.hungry, 11)}`,
+        );
+      }
     }
   }
   return lines.join('\n');

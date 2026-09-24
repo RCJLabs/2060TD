@@ -1243,3 +1243,18 @@ here with the change and its date.
   front falls back only when losses are left standing. A file from before
   starts the enemy's clock on its first load, so no absence before the update
   is charged.
+- 2026-09-24 — **Holding ground costs supplies, and a front its town cannot
+  feed loses ground (M25 Phase 3, v1.55.0).** Every sector held behind the
+  front takes five supplies an hour for each rung of its town's distance from
+  home, out of what the depots make: fed before the works take their share,
+  and never from the stockpile, as the works never are. The front and ground
+  the enemy holds cost nothing. A line grows with the square of its depth, so
+  a town's depots bound how deep a front it can hold: CC1's to the sixth rung,
+  CC2's to the ninth, CC3's to the thirteenth, or the sixteenth with the yard
+  and the research. When they make less than the line takes, the front goes
+  hungry at the share it is short by, and a day of hunger (two half fed) costs
+  a sector the way a quiet spell does; each loss lightens the line, and a front
+  fed again forgets its hunger. It is the sink M24 handed on: measured, the
+  line takes a tenth of production while the front is young and a fifth or
+  more at the eighth rung, and no built town the instrument plays ever went
+  short. The price per rung was the plan's and the measurement kept it.
