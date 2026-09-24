@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.49.2, in the browser. No install, no account, works on a phone.
+v1.50.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,27 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.49.2: a full store keeps what you win
+## Current state — v1.50: the town runs on hours
+
+**Depots make a twentieth of what they did, so the town takes days to build instead of
+hours.** Production now reads per hour: a level 1 supply depot makes 120 an hour, where it
+made 40 a minute. Storage holds a night now: a fully built town fills its store in 8 to 11
+hours, so an eight-hour absence keeps everything it made (before, it kept about a
+twentieth). Buying every building to level 3 at Command Center 3 takes about three days if
+you check in several times a day, and about nine if you play once a day. Before this
+release those took about twelve hours and six days.
+
+**Battles pay hours of production.** A siege held at level 8 pays about 3,250 supplies,
+which is thirteen hours of a built Command Center 1 town's production and two and a half
+of a Command Center 3's. The day's orders and raids are worth hours too, so what you win
+in battle matters again.
+
+**Wrecks cost something now, and the town tells you.** After a battle, the message says
+what it wrecked and what the repairs cost, and the BASE tab has a REPAIR ALL button for
+every wreck at once. On the reference defences, a held siege still pays several times
+what it breaks.
+
+## v1.49.2: a full store keeps what you win
 
 **Loot, the day's orders and season pay now stay in a full store.** They were always
 paid on top of the storage cap, but only for a moment: the town cut everything above

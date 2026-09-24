@@ -555,10 +555,25 @@ Two consequences run through the whole codebase:
 | **Intel** *(M6)* | Radar/Comms, defense victories | Research, scouting raid targets |
 | **Manpower** | Camps (soft cap, not a currency) | Army size limit |
 
-Offline accrual caps at storage capacity, and at eight hours. Storage is the cap that binds:
-measured in M24 Phase 1, a built stage fills its store in about half an hour of supplies and an
-hour of fuel, so an eight-hour absence keeps 5–7% of the supplies it made. Loot, the day's orders
-and a season placement land on top of a full store and stay until spent; production does not.
+Offline accrual caps at storage capacity, and at eight hours. Production is stated per hour, and
+since v1.50 it is a twentieth of what it was: the rate at which the storage a stage allows holds
+those eight hours. A built CC1 fills its supplies in 8.3 hours, CC2 in 9.5 and CC3 in 11, and
+every storage bunker is needed to get there, so an absence keeps what it makes. Until then a
+store filled in half an hour and an eight-hour absence kept 5–7% of it (M24 Phase 1). Loot, the
+day's orders and a season placement land on top of a full store and stay until spent; production
+does not.
+
+**What production is worth.** At these rates the whole town takes about three days to buy for a
+commander who plays several times a day, and nine for one who plays once. The battles pay hours:
+a siege held at level 8 pays 3,250 supplies, thirteen hours of a built CC1's production and two
+and a half of a CC3's.
+
+**Wrecks are the damage that lasts.** A structure destroyed in a battle the commander fights is
+wrecked: it stops working, and putting it back costs a share of everything spent on it (30%;
+Russia 42%, the KPA 25%, the UN 20%). Damage short of that does not carry over. Measured, it is
+5–9% of what a siege costs to repair: a gun comes through nearly whole or not at all. After a
+battle the town says what it wrecked and what the repairs cost, and the base tab repairs every
+wreck at once. Offline probes never wreck anything; they bill the stockpile instead (5.7).
 
 ### 5.2 Buildings (USA names; every faction has analogues)
 
@@ -1126,7 +1141,7 @@ four prices, and the only way to compare them was to buy one.
 
 The card shows the silhouette (the same `drawStructureGlyph` the board draws, so the card
 teaches the shape it will have), the price and build time, HP and footprint, what it
-produces per minute if it produces anything, its weapon as **effective DPS against each
+produces an hour if it produces anything, its weapon as **effective DPS against each
 armour class it can actually reach**, and the upgrade ladder with prices.
 
 Effective DPS rather than the raw multiplier on purpose: a multiplier is a number about

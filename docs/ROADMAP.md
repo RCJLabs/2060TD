@@ -3488,7 +3488,10 @@ costs a week of throughput.
       little faster; the shape is the same for all five.
 
       **The battles pay minutes.** A siege held at level 8 is 1,450 supplies: 18
-      minutes of CC1's production, 7 of CC2's, 3 of CC3's. A day of three orders
+      minutes of CC1's production, 7 of CC2's, 3 of CC3's. (Corrected in Phase 2:
+      1,450 is the bonus alone. A siege also pays for every wave it holds, which
+      is more again, so the whole of it is 3,250: 41, 15 and 7 minutes. Still
+      minutes.) A day of three orders
       is 8 minutes of CC2's, a tier-5 post razed to the ground 9. Once the town is
       bought, loot is a number on a screen, because there is nothing to spend it
       on.
@@ -3514,9 +3517,117 @@ costs a week of throughput.
 
       The gate: 23 of 24, with one batch flake in `e2e-drawer`, the silhouette
       dragged onto the map under load, which passed alone and three more times.
-- [ ] **Phase 2 — adjacency and power.** Alone, these turn layout into two
+- [x] **Phase 2 — production in hours (v1.50.0).** Inserted ahead of adjacency and power,
+      because Phase 1 said those change nothing a player feels until the numbers
+      under them do. The owner took both halves of the recommendation: rates and
+      caps that make a player choose, and lasting battle damage to give them
+      repairs to spend on.
+
+      **The plan, before the build.** Three parts.
+
+      *One number, derived rather than picked.* Every production rate becomes a
+      twentieth of what it was: the rate at which the storage the town already
+      sells holds the eight hours the GDD promises. A built CC1 would fill its
+      supplies in 8.3 hours, CC2 in 9.5, CC3 in 11, where they fill in 25, 29 and 33
+      minutes now. Every storage bunker is needed to get there: at CC3 two of them
+      hold 7.9 hours and the third takes it to 11. Costs, caps, loot, the day's
+      orders and every battle stay exactly as they are, so nothing the balance
+      harness has measured moves. The instrument, run in advance with the rates
+      divided, puts the whole town at 2.7 days for a commander who checks in every
+      two hours (12 hours now), 3.0 days at three sessions a day, and 9 at one; a
+      siege held at level 8 pays an hour of CC3's production and six of CC1's,
+      where it pays three and eighteen minutes.
+
+      Rates are stated per hour, three times the old per-minute numbers: a
+      twentieth of 40 a minute is 2 a minute, and "+240/h" reads where "+4/min"
+      would not. Divided by 30 or 40, the town would last 4 or 5 days, but past a
+      twentieth a full store holds more than the eight hours an absence accrues: at
+      a thirtieth the second CC2 bunker and the third CC3 one would store nothing a
+      player could fill, and at a fortieth a commander who plays once a day never
+      finishes the town inside a season.
+
+      *The damage that lasts is the wreck.* Before building lasting damage, what
+      a battle actually leaves was measured: live sieges fought headless against
+      the three reference defences at levels across their band, with the damage on
+      every surviving gun priced as a share of its wreck repair. The survivors carry
+      almost nothing out: 0-7 supplies of damage at EARLY, 0-52 at MID, 14-411 at
+      LATE. The wrecks are the bill, up to 267 supplies at MID and about 1,400 at
+      LATE, where a held siege at the contested levels loses most of its guns. Guns
+      in this game come through a siege nearly whole or not at all.
+
+      So lasting damage already exists, and it is cheap only because production is.
+      Persisting partial damage on top of it is not built: it would be the smaller
+      share, and it would need the in-battle repair repriced first. That repair
+      charges 0.04 supplies an HP, about a tenth of what a wreck costs per HP. If
+      damage lasted, repairing it at the start of any siege would cost almost
+      nothing and the town's price would never be paid.
+
+      What is built is the wreck bill in plain sight. The battle's banner says what
+      it paid and what it broke, and the base tab repairs every wreck at once.
+
+      *The instrument prices a defence.* `--economy` reads in hours, and gains WHAT A
+      DEFENCE COSTS: each reference defence fought headless through its band, with
+      what a hold pays, what its wrecks cost to repair, and what a loss costs, all in
+      hours of that stage's production.
+
+      **What it does not do.** Built out, CC3 makes about 32,000 supplies a day and
+      only the war spends them: repairs, the army and ordnance. Something to buy
+      after day three is what adjacency, power, chains and districts are for. This
+      phase is what makes their prices mean anything.
+
+      **The record.** All three parts held, and one of Phase 1's numbers did not.
+
+      *Storage holds a night.* Built out, CC1 makes 240 supplies an hour and fills
+      in 8.3 hours, CC2 makes 630 and fills in 9.5, and CC3 makes 1,320 and fills
+      in 11.1. Fuel fills in 21-25 hours and intel in 19-20. An eight-hour absence
+      keeps everything it made at every stage, where it kept 5-7% of the supplies.
+
+      *The town takes three days.* In the played fortnight, all of it is bought in
+      2.6 days at a session every half hour or every hour, 2.7 at two hours, 3.0 at
+      four or eight, and 9.0 at one a day. All nine techs take 2.0-3.0 days, and 8
+      at one a day. The other factions land within half a day of the USA: Russia
+      takes 3.1 days at two-hourly sessions, North Korea 2.4.
+
+      *The battles pay hours, and Phase 1 undercounted them.* Its WHAT THE BATTLES
+      PAY read a siege's bonus and left out the pay for every wave held, which is
+      more than the bonus: a siege held at level 8 pays 3,250 supplies, not 1,450.
+      That was still minutes then, so the finding stood. Now it is 13.5 hours of
+      CC1's production and 2.5 of CC3's. A level-15 hold pays 5,350, which is 4.1
+      hours of CC3's. A day of three orders pays 1,630: 6.8 hours of CC1's, 1.2 of
+      CC3's. A tier-5 post razed to the ground pays 1,975.
+
+      *A siege pays several times what it breaks.* WHAT A DEFENCE COSTS, USA, 12
+      seeds a level, on flat ground with nobody acting:
+
+      | defence | holds every time / never | a hold pays (S+F) | its wrecks (S+F) | net, hours of the stage |
+      |---|---|---|---|---|
+      | EARLY (CC1) | level 2 / 4 | 1,875+180 at 3 | 36+0 | 7.7 |
+      | MID (CC2) | 6 / 10 | 3,250-3,850 at 7-9 | 161-258 | 4.9-5.7 |
+      | LATE (CC3) | 11 / 23 | 4,750-7,750 at 12-22 | about 1,200+250 | 2.7-4.9 |
+
+      At LATE a held siege loses most of its guns, and the repairs are still a
+      sixth to a quarter of what it pays. A loss at LATE pays for the waves it held
+      (2,000-3,100), wrecks 1,230+252, and costs 15% of the store. Russia's repairs
+      cost 1.6 times the USA's, because its concrete is dear to rebuild, and the
+      UN's two thirds.
+
+      *Partial damage, measured again on the instrument's flat ground,* is 5-9% of
+      what a siege costs a defence to repair across its band, and 0-8% at the
+      levels where it is contested. It is a real share only where LATE holds
+      easily, at levels 3-9: a quarter to three quarters of a bill of 100-300
+      supplies. So not building it holds.
+
+      **What it hands on.** The fortnight has no battles in it, and at every cadence
+      of more than one session a day it still makes 83-86% of its supplies after
+      the last purchase. After day three only the war
+      spends, and the war pays several times what it breaks. That surplus is what
+      adjacency, power, chains and districts have to give a player something to
+      buy with.
+
+      The gate: 24 of 24, clean, on the first batch.
+- [ ] **Phase 3 — adjacency and power.** Alone, these turn layout into two
       overlapping optimisation problems: the maze and the grid.
-- [ ] **Phase 3 — chains and districts.** The tech tree becomes a graph rather
+- [ ] **Phase 4 — chains and districts.** The tech tree becomes a graph rather
       than three ladders.
 
 ## M25 — "The Theater": give the war a map
@@ -4733,6 +4844,12 @@ an hour of production, the whole town is bought within the first day, and a full
 store kept none of what the battles paid, which is fixed. Phase 2 inherits an
 economy with nothing to buy on day two, and has to answer that before adjacency
 and power can matter.*
+
+*M24 Phase 2 (v1.50.0) cut production to a twentieth, so a store holds a night,
+the town takes three days, and a siege pays hours. The damage that lasts turned
+out to be the wreck, which already existed; it is now priced where the player can
+see it. What is left is a surplus after day three that only the war spends, and
+filling it is Phase 3's job: adjacency and power.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

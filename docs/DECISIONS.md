@@ -1123,3 +1123,25 @@ here with the change and its date.
   no longer does. A siege's loot stays clamped to the cap, as it always was,
   because that path clamps it on purpose. The town screen says FULL beside a
   full store.
+- 2026-09-24 — **Production is a twentieth of what it was, stated per hour
+  (v1.50).** M24 Phase 1 measured every rate an order of magnitude past what
+  it paid for: a store full in half an hour, the whole town bought inside a
+  day, the battles worth minutes. The divisor was derived, not tuned: a
+  twentieth is the rate at which the storage the town already sells holds
+  the eight hours the GDD promises, with every bunker a stage allows needed
+  to get there. Nothing else moved (costs, caps, loot, orders, battles), so
+  no balance table moved either. A thirtieth or a fortieth would have
+  stretched the build further, and was refused: a store would then hold more
+  than an absence can fill, and the last bunker at each stage would store
+  nothing. The rates are per hour because a twentieth of the old ones, per
+  minute, would be fractions.
+- 2026-09-24 — **The damage that lasts is the wreck.** Lasting battle damage was
+  the plan, and it was measured before it was built. Fought through their
+  bands, the damage the reference defences' surviving guns carry out is 5-9% of
+  what a siege costs them to repair, and 0-8% at the levels where they are
+  contested. The wrecks are the rest. Persisting that share would also have
+  meant repricing the in-battle repair, which charges a tenth of a
+  wreck's price per HP and would have undone any lasting damage at the start of
+  the next siege for almost nothing. So a destroyed structure stays the unit of
+  lasting damage, and what changed is that it is legible: a battle's banner
+  prices what it broke, and the base tab repairs every wreck at once.
