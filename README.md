@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.52.1, in the browser. No install, no account, works on a phone.
+v1.53.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,32 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.52.1: a won siege keeps your stockpile
+## Current state — v1.53.0: the Front Line is a road
+
+**The war has a map.** The Front Line used to be a number: tier 3, tier 4. Now each
+nation's war runs up a real road from its home base toward the enemy's stronghold, and the
+tier is how far up it you've pushed. The United States drives north up the Oregon coast from
+Coos Bay to the PLA beachhead at Grays Harbor. China pushes inland from that beachhead toward
+Joint Base Lewis-McChord. Russia follows the Iditarod Trail out of Nome and the Yukon toward
+Fairbanks. The KPA comes down the Redwood Coast from Humboldt Bay, and the UN drives west
+from Tacoma to the same beachhead as the USA.
+
+**Three lanes, and each one has a character.** Every town on the road is fought for in three
+lanes, and a lane always holds the same kind of fight. On the Oregon coast the hardest post
+is always on Highway 101 and the easiest is in the Coast Range. Any three wins at the front
+still take its town, and the next town comes into range.
+
+**Open it from the WAR tab (or press G).** THEATER draws the road around the front: the
+towns you hold, the one you're fighting for with your pushes marked, and the enemy ground
+beyond. Under the map are the three front posts. Pick one and the raid planner opens aimed
+at it, and the planner has the map too. The Front Line row now names its town:
+FRONT LINE — LINCOLN CITY (T5).
+
+**No battle changed.** The map is read straight off your tier, so every post is the one
+you'd have been dealt anyway, and your save doesn't change. The later M25 phases on the
+roadmap are planned to let the enemy take ground back and make holding it cost supplies.
+
+## v1.52.1: a won siege keeps your stockpile
 
 **Sieges no longer destroy your stores.** When a battle wrecked a storage bunker or the
 signals station, the supplies, fuel or intel they held vanished with them, even when you

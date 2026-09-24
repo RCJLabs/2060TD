@@ -1212,3 +1212,17 @@ here with the change and its date.
   store, against 70% in peace. A layout rule changes what the buildings make,
   not what the town spends, so districts would not be the sink either. The
   sink belongs to M25's supply and attrition.
+- 2026-09-24 — **The Front Line is a road, and the map is read off the rung
+  (M25 Phase 1, v1.53.0).** Each faction's war runs up a real road from its
+  own base toward the enemy's stronghold: twelve towns, then the stronghold,
+  across three named lanes. The theaters meet, since the USA and the UN both
+  drive on the PLA beachhead that is China's base. The towns are named places
+  on the road and nothing more: taking one means taking three military posts,
+  never anything done to the town, under the guardrails the GDD already sets
+  (militaries, never peoples; no civilian targeting). A column is the rung, and each lane holds
+  one of the deal's three bands, so a sector's post is exactly the post the
+  ladder dealt and no battle moved. The rule stays the ladder's: any three
+  wins take the front's town. The map is derived from the rung and its wins
+  and stores nothing. Held ground becomes state only when something can take
+  it back, which is Phase 2, and storing it before then would have been a
+  save field that meant nothing.

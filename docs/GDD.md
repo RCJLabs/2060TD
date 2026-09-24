@@ -114,6 +114,27 @@ your position; between raids, counter-siege defense events target your base. Sta
 and the daily condition rotation ride on top of the ladder — see 5.8; the shapes of the bases
 themselves are in 5.9.
 
+**The theater** *(v1.53)*. The ladder is a road. Each faction's war runs from its own base up
+a real road toward the enemy's stronghold, and a tier is how far up it the front has been
+pushed: tier 1 is the first town past the base, and the stronghold is tier 13.
+
+| Faction | Theater | From | Toward | The three lanes |
+|---|---|---|---|---|
+| USA | The Oregon Coast | Coos Bay | Grays Harbor | the Beaches · Highway 101 · the Coast Range |
+| China | The Chehalis Valley | Grays Harbor | Joint Base Lewis-McChord | the Chehalis River · Route 8 · the Black Hills |
+| Russia | The Yukon Route | Nome | Fairbanks | the Sea Ice · the Iditarod Trail · the Ridges |
+| KPA | The Redwood Coast | Humboldt Bay | Santa Rosa | the Lost Coast · Highway 101 · the Eel River |
+| UN | The South Sound | Tacoma | Grays Harbor | Puget Sound · the I-5 Corridor · the Black Hills |
+
+Each town is three sectors, one per lane, and each lane always holds the same band of the
+tier's deal: the heavy fight, the middle one, or the one a commander can take today. So the
+Oregon Coast's heavy post is always on Highway 101. A sector's post is exactly the post the
+ladder deals, and any three wins at the front take its town, repeats allowed. The map is read
+off the tier and its wins and is not stored: towns behind the front are held, the front is
+contested with its three pushes marked, and the rest is enemy ground. THEATER in the WAR tab
+(or G) draws it, and choosing a front post there opens the raid planner on it. The towns are
+places on a road: taking one is taking its three posts, under the guardrails above.
+
 ### Base archetypes *(v1.6)*
 
 Eight shapes, each posing a different question rather than the same question with more hit

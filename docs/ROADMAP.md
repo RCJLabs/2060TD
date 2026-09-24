@@ -4056,8 +4056,98 @@ enemy running its own offensives while the player is away, fronts that move. Thi
 is what turns "grind the ladder" into "there is a war on and I am losing the
 north", and it is where an endgame can live.
 
-- [ ] **Phase 1 — the map as pure data over the existing ladder.** Tiers become
-      distance from the front. No new sim.
+- [x] **Phase 1 — the map as pure data over the existing ladder.** Tiers become
+      distance from the front. No new sim. *(v1.53.0)*
+
+      **The plan, before the build.** Today the Front Line is one number. The
+      town holds a rung (`frontline.tier`), three posts are dealt for it, one
+      per difficulty band (slot 0 the heavy fight, slot 2 the one most
+      commanders take), and any three wins move the rung. Nothing about it is a
+      place. Phase 1 gives it one, and changes nothing else.
+
+      *A theater per faction, on real ground.* Each faction's war runs from its
+      own base, which is already a real place, toward the enemy's stronghold
+      along a real road. The five fit together: the USA pushes north up
+      Highway 101 from Coos Bay to the PLA beachhead at Grays Harbor, which is
+      China's base, and China pushes east from it toward Joint Base
+      Lewis-McChord. Russia follows the Iditarod out of Nome and the Yukon
+      toward Fairbanks, the KPA comes down the Redwood Coast from Humboldt Bay
+      toward Santa Rosa, and the UN drives west from Tacoma to the same
+      beachhead the USA is driving on. A theater is twelve named towns and
+      the stronghold, a thirteenth column.
+
+      *Tiers become distance from the front.* A column's depth is the tier:
+      the first town past the base is tier 1, the stronghold tier 13, and a
+      ladder that runs past it goes on as the stronghold's rear. Each column is
+      three sectors, one per lane, and each lane is one of the deal's bands,
+      so a theater's lanes have characters: the Oregon coast's heavy fight is
+      always on Highway 101, and its soft one in the Coast Range. The posts are
+      the ones the ladder already deals (`targetFor(town, variant)`, with the
+      lane's slot as the variant), so no battle changes and no replay moves.
+
+      *The rule stays the ladder's.* Any three wins at the front take the
+      column, as any three wins took the rung, repeats allowed. The map is
+      derived from `frontline.tier` and `wins` and adds nothing to the save:
+      columns behind the front are held, the front column is contested with
+      its three pushes shown, and the rest is enemy ground. Which sectors a
+      commander holds only needs to be state once something can take one back,
+      and that is Phase 2.
+
+      *What the player sees.* A THEATER map: the lanes running up the page
+      from the base toward the stronghold, the columns around the front with
+      their towns named, held ground inked and enemy ground in tone, and the
+      three front posts beneath it, each with its lane, town, band and shape,
+      and a button that opens the raid planner on it. The Front Line row and
+      the planner name the front's town beside the tier, and the planner's
+      target row names its lane.
+
+      *The bar.* Every raid target, config and replay is what it was: a sector
+      resolves to the same `generateBase` call the ladder made. Old saves need
+      nothing, since nothing is stored. The map reads on a phone at portrait
+      width and on a desktop. The e2e harnesses that find rows by FRONT LINE
+      and TARGET still find them.
+
+      **The record (v1.53.0).** Built as planned, and the bar is met: the 678
+      unit tests (eight of them new) pass, and so do the 24 e2e harnesses,
+      none of which needed a change.
+
+      *Where it lives.* The five theaters are data in `content/theaters.ts`:
+      a home, twelve towns, a stronghold and three named lanes, each lane
+      holding one of the deal's slots. `meta/theater.ts` derives the map from
+      the rung and its wins, two columns behind the front and three ahead, and
+      `sectorOf(town, variant)` puts a dealt post in its town and lane. It
+      resolves the post through `targetFor`, so a sector's post is the
+      ladder's by construction, and a test holds the two to the same base for
+      every faction and slot. No file under `src/sim` changed, nor the bases,
+      nor the deal, and the save gained nothing.
+
+      *What the player sees.* The WAR tab's Front Line row reads FRONT LINE —
+      LINCOLN CITY (T5), and a THEATER row under it, or G, opens the map. The
+      lanes run up the page toward the stronghold. Held ground is in tone,
+      enemy ground is in thin ink, and the front is outlined with each
+      sector's shape written in it (CMPD, BUNKER, CAMP). The red line under it
+      carries three marks for the pushes. Beneath the map are the three front
+      posts, lane and town, band and shape, and SCOUTED where the town has
+      paid for the layout. Choosing one opens the planner aimed at that post.
+      The planner has a THEATER MAP row of its own, which re-aims it, and its
+      target row names the lane: TARGET 3/3 · THE COAST RANGE. A demo board
+      can open the map but not raid from it, and while a counterattack is owed
+      its posts cannot be chosen, just as the Front Line row cannot start a
+      raid then. It was read at 412 px portrait (the USA and the KPA) and at
+      1440 px (the USA and the UN).
+
+      *One line in the raid report changed its words.* It said "Front Line:
+      2/3 to next tier". It now says "2/3 to take LINCOLN CITY", and a third
+      win says LINCOLN CITY TAKEN · the front moves to TILLAMOOK.
+
+      *What it hands on.* The map is a function of the rung, and Phase 2 is
+      where it stops being one. Enemy agency means a sector can be lost behind
+      the front, so held ground has to become state: `theaterView` is the seam,
+      and it becomes a read of stored columns. The lanes have characters only
+      through the bands the deal already had. Giving a lane its own ground (a
+      beach lane's posts on sand) would move battles, so it waits for the
+      harness. And the ladder runs past the stronghold as its rear, a name
+      that holds until Phase 4 decides what reaching it means.
 - [ ] **Phase 2 — enemy agency.** An AI that takes territory back offline, so the
       map moves without the player.
 - [ ] **Phase 3 — supply and attrition.** Holding ground costs; overextending
@@ -5292,6 +5382,12 @@ loses 44-60% of what the town makes to a full store, against 70% in peace. So
 districts are set aside, and M24 is done. The sink belongs to M25's supply and
 attrition. Two siege bugs were fixed on the way: a wrecked bunker burned what
 it held, and a siege cut back loot that stood above the cap.*
+
+*M25 Phase 1 (v1.53.0) gave the Front Line a place. Each faction's war runs up a
+real road from its base toward the enemy's stronghold, twelve towns and three
+lanes, and the rung is how far up it the front has been pushed. The map is
+derived from the rung and adds nothing to the save, so no battle moved. Phase 2,
+enemy agency, is where held ground has to become state.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain
