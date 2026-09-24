@@ -3409,12 +3409,54 @@ The flag is `?ui=dom`, or `VITE_UI=dom` when the dev server starts, so
 a harness. The default stays canvas until every harness passes both ways.
 
 - [ ] **Phase 1 — the DOM UI behind the flag.**
-  - [ ] **1a — the kit.** A UI layer over the canvas. `Ink`, a Canvas2D stand-in
-        for the dozen Graphics calls the glyphs make, so an icon in a DOM row is
-        drawn by the same code as the board. The seam: DOM buttons and text
-        answer `liveButtons`, `liveTexts` and `liveTextRects`.
-  - [ ] **1b — `DomOverlay`.** The menu, briefings, settings, the spec cards and
-        Town's overlays. The front door is the first screen that is all DOM.
+  - [x] **1a — the kit (v1.45.4).** A UI layer over the canvas. `Ink`, a
+        Canvas2D stand-in for the dozen Graphics calls the glyphs make, so an
+        icon in a DOM row is drawn by the same code as the board. The seam: DOM
+        buttons and text answer `liveButtons`, `liveTexts` and `liveTextRects`.
+
+        The glyphs take `Ink` now, which a Phaser Graphics satisfies as it
+        stands, and `glyphs.ts` no longer imports Phaser at all. The canvas
+        stand-in has one semantic that needed care: Phaser keeps a path built by
+        `beginPath` apart from its one-shot shapes, and a canvas has a single
+        current path, so a circle drawn mid-path would have erased the path.
+        It records the path and replays it; a unit test holds that, and draws
+        every glyph in the game through it.
+  - [x] **1b — `DomOverlay` (v1.45.4).** The menu, briefings, settings, the spec
+        cards and Town's overlays. The front door is the first screen that is
+        all DOM.
+
+        Same API, same geometry from the same `Layout`: every call site goes
+        through `createOverlay` and cannot tell which kit it got. The body
+        scrolls natively. Side by side the two front doors are the same page to
+        within a few pixels — the DOM's text lines are a little taller — and
+        report the same buttons and text to the harness.
+
+        **The first full gate against it: 22 of 24.** Both failures were real,
+        and one was not the overlay's at all:
+
+        - **A tap on a DOM button also pressed the canvas under it.** Phaser
+          listens for touches and mouse buttons on the WINDOW, and hit-tests
+          the canvas for every press it hears, wherever it landed. The canvas
+          overlay never met this because its scrim was the topmost canvas
+          object and took the press. A DOM overlay leaves the drawer beneath it
+          exposed, so closing a spec card changed tab in the same tap. The layer
+          now stops presses before they reach the window. This is the rule
+          every later phase inherits: DOM over Phaser is two UIs hearing one
+          finger unless one of them is told not to.
+        - **A touch's compatibility mouse events landed on the canvas** once the
+          tap had closed the overlay they were aimed at. A DOM press cancels
+          them.
+        - **A harness selector became ambiguous.** `text=CLOSE` meant the share
+          box's button when the overlay under it was canvas; with a DOM overlay
+          there are two. The box is tagged and the harnesses say which.
+
+        With those fixed: 24 of 24 on the canvas UI, and 23 of 24 on the DOM
+        overlay, the other a batch flake in `e2e-build` that passed alone and
+        three times more.
+
+        Found on the way: the front door's five faction marks were spread across
+        a column wider than a 360px phone's card, and the outer two were cut in
+        half. They were in the canvas kit too — the DOM drew the same bug.
   - [ ] **1c — `DomPanel`.** Native scrolling replaces the hand-rolled drag and
         fling. The drawer handle, tab swipe, long press and carry-to-board are
         the real work, the carry most of all: a touch that starts on a DOM row

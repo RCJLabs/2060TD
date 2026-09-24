@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.45.3, in the browser. No install, no account, works on a phone.
+v1.45.4, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -120,6 +120,17 @@ before HOLDFAST was the answer everywhere. Raids barely move, about one point on
 average. The fire missions land now and still do not decide battles: they
 change about one in four, nearly as often against you as for you. Giving them a
 job that matters is the next piece of work.
+
+**v1.45.4 — the menus as a web page, behind a flag.** Every screen in the game,
+menus included, is drawn onto the game's canvas, so none of its text is text: a
+screen reader cannot read it and nothing scrolls the way a phone expects. This
+is the first step of moving the menus and panels onto ordinary page elements
+while the map stays where it is. The front door, briefings, settings, reports
+and cards now exist in both forms; add `?ui=dom` to the address to use the new
+one. They look the same, but the text is real text and the lists scroll
+natively. The default does not change until every automated test passes both
+ways. Fixed along the way: on a narrow phone, the front door spread its five
+faction marks wider than the card and cut the outer two in half.
 
 ## v1.44: the whole board, with the drawer open
 

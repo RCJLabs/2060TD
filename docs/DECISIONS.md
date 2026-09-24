@@ -1009,3 +1009,21 @@ here with the change and its date.
   fought on. TRIPWIRE's claymore still starves the gun below it, and stays:
   without it TRIPWIRE would be the answer on two stages of three. Making rule
   order the player's choice is still the fix on the table for that.
+- 2026-09-24 — **M30 ports the UI by component, not by scene, behind one
+  flag.** Two components carry almost the whole UI, `Panel` and `Overlay`, and
+  every scene's copy of each is built through one API. A DOM implementation of
+  that API converts them all at once and leaves the call sites alone, where a
+  scene-by-scene port would have put two implementations of one component in a
+  single scene. `?ui=dom`, or `VITE_UI=dom` when the dev server starts, turns
+  it on; the default stays canvas until every harness passes both ways, and
+  the harnesses are the acceptance test because they already address the UI by
+  label and rect rather than by Phaser object.
+- 2026-09-24 — **DOM over Phaser is two UIs hearing one finger unless one of
+  them is told not to.** Phaser listens for presses on the window as well as
+  the canvas, and hit-tests the canvas for every press it hears, wherever it
+  landed. A tap on a DOM button therefore also pressed the canvas button under
+  it — invisible while the canvas overlay's scrim sat on top, obvious the
+  moment a DOM overlay left the drawer beneath it exposed. The DOM layer stops
+  presses before they bubble to the window, and a DOM press cancels the
+  compatibility mouse events a touch would otherwise deliver to whatever the
+  tap uncovered.
