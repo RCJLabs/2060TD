@@ -1078,7 +1078,9 @@ export class Engine {
       const rule = orders.rules[i]!;
       if ((this.orderUsedBy[i] ?? 0) >= share) continue;
       if (this.tick < (this.orderNextTick[i] ?? 0)) continue;
-      if (this.cp < rule.cpAtLeast) continue;
+      // By priority, a rule short of its reserve is only passed over once it
+      // is known not to want to act: below, with everything else it checks.
+      if (!orders.priority && this.cp < rule.cpAtLeast) continue;
       let hostiles = 0;
       for (const a of this.attackers) {
         if (a.hp <= 0) continue;
@@ -1094,6 +1096,19 @@ export class Engine {
       if ((rule.minKnot ?? 1) > 1 && (rule.target === 'densest' || rule.target === 'assault')) {
         const knot = this.knotFor(rule);
         if (!knot || knot.count < rule.minKnot!) continue;
+      }
+      if (orders.priority) {
+        // The garrison never calls a strike (below), so one never holds anything back.
+        if (rule.action === 'power' && garrison) continue;
+        // It wants to act and cannot afford to yet: nothing below it spends
+        // what it is saving for.
+        if (this.cp < rule.cpAtLeast) return;
+        // And no rule spends the action a rule above it has not had yet.
+        if (orders.maxActions !== undefined) {
+          let owed = 0;
+          for (let j = 0; j < i; j++) if ((this.orderUsedBy[j] ?? 0) === 0) owed++;
+          if (orders.maxActions - this.ordersUsed <= owed) continue;
+        }
       }
 
       let acted = false;

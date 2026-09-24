@@ -12,7 +12,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import { buildAssault, LADDER, type Ladder } from '../content/assaults';
+import { buildAssault, LADDER, probeAssault, type Ladder } from '../content/assaults';
 import { missionSiege, type Difficulty, type MissionDef } from '../content/campaign';
 import { GARRISON_GUN_TRADE } from '../content/garrison';
 import { DAMAGE_MULT } from '../content/damage';
@@ -873,6 +873,16 @@ interface WaveTrace {
   stages: number;
   /** Armed defence structures still standing when the battle ended. */
   gunsLeft: number;
+  /**
+   * What a probe bills the town for (M23 Phase 6): every structure the battle
+   * lost, the town's own among them — what `resolveProbe` bills since the
+   * phase, where it billed all of them before — and wall segments.
+   */
+  structuresLost: number;
+  ownLost: number;
+  wallsLost: number;
+  /** Stocked fire missions spent: real ordnance, bought with fuel. */
+  strikes: number;
 }
 
 /**
@@ -882,6 +892,15 @@ interface WaveTrace {
  * typically-stocked magazine, the same pairing `defenseMatrix` uses.
  */
 type SiegePolicy = StandingOrders | null;
+
+/**
+ * Which battle a siege trace fights: the ladder's rung, or the PROBE the rung
+ * sends when nobody is home (`--probes`, M23 Phase 6) — its first two waves
+ * with the defender's economy off, which is the only battle standing orders
+ * ever fight in the game. Every M23 phase before 6 judged the orders on the
+ * ladder's sieges, which start with 40 to 80 CP and earn 1.2 a second.
+ */
+let FIGHT: 'ladder' | 'probe' = 'ladder';
 
 function siegeTrace(
   faction: FactionId,
@@ -908,10 +927,12 @@ function siegeTraceOn(
   const config = defenseConfigFor(faction, base, level, seed, {
     orders: policy ?? undefined,
     chainVersion,
+    ...(FIGHT === 'probe' ? { siege: probeAssault(level, enemyRosterFor(faction)) } : {}),
   });
   if (attackerHp !== 1) config.mods = { ...config.mods, attacker: { hp: attackerHp } };
   const engine = layDefense(config, catalog);
   engine.enqueue({ tick: 0, type: 'startAssault' });
+  const standing = ownStructures(engine);
 
   const max = engine.cc.profile.maxHp;
   const integrity: number[] = [];
@@ -941,7 +962,20 @@ function siegeTraceOn(
     kills: engine.stats.kills,
     stages: engine.chainStagesCleared,
     gunsLeft: engine.structures.filter((st) => st.hp > 0 && st.profile.weapon).length,
+    structuresLost: engine.stats.structuresLost,
+    ownLost: standing - ownStructures(engine),
+    wallsLost: engine.stats.wallsLost,
+    strikes: Object.entries(config.powerCharges ?? {}).reduce(
+      (sum, [kind, stocked]) => sum + stocked - (engine.powerChargesLeft(kind) ?? stocked),
+      0,
+    ),
   };
+}
+
+/** The town's own buildings standing: not the post, not a field work bought with CP. */
+function ownStructures(engine: Engine): number {
+  return engine.structures.filter((st) => st.profile.kind !== 'cc' && st.hp > 0 && st.profile.cpCost === undefined)
+    .length;
 }
 
 /** A cell of the contested band, with its bare verdict seed by seed. */
@@ -1230,6 +1264,288 @@ function verbTable(seeds = 20): string {
         `${pad(got.acts.toFixed(1), 4)} | ` +
         got.byStage.map((h, st) => pad(signed(h - bare.byStage[st]!), 5)).join(' | ') +
         ` | ${flips(got)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * M23 Phase 6: the battle standing orders actually fight.
+ *
+ * Standing orders run only in offline probes: the first two waves of the
+ * town's rung with the defender's economy off, so every CP they spend is one
+ * a kill earned. This reads, per faction, base and probe level, how often the
+ * permanent layer alone holds, and how often each shipped preset does — on
+ * the reference towns, and on EARLY cut to two guns and to one, the towns of
+ * a commander who climbed faster than they built.
+ */
+function probeHeldTable(seeds = 8): string {
+  FIGHT = 'probe';
+  const [early, mid, late] = referenceBases();
+  const cut = (keep: number): ReferenceBase => ({
+    ...early!,
+    name: `EARLY, ${keep} gun${keep === 1 ? '' : 's'}`,
+    structures: early!.structures.slice(0, keep),
+  });
+  const bases = [cut(1), cut(2), early!, mid!, late!];
+  const levels = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12];
+  const policies: [string, SiegePolicy][] = [
+    ['none', null],
+    ['HOLDFAST', STANDING_ORDERS.holdfast],
+    ['CBTY', STANDING_ORDERS.counterbattery],
+    ['TRIPWIRE', STANDING_ORDERS.tripwire],
+  ];
+  const lines = [
+    `PROBES — held with no orders and under each preset, ${seeds} seeds, levels ${levels.join(' ')}`,
+    `FACTION  | BASE          | POLICY   | ${levels.map((l) => pad(`L${l}`, 4)).join(' ')}`,
+  ];
+  for (const faction of FACTION_IDS) {
+    for (const base of bases) {
+      for (const [label, policy] of policies) {
+        const cells = levels.map((level) => {
+          let held = 0;
+          for (let i = 0; i < seeds; i++) {
+            if (siegeTraceOn(faction, base, level, seedOf(level, base.ccLevel, i), policy, CHAIN_CURRENT).held) held++;
+          }
+          return pad(`${Math.round((held / seeds) * 100)}`, 4);
+        });
+        lines.push(`${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 13)} | ${pad(label, 8)} | ${cells.join(' ')}`);
+      }
+    }
+  }
+
+  // ---- and what they cost and save when the probe is held anyway ---------------
+  //
+  // A held probe bills 3% of the stockpile per building lost, capped at 10%,
+  // and a breach 15% (`resolveProbe`); every order the garrison carries out
+  // bills ORDERS_UPKEEP_SUPPLIES on top. So an order that changes no verdict can
+  // still pay for itself by saving buildings — or be a tax. OLD BILL is the
+  // rule before M23 Phase 6, which counted every structure the battle lost:
+  // the garrison's own mines going off, and the guns it bought with CP.
+  const UPKEEP = 15;
+  const probeLevels = [1, 2, 3, 4, 5, 6, 7, 8];
+  lines.push('');
+  lines.push(
+    `WHAT A PROBE BILLS — levels ${probeLevels.join('-')}, every faction, ${seeds} seeds: held, ` +
+      `structures and wall segments lost, the stockpile share billed, orders carried out, and their upkeep`,
+  );
+  lines.push(
+    'BASE          | POLICY   | HELD | STRUCT |  OWN | WALLS | OLD BILL | BILLED | ORDERS | UPKEEP | STRIKES | BREAK-EVEN STOCKPILE',
+  );
+  for (const base of bases) {
+    let bareShare = 0;
+    for (const [label, policy] of policies) {
+      let held = 0;
+      let lost = 0;
+      let own = 0;
+      let walls = 0;
+      let oldShare = 0;
+      let share = 0;
+      let acts = 0;
+      let strikes = 0;
+      let n = 0;
+      for (const faction of FACTION_IDS) {
+        for (const level of probeLevels) {
+          for (let i = 0; i < seeds; i++) {
+            const r = siegeTraceOn(faction, base, level, seedOf(level, base.ccLevel, i), policy, CHAIN_CURRENT);
+            if (r.held) held++;
+            lost += r.structuresLost;
+            own += r.ownLost;
+            walls += r.wallsLost;
+            oldShare += r.held ? Math.min(0.03 * r.structuresLost, 0.1) : 0.15;
+            share += r.held ? Math.min(0.03 * r.ownLost, 0.1) : 0.15;
+            acts += r.acts;
+            strikes += r.strikes;
+            n++;
+          }
+        }
+      }
+      oldShare /= n;
+      share /= n;
+      if (policy === null) bareShare = share;
+      const saved = bareShare - share;
+      const upkeep = (acts / n) * UPKEEP;
+      // The stockpile at which the share an order saves equals what it bills.
+      const even = policy === null ? '—' : saved > 0 ? `${Math.round(upkeep / saved)}` : 'never';
+      lines.push(
+        `${pad(base.name, 13)} | ${pad(label, 8)} | ${pad(`${((held / n) * 100).toFixed(0)}%`, 4)} | ` +
+          `${pad((lost / n).toFixed(2), 6)} | ${pad((own / n).toFixed(2), 4)} | ${pad((walls / n).toFixed(2), 5)} | ` +
+          `${pad(`${(oldShare * 100).toFixed(2)}%`, 8)} | ${pad(`${(share * 100).toFixed(2)}%`, 6)} | ` +
+          `${pad((acts / n).toFixed(2), 6)} | ${pad(upkeep.toFixed(1), 6)} | ${pad((strikes / n).toFixed(2), 7)} | ${even}`,
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
+/** Every order of `n` things, the identity first. */
+function permutations(n: number): number[][] {
+  if (n <= 1) return [[0]];
+  const out: number[][] = [];
+  for (const rest of permutations(n - 1)) {
+    for (let at = rest.length; at >= 0; at--) out.push([...rest.slice(0, at), n - 1, ...rest.slice(at)]);
+  }
+  return out.sort((a, b) => a.join().localeCompare(b.join()));
+}
+
+/** A rule as a word: what it stands up or calls in. */
+const RULE_WORD: Record<string, string> = { depmg: 'gun', foxhole: 'fox', claymore: 'mine', a10: 'a10', arty: 'arty' };
+
+/**
+ * M23 Phase 6: what rule ORDER is worth, measured before deciding what it
+ * should mean.
+ *
+ * Every order of each shipped preset's three rules, on the contested band,
+ * under the two meanings order can have. EVALUATED first is what the engine
+ * has always done: in any one second a rule is looked at before the ones
+ * below it, and that is all. FUNDED first is `priority`: a rule that wants to
+ * act and is short of its reserve holds back every rule below it, and a rule
+ * keeps an action in hand for each rule above it that has not acted yet.
+ *
+ * Three questions. Does order matter as the engine stands? Does funded-first
+ * leave each preset what it was, since the shipped orders were written under
+ * the other meaning? And is the best order the same everywhere — in which case
+ * letting the player choose it is a trap with the answer printed on it — or
+ * does it change with the stage and the faction, which would make choosing it
+ * a decision?
+ */
+function orderTable(seeds = 20): string {
+  const cells = contestedBand(seeds);
+  const stages = BAND_STAGES;
+  /** Held seeds per cell, and actions taken. */
+  const run = (policy: SiegePolicy): { held: boolean[][]; acts: number } => {
+    let acts = 0;
+    const held = cells.map((c) =>
+      Array.from({ length: seeds }, (_, i) => {
+        const r = siegeTraceOn(c.faction, c.base, c.level, seedOf(c.level, c.base.ccLevel, i), policy, CHAIN_CURRENT);
+        acts += r.acts;
+        return r.held;
+      }),
+    );
+    return { held, acts: acts / (cells.length * seeds) };
+  };
+  const rate = (held: boolean[][], pick: (c: BandCell) => boolean): number => {
+    let h = 0;
+    let n = 0;
+    held.forEach((seedsHeld, k) => {
+      if (!pick(cells[k]!)) return;
+      for (const x of seedsHeld) {
+        if (x) h++;
+        n++;
+      }
+    });
+    return n ? (h / n) * 100 : NaN;
+  };
+  const bareHeld = cells.map((c) => c.bare);
+  const all = (): boolean => true;
+  const bareRate = rate(bareHeld, all);
+  const bareStage = stages.map((_, st) => rate(bareHeld, (c) => bandStageOf(c) === st));
+  const bareFaction = FACTION_IDS.map((f) => rate(bareHeld, (c) => c.faction === f));
+  const signed = (d: number) => (Number.isNaN(d) ? '—' : d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0));
+
+  interface Row {
+    preset: string;
+    order: number[];
+    words: string;
+    priority: boolean;
+    held: number;
+    stage: number[];
+    faction: number[];
+    acts: number;
+    won: number;
+    lost: number;
+    verdicts: string;
+  }
+  const rows: Row[] = [];
+  for (const id of ['holdfast', 'counterbattery', 'tripwire'] as const) {
+    const preset = STANDING_ORDERS[id];
+    for (const order of permutations(preset.rules.length)) {
+      for (const priority of [false, true]) {
+        const policy: StandingOrders = {
+          ...preset,
+          rules: order.map((k) => preset.rules[k]!),
+          ...(priority ? { priority: true } : {}),
+        };
+        const got = run(policy);
+        let won = 0;
+        let lost = 0;
+        got.held.forEach((seedsHeld, k) =>
+          seedsHeld.forEach((x, i) => {
+            if (x && !cells[k]!.bare[i]) won++;
+            if (!x && cells[k]!.bare[i]) lost++;
+          }),
+        );
+        rows.push({
+          preset: id,
+          order,
+          words: order.map((k) => RULE_WORD[preset.rules[k]!.kind] ?? preset.rules[k]!.kind).join(' > '),
+          priority,
+          held: rate(got.held, all),
+          stage: stages.map((_, st) => rate(got.held, (c) => bandStageOf(c) === st)),
+          faction: FACTION_IDS.map((f) => rate(got.held, (c) => c.faction === f)),
+          acts: got.acts,
+          won,
+          lost,
+          verdicts: got.held.map((x) => x.map((b) => (b ? '1' : '0')).join('')).join(''),
+        });
+      }
+    }
+  }
+
+  const perStage = stages.map((_, st) => cells.filter((c) => bandStageOf(c) === st).length);
+  const lines = [
+    `ORDER — every order of each preset's rules, evaluated first and funded first, on the contested band of ` +
+      `${FIGHT === 'probe' ? 'PROBES' : 'ladder sieges'}: ` +
+      `${cells.length} cells (EARLY ${perStage[0]}, MID ${perStage[1]}, LATE ${perStage[2]}), ${seeds} seeds each`,
+    `(nothing) holds ${bareRate.toFixed(0)}%. Columns are held, and held against no orders, overall and by stage.`,
+    '',
+    'PRESET         | ORDER              | MEANING   | HELD | vs NONE | EARLY |   MID |  LATE | ACTS |       FLIPS',
+    '---------------+--------------------+-----------+------+---------+-------+-------+-------+------+------------',
+  ];
+  for (const r of rows) {
+    lines.push(
+      `${pad(r.preset.toUpperCase(), 14)} | ${pad(r.words + (r.order.join() === '0,1,2' ? ' *' : ''), 18)} | ` +
+        `${pad(r.priority ? 'funded' : 'evaluated', 9)} | ${pad(`${r.held.toFixed(0)}%`, 4)} | ` +
+        `${pad(signed(r.held - bareRate), 7)} | ` +
+        r.stage.map((h, st) => pad(signed(h - bareStage[st]!), 5)).join(' | ') +
+        ` | ${pad(r.acts.toFixed(1), 4)} | ${flipCell(r)}`,
+    );
+  }
+  lines.push('');
+  lines.push('* the shipped order. FLIPS as in --verbs.');
+
+  // ---- does order matter at all, meaning by meaning ------------------------------
+  lines.push('');
+  lines.push('DISTINCT — how many of the six orders fight different battles, seed by seed');
+  for (const id of ['holdfast', 'counterbattery', 'tripwire']) {
+    for (const priority of [false, true]) {
+      const mine = rows.filter((r) => r.preset === id && r.priority === priority);
+      const distinct = new Set(mine.map((r) => r.verdicts)).size;
+      const spread = Math.max(...mine.map((r) => r.held)) - Math.min(...mine.map((r) => r.held));
+      lines.push(
+        `${pad(id.toUpperCase(), 14)} | ${pad(priority ? 'funded' : 'evaluated', 9)} | ` +
+          `${distinct} of ${mine.length} distinct | best to worst ${spread.toFixed(0)} points held`,
+      );
+    }
+  }
+
+  // ---- is the best order the same everywhere ------------------------------------
+  const best = (mine: Row[], pick: (r: Row) => number): string => {
+    const top = Math.max(...mine.map(pick));
+    return mine
+      .filter((r) => pick(r) >= top - 0.001)
+      .map((r) => r.words)
+      .join(' = ');
+  };
+  lines.push('');
+  lines.push('BEST — the order that holds most, funded first, by stage and by faction (ties joined)');
+  for (const id of ['holdfast', 'counterbattery', 'tripwire']) {
+    const mine = rows.filter((r) => r.preset === id && r.priority);
+    lines.push(`${id.toUpperCase()}`);
+    lines.push(`  overall  ${best(mine, (r) => r.held)}`);
+    stages.forEach((name, st) => lines.push(`  ${pad(name, 8)} ${best(mine, (r) => r.stage[st]!)}`));
+    FACTION_IDS.forEach((f, k) =>
+      lines.push(`  ${pad(f.toUpperCase(), 8)} ${best(mine, (r) => r.faction[k]!)}  (none ${bareFaction[k]!.toFixed(0)}%)`),
     );
   }
   return lines.join('\n');
@@ -5378,6 +5694,7 @@ function veterancyTable(faction: FactionId): string {
 function main(): void {
   const started = Date.now();
   const sections: string[] = [];
+  if (process.argv.includes('--probes')) FIGHT = 'probe';
   // Tuning the rotation means running one table twenty times, not the whole
   // harness twenty times: `npm run balance -- --conditions` is that loop.
   if (process.argv.includes('--shapes')) {
@@ -5804,6 +6121,18 @@ function main(): void {
   if (process.argv.includes('--pins')) {
     const arg = process.argv[process.argv.indexOf('--pins') + 1];
     console.log(pinTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--probe-held')) {
+    const arg = process.argv[process.argv.indexOf('--probe-held') + 1];
+    console.log(probeHeldTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 8));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--order')) {
+    const arg = process.argv[process.argv.indexOf('--order') + 1];
+    console.log(orderTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

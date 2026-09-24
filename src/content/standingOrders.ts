@@ -62,8 +62,10 @@ export const STANDING_ORDERS: Record<StandingOrdersId, StandingOrders> = {
    * gun run is (M23 Phase 5), the preset reads 13 held on the contested band
    * against 15 as it stands, because its claymore spends the CP and the
    * action budget while they wait for the post. That is TRIPWIRE's ordering
-   * trap in a second preset, and fixing it is making rule order mean
-   * priority, which is its own piece of work.
+   * trap in a second preset. M23 Phase 6 measured the fix, rule order as
+   * funding priority, and it moves this preset three points at most; and in
+   * the offline probe, the one battle standing orders fight, it never calls
+   * a strike at all. All it does there is lay its claymore.
    */
   counterbattery: {
     id: 'counterbattery',

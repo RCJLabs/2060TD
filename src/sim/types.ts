@@ -357,6 +357,29 @@ export interface StandingOrders {
    * pre-v1.42 behaviour.
    */
   perWave?: boolean;
+  /**
+   * Rule order is priority (M23 Phase 6): the rules above a rule are funded
+   * before it is.
+   *
+   * Without this the list only says which rule is looked at first in a given
+   * second, and nothing is looked at twice, so a cheap rule anywhere in the
+   * list spends the CP and the actions while a dearer one saves up. That is
+   * TRIPWIRE's claymore starving its gun, and COUNTERBATTERY's starving its
+   * fire missions, and moving the claymore down the list changes neither.
+   * With it, two things hold. A rule that would act but for its CP reserve
+   * holds back every rule below it until it has acted or stopped wanting to.
+   * And a rule keeps one action in hand for each rule above it that has not
+   * acted yet. Absent = the pre-Phase 6 behaviour, which is what keeps every
+   * archived replay re-fighting the battle it recorded.
+   *
+   * MEASURED AND NOT ADOPTED, as `fairShare` and `perWave` were. The shipped
+   * orders fight almost exactly as they do without it; the one order it
+   * rewards, TRIPWIRE's gun first, is the best order everywhere, so offering
+   * the choice would offer one answer; and in the offline probes standing
+   * orders actually fight, no order of any preset changes a verdict.
+   * `npm run balance -- --order` and `--probe-held` are the instruments.
+   */
+  priority?: boolean;
 }
 
 /**
