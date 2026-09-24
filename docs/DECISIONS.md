@@ -1027,3 +1027,11 @@ here with the change and its date.
   presses before they bubble to the window, and a DOM press cancels the
   compatibility mouse events a touch would otherwise deliver to whatever the
   tap uncovered.
+- 2026-09-24 — **Stage what a commit is about, not the working tree.** The
+  v1.45.4 release commit took `git add -A`, which swept in a DOM panel file
+  written ahead of time while the gate ran and imported by nothing. It named
+  two exports that did not exist yet, so the app itself was untouched and
+  every local check passed — and CI's typecheck, which reads every file, did
+  not. Nothing deployed until the two exports followed. The checks run on the
+  tree; the release is the commit; the two are only the same when the commit
+  is staged file by file.

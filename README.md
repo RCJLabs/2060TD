@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.45.4, in the browser. No install, no account, works on a phone.
+v1.45.5, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -131,6 +131,13 @@ one. They look the same, but the text is real text and the lists scroll
 natively. The default does not change until every automated test passes both
 ways. Fixed along the way: on a narrow phone, the front door spread its five
 faction marks wider than the card and cut the outer two in half.
+
+**v1.45.5 — the drawer as a web page, behind the same flag.** With `?ui=dom`,
+the build drawer and the side rail are ordinary page elements now as well. The
+list scrolls with your phone's own momentum, a finger on a coasting list stops
+it without pressing the row it lands on, a sideways swipe still changes tab, and
+dragging a building's picture onto the map still places it in one stroke. The
+default is unchanged.
 
 ## v1.44: the whole board, with the drawer open
 

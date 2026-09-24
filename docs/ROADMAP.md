@@ -3457,10 +3457,55 @@ a harness. The default stays canvas until every harness passes both ways.
         Found on the way: the front door's five faction marks were spread across
         a column wider than a 360px phone's card, and the outer two were cut in
         half. They were in the canvas kit too — the DOM drew the same bug.
-  - [ ] **1c — `DomPanel`.** Native scrolling replaces the hand-rolled drag and
-        fling. The drawer handle, tab swipe, long press and carry-to-board are
-        the real work, the carry most of all: a touch that starts on a DOM row
-        belongs to that row, so it has to be handed to the board on purpose.
+  - [x] **1c — `DomPanel` (v1.45.5).** Native scrolling replaces the
+        hand-rolled drag and fling. The drawer handle, tab swipe, long press and
+        carry-to-board are the real work, the carry most of all: a touch that
+        starts on a DOM row belongs to that row, so it has to be handed to the
+        board on purpose.
+
+        Same geometry, same rows, and every scene gets one from `createPanel`.
+        Side by side in the town the two drawers report the same tabs, rows,
+        rectangles, states and scroll range to the harness, to the pixel. Rows
+        are handed over every frame as before and diffed: the two-pass layout
+        only runs, and an icon is only redrawn, when what a row shows changes.
+
+        The carry is the one new mechanism. A row's silhouette opts out of
+        native scrolling, so a drag that starts on it comes to the panel, which
+        scrolls the list by hand while the finger is inside it and, once it
+        leaves toward the board, hands `onPick` a `CarryPointer` with a
+        `follow` hook. The board subscribes to that instead of to Phaser's
+        input, because it will never hear a touch that began on a DOM row.
+
+        What the harnesses found, in the order they found it:
+
+        - **A touch's click goes to whatever its release uncovered.** Tapping a
+          spec card's CLOSE removed the card, and the browser delivered the
+          click to the OPS tab now under the finger — with no pointer detail on
+          it, which the button had been reading as the keyboard. DOM buttons
+          answer Enter and Space on the key now, and ignore clicks entirely.
+        - **The browser stops a coast before the page sees the press that
+          stopped it**, so the panel read a list already at rest and the finger
+          that caught a flick armed the row under it. A coast is read from the
+          last 120ms instead of the current frame.
+        - **Nothing says how fast a thrown list is going when the finger
+          lifts.** A touch the browser scrolls for gets no pointerup, and the
+          platform's coast does not move the list on every frame the game
+          draws. The lift is read from the touch, the speed from the last tenth
+          of a second, and a press anywhere else stops the coast, as the canvas
+          panel's does.
+        - **One harness was testing the canvas panel's physics.** The drawer's
+          flick had been tuned so the coast would stop on a row the showcase
+          town can afford, and native momentum stopped it on a locked one every
+          time. It now tries up to four landing spots and judges only the
+          attempt that found a row that can be pressed.
+
+        The gate: 23 of 24 with the flag on and 23 of 24 with it off, each with
+        one batch flake that passed alone.
+
+        **And one build did not ship.** v1.45.4's commit swept in this panel's
+        file, written ahead and imported by nothing, which named exports that
+        did not exist yet. CI's typecheck failed and nothing deployed until a
+        commit adding them followed ten minutes later.
   - [ ] **1d — the loose pieces**: status strip, banners, coach plate, free
         buttons.
   - [ ] **1e — flip the default**, once every harness passes with the flag on.
