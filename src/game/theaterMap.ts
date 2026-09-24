@@ -8,7 +8,9 @@
  * quiet, so a sector behind the front can be the enemy's again: it is drawn
  * struck out in red, its road broken, and the front post it cuts off says so.
  * Under the map are the three front posts and any ground to retake, each with
- * a button that opens the raid planner on it.
+ * a button that opens the raid planner on it. Since Phase 3 each held town
+ * says what it takes an hour to hold, and the line says whether the depots
+ * feed it.
  *
  * Ink draws no text, so the names are the overlay's own text laid over the
  * band at the rows it drew.
@@ -23,8 +25,9 @@ import type { Layout } from './layout';
 import { COLORS } from './palette';
 import type { Scene } from './stage';
 import { enemyClock } from '../meta/strikes';
+import { lineShares, nextHungerAt, supplyLine } from '../meta/supply';
 import { retakes, sectorOf, theaterView, type Sector, type TheaterRow } from '../meta/theater';
-import type { TownState } from '../meta/town';
+import { productionPerHour, type TownState } from '../meta/town';
 import { isScouted } from '../meta/warfare';
 
 /** A sector a raid can be aimed at: its column and its lane's slot. */
@@ -74,8 +77,31 @@ export function clockLine(town: TownState, now: number): { text: string; urgent:
   return { text: `QUIET ${span(clock.quiet)} · THE ${enemy} STRIKES AGAIN IN ${span(clock.next - now)}`, urgent };
 }
 
-/** The THEATER row's note: what is lost behind the front, or a strike about to land. */
+/**
+ * The supply line as one line (M25 Phase 3): what it takes an hour against
+ * what the depots make, and when a short front loses ground. Null when there
+ * is nothing behind the front to feed.
+ */
+export function supplyText(town: TownState, now: number): { text: string; urgent: boolean } | null {
+  const need = supplyLine(town.frontline);
+  if (need <= 0) return null;
+  const made = productionPerHour(town).supplies;
+  const next = nextHungerAt(town, now, made);
+  if (next === null) {
+    return { text: `SUPPLY LINE ${need} AN HOUR OF THE ${made} THE DEPOTS MAKE`, urgent: false };
+  }
+  const enemy = flavorFor(town.faction).enemy;
+  return {
+    text:
+      `SHORT OF SUPPLY: THE LINE TAKES ${need} AN HOUR AND THE DEPOTS MAKE ${made} — ` +
+      `THE ${enemy} RETAKES A SECTOR IN ${span(Math.max(0, next - now))} UNLESS IT IS FED`,
+    urgent: true,
+  };
+}
+
+/** The THEATER row's note: a front short of supply, what is lost behind it, or a strike about to land. */
 export function theaterNote(town: TownState, now: number): string {
+  if (nextHungerAt(town, now, productionPerHour(town).supplies) !== null) return 'SHORT · [G]';
   const lost = town.frontline.lost?.length ?? 0;
   if (lost > 0) return `${lost} LOST · [G]`;
   const clock = enemyClock(town, now);
@@ -201,8 +227,11 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
 
   // The names, where the band drew their rows. The drawing is in the band's
   // own canvas, offset by its margin; the text is placed on the card, a line
-  // of it centred in its row.
-  const middle = Math.round((rowH - Math.round(font.tiny * 1.2)) / 2);
+  // of it centred in its row. A held town's name sits over what it takes an
+  // hour to hold (Phase 3), the two lines centred together.
+  const lineH = Math.round(font.tiny * 1.2);
+  const middle = Math.round((rowH - lineH) / 2);
+  const upkeep = new Map(lineShares(town.frontline).map((share) => [share.tier, share.perHour]));
   t.lanes.forEach((lane, j) => {
     ov.centered(
       { x: rect.x + labelW + laneW * j, y: rect.y, w: laneW, h: header },
@@ -214,13 +243,24 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
   rows.forEach((row, i) => {
     const color = row.state === 'front' ? COLORS.signal : row.state === 'enemy' ? COLORS.inkDim : COLORS.ink;
     const bold = row.state === 'front' || row.state === 'home' || row.stronghold;
+    const cost = row.state === 'held' ? upkeep.get(row.tier) : undefined;
+    const top = rowY(i, rect.y) + middle - (cost !== undefined ? Math.round(lineH / 2) : 0);
     ov.text(
-      { x: rect.x, y: rowY(i, rect.y) + middle, w: labelW - gutter, h: rowH },
+      { x: rect.x, y: top, w: labelW - gutter, h: rowH },
       row.state === 'home' ? `${row.name} · BASE` : row.name,
       font.tiny,
       color,
       { align: 'right', ...(bold ? { fontStyle: 'bold' } : {}) },
     );
+    if (cost !== undefined) {
+      ov.text(
+        { x: rect.x, y: top + lineH, w: labelW - gutter, h: lineH },
+        `${cost} AN HOUR`,
+        font.tiny,
+        COLORS.inkDim,
+        { align: 'right' },
+      );
+    }
   });
   // Each front sector names its post, or says that its road is cut.
   const frontAt = rows.findIndex((row) => row.state === 'front');
@@ -240,12 +280,20 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
     'Any three wins at the front take its town. When the front is quiet for 36 hours, the ' +
       'enemy strikes back at the town behind it, cutting a road to the front, and again a day ' +
       'later. A cut road’s front post cannot be raided until the ground is retaken, and if the ' +
-      'whole town behind the front falls, the front falls back to it.',
+      'whole town behind the front falls, the front falls back to it. Every town held takes ' +
+      'supplies an hour from what the depots make, more the further it is from home, and a ' +
+      'front they cannot feed loses ground until they can.',
     font.tiny,
     COLORS.inkDim,
     { gapAfter: gap },
   );
+  const supply = supplyText(town, opts.now);
   const clock = clockLine(town, opts.now);
+  if (supply) {
+    ov.paragraph(supply.text, font.tiny, supply.urgent ? COLORS.signal : COLORS.ink, {
+      gapAfter: clock ? gap : gap * 2,
+    });
+  }
   if (clock) {
     ov.paragraph(clock.text, font.tiny, clock.urgent ? COLORS.signal : COLORS.ink, { gapAfter: gap * 2 });
   }

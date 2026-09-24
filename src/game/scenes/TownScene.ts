@@ -69,6 +69,7 @@ import {
   newTown,
   place,
   placeWall,
+  productionPerHour,
   ratesPerHour,
   removeWall,
   repairAllWrecks,
@@ -120,6 +121,7 @@ import { buildStructureSpec, buildWallSpec } from '../spec';
 import { buildTheaterMap, theaterNote, type RaidTarget } from '../theaterMap';
 import { frontLabel } from '../../meta/theater';
 import type { EnemyStrike } from '../../meta/strikes';
+import { lineFed, supplyLine } from '../../meta/supply';
 import { columnName, laneFor, theaterFor } from '../../content/theaters';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
 import {
@@ -936,19 +938,28 @@ export class TownScene extends Scene {
   private static strikesLine(town: TownState, strikes: EnemyStrike[]): string {
     const t = theaterFor(town.faction);
     const enemy = flavorFor(town.faction).enemy;
+    // Why the ground went: a quiet front (Phase 2), a hungry one (Phase 3), or both.
+    const quiet = strikes.some((s) => s.cause === 'quiet');
+    const hungry = strikes.some((s) => s.cause === 'hunger');
+    const why =
+      quiet && hungry
+        ? 'THE FRONT WENT QUIET AND SHORT OF SUPPLY'
+        : hungry
+          ? 'THE FRONT WENT SHORT OF SUPPLY'
+          : 'THE FRONT WENT QUIET';
     const fell = strikes.filter((s) => s.fellBack);
     const last = fell[fell.length - 1];
     if (last) {
       // The town behind the front was lost whole, and the front stands at it again.
-      return `THE FRONT WENT QUIET — THE ${enemy} RETOOK ALL OF ${columnName(t, last.tier)}, ` +
+      return `${why} — THE ${enemy} RETOOK ALL OF ${columnName(t, last.tier)}, ` +
         `AND THE FRONT FELL BACK TO IT. [G] THEATER`;
     }
     const [only] = strikes;
     if (strikes.length === 1 && only) {
-      return `THE FRONT WENT QUIET — THE ${enemy} RETOOK ${laneFor(t, only.slot).name} AT ` +
+      return `${why} — THE ${enemy} RETOOK ${laneFor(t, only.slot).name} AT ` +
         `${columnName(t, only.tier)}, CUTTING ITS ROAD. [G] THEATER`;
     }
-    return `THE FRONT WENT QUIET — THE ${enemy} RETOOK ${strikes.length} SECTORS BEHIND IT. [G] THEATER`;
+    return `${why} — THE ${enemy} RETOOK ${strikes.length} SECTORS BEHIND IT. [G] THEATER`;
   }
 
   /**
@@ -2384,7 +2395,15 @@ export class TownScene extends Scene {
       else if (works.state === 'down') info('STOOD DOWN: IT TAKES AND MAKES NOTHING');
       else if (works.state !== 'stopped') {
         info(`CONVERTS: ${works.input} SUP/h → ${works.output} ${made}/h`);
-        if (works.state === 'short') info('THE DEPOTS MAKE LESS THAN THE WORKS WANT');
+        if (works.state === 'short') {
+          // The line to the front is fed first (M25 Phase 3): say when it is
+          // what left the works short.
+          info(
+            supplyLine(town.frontline) > 0
+              ? 'THE FRONT AND THE WORKS WANT MORE THAN THE DEPOTS MAKE'
+              : 'THE DEPOTS MAKE LESS THAN THE WORKS WANT',
+          );
+        }
       }
     }
     if (meta?.storage) {
@@ -2803,13 +2822,17 @@ export class TownScene extends Scene {
     // Phase 1 measured that a town is full most of the time it exists.
     const flow = (held: number, cap: number, perHour: number): string =>
       held >= cap ? 'FULL' : `+${perHour}/h`;
+    // The line to the front is fed before anything is banked (M25 Phase 3).
+    const made = productionPerHour(town).supplies;
+    const line = lineFed(town.frontline, made);
     const lines =
       this.layout.mode === 'portrait'
         ? [
             `SUP ${Math.floor(town.supplies)}  FUEL ${Math.floor(town.fuel)}  INT ${Math.floor(town.intel)}`,
           ]
         : [
-            `SUPPLIES ${Math.floor(town.supplies)}/${cap.supplies} (${flow(town.supplies, cap.supplies, rate.supplies)})`,
+            `SUPPLIES ${Math.floor(town.supplies)}/${cap.supplies} (${flow(town.supplies, cap.supplies, rate.supplies)}` +
+              `${line > 0 ? ` · FRONT −${line}` : ''})`,
             `FUEL     ${Math.floor(town.fuel)}/${cap.fuel} (${flow(town.fuel, cap.fuel, rate.fuel)})`,
             `INTEL    ${Math.floor(town.intel)}/${cap.intel} (${flow(town.intel, cap.intel, rate.intel)})`,
           ];
