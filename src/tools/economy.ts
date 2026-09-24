@@ -38,7 +38,9 @@ import {
   newTown,
   outcomeFromEngine,
   place,
+  baseRatesPerHour,
   ratesPerHour,
+  trainingDiscount,
   repairCost,
   siegeConfig,
   startResearch,
@@ -71,7 +73,7 @@ const TIERS: string[][] = [
   ['storageBunker'],
   ['radar'],
   ['cc'],
-  ['engBay', 'm2nest', 'autocannon', 'mortar', 'aa', 'barracks', 'motorpool', 'airfield'],
+  ['engBay', 'generator', 'm2nest', 'autocannon', 'mortar', 'aa', 'barracks', 'motorpool', 'airfield'],
 ];
 
 /** Where a purchase is booked. */
@@ -81,6 +83,7 @@ const CATEGORY: Record<string, string> = {
   fuelDepot: 'production',
   radar: 'production',
   storageBunker: 'storage',
+  generator: 'production',
   engBay: 'facilities',
   barracks: 'facilities',
   motorpool: 'facilities',
@@ -96,7 +99,7 @@ const CATEGORY: Record<string, string> = {
  * stage's top level. Cells are left off the board on purpose: nothing read
  * from it here asks where anything stands.
  */
-function builtOut(faction: FactionId, cc: number): TownState {
+export function builtOut(faction: FactionId, cc: number): TownState {
   const town = unlockAll(newTown(LADDER_EPOCH, faction));
   const gate = CC_GATING[cc - 1]!;
   town.structures = [{ id: 1, kind: 'cc', cell: TOWN_GRID.ccOrigin, level: cc, wrecked: false }];
@@ -149,7 +152,9 @@ function stageTable(faction: FactionId): string[] {
   let beforeRate: Amounts | null = null;
   for (let cc = 1; cc <= 3; cc++) {
     const town = builtOut(faction, cc);
-    const rate = ratesPerHour(town);
+    // The stage's rate before the yard (M24 Phase 3): its buildings stand off
+    // the board here, where nothing is powered or beside anything.
+    const rate = baseRatesPerHour(town);
     const cap = caps(town);
     const full = RESOURCES.map((r) => (rate[r] > 0 ? (cap[r] / rate[r]).toFixed(1) : '—'));
     const made8 = { supplies: rate.supplies * 8, fuel: rate.fuel * 8 };
@@ -201,7 +206,7 @@ function stageTable(faction: FactionId): string[] {
   lines.push('');
   lines.push("WHAT THE BATTLES PAY, in supplies and in hours of each stage's supply production");
   lines.push(`${pad('', 36)} | SUPPLIES |   CC1 |   CC2 |   CC3`);
-  const rates = [1, 2, 3].map((cc) => ratesPerHour(builtOut(faction, cc)).supplies);
+  const rates = [1, 2, 3].map((cc) => baseRatesPerHour(builtOut(faction, cc)).supplies);
   for (const [label, supplies] of pays) {
     lines.push(
       `${pad(label, 36)} | ${pad(k(supplies), 8)} | ` + rates.map((r) => pad((supplies / r).toFixed(1), 5)).join(' | '),
@@ -216,7 +221,7 @@ function stageTable(faction: FactionId): string[] {
  * A reference defence as a town: the post at the base's level, and the guns
  * and walls where the balance harness draws them, with nothing in the store.
  */
-function referenceTown(base: ReferenceBase, faction: FactionId): TownState {
+export function referenceTown(base: ReferenceBase, faction: FactionId): TownState {
   const town = unlockAll(newTown(LADDER_EPOCH, faction));
   town.structures = [{ id: 1, kind: 'cc', cell: TOWN_GRID.ccOrigin, level: base.ccLevel, wrecked: false }];
   let id = 2;
@@ -230,13 +235,17 @@ function referenceTown(base: ReferenceBase, faction: FactionId): TownState {
   return town;
 }
 
-interface Fought {
+export interface Fought {
   held: boolean;
   /** What the battle's own supply line paid, its waves and salvage, and the bonus on a hold. */
   pay: { supplies: number; fuel: number };
   /** What putting back everything it wrecked costs. */
   wrecks: { supplies: number; fuel: number };
+  /** The part of that which was buildings rather than guns (M24 Phase 3). */
+  yardWrecks: { supplies: number; fuel: number };
 }
+
+const GUN_KINDS = new Set(['m2nest', 'autocannon', 'mortar', 'aa']);
 
 /**
  * One siege against a reference town, fought as the town fights one — through
@@ -247,7 +256,7 @@ interface Fought {
  * adds the bonus, and everything that did not come out of it is a wreck at the
  * town's own repair price.
  */
-function fightSiege(town: TownState, level: number, seed: number): Fought {
+export function fightSiege(town: TownState, level: number, seed: number): Fought {
   town.assaultLevel = level;
   const config = siegeConfig(town, seed);
   delete config.terrainSeed;
@@ -257,18 +266,29 @@ function fightSiege(town: TownState, level: number, seed: number): Fought {
   while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) engine.step();
   const outcome = outcomeFromEngine(engine);
   const standing = new Set(outcome.survivors.map((s) => s.cell));
+  // Wrecked as `foldBattle` wrecks them, then priced, so a repair is priced
+  // against what is still standing beside it: an Engineering Bay the battle
+  // took with it halves nothing. Put back afterwards; the town is reused.
+  const broke = town.structures.filter((s) => s.kind !== 'cc' && !s.wrecked && !standing.has(s.cell));
+  for (const s of broke) s.wrecked = true;
   const wrecks = { supplies: 0, fuel: 0 };
-  for (const s of town.structures) {
-    if (s.kind === 'cc' || standing.has(s.cell)) continue;
+  const yardWrecks = { supplies: 0, fuel: 0 };
+  for (const s of broke) {
     const cost = repairCost(town, s);
     wrecks.supplies += cost.supplies;
     wrecks.fuel += cost.fuel;
+    if (!GUN_KINDS.has(s.kind)) {
+      yardWrecks.supplies += cost.supplies;
+      yardWrecks.fuel += cost.fuel;
+    }
   }
+  for (const s of broke) s.wrecked = false;
   const bonus = outcome.victory ? assaultLoot(level) : { supplies: 0, fuel: 0 };
   return {
     held: outcome.victory,
     pay: { supplies: outcome.supplies + bonus.supplies, fuel: bonus.fuel },
     wrecks,
+    yardWrecks,
   };
 }
 
@@ -290,7 +310,7 @@ function defenceTable(faction: FactionId, seeds = 12): string[] {
   const sf = (a: { supplies: number; fuel: number }): string => `${Math.round(a.supplies)}+${Math.round(a.fuel)}`;
   for (const base of referenceBases()) {
     const town = referenceTown(base, faction);
-    const perHour = ratesPerHour(builtOut(faction, base.ccLevel)).supplies;
+    const perHour = baseRatesPerHour(builtOut(faction, base.ccLevel)).supplies;
     const flattened = { supplies: 0, fuel: 0 };
     for (const s of town.structures) {
       if (s.kind === 'cc') continue;
@@ -362,7 +382,7 @@ interface Ledger {
   research: number;
 }
 
-interface Run {
+export interface Run {
   sessionsPerDay: number;
   ledger: Ledger;
   /** Days from the first session to each milestone, or null if it never came. */
@@ -383,7 +403,61 @@ function cellsByDistance(): number[] {
   return cells.sort((a, b) => d(a) - d(b));
 }
 
-function playFortnight(faction: FactionId, cadenceHours: number, days: number, sessionMinutes: number): Run {
+/**
+ * The legal cell where `kind` makes the town the most (see `yardValue`),
+ * nearest the post among equals. It stands a level-1 building there and asks,
+ * which is what the ghost shows a player before they commit.
+ */
+function bestCell(town: TownState, kind: string, cells: number[]): number | undefined {
+  let best: number | undefined;
+  let bestValue = -Infinity;
+  const id = town.nextId;
+  for (const cell of cells) {
+    if (canPlace(town, kind, cell) !== null) continue;
+    town.structures.push({ id, kind, cell, level: 1, wrecked: false });
+    const value = yardValue(town);
+    town.structures.pop();
+    if (value > bestValue + 1e-9) {
+      best = cell;
+      bestValue = value;
+    }
+  }
+  return best;
+}
+
+/**
+ * Where a commander puts what they buy. NAIVE is the first free cell nearest
+ * the post, which is what the fortnight has always done. YARD (M24 Phase 3)
+ * takes the free cell that makes the town the most — power and neighbours
+ * counted — and the nearest one among equals, so a building the yard does not
+ * read still goes where it always went.
+ */
+export type Placement = 'naive' | 'yard';
+
+/**
+ * What the town makes, in depot-equivalents: each resource over what one
+ * level-1 producer of it makes, so a point of intel counts for as much as a
+ * point of supplies. A facility beside its partner depot is worth a sliver on
+ * top, which only ever breaks a tie.
+ */
+export function yardValue(town: TownState): number {
+  const rate = ratesPerHour(town);
+  const meta = townMetaFor(town.faction);
+  let value =
+    rate.supplies / meta['supplyDepot']!.generatesSupplies![0]! +
+    rate.fuel / meta['fuelDepot']!.generatesFuel![0]! +
+    rate.intel / meta['radar']!.generatesIntel![0]!;
+  for (const s of town.structures) if (trainingDiscount(town, s) > 0) value += 0.01;
+  return value;
+}
+
+export function playFortnight(
+  faction: FactionId,
+  cadenceHours: number,
+  days: number,
+  sessionMinutes: number,
+  placement: Placement = 'naive',
+): Run {
   const ledger: Ledger = {
     made: zero(),
     banked: zero(),
@@ -478,7 +552,7 @@ function playFortnight(faction: FactionId, cadenceHours: number, days: number, s
           const cost = meta[kind]!.levels[0]!;
           if (town.supplies >= cost.supplies && town.fuel >= cost.fuel) {
             // No room left for it on the board: not buyable, now or later.
-            const cell = cells.find((c) => canPlace(town, kind, c) === null);
+            const cell = placement === 'naive' ? cells.find((c) => canPlace(town, kind, c) === null) : bestCell(town, kind, cells);
             if (cell === undefined) unplaceable.add(kind);
             else options.push({ cost, kind, act: () => place(town, kind, cell, now) });
           }

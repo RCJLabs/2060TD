@@ -60,6 +60,7 @@ import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
 import { economyTable } from './economy';
+import { yardTable } from './yard';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
@@ -6033,6 +6034,8 @@ function main(): void {
     const arg = process.argv[process.argv.indexOf('--economy') + 1];
     const faction = FACTION_IDS.find((id) => id === arg) ?? 'usa';
     console.log(economyTable(faction));
+    console.log('');
+    console.log(yardTable(faction));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
