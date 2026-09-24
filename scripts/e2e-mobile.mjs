@@ -13,8 +13,9 @@
  * - a line of text clipped by the strip drawn over it
  *
  * Every one of those regresses silently and none of them shows up in a unit
- * test, because the UI is immediate-mode Phaser canvas: there is no DOM to
- * query and no CSS box to inspect. What there IS, from earlier harnesses, is
+ * test, which has no screen to measure. When this was written the whole UI was
+ * drawn on the canvas, with no DOM to query; since M30 it is DOM over a canvas
+ * that draws the board, and the harness still reads both the same way:
  * `lastline.buttons()` — every live button's rect — and `lastline.textRects()`
  * — every visible string's bounds. Both come back in device px, which is why
  * everything below divides by dpr before judging it: a fingertip is a physical

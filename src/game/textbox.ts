@@ -1,11 +1,11 @@
 /**
- * A real text box (v1.2). Phaser draws text, it cannot take any: share codes
- * have to be copied out and pasted in, and `window.prompt` on a phone is a
- * tiny system dialog that mangles a 300-character string.
+ * A real text box (v1.2). The canvas draws text, it cannot take any: share
+ * codes have to be copied out and pasted in, and `window.prompt` on a phone
+ * is a tiny system dialog that mangles a 300-character string.
  *
  * So this is plain DOM, styled to match the game, laid over the canvas. It
  * ships in the same bundle as the mobile shell and knows nothing about
- * Phaser — scenes hand it a title and a callback.
+ * the stage — scenes hand it a title and a callback.
  */
 
 export interface TextBoxOptions {

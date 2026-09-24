@@ -4,7 +4,7 @@
  * takes recon off the table entirely.
  *
  * The rotation is a function of the clock, so this drives the clock:
- * page.clock.setFixedTime pins Date without touching Phaser's own timers,
+ * page.clock.setFixedTime pins Date without touching the game loop's timers,
  * which lets the harness walk a whole rotation in one run and assert the
  * BLACKOUT day from what the game says, not from a date copied into a test.
  */

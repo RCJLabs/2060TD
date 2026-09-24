@@ -2,8 +2,8 @@
  * The stage (M30 Phase 3): what draws the board, now that nothing else is
  * drawn on the canvas.
  *
- * It replaced Phaser, which was three quarters of the download and a third of
- * a phone's boot, for a game that used one camera, one container per board,
+ * It replaced Phaser, which was three quarters of the download and two thirds
+ * of a phone's boot, for a game that used one camera, one container per board,
  * lists of shapes, one image and two styles of text. The pieces keep the
  * names and the behaviour the game was written against, and nothing more.
  */

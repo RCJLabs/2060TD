@@ -511,7 +511,7 @@ try {
     // the next up ANYWHERE fired it — measured two gestures and five seconds
     // later, on a row the finger had long left. The hold is the
     // reliable way to reach that state, because opening a card puts a scrim
-    // under the finger and the release over it is the one that completes
+    // under the finger and the release over it is the one that completed
     // Phaser's up pass. Reverting the fix fails this line every time; a check
     // driven through a board tap did not, because the board swallows its own
     // release.

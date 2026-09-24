@@ -28,8 +28,9 @@ function recorder() {
 
 describe('CanvasInk (M30)', () => {
   it('a shape drawn mid-path leaves the path it interrupted alone', () => {
-    // Phaser keeps a built path apart from its one-shot shapes; a canvas has
-    // one current path, so a naive port would lose the line here.
+    // The board's Graphics keeps a built path apart from its one-shot shapes,
+    // as Phaser's did; a canvas has one current path, so a naive port would
+    // lose the line here.
     const { ctx, calls } = recorder();
     const ink = new CanvasInk(ctx);
     ink.lineStyle(2, 0x111111).fillStyle(0xe0243c);

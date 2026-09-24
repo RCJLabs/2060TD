@@ -10,7 +10,7 @@
  *
  * Steps are data and their conditions are pure predicates over a projection of
  * the engine, so the whole script is testable without a browser. Nothing here
- * knows about Phaser, and nothing here is faction-specific — the text uses
+ * knows about the stage, and nothing here is faction-specific — the text uses
  * roles ("a field gun"), never a faction's part numbers.
  */
 

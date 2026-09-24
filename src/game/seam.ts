@@ -9,7 +9,7 @@ import type { Layout } from './layout';
  * questions from the same lists while both kits shipped, so the lists moved
  * here, and `probe.ts` reads them back for the harness.
  *
- * Plain data and no Phaser, so a component registers without importing it.
+ * Plain data and no stage, so a component registers without importing it.
  */
 
 /** A button as the headless harness sees it: label + rect in device px. */

@@ -10,7 +10,7 @@ import { safeAreaInsets, type SafeArea } from './mobile';
  * and tokens computed here.
  *
  * UNITS: the canvas is sized in DEVICE pixels (viewport × capped DPR) and
- * displayed at CSS size via Phaser's `zoom`, so text is crisp on high-DPI
+ * displayed at CSS size via the stage's `zoom`, so text is crisp on high-DPI
  * screens. Every rect and token below is therefore in device px, derived
  * from CSS-pixel design values through `dpr`. Read `cssWidth`/`cssHeight`
  * when you need to reason about physical screen size.
@@ -97,7 +97,7 @@ export interface FontScale {
 }
 
 export interface Layout {
-  /** Canvas size in device px (what Phaser draws into). */
+  /** Canvas size in device px (what the stage draws into). */
   width: number;
   height: number;
   /** Viewport size in CSS px (what the human sees). */

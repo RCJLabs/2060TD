@@ -1,7 +1,7 @@
 /**
  * Shared simulation types.
  *
- * The sim is pure TypeScript with no Phaser imports. Everything that affects
+ * The sim is pure TypeScript with no rendering imports. Everything that affects
  * gameplay flows through here. Content (unit stats, structures, waves) lives
  * in src/content as data conforming to these shapes.
  */
