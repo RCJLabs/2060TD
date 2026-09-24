@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.45.2, in the browser. No install, no account, works on a phone.
+v1.45.3, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -99,6 +99,27 @@ every gun a rung asks for, which it did not before. Those three forces now take
 it 54, 12 and 58 times, and it is still their third hardest shape. Every faction
 is dealt all eight base shapes again. Walls keep their price: a segment is twice
 as long for the same Supplies, and that stays.
+
+**v1.45.3 — standing orders that can aim.** Standing orders are how your base
+spends Command Points while you are away, and two things were wrong with how
+they aimed. A fire mission ordered onto a crowd of attackers was laid where the
+crowd was, and landed after it had walked on: across the battles a base can
+actually win or lose, the A-10 was called 920 times and killed nobody. And three
+of the distances the orders aim by were still counted in cells, so on the new
+board they reached twice as far as written. Both are fixed in a new version of
+the battle rules, so every replay from before still plays back the battle it
+recorded. Fixing the aim exposed a trap. HOLDFAST put its second gun beside the
+command post, where an assault clears it first, and on a mid-game base that made
+HOLDFAST worse than no orders at all. Both its guns now go to the breach, as its
+description always said. Measured on those same battles, HOLDFAST now holds 16
+points more often than no orders, COUNTERBATTERY 13 and TRIPWIRE 22, and each one
+helps on every stage of base. HOLDFAST is weaker than it was: it had been worth
+30, because the oversized reach dropped its second gun onto the route in, by
+accident. It is the pick for an early base and TRIPWIRE for later ones, where
+before HOLDFAST was the answer everywhere. Raids barely move, about one point on
+average. The fire missions land now and still do not decide battles: they
+change about one in four, nearly as often against you as for you. Giving them a
+job that matters is the next piece of work.
 
 ## v1.44: the whole board, with the drawer open
 

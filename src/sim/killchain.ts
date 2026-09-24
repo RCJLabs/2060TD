@@ -242,11 +242,12 @@ export interface ChainModel {
    * Through version 4 a fire mission ordered onto the densest knot of attackers
    * is laid where the knot IS when the order is given, and it lands later —
    * half a second for the A-10's first pass, a second and a half for the first
-   * shell. An infantry file walks well over a cell in that time and the A-10's
-   * strip is less than one cell deep, so on the contested band the A-10 was
-   * cast 920 times and killed nobody: not one kill different from never
-   * casting it, in 460 battles. It also counted aircraft into the knot, which
-   * a gun run and a barrage both pass beneath by design.
+   * shell. In half a second an infantry file walks most of a cell, and the
+   * A-10's strip reaches less than half a cell either side of its aim, so on
+   * the contested band the A-10 was cast 920 times and killed nobody: not one
+   * kill different from never casting it, in 460 battles. It also counted
+   * aircraft into the knot, which a gun run and a barrage both pass beneath by
+   * design.
    *
    * True leads the knot's lead attacker by its own heading and speed, the rule
    * a mortar already fires by, and counts only the ground force a strike can

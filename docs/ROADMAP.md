@@ -3101,7 +3101,7 @@ premium", which converts idle attrition into sessions.
       Left on the branch with its evidence and deliberately not merged: `main`
       keeps v1.41.2's ladder until the compensating pass is done and the
       snapshot regenerated.
-- [ ] **Phase 3c — build the contested band FIRST, then re-judge the verbs
+- [x] **Phase 3c — build the contested band FIRST, then re-judge the verbs
       against it.** `npm run balance -- --cliff` says exactly where the step
       function comes from, and it is not where Phase 2 guessed.
 
@@ -3127,6 +3127,99 @@ premium", which converts idle attrition into sessions.
 
       Then, and only then, the verbs get re-judged: a defender action is worth
       measuring once there is a band for it to land in.
+
+      **The re-judgment (v1.45.3).** The band exists now. The longer ladder and
+      the 10x15 board leave 23 (faction, base, level) cells that the permanent
+      layer alone holds between 5% and 95% of the time: EARLY 5, MID 10, LATE 8.
+      `--verbs` measures on exactly those, by stage, and counts the battles each
+      rule changed in each direction on the same seeds. It found two defects
+      before it found a verdict.
+
+      **The A-10 had never hit anything.** Cast 920 times on the band, both of
+      its charges in every battle, and not one kill in 460 battles differed
+      from never casting it. A standing order laid the gun run where the
+      densest knot of attackers WAS, and the strike landed later: half a second
+      for the gun run's first pass, a second and a half for the first shell. In
+      half a second an infantry file walks most of a cell, and the gun run's
+      strip reaches less than half a cell either side of its aim, so it came
+      down where the file had been. The order also counted aircraft into the
+      knot, which both strikes pass beneath by design.
+
+      **And three of the duty officer's distances were still cells.** The radius
+      a cluster is counted within, for standing orders and the raid fire plan,
+      and how far out from the post a `ccApproach` gun goes, were literals in
+      the engine rather than catalog fields, so M34's inventory walked past
+      them. On 10x15 each reached twice as far as written. A "cluster" was any
+      two attackers within six units, and the approach gun went down six units
+      out instead of three.
+
+      Both are fixed as kill chain 5 (`CHAIN_AIMED`): version 4 with an aim.
+      Its fire missions lead the knot by the rule a mortar already fires by,
+      and count only the ground force, and its distances are units. Version 4
+      stays frozen for every v1.45 battle. The regenerated snapshot says it is
+      what it claims to be. All 48 defence rows with no orders in them read
+      exactly as v1.45.2's did, and the raid tables, whose fire plans and
+      garrisons aim by the same radius, moved by 1.1 points of clear rate on
+      average, inside the noise.
+
+      **The verdict, on chain 5.** Held-rate change against no orders; the last
+      column is battles changed toward a hold and toward a loss.
+
+      | one rule, alone | HELD | EARLY | MID | LATE | changed |
+      |---|---|---|---|---|---|
+      | `depmg -> ccApproach` | **+26** | +45 | +22 | +19 | +161 −42 |
+      | `foxhole -> breach` | **+25** | +0 | +33 | +29 | +123 −10 |
+      | `depmg -> densest` | +21 | +44 | +17 | +11 | +132 −36 |
+      | `depmg -> breach` | +20 | +0 | +23 | +29 | +106 −13 |
+      | `claymore -> ccApproach` | +13 | +1 | +20 | +13 | +88 −27 |
+      | `foxhole -> ccApproach` | +13 | +44 | **−7** | +20 | +123 −61 |
+      | `arty -> densest` | +4 | +10 | −1 | +6 | +81 −64 |
+      | `a10 -> densest` | +3 | +15 | +4 | −6 | +63 −49 |
+
+      **A gun decides battles; damage stirs them.** Every rule that stands up a
+      gun wins between two and twelve battles for each one it loses, wherever
+      it is aimed. The fire missions land now, and they change about one battle
+      in four, nearly as often each way: +81 −64 for the barrage, +63 −49 for
+      the gun run. A net that small on a gross that large is what changing
+      verdicts at random gives, and the table does not star it. That is the
+      chain's doing. A battle is decided at the gate, and killing a few of the
+      men walking up to it moves no gate. Phase 2's second option, giving the
+      damage verbs a job the chain can see, is still open, and it is the real
+      work left here. The aim was only the first problem.
+
+      **The fix exposed a trap in HOLDFAST.** Chain 4's six-unit reach put
+      HOLDFAST's second gun in the corridor between a MID base's two wall lines,
+      on the route in, by accident, and it was worth a lot there. At three units
+      it goes beside the post. That is inside the ring an assault clears first,
+      since M34's crews started hunting the guns covering the post, and on MID
+      that one rule is −7, worse than no orders at all. So HOLDFAST's second gun
+      goes to the breach too, which is what its own banner always said it did
+      ("guns down breaches"). The old rule is kept for the battles fought with
+      it. A replay rebuilds a preset from its id, so `standingOrdersFor` answers
+      by the kill chain the battle was fought on.
+
+      | preset | HELD | EARLY | MID | LATE |
+      |---|---|---|---|---|
+      | HOLDFAST | **+16** | **+17** | +11 | +22 |
+      | COUNTERBATTERY | +13 | +7 | +18 | +12 |
+      | TRIPWIRE | **+22** | +3 | **+26** | **+29** |
+      | *HOLDFAST before 3c, chain 5* | *+10* | *+41* | *−7* | *+11* |
+      | *HOLDFAST on chain 4* | *+30* | *+43* | *+23* | *+31* |
+
+      **One preset is no longer the answer.** On chain 4 HOLDFAST was the best
+      preset on every stage, and worth about twice either of the others
+      overall. Now each is positive on
+      every stage, HOLDFAST is the best of the three on an EARLY base and
+      TRIPWIRE on MID and LATE, and best and worst are nine points apart rather
+      than nineteen. COUNTERBATTERY is best nowhere, which is the damage verbs'
+      finding again, seen through a preset.
+
+      **TRIPWIRE's ordering trap is still there, and still kept on purpose.**
+      Its claymore still spends the budget before its gun gets a turn. Without
+      it TRIPWIRE goes from +22 to +38, +45 on EARLY and +50 on MID, which
+      would make it the answer on two stages of three. That is the flattening
+      Phase 2 refused, measured on a band this time rather than on two levels.
+      Its third option still stands: make rule order the player's to choose.
 - [x] **Phase 4 — live-defend offers, and a defeat state that costs something
       memorable.** The last probe of an absence is no longer resolved. It is
       held back and OFFERED, with a thirty-minute window, and the two answers
@@ -3174,6 +3267,17 @@ premium", which converts idle attrition into sessions.
       fighting, because that is a question about a distribution and every test
       in the repo runs one battle at a time. The sweep took twenty minutes and
       changed the design.
+- [ ] **Phase 5 — a job for the damage verbs.** What Phase 3c's re-judgment
+      left open. On the contested band a gun decides battles and a fire mission
+      only stirs them. The A-10 and the barrage land now, and each changes about
+      a battle in four, nearly as often toward a loss as toward a hold. Nothing
+      the chain counts is moved by killing a few of the men walking up to it,
+      so COUNTERBATTERY, the doctrine built on them, is best on no stage. The
+      brief is a job the chain can SEE: something a strike does to BREACH,
+      SUPPRESS, CHARGE or BURN rather than to hit points. Judged on the same
+      table, by the same rule: a verb that wins no more battles than it loses
+      is decoration. TRIPWIRE's ordering trap belongs here too, and so does
+      Phase 2's third option for it: rule order as the player's choice.
 
 ## M24 — "The Settlement": from nine buildings to a base builder
 
@@ -4023,6 +4127,11 @@ to draw in.
 balance table in the repo. Then **M23**, because the action pillar is the
 least-built half of a game whose FIRST design pillar it is. Then **M30**, the
 cheapest large win, which also unblocks the UI surface that M23 and M29 both need.
+
+*M22 and M23 are done as planned (v1.45.3), except M23 Phase 5: the damage verbs
+still need a job the kill chain can see, and that is a design problem where the
+rest of the milestone was a measurement one. It can go before or after M30.
+Nothing in M30 changes a number it would be judged on.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

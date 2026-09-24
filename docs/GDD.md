@@ -755,6 +755,16 @@ archived replay re-fights the battle it recorded. Same discipline as `TERRAIN_VE
 the combat model. Nothing here draws from an RNG: the chain is accounting, and one source of
 variance per battle is enough.
 
+**The chain also carries the duty officer's aim (version 5, v1.45.3).** Every config names a
+chain and every replay code carries one, so that is where a change to how standing orders
+and fire plans aim is versioned. Version 5 is version 4 with two fixes that re-judging the
+defender's verbs on the contested band found (M23 Phase 3c). The distances an order aims by,
+the radius a cluster is counted within and the approach gun's three units out, are physical
+units like every other distance since M34; they had been cells, so on 10x15 they reached
+twice as far. And a fire mission ordered onto the densest knot is laid where the knot will be
+when it lands, on the ground force it can hit. Until then the A-10 had never landed: it came
+down where the file had been half a second before, and the file had walked out of it.
+
 **What it bought, measured.** Suppression stopped being a formality (97-99% of raids passed
 it; now 64-84%), the stages became monotone where the sponge's were incoherent, and the five
 factions' clear rates tightened from a 23-point spread to 13. DUG IN's inverted sign — the

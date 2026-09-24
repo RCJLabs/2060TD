@@ -975,3 +975,37 @@ here with the change and its date.
   hunt guns walked into a keep whose guns all covered each other, and the two
   that go for the post walked past them. Spreading the guns, the property the
   20x30 keep had and the redraw lost, fixed it without removing one.
+- 2026-09-24 — **Before calling a lever worthless, count what it hits.** The
+  A-10 read +0 in M23 Phase 2 and +0 again on the contested band, and both
+  times the reading was "damage does not move the kill chain". It had never
+  landed. A standing order laid the gun run where the knot of attackers was,
+  the strike came down half a second later on a strip less than one cell
+  deep, and the knot had walked out of it: 920 casts, not one kill different
+  from never casting. The conclusion survived the fix — a fire mission that
+  lands changes one battle in four, nearly as often each way — but for a
+  reason that is now measured instead of assumed. A zero that never varies,
+  across hundreds of battles, is more likely a verb that never happens than a
+  verb that does not matter. The verbs table counts the battles each rule
+  changed in each direction for this reason.
+- 2026-09-24 — **Kill chain 5: the duty officer aims to scale and leads its
+  fire (v1.45.3).** Version 4 with two fixes to how standing orders and fire
+  plans aim, and nothing else. Three distances that M34's inventory missed,
+  because they were literals in the engine rather than catalog fields, are
+  units now: the radius a cluster is counted within and how far out the
+  approach gun goes. A fire mission on the densest knot leads its lead
+  attacker by the rule a mortar already uses, and counts only the ground
+  force. It is a chain version because every config already names one and
+  every replay code already carries it. Version 4 stays frozen for the
+  v1.45 battles fought on it.
+- 2026-09-24 — **HOLDFAST's second gun goes to the breach, and a replay gets
+  back the HOLDFAST it was fought with.** On chain 5 the approach gun goes
+  three units out, as it did on 20x30, and that is beside the post on 10x15:
+  inside the ring an assault clears first since M34's crews started hunting
+  the guns that cover the post. That one rule took HOLDFAST below having no
+  orders on a CC2 base. At the breach it is positive on every stage, and it
+  is what the doctrine's own banner always said it did. A replay code carries
+  a preset as its id and rebuilds the rules on read, so the old HOLDFAST is
+  kept and `standingOrdersFor` answers by the kill chain the battle was
+  fought on. TRIPWIRE's claymore still starves the gun below it, and stays:
+  without it TRIPWIRE would be the answer on two stages of three. Making rule
+  order the player's choice is still the fix on the table for that.
