@@ -1,35 +1,86 @@
 /**
- * The theater map (M25 Phase 1): the Front Line drawn as the ground it is.
+ * The theater map (M25): the Front Line drawn as the ground it is.
  *
  * The lanes run up the page from the base toward the enemy's stronghold, one
  * row a town, around the front: held ground behind it in tone, the front
  * outlined with the red line the war has been pushed to, enemy ground ahead
- * in thin ink. Under it are the three front posts, each with its lane, band
- * and shape, and a button that opens the raid planner on it.
+ * in thin ink. Since Phase 2 the enemy strikes back when the front goes
+ * quiet, so a sector behind the front can be the enemy's again: it is drawn
+ * struck out in red, its road broken, and the front post it cuts off says so.
+ * Under the map are the three front posts and any ground to retake, each with
+ * a button that opens the raid planner on it.
  *
  * Ink draws no text, so the names are the overlay's own text laid over the
  * band at the rows it drew.
  */
 import { ARCHETYPE_BY_ID } from '../content/bases';
+import { flavorFor } from '../content/factions';
+import { QUIET_MS } from '../content/theaters';
 import { createOverlay, type OverlayApi } from './dom/overlay';
 import { drawFactionMark } from './glyphs';
 import type { Ink } from './ink';
 import type { Layout } from './layout';
 import { COLORS } from './palette';
 import type { Scene } from './stage';
-import { sectorOf, theaterView, type TheaterRow } from '../meta/theater';
+import { enemyClock } from '../meta/strikes';
+import { retakes, sectorOf, theaterView, type Sector, type TheaterRow } from '../meta/theater';
 import type { TownState } from '../meta/town';
 import { isScouted } from '../meta/warfare';
+
+/** A sector a raid can be aimed at: its column and its lane's slot. */
+export interface RaidTarget {
+  tier: number;
+  slot: number;
+}
 
 export interface TheaterMapOpts {
   layout: Layout;
   town: TownState;
+  now: number;
   /**
-   * Plan a raid on the front post in `variant`'s lane. Absent where no raid
-   * can start from here: a counterattack is owed, or this is a demo board.
+   * Plan a raid on a sector. Absent where no raid can start from here: a
+   * counterattack is owed, or this is a demo board.
    */
-  onRaid?: (variant: number) => void;
+  onRaid?: (target: RaidTarget) => void;
   onClose: () => void;
+}
+
+const HOUR = 3_600_000;
+
+/** "20 H", or "3 D" once it runs to days. */
+function span(ms: number): string {
+  const hours = Math.floor(ms / HOUR);
+  return hours >= 48 ? `${Math.floor(hours / 24)} D` : `${hours} H`;
+}
+
+/**
+ * The enemy's clock as one line: how long the front has been quiet, and what
+ * that is about to cost. Null when there is nothing behind the front to lose.
+ */
+export function clockLine(town: TownState, now: number): { text: string; urgent: boolean } | null {
+  if (town.frontline.tier <= 1) return null;
+  const clock = enemyClock(town, now);
+  const enemy = flavorFor(town.faction).enemy;
+  if (clock.next === null) {
+    return {
+      text: `QUIET ${span(clock.quiet)} · BOTH STRIKES HAVE LANDED — A RAID STARTS THE CLOCK AGAIN`,
+      urgent: false,
+    };
+  }
+  const urgent = clock.next - now <= 12 * HOUR;
+  if (clock.quiet < QUIET_MS) {
+    return { text: `QUIET ${span(clock.quiet)} · THE ${enemy} STRIKES BACK AT ${span(QUIET_MS)}`, urgent };
+  }
+  return { text: `QUIET ${span(clock.quiet)} · THE ${enemy} STRIKES AGAIN IN ${span(clock.next - now)}`, urgent };
+}
+
+/** The THEATER row's note: what is lost behind the front, or a strike about to land. */
+export function theaterNote(town: TownState, now: number): string {
+  const lost = town.frontline.lost?.length ?? 0;
+  if (lost > 0) return `${lost} LOST · [G]`;
+  const clock = enemyClock(town, now);
+  if (clock.next !== null && clock.next - now <= 12 * HOUR) return `STRIKE IN ${span(clock.next - now)} · [G]`;
+  return '[G]';
 }
 
 export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi {
@@ -55,6 +106,8 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
   const pip = Math.max(4, Math.round(rowH * 0.16));
   const gutter = 3 * (pip + 3) + 8;
   const rowY = (i: number, top: number): number => top + header + i * rowH;
+  /** A row's sector in the map's lane `j` is the enemy's again. */
+  const lostAt = (row: TheaterRow, j: number): boolean => row.lost[t.lanes[j]!.slot] === true;
   const rect = ov.band(
     header + rows.length * rowH,
     (g: Ink, r) => {
@@ -64,14 +117,18 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
       const laneMid = (j: number): number => lanesX + laneW * (j + 0.5);
 
       // The roads first, under the sectors: ink through held ground, a faint
-      // line through the enemy's.
+      // line through the enemy's, and a break wherever a sector was retaken.
       rows.forEach((row, i) => {
         if (i === rows.length - 1) return;
+        const below = rows[i + 1]!;
         const y0 = rowY(i, r.y) + rowH - pad;
         const y1 = rowY(i + 1, r.y) + pad;
-        const held = row.state === 'held' || row.state === 'front';
-        g.lineStyle(held ? 2 : 1, held ? COLORS.ink : COLORS.disabled, 1);
-        for (let j = 0; j < 3; j++) g.lineBetween(laneMid(j), y0, laneMid(j), y1);
+        for (let j = 0; j < 3; j++) {
+          const held =
+            (row.state === 'held' || row.state === 'front') && !lostAt(row, j) && !lostAt(below, j);
+          g.lineStyle(held ? 2 : 1, held ? COLORS.ink : COLORS.disabled, 1);
+          g.lineBetween(laneMid(j), y0, laneMid(j), y1);
+        }
       });
 
       rows.forEach((row, i) => drawRow(g, row, rowY(i, r.y), r.x + r.w));
@@ -108,15 +165,25 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
       const x = lanesX + laneW * j + pad;
       const w = laneW - pad * 2;
       const h = rowH - pad * 2;
-      if (row.state === 'held') {
+      const cut = view.cut[t.lanes[j]!.slot] === true;
+      if (row.state === 'held' && lostAt(row, j)) {
+        // Retaken by the enemy: struck out in red.
+        g.fillStyle(COLORS.bgPanel, 1);
+        g.fillRect(x, y + pad, w, h);
+        g.lineStyle(2, COLORS.signal, 1);
+        g.strokeRect(x, y + pad, w, h);
+        g.lineBetween(x, y + pad, x + w, y + pad + h);
+        g.lineBetween(x + w, y + pad, x, y + pad + h);
+      } else if (row.state === 'held') {
         g.fillStyle(COLORS.olive, 1);
         g.fillRect(x, y + pad, w, h);
         g.lineStyle(1.5, COLORS.ink, 1);
         g.strokeRect(x, y + pad, w, h);
       } else if (row.state === 'front') {
+        // A front post whose road is cut is out of reach: drawn faint.
         g.fillStyle(COLORS.bgPanel, 1);
         g.fillRect(x, y + pad, w, h);
-        g.lineStyle(3, COLORS.ink, 1);
+        g.lineStyle(cut ? 1.5 : 3, cut ? COLORS.disabled : COLORS.ink, 1);
         g.strokeRect(x, y + pad, w, h);
       } else {
         g.fillStyle(COLORS.bgPanel, 1);
@@ -155,42 +222,62 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
       { align: 'right', ...(bold ? { fontStyle: 'bold' } : {}) },
     );
   });
-  // Each front sector names its post.
+  // Each front sector names its post, or says that its road is cut.
   const frontAt = rows.findIndex((row) => row.state === 'front');
   t.lanes.forEach((lane, j) => {
+    const cut = view.cut[lane.slot] === true;
     const base = sectorOf(town, lane.slot).base;
     ov.centered(
       { x: rect.x + labelW + laneW * j, y: rowY(frontAt, rect.y) + middle, w: laneW, h: rowH },
-      ARCHETYPE_BY_ID[base.archetype]?.short ?? base.archetype,
+      cut ? 'CUT' : (ARCHETYPE_BY_ID[base.archetype]?.short ?? base.archetype),
       font.tiny,
-      COLORS.ink,
+      cut ? COLORS.signal : COLORS.ink,
       { fontStyle: 'bold' },
     );
   });
 
   ov.paragraph(
-    'Any three wins at the front take its town, and the next one comes into range. ' +
-      'Each lane is a band of the rung: the heavy fight, the middle one, and the one you can take today.',
+    'Any three wins at the front take its town. When the front is quiet for 36 hours, the ' +
+      'enemy strikes back at the town behind it, cutting a road to the front, and again a day ' +
+      'later. A cut road’s front post cannot be raided until the ground is retaken, and if the ' +
+      'whole town behind the front falls, the front falls back to it.',
     font.tiny,
     COLORS.inkDim,
-    { gapAfter: gap * 2 },
+    { gapAfter: gap },
   );
+  const clock = clockLine(town, opts.now);
+  if (clock) {
+    ov.paragraph(clock.text, font.tiny, clock.urgent ? COLORS.signal : COLORS.ink, { gapAfter: gap * 2 });
+  }
+
+  const scoutedTag = (s: Sector): string => (isScouted(town, s.tier, s.lane.slot) ? ' · SCOUTED' : '');
+  const shapeOf = (s: Sector): string => ARCHETYPE_BY_ID[s.base.archetype]?.short ?? s.base.archetype;
 
   // The three front posts, left to right as the map draws their lanes.
   t.lanes.forEach((lane) => {
     const sector = sectorOf(town, lane.slot);
-    const shape = ARCHETYPE_BY_ID[sector.base.archetype];
-    const scouted = isScouted(town, sector.tier, lane.slot);
+    const open = sector.cutAt === null;
     const button = ov.flowButton(
       `${lane.name} — ${sector.town}`,
-      () => opts.onRaid?.(lane.slot),
+      () => opts.onRaid?.({ tier: sector.tier, slot: lane.slot }),
       {
         align: 'left',
-        sub: `${sector.band} · ${shape?.short ?? sector.base.archetype}${scouted ? ' · SCOUTED' : ''}`,
+        sub: open
+          ? `${sector.band} · ${shapeOf(sector)}${scoutedTag(sector)}`
+          : `CUT AT ${sector.cutAt}`,
       },
     );
-    if (!opts.onRaid) button.setEnabled(false);
+    if (!opts.onRaid || !open) button.setEnabled(false);
   });
+  // And the ground to take back, nearest the front first.
+  for (const sector of retakes(town)) {
+    const button = ov.flowButton(
+      `RETAKE ${sector.lane.name} — ${sector.town}`,
+      () => opts.onRaid?.({ tier: sector.tier, slot: sector.lane.slot }),
+      { align: 'left', sub: `T${sector.tier} · ${sector.band} · ${shapeOf(sector)}${scoutedTag(sector)}` },
+    );
+    if (!opts.onRaid) button.setEnabled(false);
+  }
 
   ov.footer('CLOSE', opts.onClose);
   return ov;

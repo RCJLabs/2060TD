@@ -7,7 +7,6 @@ import {
   MAP_CELL_SIZE,
   MAP_H,
   MAP_W,
-  TARGETS_PER_TIER,
   type GeneratedBase,
 } from '../../content/bases';
 import { conditionAt } from '../../content/conditions';
@@ -59,13 +58,13 @@ import {
   reopenPlan,
   resolveRaid,
   scoutPrice,
+  postAt,
   scoutTarget,
   sectorCells,
   slotOf,
   squadRoster,
   storePlan,
   squadVet,
-  targetFor,
   tunnelFuelCost,
   tunnelSiteValid,
   SECTOR_IDS,
@@ -106,8 +105,9 @@ import { buildAttackerSpec } from '../spec';
 import { createButton, type FreeButton } from '../dom/button';
 import { createLabel, type SceneLabel } from '../dom/label';
 import { createOverlay, type OverlayApi } from '../dom/overlay';
-import { buildTheaterMap } from '../theaterMap';
-import { frontLabel } from '../../meta/theater';
+import { buildTheaterMap, type RaidTarget } from '../theaterMap';
+import { frontLabel, raidTargetKeys } from '../../meta/theater';
+import { cutAt } from '../../meta/strikes';
 import { columnName, laneFor, theaterFor } from '../../content/theaters';
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
@@ -168,7 +168,10 @@ function unitIcon(
 export class RaidScene extends Scene {
   private town!: TownState;
   private demoMode = false;
-  private variant = 0;
+  /** The sector the raid goes for: a front post, or ground to retake (M25). */
+  private target: RaidTarget = { tier: 1, slot: 0 };
+  /** Where the last raid went out from, for its report: the rung, and whether it went to retake ground. */
+  private sortie: { tier: number; retake: boolean } | null = null;
   private base!: GeneratedBase;
   private squads: SquadPlan[] = [];
   private selectedSquad = 0;
@@ -208,7 +211,7 @@ export class RaidScene extends Scene {
     super('raid');
   }
 
-  init(data: { town?: TownState; challenge?: Challenge; variant?: number }): void {
+  init(data: { town?: TownState; challenge?: Challenge; target?: RaidTarget }): void {
     const params = new URLSearchParams(window.location.search);
     this.demoMode = params.get('demo') === 'raid';
     this.challenge = data?.challenge ?? null;
@@ -220,12 +223,8 @@ export class RaidScene extends Scene {
         pick === 'china' || pick === 'russia' || pick === 'nk' || pick === 'un' ? pick : 'usa',
       );
     }
-    // The post the theater map chose, or the first (M25).
-    const chosen = data?.variant;
-    this.variant =
-      chosen !== undefined && !this.challenge
-        ? ((chosen % TARGETS_PER_TIER) + TARGETS_PER_TIER) % TARGETS_PER_TIER
-        : 0;
+    // The sector the theater map chose, or the first the planner can go for.
+    this.target = this.challenge ? { tier: 0, slot: 0 } : this.pickTarget(data?.target);
     this.selectedSquad = 0;
     this.result = null;
     this.squadReport = null;
@@ -242,7 +241,7 @@ export class RaidScene extends Scene {
   create(): void {
     music.play('planning');
     // A challenge fights the code that was pasted; the ladder picks its own.
-    this.base = this.challenge ? this.challenge.base : targetFor(this.town, this.variant);
+    this.base = this.challenge ? this.challenge.base : postAt(this.town, this.target.tier, this.target.slot);
 
     this.board = new BoardView(this, { cols: MAP_W, rows: MAP_H, cell: CELL });
     this.baseLayer = this.add.graphics();
@@ -451,18 +450,51 @@ export class RaidScene extends Scene {
   private scouted(): boolean {
     // A shared code carries the whole layout, so there is nothing to scout.
     if (this.challenge) return true;
-    return isScouted(this.town, this.town.frontline.tier, this.variant);
+    return isScouted(this.town, this.target.tier, this.target.slot);
+  }
+
+  /**
+   * What the planner can go for (M25): the open front posts, then the ground
+   * the enemy has retaken. A cut road's front post is not on the list.
+   */
+  private targets(): RaidTarget[] {
+    return raidTargetKeys(this.town);
+  }
+
+  /** Where `target` is on the list, or -1 once the map has moved out from under it. */
+  private targetIndex(target: RaidTarget = this.target): number {
+    return this.targets().findIndex((k) => k.tier === target.tier && k.slot === target.slot);
+  }
+
+  /** `wanted` when the planner can go for it, or else the first thing it can. */
+  private pickTarget(wanted?: RaidTarget): RaidTarget {
+    if (wanted && this.targetIndex(wanted) >= 0) return { tier: wanted.tier, slot: wanted.slot };
+    return this.targets()[0] ?? { tier: this.town.frontline.tier, slot: 0 };
+  }
+
+  /** "TARGET 2/4 · THE BEACHES", or "TARGET 4/4 · RETAKE HIGHWAY 101 AT NEWPORT". */
+  private targetLabel(): string {
+    const t = theaterFor(this.town.faction);
+    const lane = laneFor(t, this.target.slot);
+    const at = this.targetIndex();
+    const what =
+      this.target.tier < this.town.frontline.tier
+        ? `RETAKE ${lane.name} AT ${columnName(t, this.target.tier)}`
+        : lane.name;
+    return `TARGET ${at >= 0 ? at + 1 : '—'}/${this.targets().length} · ${what}`;
   }
 
   private cycleTarget(): void {
-    this.selectTarget((this.variant + 1) % TARGETS_PER_TIER);
+    const list = this.targets();
+    if (list.length === 0) return;
+    this.selectTarget(list[(this.targetIndex() + 1) % list.length]!);
   }
 
-  /** Aim the planner at the front post in `variant`'s lane. */
-  private selectTarget(variant: number): void {
+  /** Aim the planner at a sector: a front post, or ground to retake. */
+  private selectTarget(target: RaidTarget): void {
     if (this.challenge) return; // one code, one base
-    this.variant = variant;
-    this.base = targetFor(this.town, this.variant);
+    this.target = target;
+    this.base = postAt(this.town, target.tier, target.slot);
     // A posture survives a change of target, but only where the new post can
     // answer it: a camp with one emplacement cannot be asked for two.
     if (!objectiveAvailable(this.objective, this.objectiveStanding(this.objective))) {
@@ -531,7 +563,7 @@ export class RaidScene extends Scene {
   }
 
   private scout(): void {
-    if (scoutTarget(this.town, this.town.frontline.tier, this.variant, Date.now())) {
+    if (scoutTarget(this.town, this.target.tier, this.target.slot, Date.now())) {
       this.saveSoon();
       this.redrawBase();
     }
@@ -738,6 +770,10 @@ export class RaidScene extends Scene {
       ...(condition ? { condition } : {}),
     });
     const standingBefore = this.town.frontline.standing;
+    this.sortie = {
+      tier: this.town.frontline.tier,
+      retake: !this.challenge && this.base.tier < this.town.frontline.tier,
+    };
     const xpBefore = squadRoster(this.town).map((r) => r.xp);
     const resolution = resolveRaid(
       config,
@@ -854,12 +890,13 @@ export class RaidScene extends Scene {
     this.overlay = buildTheaterMap(this, {
       layout: this.layout,
       town: this.town,
+      now: Date.now(),
       ...(this.town.frontline.pendingCounterattack
         ? {}
         : {
-            onRaid: (variant: number) => {
+            onRaid: (target: RaidTarget) => {
               close();
-              this.selectTarget(variant);
+              this.selectTarget(target);
             },
           }),
       onClose: close,
@@ -955,10 +992,24 @@ export class RaidScene extends Scene {
           ? 'One-sided: the post was barely scratched.'
           : null;
     const mission = OBJECTIVES[res.objective];
-    // A third win takes the front's town (M25): the rung went up and its wins
-    // started again.
     const theater = theaterFor(this.town.faction);
-    const took = res.cleared && !this.challenge && this.town.frontline.wins === 0;
+    const fl = this.town.frontline;
+    const sortie = this.sortie ?? { tier: fl.tier, retake: false };
+    // What the win did to the map (M25): a third push takes the front's town,
+    // and a retake gives a lane its road back unless it is cut further up.
+    let mapLine: string;
+    if (sortie.retake) {
+      const lane = laneFor(theater, this.base.variant);
+      const still = cutAt(fl, lane.slot);
+      mapLine =
+        `${lane.name} AT ${columnName(theater, this.base.tier)} RETAKEN · ` +
+        (still ? `its road is still cut at ${columnName(theater, still.tier)}` : 'its road to the front is open');
+    } else if (fl.tier > sortie.tier) {
+      mapLine =
+        `${columnName(theater, sortie.tier)} TAKEN · the front moves to ${columnName(theater, fl.tier)}`;
+    } else {
+      mapLine = `Front Line: ${fl.wins}/3 to take ${columnName(theater, fl.tier)}`;
+    }
     const lines = [
       ...(res.objective === 'post'
         ? []
@@ -992,12 +1043,7 @@ export class RaidScene extends Scene {
         : []),
       ...(margin ? [margin] : []),
       res.cleared
-        ? (took
-            ? `${columnName(theater, this.town.frontline.tier - 1)} TAKEN · ` +
-              `the front moves to ${columnName(theater, this.town.frontline.tier)}`
-            : `Front Line: ${this.town.frontline.wins}/3 to take ` +
-              `${columnName(theater, this.town.frontline.tier)}`) +
-          (this.town.frontline.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')
+        ? mapLine + (fl.pendingCounterattack ? '  ·  COUNTERATTACK INBOUND' : '')
         : res.withdrew
           ? 'The post stands, but you did what you came to do.'
           : 'The post stands. Rebuild and go again.',
@@ -1052,9 +1098,10 @@ export class RaidScene extends Scene {
     const town = this.town;
     switch (this.panel.tab) {
       case 'target': {
-        const tier = town.frontline.tier;
+        // Scouting is priced at the target's own tier: ground to retake is
+        // behind the front, and cheaper to look at (M25 Phase 2).
         const scouted = this.scouted();
-        const price = scoutPrice(town, tier);
+        const price = scoutPrice(town, this.target.tier);
         if (this.challenge) {
           const beaten = town.duels?.includes(this.challenge.fingerprint) === true;
           return [
@@ -1087,7 +1134,7 @@ export class RaidScene extends Scene {
             // The SHAPE is free; the layout still costs Intel. Knowing which
             // of three targets is a bunker complex and which is an open camp
             // is the choice the archetypes exist to create.
-            label: `TARGET ${this.variant + 1}/${TARGETS_PER_TIER} · ${laneFor(theaterFor(town.faction), this.variant).name}`,
+            label: this.targetLabel(),
             sub: `${shape.short} ▸`,
             onTap: () => this.cycleTarget(),
           },
@@ -1308,7 +1355,15 @@ export class RaidScene extends Scene {
 
   override update(): void {
     const now = Date.now();
-    tick(this.town, now);
+    const settled = tick(this.town, now);
+    // The map can move under the planner (M25): a strike that cuts the
+    // target's road, a retake that took it back, or a push that took the
+    // front's town all leave it aiming at nothing. It re-aims once the result
+    // and any card are off the screen, never under them.
+    if (!this.challenge && !this.result && !this.overlay && this.targetIndex() < 0) {
+      this.selectTarget(this.pickTarget());
+      if (settled.strikes.length > 0) this.hint('THE ENEMY STRUCK BACK — TARGET CHANGED');
+    }
 
     const town = this.town;
     const squad = this.squads[this.selectedSquad]!;

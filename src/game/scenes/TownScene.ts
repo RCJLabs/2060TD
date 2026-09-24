@@ -117,9 +117,10 @@ import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, 
 import type { Ink } from '../ink';
 import { buildSettings } from '../settingsOverlay';
 import { buildStructureSpec, buildWallSpec } from '../spec';
-import { buildTheaterMap } from '../theaterMap';
+import { buildTheaterMap, theaterNote, type RaidTarget } from '../theaterMap';
 import { frontLabel } from '../../meta/theater';
-import { theaterFor } from '../../content/theaters';
+import type { EnemyStrike } from '../../meta/strikes';
+import { columnName, laneFor, theaterFor } from '../../content/theaters';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
 import {
   baseFromShare,
@@ -296,6 +297,11 @@ export class TownScene extends Scene {
             'DEFEND IT YOURSELF OR LEAVE IT TO THE GARRISON. [SPACE]',
           20,
         );
+        saveTown(town);
+      } else if (settlement.strikes.length > 0) {
+        // Ground lost outranks the probes' report: the probes are in the log,
+        // and the ground has to be answered on the map.
+        this.setBanner(TownScene.strikesLine(town, settlement.strikes), 18);
         saveTown(town);
       } else if (probes.length > 0) {
         const held = probes.filter((p) => p.held).length;
@@ -886,21 +892,21 @@ export class TownScene extends Scene {
     });
   }
 
-  /** The raid planner, on the front post in `variant`'s lane when the map chose one. */
-  private openFrontline(variant?: number): void {
+  /** The raid planner, on the sector the map chose when it chose one. */
+  private openFrontline(target?: RaidTarget): void {
     if (this.demoMode || !isUnlocked(this.town, 'frontline')) return;
     if (this.town.frontline.pendingCounterattack) {
       this.launchCounterattack();
       return;
     }
     saveTown(this.town);
-    this.scene.start('raid', { town: this.town, ...(variant !== undefined ? { variant } : {}) });
+    this.scene.start('raid', { town: this.town, ...(target ? { target } : {}) });
   }
 
   /**
-   * The theater (M25 Phase 1): the Front Line drawn as the ground it is. It
-   * only reads, so a demo board may open it; a raid starts from it only where
-   * one could start from the Front Line row.
+   * The theater (M25): the Front Line drawn as the ground it is, with what the
+   * enemy has retaken behind it. It only reads, so a demo board may open it; a
+   * raid starts from it only where one could start from the Front Line row.
    */
   private showTheater(): void {
     if (this.overlay || !isUnlocked(this.town, 'frontline')) return;
@@ -913,16 +919,36 @@ export class TownScene extends Scene {
     this.overlay = buildTheaterMap(this, {
       layout: this.layout,
       town: this.town,
+      now: Date.now(),
       ...(canRaid
         ? {
-            onRaid: (variant: number) => {
+            onRaid: (target: RaidTarget) => {
               close();
-              this.openFrontline(variant);
+              this.openFrontline(target);
             },
           }
         : {}),
       onClose: close,
     });
+  }
+
+  /** What the enemy retook while the front was quiet, as one banner line (M25 Phase 2). */
+  private static strikesLine(town: TownState, strikes: EnemyStrike[]): string {
+    const t = theaterFor(town.faction);
+    const enemy = flavorFor(town.faction).enemy;
+    const fell = strikes.filter((s) => s.fellBack);
+    const last = fell[fell.length - 1];
+    if (last) {
+      // The town behind the front was lost whole, and the front stands at it again.
+      return `THE FRONT WENT QUIET — THE ${enemy} RETOOK ALL OF ${columnName(t, last.tier)}, ` +
+        `AND THE FRONT FELL BACK TO IT. [G] THEATER`;
+    }
+    const [only] = strikes;
+    if (strikes.length === 1 && only) {
+      return `THE FRONT WENT QUIET — THE ${enemy} RETOOK ${laneFor(t, only.slot).name} AT ` +
+        `${columnName(t, only.tier)}, CUTTING ITS ROAD. [G] THEATER`;
+    }
+    return `THE FRONT WENT QUIET — THE ${enemy} RETOOK ${strikes.length} SECTORS BEHIND IT. [G] THEATER`;
   }
 
   /**
@@ -1709,6 +1735,12 @@ export class TownScene extends Scene {
           `${LEAGUE_BY_ID[settlement.placement.league].label} AT ${settlement.placement.peak} PTS.`,
         18,
       );
+      saveTown(this.town);
+    }
+    // So can a quiet spell's strike, for a commander who builds for a day and
+    // a half without going near the front (M25 Phase 2).
+    if (settlement.strikes.length > 0 && !this.demoMode) {
+      this.setBanner(TownScene.strikesLine(this.town, settlement.strikes), 18);
       saveTown(this.town);
     }
 
@@ -2508,7 +2540,8 @@ export class TownScene extends Scene {
       rows.push({
         id: 'theater',
         label: `THEATER — ${theaterFor(town.faction).name}`,
-        sub: '[G]',
+        // What is lost behind the front, and a strike about to land (M25 Phase 2).
+        sub: theaterNote(town, Date.now()),
         onTap: () => this.openOverlay(() => this.showTheater()),
       });
     }
