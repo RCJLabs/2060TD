@@ -3357,6 +3357,76 @@ premium", which converts idle attrition into sessions.
       strike does. Chain 5, and HOLDFAST's orders on it, are frozen for the battles fought
       with them. Bare defence rows and raid rows cannot meet a pin, since nothing in them
       calls a fire mission on the attack, so they read exactly as v1.46.0's did.
+- [x] **Phase 6 — rule order, measured where the orders fight (v1.49.1).** Phase 5
+      handed on rule order: TRIPWIRE and COUNTERBATTERY lose a gun or a strike to a
+      cheaper rule that spends first, and making order mean priority, or the player's
+      to choose, was to be the next piece of work. Measured first, it was not, and
+      the measuring found what was.
+
+      **As the engine stands, order means nothing.** `npm run balance -- --order`
+      fights every order of each preset's three rules on the contested band, 23
+      cells at 20 seeds. The list only says which rule is looked at first in a given
+      second, and a cheap rule anywhere in it spends while a dearer one saves up.
+      TRIPWIRE's six orders fight the same battles seed for seed, and HOLDFAST's
+      and COUNTERBATTERY's are within a point of each other.
+
+      **Made to mean funding, it means one answer.** A `priority` flag makes the
+      list a priority: a rule that wants to act and is short of its reserve holds
+      back every rule below it, and a rule keeps an action in hand for each rule
+      above it that has not acted yet. The shipped orders fight almost exactly as
+      they do without it, HOLDFAST 67% held against 68 and the other two unchanged.
+      But TRIPWIRE with its gun first holds 88%, +42 over no orders, and it is the
+      best order on every stage but EARLY and against every faction, while the
+      other two presets' orders stay within three points of each other. Letting
+      the player choose would hand them that one configuration: the flattening
+      Phases 2 and 3c refused, with a menu in front of it.
+
+      **And none of that is the battle standing orders fight.** Every M23 phase
+      judged the orders on the ladder's sieges, which start with 40 to 80 CP and
+      earn 1.2 a second. The orders never fight one. A live siege is the
+      commander's, and the one battle the garrison fights for them is the offline
+      probe: the rung's first two waves with the defender's economy off, so every
+      CP is one a kill earned. `--probes` fights the instruments on those, and
+      `--probe-held` reads them straight, every faction, 8 seeds, levels 1-8 (a
+      probe comes at the town's rung, capped at one past the front line's tier,
+      plus league pressure of up to two):
+
+      | a probe, per battle | HOLDFAST | COUNTERBATTERY | TRIPWIRE |
+      |---|---|---|---|
+      | probes held against no orders, of 2,000 | ±0 | +1 | ±0 |
+      | orders carried out | 0 | 1.4 | 2.4 |
+      | strikes called | 0 | 0 | — |
+      | upkeep | 0 | 22 supplies | 37 supplies |
+      | billed as the town's losses, EARLY (CC1), before this phase | 0 | 2.3% of the stockpile | 2.7% |
+
+      Every reference base, and EARLY cut to two guns, holds every probe at
+      levels 1 to 8, 10 and 12 against every faction. EARLY cut to one gun is the
+      only base that ever loses one: to North Korea from level 5, Russia from 8 and
+      China at 12. There no preset moves the verdict by more than a seed in eight.
+      HOLDFAST never acts: its guns answer a breach and its gun run an assault on
+      the post, and a probe makes neither. COUNTERBATTERY never calls a strike,
+      and what it does in a probe is lay its claymore. Bar that one probe in 2,000,
+      no preset changes how a probe ends, so there is nothing for funding first to
+      fund.
+
+      **What the measuring found instead was a bill.** A held probe bills 3% of the
+      stockpile for every structure lost, capped at 10%, and it counted every
+      structure the battle lost: the garrison's own mines going off, and the guns
+      it bought with CP. A played siege never counted those, because field
+      defences expire with the battle, and now a probe does not either. Before
+      this, the two presets that lay mines made a held probe cost MORE than leaving
+      no orders at all, 2.3% and 2.7% of an EARLY town's stockpile a probe, and 3.7%
+      on one gun, for mines doing their job. `--probe-held` prints the old bill
+      beside the new one; every structure those presets lost was their own.
+
+      **What it hands on.** Rule order is not made the player's. `priority` stays
+      in the type, inert and pinned by a test, with the instruments that priced
+      it, as `fairShare` and `perWave` did. Standing orders now cost their upkeep
+      and change no probe, so what they are FOR is the open question. Probes are
+      easy on purpose, since Phase 4 made the live offer the contested battle, and
+      a doctrine that cannot change an easy battle can only charge for it. Retire
+      them, make them free, or give the probe something they can change: that is a
+      design call, and it replaces rule order as the item M23 hands on.
 
 ## M24 — "The Settlement": from nine buildings to a base builder
 
@@ -4577,6 +4647,11 @@ a decision, and rule order is the other open item.*
 
 *M30 Phase 3 shipped in v1.49.0: it did not, and the stage replaced it, so M30
 is done. Rule order, which M23 handed on, is the open item.*
+
+*M23 Phase 6 (v1.49.1) measured rule order where standing orders fight, the
+offline probe, and no order of any preset changes one. It is not made the
+player's. What it found instead, probes billing a town for the garrison's own
+mines, is fixed. What standing orders are for is the open item now.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

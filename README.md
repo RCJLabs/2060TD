@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.49.0, in the browser. No install, no account, works on a phone.
+v1.49.1, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,23 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.49: a third of the download
+## Current state — v1.49.1: the garrison stops charging you for its own mines
+
+**A probe your base holds no longer bills you for the mines your standing orders
+laid.** When an offline probe is held, the town pays 3% of its stockpile for each
+building it lost. Until now that count took in every mine TRIPWIRE and
+COUNTERBATTERY laid and set off, and any gun they bought with Command Points, as if
+each were one of your buildings. On an early base those two orders made a held probe
+cost 2–4% of the stockpile, for mines doing their job. A probe now bills only for
+your own buildings, as a battle you play always has.
+
+**Measured on the way:** in the probes they fight, standing orders don't change
+whether your base holds. A base with two guns holds every probe at the levels they
+come at, and HOLDFAST never has anything to do in one. So an order costs its
+upkeep, 15 supplies each, and does nothing else. What standing orders should be for
+is the next question on the roadmap.
+
+## v1.49: a third of the download
 
 **The game is a third of the size it was, and starts three times as fast.** It
 was built on Phaser, a general-purpose game engine. Since v1.46 moved the menus

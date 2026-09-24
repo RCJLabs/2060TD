@@ -1099,3 +1099,17 @@ here with the change and its date.
   instrument was wrong too: Chrome's counters left out a canvas's paint, which
   is most of this game's frame. `npm run perf` reads a trace now, and takes
   `--no-webgl` to hold an old build to its Canvas renderer.
+- 2026-09-24 — **Rule order is not the player's to choose, and a probe bills only
+  what the town lost.** Two measurements, and the second made the first moot. On
+  the ladder's contested band, order means nothing as the engine evaluates it,
+  and made to mean funding priority it has one answer: TRIPWIRE with its gun
+  first, best on every stage but one and against every faction, which is the
+  flattening refused twice with a menu in front of it. And standing orders never
+  fight the ladder. The one battle they fight is the offline probe, which every
+  base with two guns holds at every level measured, so no preset changes how one
+  ends, in any order, bar one probe in 2,000. What they did there was cost: a
+  probe billed 3% of the stockpile for every structure the battle lost, the
+  garrison's own mines and CP-bought guns included, which a played siege never
+  counts. Fixed as the siege does it. The priority mechanic stays in the type,
+  inert, with its instruments. What standing orders are for is the open
+  question M23 hands on now.
