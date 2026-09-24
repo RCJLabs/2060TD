@@ -686,9 +686,16 @@ export function tick(town: TownState, now: number): LadderSettlement {
     const rate = ratesPerMinute(town);
     const cap = caps(town);
     const minutes = elapsed / 60_000;
-    town.supplies = Math.min(cap.supplies, town.supplies + rate.supplies * minutes);
-    town.fuel = Math.min(cap.fuel, town.fuel + rate.fuel * minutes);
-    town.intel = Math.min(cap.intel, town.intel + rate.intel * minutes);
+    // Production fills storage to the cap and no further. What is already
+    // above it stays until it is spent: loot, the day's orders and a season
+    // placement are paid on top of the cap, and until M24 Phase 1 the next
+    // frame's tick cut every one of them back to it — a full store kept none
+    // of what the battles paid.
+    const fill = (held: number, cap: number, perMinute: number): number =>
+      Math.max(held, Math.min(cap, held + perMinute * minutes));
+    town.supplies = fill(town.supplies, cap.supplies, rate.supplies);
+    town.fuel = fill(town.fuel, cap.fuel, rate.fuel);
+    town.intel = fill(town.intel, cap.intel, rate.intel);
   }
   town.lastSeen = now;
 

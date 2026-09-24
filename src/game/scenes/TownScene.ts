@@ -2419,16 +2419,20 @@ export class TownScene extends Scene {
       ? `M${mission.index + 1} ${mission.codename} · ${town.victories}W ${town.defeats}L`
       : `SKIRMISH LV ${town.assaultLevel} · ${town.victories}W ${town.defeats}L`;
 
-    // Portrait has one status line to spend; the rail can afford three.
+    // Portrait has one status line to spend; the rail can afford three. A full
+    // store says so rather than quoting a rate nothing is being added at: M24
+    // Phase 1 measured that a town is full most of the time it exists.
+    const flow = (held: number, cap: number, perMinute: number): string =>
+      held >= cap ? 'FULL' : `+${perMinute}/min`;
     const lines =
       this.layout.mode === 'portrait'
         ? [
             `SUP ${Math.floor(town.supplies)}  FUEL ${Math.floor(town.fuel)}  INT ${Math.floor(town.intel)}`,
           ]
         : [
-            `SUPPLIES ${Math.floor(town.supplies)}/${cap.supplies} (+${rate.supplies}/min)`,
-            `FUEL     ${Math.floor(town.fuel)}/${cap.fuel} (+${rate.fuel}/min)`,
-            `INTEL    ${Math.floor(town.intel)}/${cap.intel} (+${rate.intel}/min)`,
+            `SUPPLIES ${Math.floor(town.supplies)}/${cap.supplies} (${flow(town.supplies, cap.supplies, rate.supplies)})`,
+            `FUEL     ${Math.floor(town.fuel)}/${cap.fuel} (${flow(town.fuel, cap.fuel, rate.fuel)})`,
+            `INTEL    ${Math.floor(town.intel)}/${cap.intel} (${flow(town.intel, cap.intel, rate.intel)})`,
           ];
     this.panel.setStatus(`${flavorFor(town.faction).faction} · ${headline}`, lines);
     this.panel.setRows(this.rowsForTab(now));

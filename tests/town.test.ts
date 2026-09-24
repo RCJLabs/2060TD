@@ -122,6 +122,23 @@ describe('town state', () => {
     expect(town.supplies).toBe(caps(town).supplies);
   });
 
+  it('keeps what was paid on top of the cap, and adds nothing to it until it is spent', () => {
+    const town = rich(yardTown(T0));
+    place(town, 'supplyDepot', idx(5, 5), T0);
+    tick(town, T0 + minutes(1));
+    const cap = caps(town).supplies;
+    // Loot, the day's orders or a season placement, landed on a full store.
+    town.supplies = cap + 500;
+    tick(town, T0 + minutes(1) + 16);
+    expect(town.supplies).toBe(cap + 500);
+    tick(town, T0 + minutes(60));
+    expect(town.supplies).toBe(cap + 500);
+    // Spent below the cap, it fills back up to it as it always did.
+    town.supplies = cap - 100;
+    tick(town, T0 + minutes(70));
+    expect(town.supplies).toBe(cap);
+  });
+
   it('the Engineering Bay shortens construction', () => {
     const town = townAtCc(2);
     place(town, 'engBay', idx(5, 5), T0);
