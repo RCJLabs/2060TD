@@ -6,12 +6,13 @@
  * four of them plain discs — which is not something you can see from inside a
  * battle, where two kinds are ever on screen at once.
  *
- * The glyphs are pure functions of a Phaser Graphics and call only ten of its
- * methods, so this stands a Canvas2D shim in its place: the same code, the
- * same numbers, a different back end. Rendered in the browser rather than
- * through a native canvas binding, because Vite already transpiles the module
- * on demand and Playwright is already here — no new dependency to draw a
- * picture of the drawing code.
+ * The glyphs are pure functions of an `Ink` (src/game/ink.ts), so this hands
+ * them the `CanvasInk` a drawer row draws with: the same code, the same
+ * numbers, the same back end as the row. Until M30 it stood a shim of its own
+ * in for Phaser's Graphics. Rendered in the browser rather than through a
+ * native canvas binding, because Vite already transpiles the module on demand
+ * and Playwright is already here — no new dependency to draw a picture of the
+ * drawing code.
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -52,55 +53,12 @@ try {
   const size = await page.evaluate(async () => {
     const { drawAttackerGlyph } = await import('/src/game/glyphs.ts');
     const { COLORS } = await import('/src/game/palette.ts');
+    const { CanvasInk } = await import('/src/game/dom/ink.ts');
     const KINDS =
       'militia guardsman conscript rifle ranger motorrifle nkrifle peacekeeper sapper engineer demoteam tunneler unsapper grenadier javelin rpg rpg7 nlaw infiltrator unmedic humvee zbd btr vab abrams type99 t72 chonma leo1 reaper an2 wz10 ka52 nh90'.split(
         ' ',
       );
     const css = (n) => `#${(n >>> 0).toString(16).padStart(6, '0').slice(-6)}`;
-
-    /** The ten Graphics calls the glyphs make, on a 2D context. */
-    const shim = (ctx) => {
-      let fill = '#000';
-      let alpha = 1;
-      let stroke = '#000';
-      let strokeAlpha = 1;
-      let lineW = 1;
-      const api = {
-        fillStyle(c, a = 1) { fill = css(c); alpha = a; return api; },
-        lineStyle(w, c, a = 1) { lineW = w; stroke = css(c); strokeAlpha = a; return api; },
-        fillCircle(x, y, r) {
-          ctx.globalAlpha = alpha; ctx.fillStyle = fill;
-          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); return api;
-        },
-        strokeCircle(x, y, r) {
-          ctx.globalAlpha = strokeAlpha; ctx.strokeStyle = stroke; ctx.lineWidth = lineW;
-          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); return api;
-        },
-        fillRect(x, y, w, h) {
-          ctx.globalAlpha = alpha; ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); return api;
-        },
-        strokeRect(x, y, w, h) {
-          ctx.globalAlpha = strokeAlpha; ctx.strokeStyle = stroke; ctx.lineWidth = lineW;
-          ctx.strokeRect(x, y, w, h); return api;
-        },
-        fillPoints(pts) {
-          ctx.globalAlpha = alpha; ctx.fillStyle = fill;
-          ctx.beginPath();
-          pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-          ctx.closePath(); ctx.fill(); return api;
-        },
-        lineBetween(x1, y1, x2, y2) {
-          ctx.globalAlpha = strokeAlpha; ctx.strokeStyle = stroke; ctx.lineWidth = lineW;
-          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); return api;
-        },
-        save() { ctx.save(); return api; },
-        restore() { ctx.restore(); return api; },
-        translateCanvas(x, y) { ctx.translate(x, y); return api; },
-        rotateCanvas(a) { ctx.rotate(a); return api; },
-        clear() { return api; },
-      };
-      return api;
-    };
 
     // Three sizes, because the set has to work at all of them: a drawer row,
     // a counter on the board at fit zoom, and the spec card's hero.
@@ -115,11 +73,17 @@ try {
     const rows = Math.ceil(KINDS.length / COLS);
     document.body.innerHTML = '';
     document.body.style.margin = '0';
+    // The game is still running behind the sheet. Its DOM layer puts itself
+    // back over the page at the next resize, so it is hidden outright, and its
+    // rows draw icons into canvases of their own, so this one goes by name.
+    document.head.insertAdjacentHTML('beforeend', '<style>#ui { display: none !important; }</style>');
     const canvas = document.createElement('canvas');
+    canvas.id = 'sheet';
     canvas.width = COLS * CW;
     canvas.height = rows * CH + 44;
     document.body.appendChild(canvas);
     const ctx = canvas.getContext('2d');
+    const ink = new CanvasInk(ctx);
     // The GROUND, not a guess at it. `COLORS.paper` does not exist, and
     // `css(undefined)` is black — so the first three passes of this sheet were
     // judged against a background the game never draws, which flatters a cream
@@ -152,7 +116,7 @@ try {
       let x = cx + 22;
       for (const cell of SIZES) {
         ctx.save();
-        drawAttackerGlyph(shim(ctx), kind, x, cy + 66, cell, {
+        drawAttackerGlyph(ink, kind, x, cy + 66, cell, {
           friendly: !theirs,
           facing: 0,
           wallDps: 0,
@@ -170,7 +134,7 @@ try {
 
   mkdirSync('screenshots', { recursive: true });
   await page.setViewportSize({ width: size.w, height: size.h });
-  await page.locator('canvas').screenshot({ path: OUT });
+  await page.locator('#sheet').screenshot({ path: OUT });
   if (errors.length) console.error('page errors:', errors.join('\n'));
   console.log(`wrote ${OUT} — ${size.w}×${size.h}`);
   await browser.close();
