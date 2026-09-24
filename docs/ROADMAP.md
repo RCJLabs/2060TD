@@ -3758,8 +3758,9 @@ costs a week of throughput.
       before the defence tables describe a town anyone plays.
 
       The gate: 24 of 24, clean, on the first batch.
-- [ ] **Phase 4 — chains and districts.** The tech tree becomes a graph rather
-      than three ladders.
+- [x] **Phase 4 — chains and districts.** The tech tree becomes a graph rather
+      than three ladders. *(4a shipped in v1.52.0; 4b, districts, set aside by
+      the week at war in v1.52.1.)*
 
       **The plan, before the build.** Two things are handed on. Phases 2 and 3
       left a surplus that only the war spends: after day three a good CC3 yard
@@ -3934,6 +3935,118 @@ costs a week of throughput.
       pressed, and the two research-locked works lengthened the run of locked
       rows past that spread. It lands at six spots now, and the second batch
       was 24 of 24.
+
+      **A week at war, before 4b (the plan).** Every economy reading so far has
+      had a commander who never fights. What 4b would be judged against depends
+      on whether the war spends the surplus, so that is measured first, as an
+      instrument, with no change to the game.
+
+      *The town.* The stage where the surplus is: CC3, built out, the LATE
+      reference defence standing and the economy laid out behind the lines by
+      the yard search, on the ground the game itself would fit under that
+      layout (`fitTerrainSeed`). The nine techs are done and the graph is not,
+      the stores start full, and the faction's harness raid force stands
+      trained.
+
+      *The commander.* A week of ten-minute sessions at a fixed cadence from
+      07:00 to 23:00, everything through the real functions:
+      - the probes an absence owes (`runOfflineProbes`), and the defence the
+        last one offers, fought with nobody acting;
+      - a counterattack when one is owed, fought the same way;
+      - a raid a session on the Front Line with the harness's force for the
+        faction: the rung's three targets in turn, each scouted the first time,
+        the research multipliers, today's conditions, the ladder's payout, and
+        the harness's fire plan (an A-10 on the guns at 15 seconds, a barrage
+        on the post at 40); the losses retrained at once, and the charges
+        restocked to the cap;
+      - every wreck repaired and every wall that fell rebuilt before the
+        session ends, and the graph bought as the builder buys it.
+
+      A second row adds a skirmish a session at the town's assault level,
+      fought with nobody acting, climbing when it holds.
+
+      *The books.* Production, what the works convert and what a full store
+      loses, as the fortnight books them, and every action's net effect on the
+      three stores. So the war's income (loot, bounties, the day's orders,
+      placements) and its costs (training, charges, repairs, walls, scouting,
+      probes, defeats) are each a line.
+
+      *The rule.* If a full store loses under a quarter of what the town makes
+      at war, the war is the sink and M24 closes without districts: a third
+      layout rule would be solving a problem the war already solves. If it
+      loses nearly as much as without the war (61-63%), districts are judged
+      against this table and not the peaceful one, beside M25's supply and
+      attrition as the other place a sink could come from.
+
+      **The record: a week at war (v1.52.1).** The war does not spend the
+      surplus. On the way, the instrument found two ways a siege was destroying
+      stockpile that nothing meant it to, and both are fixed.
+
+      *Two siege bugs.* Every battle result ends by clamping the stores to the
+      storage cap. That clamp exists so a siege's pay cannot lift a store past
+      the cap, and it did two more things. It read the caps the town was left
+      with, after the battle's wrecks, so a bunker or Signals Station wrecked
+      in a siege took everything it was holding with it, in a siege the town
+      won as much as one it lost, and nothing said so. At war, for the USA
+      with the skirmish ladder, that burned 28,000 supplies, 8,300 fuel and
+      4,900 intel in the week: 58% of the intel the town made. And it cut back
+      whatever already stood above the cap, raid loot and the day's orders
+      included, which the 2026-09-24 decision says stay until spent. The
+      clamp now reads the caps the battle began with, and never takes a store
+      below what it held going in. A defeat still takes its 15%.
+
+      *The war pays for itself.* A WEEK AT WAR (`npm run balance -- --war`),
+      supplies lost to a full store and the war's net a day (every action but
+      research), at two- and eight-hourly sessions:
+
+      | | peace | raids | raids and skirmishes |
+      |---|---|---|---|
+      | USA, 2 h | 70% | 72%, +2,558 | 53%, −3,475 |
+      | USA, 8 h | 70% | 75%, +4,056 | 56%, −3,995 |
+      | China, 2 h | 70% | 68%, +2,197 | 59%, −1,113 |
+      | China, 8 h | 70% | 58%, −4,284 | 44%, −8,789 |
+      | Russia, 2 h | 70% | 73%, +4,070 | 54%, −2,919 |
+      | Russia, 8 h | 70% | 75%, +3,577 | 47%, −7,229 |
+      | KPA, 2 h | 70% | 68%, +83 | 59%, −2,423 |
+      | KPA, 8 h | 70% | 65%, −1,438 | 56%, −4,480 |
+      | UN, 2 h | 70% | 70%, +1,442 | 60%, −1,197 |
+      | UN, 8 h | 70% | 67%, −814 | 57%, −4,184 |
+
+      Where it goes, with raids and skirmishes every two hours: raids bring in
+      6,500-16,000 supplies a day, and their losses cost 3,000-7,300 to
+      retrain, so a raid pays for itself and then some. Skirmishes pay
+      3,600-8,800 net of their defeats, and counterattacks 1,800-2,900. What
+      the war spends is repairs: 12,000-22,000 supplies a day, and 2,300-4,000
+      fuel. Scouting and research are all that spend intel, and a full store
+      still loses two thirds of it. At one session a day, 63% of what the town
+      makes is lost past the eight-hour cap before a store is even full, and
+      the war changes little.
+
+      *The rule.* A full store losing under a quarter at war would have made
+      the war the sink. The fullest commander measured, raiding every session
+      and climbing the skirmish ladder until a defeat, still loses 44-60%,
+      against 70% in peace. So the war is not the sink, and districts would not
+      be one either: a third layout rule changes what the buildings make, not
+      what the town spends. 4b is set aside. The sink belongs to M25, whose
+      supply and attrition is a cost of holding ground that grows with what a
+      commander tries to hold, and this table is what it is judged against.
+
+      *Where it departs from the plan.* A third commander, who never fights,
+      plays the same town and week, so the peace row is read directly rather
+      than borrowed from the fortnight. The skirmish commander stops for the
+      day after a defeat: the first run fought its frontier every session,
+      lost three in four, and repaired the town 44,800 supplies a day, which no
+      player does. And the wrecks are repaired after every siege rather than at
+      the session's end, because the first run retrained its losses before
+      repairing, and a wrecked barracks trains nothing.
+
+      The gate: 23 of 24 on the first batch. `e2e-drawer` failed again and
+      passed alone, the same failure v1.52.0 treated with six landing spots:
+      under load, the four locked rows the works now make in the build list
+      could cover every landing one coast offered. Reproduced one run in four
+      under load. Each attempt now changes its flick as well as its landing,
+      up to ten, and it passed eight of eight under the same load and 24 of
+      24 in the second batch.
 
 ## M25 — "The Theater": give the war a map
 
@@ -5172,6 +5285,13 @@ wanted would have taken timers measured in days, and GDD 2.3 refuses those. In a
 fortnight with no war, most of what the town makes is still lost to a full store,
 because only the war spends fuel and intel. A fortnight at war is the measurement
 4b needs first.*
+
+*The week at war (v1.52.1) measured it: the war pays for itself. Raids more than
+repay their losses, and even a commander who raids and skirmishes every session
+loses 44-60% of what the town makes to a full store, against 70% in peace. So
+districts are set aside, and M24 is done. The sink belongs to M25's supply and
+attrition. Two siege bugs were fixed on the way: a wrecked bunker burned what
+it held, and a siege cut back loot that stood above the cap.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

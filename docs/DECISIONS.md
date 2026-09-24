@@ -1191,3 +1191,24 @@ here with the change and its date.
   lever a game without a shop has no reason to pull. Four and ten hours stand,
   and a commander who only builds has the graph about three days after the
   town.
+- 2026-09-24 — **A battle never takes a store below what it held going in
+  (v1.52.1).** Every battle result clamps the stores to the storage cap, so
+  that a siege's pay cannot lift a store past it. The clamp read the caps
+  the town was left with, after the battle's wrecks, so a bunker or Signals
+  Station wrecked in a siege took everything it held with it, in a siege the
+  town won as much as one it lost, and no message said so. It also cut back
+  whatever already stood above the cap: raid loot and the day's orders, which
+  the decision above says stay until spent. The week at war found both (a
+  USA commander climbing the skirmish ladder lost 58% of a week's intel to
+  the first). The clamp now reads the caps the battle began with, and limits
+  each store to the greater of that cap and what it held going in. A siege's
+  own pay still stops at the cap, and a defeat still takes its 15%.
+- 2026-09-24 — **Districts are set aside; the war pays for itself.** M24's
+  fourth phase was to finish with districts, judged against what the works
+  and the graph left unspent. First a week at war was measured, since every
+  economy reading until then had a commander who never fought. Raids more
+  than repay their losses, and a commander who raids and climbs the skirmish
+  ladder every session still loses 44-60% of what a CC3 town makes to a full
+  store, against 70% in peace. A layout rule changes what the buildings make,
+  not what the town spends, so districts would not be the sink either. The
+  sink belongs to M25's supply and attrition.

@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.52.0, in the browser. No install, no account, works on a phone.
+v1.52.1, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,23 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.52: the surplus goes to work
+## Current state — v1.52.1: a won siege keeps your stockpile
+
+**Sieges no longer destroy your stores.** When a battle wrecked a storage bunker or the
+signals station, the supplies, fuel or intel they held vanished with them, even when you
+won. Nothing told you. Now a wrecked bunker keeps what it held until you spend it, and
+your depots stop filling it until it's repaired. A siege also used to cut back loot and
+day's-order pay you were holding above your storage limit. It doesn't any more; a siege's
+own pay still stops at the limit.
+
+**Measured: the war pays for itself.** Over a simulated week at Command Center 3, raids
+earned back more than the units they lost. A town that raided and fought the skirmish
+ladder every session still wasted about half of what it produced to full storage, against
+70% for a town that never fought. That's why the planned "districts" were dropped: another
+layout rule wouldn't spend any of it. What will is the war map on the roadmap (M25), where
+holding ground costs supplies.
+
+## v1.52: the surplus goes to work
 
 **Two new buildings turn spare supplies into fuel and intel.** Once a town is built, it makes
 more supplies than it can spend, while fuel and intel run short. The **Refinery** makes fuel

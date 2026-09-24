@@ -563,7 +563,13 @@ those eight hours. A built CC1 fills its supplies in 8.3 hours, CC2 in 9.5 and C
 every storage bunker is needed to get there, so an absence keeps what it makes. Until then a
 store filled in half an hour and an eight-hour absence kept 5–7% of it (M24 Phase 1). Loot, the
 day's orders and a season placement land on top of a full store and stay until spent; production
-does not.
+does not. A battle's own pay stops at the cap, but a battle never takes a store below what it held
+going in, and a wrecked bunker keeps what it held; production waits for the repair *(v1.52.1)*.
+
+**The war pays for itself.** Measured over a week at CC3 (M24 Phase 4), raids more than repay the
+units they lose, and a commander who raids and climbs the skirmish ladder every session still loses
+44-60% of what the town makes to a full store, against 70% for one who never fights. Repairs are
+the war's one real cost. The sink a built town needs is M25's: holding ground.
 
 **What production is worth.** At these rates the whole town takes about three days to buy for a
 commander who plays several times a day, and nine for one who plays once. The battles pay hours:
