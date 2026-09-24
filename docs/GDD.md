@@ -555,7 +555,10 @@ Two consequences run through the whole codebase:
 | **Intel** *(M6)* | Radar/Comms, defense victories | Research, scouting raid targets |
 | **Manpower** | Camps (soft cap, not a currency) | Army size limit |
 
-Offline accrual caps at storage capacity; default 8h of production banked.
+Offline accrual caps at storage capacity, and at eight hours. Storage is the cap that binds:
+measured in M24 Phase 1, a built stage fills its store in about half an hour of supplies and an
+hour of fuel, so an eight-hour absence keeps 5–7% of the supplies it made. Loot, the day's orders
+and a season placement land on top of a full store and stay until spent; production does not.
 
 ### 5.2 Buildings (USA names; every faction has analogues)
 

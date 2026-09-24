@@ -8,9 +8,10 @@
  *
  * Two tables. STAGES has no player in it: a Command Center level with its whole
  * allowance built, and what that town makes, keeps and costs. A PLAYED FORTNIGHT
- * has one: a commander who checks in at a fixed cadence and buys the cheapest
- * thing still to buy, the Command Center first whenever it can, with every
- * resource that moves booked to where it came from and where it went.
+ * has one: a commander who checks in at a fixed cadence and buys production,
+ * then storage, intel, the Command Center and the rest, the cheapest first
+ * within each, with every resource that moves booked to where it came from and
+ * where it went.
  */
 import { assaultLoot } from '../content/assaults';
 import { generateBase, lootFor } from '../content/bases';

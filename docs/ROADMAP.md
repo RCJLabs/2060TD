@@ -3437,8 +3437,83 @@ accrual, **power and logistics as a constraint** so layout is an economic decisi
 and not only a maze decision, and **persistent battle damage** so a bad defence
 costs a week of throughput.
 
-- [ ] **Phase 1 — an economy instrument.** Where does a player's time and supply
-      actually go? Nothing has ever pointed a harness at the town.
+- [x] **Phase 1 — an economy instrument (v1.49.2).** Where does a player's time and
+      supply actually go? Nothing has ever pointed a harness at the town.
+
+      **The plan, before the instrument.** `npm run balance -- --economy`, read off
+      the real town functions (`caps`, `ratesPerMinute`, `tick`, `place`, `upgrade`,
+      `startResearch`) rather than a model of them. STAGES has no player in it: a
+      Command Center level with its whole allowance built, and what it makes, keeps
+      and costs, beside what the battles pay. A PLAYED FORTNIGHT has one: a
+      commander who checks in at a fixed cadence across sixteen waking hours and,
+      in each ten-minute session, buys production, then storage, then intel, then
+      the Command Center, then everything else, the cheapest first within a tier.
+      Three things the survey said, for it to confirm or refute: storage fills in
+      about half an hour where the GDD promises eight hours banked; the whole CC3
+      town costs about two hours of its own production; and pay landed on top of
+      the storage cap is cut back to it by the next frame's `tick`. All three held.
+
+      **Storage holds half an hour.** Every stage, built out:
+
+      | stage | makes a minute | stores | full from empty | an 8-hour absence keeps |
+      |---|---|---|---|---|
+      | CC1 | 80 supplies, 8 fuel | 2,000 S, 600 F | 25 min (S), 75 min (F) | 5% of the supplies, 16% of the fuel |
+      | CC2 | 210 S, 28 F, 7 intel | 6,000 S, 1,750 F, 400 I | 29 / 63 / 57 min | 6%, 13% |
+      | CC3 | 440 S, 66 F, 11 I | 14,600 S, 4,150 F, 660 I | 33 / 63 / 60 min | 7%, 13% |
+
+      Eight hours of production is fourteen to nineteen times the supplies any
+      stage can store, where the GDD promises "default 8h of production banked". An
+      absence banks no more supplies after its first half hour and no more fuel
+      after its first hour, and the eight-hour offline window never binds before
+      storage does.
+
+      **The whole town is a day's work.** In the played fortnight:
+
+      | a session every | all bought (CC3, every piece at level 3) | all nine techs | supplies lost to a full store |
+      |---|---|---|---|
+      | 30 min | 4 h | 4 h | 99% |
+      | 2 h | 12 h | 10 h | 99% |
+      | 8 h (three a day) | 2.0 days | 1.7 days | 99% |
+      | once a day | 6.0 days | 5.0 days | 33%, and 66% past the 8-hour window |
+
+      By the end of the first day an engaged commander has bought everything the
+      town sells: 49,000 supplies at a two-hour cadence, 32% of it on the military
+      facilities, 29% on production, 12% on storage, 22% on guns and 6% on the
+      Command Center. From then on nothing is left to buy, and 98% of everything
+      the depots make over a fortnight is made after the last purchase. The one
+      standing sink the instrument leaves out is the army, and it does not change
+      the picture: CC3's manpower cap is 66, and a whole army of the dearest units
+      costs about 4,000 supplies, nine minutes of CC3's production. Russia builds
+      a little slower (fourteen hours at two-hourly sessions) and North Korea a
+      little faster; the shape is the same for all five.
+
+      **The battles pay minutes.** A siege held at level 8 is 1,450 supplies: 18
+      minutes of CC1's production, 7 of CC2's, 3 of CC3's. A day of three orders
+      is 8 minutes of CC2's, a tier-5 post razed to the ground 9. Once the town is
+      bought, loot is a number on a screen, because there is nothing to spend it
+      on.
+
+      **And a full store kept none of it.** Raid loot, the day's orders and a
+      season placement are paid on top of the storage cap, and `tick`'s own comment
+      says that is where they should land. But the town screen ticks every frame,
+      and `tick` set each stock to the lesser of the cap and the stock plus what
+      was produced, so the next frame cut anything above the cap back to it. A CC3
+      town paid a day's orders at its cap kept none of the 1,350 supplies. Fixed:
+      production fills to the cap and no further, and what is above it stays until
+      it is spent. (A siege's loot is still clamped to the cap on purpose, as it
+      always was.) The town screen says FULL beside a full store, where it quoted
+      a rate nothing was being added at.
+
+      **What Phase 1 hands on.** The town economy has no sink past its first day,
+      and production outruns storage by an order of magnitude at every stage. Phase
+      2's adjacency and power would make layout an economic decision inside an
+      economy that has nothing left to decide by the second day: a depot placed
+      well would fill a full store faster. So whatever makes layout matter has to
+      come with something that is still worth buying on day five, or with rates and
+      caps that make a player choose, or it changes nothing a player feels.
+
+      The gate: 23 of 24, with one batch flake in `e2e-drawer`, the silhouette
+      dragged onto the map under load, which passed alone and three more times.
 - [ ] **Phase 2 — adjacency and power.** Alone, these turn layout into two
       overlapping optimisation problems: the maze and the grid.
 - [ ] **Phase 3 — chains and districts.** The tech tree becomes a graph rather
@@ -4652,6 +4727,12 @@ is done. Rule order, which M23 handed on, is the open item.*
 offline probe, and no order of any preset changes one. It is not made the
 player's. What it found instead, probes billing a town for the garrison's own
 mines, is fixed. What standing orders are for is the open item now.*
+
+*M24 Phase 1 (v1.49.2) pointed the first harness at the town: storage holds half
+an hour of production, the whole town is bought within the first day, and a full
+store kept none of what the battles paid, which is fixed. Phase 2 inherits an
+economy with nothing to buy on day two, and has to answer that before adjacency
+and power can matter.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

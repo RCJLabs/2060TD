@@ -1113,3 +1113,13 @@ here with the change and its date.
   counts. Fixed as the siege does it. The priority mechanic stays in the type,
   inert, with its instruments. What standing orders are for is the open
   question M23 hands on now.
+- 2026-09-24 — **What is paid on top of the storage cap stays until it is
+  spent.** Raid loot, the day's orders and a season placement are added above
+  the cap, and `tick` said that was where they should land. The next frame's
+  tick cut them back to it, because it set each stock to the lesser of the cap
+  and the stock plus production, and the town screen ticks every frame. So a
+  full store kept nothing the battles paid, and M24 Phase 1 measured that a
+  store is full almost all of the time. Production still stops at the cap; pay
+  no longer does. A siege's loot stays clamped to the cap, as it always was,
+  because that path clamps it on purpose. The town screen says FULL beside a
+  full store.

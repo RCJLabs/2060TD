@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.49.1, in the browser. No install, no account, works on a phone.
+v1.49.2, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,22 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.49.1: the garrison stops charging you for its own mines
+## Current state — v1.49.2: a full store keeps what you win
+
+**Loot, the day's orders and season pay now stay in a full store.** They were always
+paid on top of the storage cap, but only for a moment: the town cut everything above
+the cap back to it the next time it updated, so a raid won with full storage paid
+nothing. Now production still stops at the cap, but whatever you win above it is
+yours until you spend it. The status strip also says FULL when a store is full,
+instead of quoting a rate nothing is being added at.
+
+**Measured on the way:** storage holds about half an hour of a built town's
+production, so an eight-hour absence keeps 5–7% of the supplies the depots made.
+And a commander who checks in every couple of hours has bought the whole town, every
+building at its top level and all nine techs, by the end of the first day. That is
+the problem the base-building half of the roadmap now has numbers for.
+
+## v1.49.1: the garrison stops charging you for its own mines
 
 **A probe your base holds no longer bills you for the mines your standing orders
 laid.** When an offline probe is held, the town pays 3% of its stockpile for each
