@@ -62,8 +62,7 @@ export class DomPanel implements PanelApi, PanelProbe {
   private readonly scene: Phaser.Scene;
   private readonly tabs: PanelTab[];
   private readonly root: HTMLDivElement;
-  private readonly bgTop: HTMLDivElement;
-  private readonly bgBottom: HTMLDivElement;
+  private readonly bg: HTMLDivElement;
   private readonly statusBg: HTMLDivElement;
   private readonly edge: HTMLDivElement;
   private readonly handle: HTMLDivElement;
@@ -132,12 +131,9 @@ export class DomPanel implements PanelApi, PanelProbe {
       this.root.appendChild(el);
       return el;
     };
-    // The ground, in two pieces with the primary band left open between them:
-    // until the scenes' free buttons move to the DOM (1d), the band's CONFIRM
-    // and LAUNCH are drawn on the canvas beneath, and a solid sheet would
-    // cover them.
-    this.bgTop = div(`pointer-events:auto;background:${hex(COLORS.bgPanel)}`);
-    this.bgBottom = div(`pointer-events:auto;background:${hex(COLORS.bgPanel)}`);
+    // The ground. The primary band's CONFIRM and LAUNCH sit on it in the
+    // scene's own layer, above this one (see `sceneHost`).
+    this.bg = div(`pointer-events:auto;background:${hex(COLORS.bgPanel)}`);
     this.statusBg = div(`pointer-events:auto;background:${hex(COLORS.bgPanel)}`);
     this.edge = div(`background:${hex(COLORS.oliveDark)}`);
     this.handle = div(`pointer-events:auto;touch-action:none;cursor:grab;background:${hex(COLORS.bgPanel)}`);
@@ -227,7 +223,7 @@ export class DomPanel implements PanelApi, PanelProbe {
 
   applyLayout(layout: Layout): void {
     this.layout = layout;
-    const { panel, status, tabs, list, handle, primary, pad, font } = layout;
+    const { panel, status, tabs, list, handle, pad, font } = layout;
     place(this.root, cssRect({ x: 0, y: 0, w: layout.width, h: layout.height }));
     const at = (el: HTMLElement, x: number, y: number, w: number, h: number): void => {
       el.style.left = `${css(x)}px`;
@@ -236,14 +232,7 @@ export class DomPanel implements PanelApi, PanelProbe {
       el.style.height = `${css(Math.max(0, h))}px`;
     };
 
-    if (primary.h > 0) {
-      at(this.bgTop, panel.x, panel.y, panel.w, primary.y - panel.y);
-      at(this.bgBottom, panel.x, primary.y + primary.h, panel.w, panel.y + panel.h - primary.y - primary.h);
-      this.bgBottom.style.display = '';
-    } else {
-      at(this.bgTop, panel.x, panel.y, panel.w, panel.h);
-      this.bgBottom.style.display = 'none';
-    }
+    at(this.bg, panel.x, panel.y, panel.w, panel.h);
     at(this.statusBg, status.x, status.y, status.w, status.h);
 
     const grabbable = handle.w > 0 && handle.h > 0;

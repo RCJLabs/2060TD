@@ -112,7 +112,7 @@ import { COLORS } from '../palette';
 import { footprintOfKind } from '../../content/catalog';
 import { scaleCatalog } from '../../sim/scale';
 import { makeSheet } from '../ground';
-import { makeButton, mono, type Button, type PanelRow, createPanel, type PanelApi } from '../ui';
+import { type PanelRow, createPanel, type PanelApi, createButton, createLabel, type FreeButton, type SceneLabel } from '../ui';
 import type { BattleTag } from './SiegeScene';
 
 /** Which mission grants each locked key — for "LOCKED (M4)" labels. */
@@ -178,10 +178,10 @@ export class TownScene extends Phaser.Scene {
    * step per cell would make a twelve-cell wire twelve decisions.
    */
   private pendingCell: number | null = null;
-  private confirmBtn: Button | null = null;
+  private confirmBtn: FreeButton | null = null;
   /** Whether the layout currently has a band reserved for the confirm bar. */
   private barReserved = false;
-  private cancelBtn: Button | null = null;
+  private cancelBtn: FreeButton | null = null;
   private selectedId: number | null = null;
   private demoMode = false;
   /** Which war slot `this.town` came from; -1 until one is loaded. */
@@ -196,7 +196,7 @@ export class TownScene extends Phaser.Scene {
 
   private dynLayer!: Phaser.GameObjects.Graphics;
   private staticLayer!: Phaser.GameObjects.Graphics;
-  private bannerText!: Phaser.GameObjects.Text;
+  private bannerText!: SceneLabel;
   private board!: BoardView;
   private panel!: PanelApi;
   private layout!: Layout;
@@ -385,8 +385,7 @@ export class TownScene extends Phaser.Scene {
       this.drawer = share;
       this.applyLayout();
     };
-    this.bannerText = this.add.text(0, 0, '', mono(11, COLORS.signal));
-    this.board.ui.add(this.bannerText);
+    this.bannerText = createLabel(this, this.board.ui, '', { size: 11, color: COLORS.signal });
 
     this.applyLayout();
     this.focusBase();
@@ -1821,7 +1820,7 @@ export class TownScene extends Phaser.Scene {
     const y = banded ? primary.y : board.y + board.h - pad - h;
     const midX = banded ? primary.x + primary.w / 2 : board.x + board.w / 2;
     if (!this.confirmBtn) {
-      this.confirmBtn = makeButton(this, 0, 0, w, h, 'CONFIRM', () => this.commitPending(), {
+      this.confirmBtn = createButton(this, 0, 0, w, h, 'CONFIRM', () => this.commitPending(), {
         emphasis: 'primary',
         align: 'center',
         container: this.board.ui,
@@ -1830,7 +1829,7 @@ export class TownScene extends Phaser.Scene {
       // highlight — the same one the armed build row wears — rather than a
       // hand-tinted background, which `refresh()` would paint over anyway.
       this.confirmBtn.setActive(true);
-      this.cancelBtn = makeButton(this, 0, 0, w, h, 'CANCEL', () => {
+      this.cancelBtn = createButton(this, 0, 0, w, h, 'CANCEL', () => {
         this.pendingCell = null;
       }, { align: 'center', container: this.board.ui, quiet: true });
       // Release the refs when the scene tears down, the way BoardView, the

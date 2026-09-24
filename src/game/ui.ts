@@ -6,6 +6,9 @@ import { music } from './music';
 import { DRAWER_FULL, snapDrawer, type DrawerState, type Layout, type Rect } from './layout';
 import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
+import { domButton } from './dom/button';
+import { domLabel, type LabelStyle, type SceneLabel } from './dom/label';
+import { sceneHost } from './dom/layer';
 import { DomPanel } from './dom/panel';
 import { domUi } from './dom/flag';
 import type { PanelApi, PanelRow, PanelTab } from './rows';
@@ -16,6 +19,7 @@ export { DISPLAY_FAMILY, DISPLAY_SCALE, DRAG_SLOP, MONO_FAMILY } from './tokens'
 
 export type { ButtonProbe, TextRect } from './seam';
 export type { CarryPointer, PanelApi, PanelRow, PanelTab } from './rows';
+export type { LabelStyle, SceneLabel } from './dom/label';
 
 /**
  * Touch-first UI kit (v0.9). Buttons take real thumb-sized rects and their
@@ -1583,4 +1587,97 @@ export function createPanel(
   tabs: PanelTab[],
 ): PanelApi {
   return domUi() ? new DomPanel(scene, container, tabs) : new Panel(scene, container, tabs);
+}
+
+/**
+ * A button a scene places itself — CONFIRM, LAUNCH, the siege's one primary
+ * action — as a scene holds it: what the four of them call, and no more.
+ */
+export interface FreeButton {
+  setActive(active: boolean): void;
+  setEnabled(enabled: boolean): void;
+  setVisible(visible: boolean): void;
+  setLabel(text: string): void;
+  setSub(text: string): void;
+  /** Place the box, in device px. */
+  setRect(x: number, y: number, w: number, h: number): void;
+  setFont(size: number): void;
+  destroy(): void;
+}
+
+/** A free button from whichever kit the flag names (M30). */
+export function createButton(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  text: string,
+  onClick: () => void,
+  opts: ButtonOptions = {},
+): FreeButton {
+  if (!domUi()) return makeButton(scene, x, y, width, height, text, onClick, opts);
+  const b = domButton(sceneHost(scene), text, onClick, {
+    font: opts.font ?? Math.max(11, Math.round(height * 0.42)),
+    align: opts.align ?? 'left',
+    ...(opts.sub !== undefined ? { sub: opts.sub } : {}),
+    ...(opts.quiet ? { quiet: true } : {}),
+    ...(opts.emphasis ? { emphasis: opts.emphasis } : {}),
+    ...(opts.edgeGrace ? { edgeGrace: true } : {}),
+    ...(opts.onHold ? { onHold: opts.onHold } : {}),
+  });
+  // A free button has nothing behind it to scroll.
+  b.el.style.touchAction = 'manipulation';
+  b.setRect(x, y, width, height);
+  return b;
+}
+
+/**
+ * A line of text over the board from whichever kit the flag names (M30). The
+ * canvas one goes in `container`, as a scene's HUD text always has, so the
+ * board camera does not draw it a second time.
+ */
+export function createLabel(
+  scene: Phaser.Scene,
+  container: Phaser.GameObjects.Container,
+  text: string,
+  style: LabelStyle,
+): SceneLabel {
+  if (domUi()) return domLabel(sceneHost(scene), text, style);
+  const t = scene.add.text(0, 0, text, {
+    ...mono(style.size, style.color ?? COLORS.ink, {
+      ...(style.bold ? { fontStyle: 'bold' } : {}),
+      ...(style.align ? { align: style.align } : {}),
+      ...(style.background !== undefined ? { backgroundColor: css(style.background) } : {}),
+      ...(style.lineSpacing !== undefined ? { lineSpacing: style.lineSpacing } : {}),
+    }),
+    ...(style.padX !== undefined || style.padY !== undefined
+      ? { padding: { x: style.padX ?? 0, y: style.padY ?? 0 } }
+      : {}),
+  });
+  t.setOrigin(style.originX ?? 0, style.originY ?? 0);
+  container.add(t);
+  const label: SceneLabel = {
+    setText(value) {
+      t.setText(value);
+      return label;
+    },
+    setVisible(visible) {
+      t.setVisible(visible);
+      return label;
+    },
+    setPosition(px, py) {
+      t.setPosition(px, py);
+      return label;
+    },
+    setFontSize(size) {
+      t.setFontSize(size);
+      return label;
+    },
+    setWordWrapWidth(width) {
+      t.setWordWrapWidth(width);
+      return label;
+    },
+  };
+  return label;
 }

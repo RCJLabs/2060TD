@@ -102,7 +102,7 @@ import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, 
 import type { Ink } from '../ink';
 import { createOverlay, type OverlayApi } from '../overlay';
 import { buildAttackerSpec } from '../spec';
-import { makeButton, mono, type Button, type PanelRow, createPanel, type PanelApi } from '../ui';
+import { mono, type PanelRow, createPanel, type PanelApi, createButton, createLabel, type FreeButton, type SceneLabel } from '../ui';
 
 /** A pasted base plus the fingerprint that stops it paying twice. */
 export interface Challenge {
@@ -173,18 +173,18 @@ export class RaidScene extends Phaser.Scene {
   /** Tunnel siting mode: the selected squad awaits a map click for its mouth. */
   private siting = false;
   private hintUntil = 0;
-  private hintText!: Phaser.GameObjects.Text;
+  private hintText!: SceneLabel;
 
   private baseLayer!: Phaser.GameObjects.Graphics;
   private dynLayer!: Phaser.GameObjects.Graphics;
-  private fogText!: Phaser.GameObjects.Text;
+  private fogText!: SceneLabel;
   private sectorLabels: Phaser.GameObjects.Text[] = [];
   private board!: BoardView;
   private panel!: PanelApi;
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
-  private launchButton!: Button;
+  private launchButton!: FreeButton;
   private overlay: OverlayApi | null = null;
   /** A duel against a pasted snapshot instead of a rung on the ladder. */
   private challenge: Challenge | null = null;
@@ -261,13 +261,20 @@ export class RaidScene extends Phaser.Scene {
     this.board.world.add([sheet, this.baseLayer, this.dynLayer]);
     this.board.passable = (col, row) => raidGround.passable(row * MAP_W + col);
 
-    this.fogText = this.add
-      .text(0, 0, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {
-        ...mono(18, COLORS.inkDim, { align: 'center', lineSpacing: 8 }),
-      })
-      .setOrigin(0.5);
-    this.hintText = this.add.text(0, 0, '', mono(12, COLORS.signal, { fontStyle: 'bold' })).setOrigin(0.5, 0);
-    this.board.ui.add([this.fogText, this.hintText]);
+    this.fogText = createLabel(this, this.board.ui, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {
+      size: 18,
+      color: COLORS.inkDim,
+      align: 'center',
+      lineSpacing: 8,
+      originX: 0.5,
+      originY: 0.5,
+    });
+    this.hintText = createLabel(this, this.board.ui, '', {
+      size: 12,
+      color: COLORS.signal,
+      bold: true,
+      originX: 0.5,
+    });
     // After the hint line exists, not before: reopening says something, and a
     // scene that talks before it has a mouth talks through the last scene's.
     this.reopenLastPlan();
@@ -309,7 +316,7 @@ export class RaidScene extends Phaser.Scene {
       this.drawer = share;
       this.applyLayout();
     };
-    this.launchButton = makeButton(this, 0, 0, 10, 10, '', () => this.launch(), {
+    this.launchButton = createButton(this, 0, 0, 10, 10, '', () => this.launch(), {
       emphasis: 'primary',
       align: 'center',
       container: this.board.ui,

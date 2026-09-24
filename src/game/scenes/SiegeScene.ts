@@ -10,13 +10,13 @@ import { DT, Engine } from '../../sim/engine';
 import type { SimConfig, SimEvent } from '../../sim/types';
 import { audio } from '../audio';
 import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleRenderer';
-import { COLORS, css } from '../palette';
+import { COLORS } from '../palette';
 import { TERRAIN_VERSION } from '../../sim/terrain';
 import { siegeOnBoard } from '../../sim/board';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
 import { createOverlay, type OverlayApi } from '../overlay';
-import { makeButton, mono, type Button, type PanelRow, createPanel, type PanelApi } from '../ui';
+import { type PanelRow, createPanel, type PanelApi, createButton, createLabel, type FreeButton, type SceneLabel } from '../ui';
 
 export type BattleTag =
   | { type: 'mission'; missionId: string }
@@ -82,7 +82,7 @@ export class SiegeScene extends Phaser.Scene {
   private battleTag: BattleTag | null = null;
   private faction: FactionId = 'usa';
   private paused = false;
-  private pausedText!: Phaser.GameObjects.Text;
+  private pausedText!: SceneLabel;
   /** First-contact coach (v1.5): only ever on a commander's first battle. */
   private coach: Coach | null = null;
   private wantCoach = false;
@@ -95,9 +95,8 @@ export class SiegeScene extends Phaser.Scene {
   private layout!: Layout;
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
-  private primary!: Button;
+  private primary!: FreeButton;
   private overlay: OverlayApi | null = null;
-  private buttons: Record<string, Button> = {};
 
   constructor() {
     super('siege');
@@ -136,7 +135,6 @@ export class SiegeScene extends Phaser.Scene {
     this.speedMult = 1;
     this.accumulator = 0;
     this.overlayShown = false;
-    this.buttons = {};
 
     // Standalone battles fight the faction's own war: USA gets the tuned
     // HOLD THE LINE demo; the others get their armor mission at strength.
@@ -187,19 +185,21 @@ export class SiegeScene extends Phaser.Scene {
       this.applyLayout();
     };
     // The one action that must always be under a thumb.
-    this.primary = makeButton(this, 0, 0, 10, 10, '', () => this.advancePhase(), {
+    this.primary = createButton(this, 0, 0, 10, 10, '', () => this.advancePhase(), {
       emphasis: 'primary',
       align: 'center',
       container: this.board.ui,
     });
-    this.pausedText = this.add
-      .text(0, 0, 'HOLDING', {
-        ...mono(24, COLORS.ink, { fontStyle: 'bold', backgroundColor: css(COLORS.bgPanel) }),
-        padding: { x: 18, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setVisible(false);
-    this.board.ui.add(this.pausedText);
+    this.pausedText = createLabel(this, this.board.ui, 'HOLDING', {
+      size: 24,
+      color: COLORS.ink,
+      bold: true,
+      background: COLORS.bgPanel,
+      padX: 18,
+      padY: 10,
+      originX: 0.5,
+      originY: 0.5,
+    }).setVisible(false);
 
     this.applyLayout();
     onLayoutChange(this, () => this.applyLayout());

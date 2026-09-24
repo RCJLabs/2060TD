@@ -1,4 +1,6 @@
+import Phaser from 'phaser';
 import { devicePixelRatioCapped, type Rect } from '../layout';
+import { textSources, type TextRect } from '../seam';
 
 /**
  * The DOM layer (M30): one element over the canvas that every DOM component
@@ -56,6 +58,53 @@ export function uiLayer(): HTMLDivElement {
   }
   document.body.appendChild(layer);
   return layer;
+}
+
+const hosts = new WeakMap<Phaser.Scene, HTMLDivElement>();
+
+/**
+ * The element a scene's own DOM pieces hang from — its free buttons, its
+ * labels over the board — placed at the canvas's origin, so a child placed
+ * in device px lands where the canvas kit would have drawn it.
+ *
+ * Above the panel (20), below the overlays (60): a CONFIRM sits over the
+ * drawer, and a briefing sits over everything. It goes when the scene does,
+ * because nothing else would take it down: a Phaser object dies with its
+ * scene, and a DOM node dies when somebody removes it.
+ */
+export function sceneHost(scene: Phaser.Scene): HTMLDivElement {
+  let host = hosts.get(scene);
+  if (host?.isConnected) return host;
+  host = document.createElement('div');
+  host.dataset['ui'] = 'scene';
+  host.style.cssText = 'position:fixed;width:0;height:0;overflow:visible;pointer-events:none;z-index:30';
+  const o = canvasOrigin();
+  host.style.left = `${o.left}px`;
+  host.style.top = `${o.top}px`;
+  uiLayer().appendChild(host);
+  hosts.set(scene, host);
+  // Everything a scene hangs here is on screen for the harness to read: a
+  // free button's label, a banner, the coach's line. One source for the lot,
+  // so nothing that lands here can be missed by forgetting to register it.
+  const texts = (): TextRect[] => {
+    const out: TextRect[] = [];
+    if (!host?.isConnected) return out;
+    for (const el of host.querySelectorAll<HTMLElement>('[data-text]')) {
+      const text = el.textContent ?? '';
+      if (text.length === 0 || el.offsetParent === null) continue;
+      out.push({ text, ...deviceRect(el), depth: 0, onBoard: false });
+    }
+    return out;
+  };
+  textSources.add(texts);
+  const drop = (): void => {
+    host?.remove();
+    hosts.delete(scene);
+    textSources.delete(texts);
+  };
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, drop);
+  scene.events.once(Phaser.Scenes.Events.DESTROY, drop);
+  return host;
 }
 
 /** Where the canvas sits on the page, in CSS px. Device px count from here. */
