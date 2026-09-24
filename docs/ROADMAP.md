@@ -3376,7 +3376,52 @@ renderer, or keep Phaser for the BOARD only and move the entire UI to DOM and CS
 **Take the second.** Lower risk, bigger immediate win, and it makes accessible
 text and real input handling free.
 
-- [ ] **Phase 1 — a DOM panel behind a flag**, one scene at a time.
+**What the survey found, before any code (v1.45.3).**
+
+| | |
+|---|---|
+| Phaser | 1,482 kB, 340 kB gzipped |
+| the game itself | 383 kB, 124 kB gzipped |
+| the canvas UI kit | `ui.ts` 1,723 lines, `overlay.ts` 537 |
+
+Two components carry almost the whole UI. `Panel` is the rail in landscape and
+the drawer in portrait: tabs, pooled rows, drag-scroll with a fling, tab swipes,
+long press, carrying a row onto the board, row icons, the status strip. Five
+scenes use it. `Overlay` is the scrim, masthead, scrolling body and footer that
+every briefing, report, log and menu is printed on: 20 constructions across
+seven files, and the front door is nothing else. Around them sit a handful of
+loose buttons and texts: the status line, banners, the coach's plate.
+
+The harnesses never touch a Phaser object. All 24 address the UI through
+`window.lastline` — buttons, texts and text rects by label and rect, the
+drawer's scroll, layout and tab — so a DOM implementation that answers the same
+seam keeps the whole gate as its acceptance test. And there is precedent: the
+share-code box has been DOM laid over the canvas since v1.2.
+
+**The plan: port by COMPONENT, not by scene, behind one flag.** Every overlay
+in the game is one class with one API, and so is every panel. A DOM version of
+each that honours the same API converts every scene's copy at once, and leaves
+the call sites alone until Phase 2 deletes the canvas versions. Porting scene by
+scene would mean two implementations of the same component live in one scene.
+
+The flag is `?ui=dom`, or `VITE_UI=dom` when the dev server starts, so
+`VITE_UI=dom npm run e2e` runs the whole gate against the DOM UI without editing
+a harness. The default stays canvas until every harness passes both ways.
+
+- [ ] **Phase 1 — the DOM UI behind the flag.**
+  - [ ] **1a — the kit.** A UI layer over the canvas. `Ink`, a Canvas2D stand-in
+        for the dozen Graphics calls the glyphs make, so an icon in a DOM row is
+        drawn by the same code as the board. The seam: DOM buttons and text
+        answer `liveButtons`, `liveTexts` and `liveTextRects`.
+  - [ ] **1b — `DomOverlay`.** The menu, briefings, settings, the spec cards and
+        Town's overlays. The front door is the first screen that is all DOM.
+  - [ ] **1c — `DomPanel`.** Native scrolling replaces the hand-rolled drag and
+        fling. The drawer handle, tab swipe, long press and carry-to-board are
+        the real work, the carry most of all: a touch that starts on a DOM row
+        belongs to that row, so it has to be handed to the board on purpose.
+  - [ ] **1d — the loose pieces**: status strip, banners, coach plate, free
+        buttons.
+  - [ ] **1e — flip the default**, once every harness passes with the flag on.
 - [ ] **Phase 2 — retire `ui.ts`, `overlay.ts` and the gesture layer.**
 - [ ] **Phase 3 — revisit Phaser** once the board is the only thing using it.
 
