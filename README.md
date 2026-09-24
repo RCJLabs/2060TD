@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.45.5, in the browser. No install, no account, works on a phone.
+v1.46.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,34 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.45: a board sized for thumbs
+## Current state — v1.46: the menus are a page, the map is a canvas
+
+**Every menu, panel, button and line of text in the game is now an ordinary page
+element.** Until now all of it was painted onto the same canvas as the map, so
+none of the text was text: a screen reader could not read it, nothing scrolled the
+way a phone expects, and 2,300 lines of code did by hand what a browser does for
+free. Now the canvas draws the map and nothing else, and everything around it is the
+web page it looks like.
+
+It looks the same, because it was built to: the same layout, drawn from the same
+measurements, with every automated test passing both ways before it became the
+default. What changes is how it behaves:
+
+- **The drawer scrolls with your phone's own momentum**, and a finger on a coasting
+  list stops it without pressing the row it lands on.
+- **The text is real text**, so a screen reader can read it.
+- **Buttons take the keyboard**: Tab to reach one, Enter or Space to press it.
+
+Everything else is as it was: a long press still opens a card, a sideways swipe
+still changes tab, and dragging a building's picture onto the map still places it
+in one stroke. If something looks wrong on your device, `?ui=canvas` brings back
+the old drawing for one more release. After that it goes, and those 2,300 lines go
+with it.
+
+**Also fixed on the way:** the front door's five faction marks no longer spill off
+a narrow phone.
+
+## v1.45: a board sized for thumbs
 
 **Every battle is now fought on 10x15 cells of two units each, where it was 20x30
 cells of one.** The world is the same size; its cells are twice as big. With the

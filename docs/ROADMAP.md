@@ -3408,7 +3408,7 @@ The flag is `?ui=dom`, or `VITE_UI=dom` when the dev server starts, so
 `VITE_UI=dom npm run e2e` runs the whole gate against the DOM UI without editing
 a harness. The default stays canvas until every harness passes both ways.
 
-- [ ] **Phase 1 — the DOM UI behind the flag.**
+- [x] **Phase 1 — the DOM UI behind the flag (v1.45.4-v1.46.0).**
   - [x] **1a — the kit (v1.45.4).** A UI layer over the canvas. `Ink`, a
         Canvas2D stand-in for the dozen Graphics calls the glyphs make, so an
         icon in a DOM row is drawn by the same code as the board. The seam: DOM
@@ -3506,9 +3506,32 @@ a harness. The default stays canvas until every harness passes both ways.
         file, written ahead and imported by nothing, which named exports that
         did not exist yet. CI's typecheck failed and nothing deployed until a
         commit adding them followed ten minutes later.
-  - [ ] **1d — the loose pieces**: status strip, banners, coach plate, free
+  - [x] **1d — the loose pieces**: status strip, banners, coach plate, free
         buttons.
-  - [ ] **1e — flip the default**, once every harness passes with the flag on.
+
+        Four free buttons — the town's CONFIRM and CANCEL, the siege's primary
+        action, the raid's LAUNCH — come from `createButton`. Four texts over
+        the board — the banner, the raid's hint and recon notice, HOLDING —
+        come from `createLabel`. The coach picks its plate by the flag. In the
+        DOM all of them hang from a per-scene host above the panel and below
+        the overlays, which goes when its scene does, since a DOM node, unlike
+        a Phaser object, does not die with the scene that made it. The status
+        strip was already the panel's.
+
+        The host reports every text in it to the harness, as one source. The
+        first cut had each label register itself and the free buttons register
+        nothing, so `e2e-raid` read the planner with no LAUNCH RAID on it and
+        found no units committed: the text was on screen and not in the list.
+        One source per host is one place to forget, not one per piece.
+
+        With 1d the DOM UI is the whole UI: under the flag, the canvas draws
+        the board and nothing else. The gate: **24 of 24 with the flag on and
+        24 of 24 with it off**, the first clean pair of the milestone.
+  - [x] **1e — flip the default (v1.46.0)**, once every harness passes with the
+        flag on. They did, both ways, so the DOM is the UI now and
+        `?ui=canvas` is the way back, kept one release while the DOM kit meets
+        devices the harnesses never ran on. The unit suite has no window and
+        keeps the canvas answer.
 - [ ] **Phase 2 — retire `ui.ts`, `overlay.ts` and the gesture layer.**
 - [ ] **Phase 3 — revisit Phaser** once the board is the only thing using it.
 
@@ -4264,6 +4287,10 @@ cheapest large win, which also unblocks the UI surface that M23 and M29 both nee
 still need a job the kill chain can see, and that is a design problem where the
 rest of the milestone was a measurement one. It can go before or after M30.
 Nothing in M30 changes a number it would be judged on.*
+
+*M30 Phase 1 shipped in v1.46.0: the UI is DOM by default. Phase 2 deletes the
+canvas kit once v1.46 has been out a release without anyone needing
+`?ui=canvas`.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

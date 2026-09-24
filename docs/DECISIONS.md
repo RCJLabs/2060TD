@@ -1035,3 +1035,8 @@ here with the change and its date.
   not. Nothing deployed until the two exports followed. The checks run on the
   tree; the release is the commit; the two are only the same when the commit
   is staged file by file.
+- 2026-09-24 — **The DOM is the UI from v1.46.** Every harness passed with
+  the DOM kit and with the canvas kit, 24 of 24 each way, which was the bar
+  set before the first line of it was written. The canvas kit stays one more
+  release behind `?ui=canvas`, as a way back while the DOM meets devices the
+  harnesses never ran on, and then goes with the rest of Phase 2's deletions.
