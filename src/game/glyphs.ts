@@ -1,6 +1,6 @@
-import type Phaser from 'phaser';
 import { footprintOfKind } from '../content/catalog';
 import { COLORS } from './palette';
+import type { Ink, InkPoint } from './ink';
 
 /**
  * Every silhouette that stands on the sheet.
@@ -97,7 +97,7 @@ const HALO = 0.09;
 export type WallPass = 'halo' | 'ink' | 'both';
 
 export function drawWallGlyph(
-  g: Phaser.GameObjects.Graphics,
+  g: Ink,
   x: number,
   y: number,
   cell: number,
@@ -169,7 +169,7 @@ export function drawWallGlyph(
  * footprint-2 kind fills two of them.
  */
 export function drawStructureGlyph(
-  g: Phaser.GameObjects.Graphics,
+  g: Ink,
   kind: string,
   px: number,
   py: number,
@@ -528,7 +528,7 @@ export function drawStructureGlyph(
 }
 
 function dashedRect(
-  g: Phaser.GameObjects.Graphics,
+  g: Ink,
   x: number,
   y: number,
   w: number,
@@ -599,7 +599,7 @@ export interface AttackerGlyphOptions {
  * only the vehicle shapes rotate.
  */
 export function drawAttackerGlyph(
-  g: Phaser.GameObjects.Graphics,
+  g: Ink,
   kind: string,
   px: number,
   py: number,
@@ -1053,7 +1053,7 @@ export function drawAttackerGlyph(
  * `size` box, so one function serves a drawer row, an overlay row and a card.
  */
 export function drawFactionMark(
-  g: Phaser.GameObjects.Graphics,
+  g: Ink,
   faction: string,
   x: number,
   y: number,
@@ -1067,7 +1067,7 @@ export function drawFactionMark(
 
   /** A filled star, points up. */
   const star = (sx: number, sy: number, outer: number): void => {
-    const pts: Phaser.Types.Math.Vector2Like[] = [];
+    const pts: InkPoint[] = [];
     for (let i = 0; i < 10; i++) {
       const rad = i % 2 === 0 ? outer : outer * 0.42;
       const a = -Math.PI / 2 + (i * Math.PI) / 5;

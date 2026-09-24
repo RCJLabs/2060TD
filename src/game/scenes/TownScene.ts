@@ -95,7 +95,7 @@ import { BoardView } from '../BoardView';
 import { drawFactionMark, drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
 import { haptic } from '../haptics';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { Overlay } from '../overlay';
+import { createOverlay, type OverlayApi } from '../overlay';
 import { buildSettings } from '../settingsOverlay';
 import { buildStructureSpec, buildWallSpec } from '../spec';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
@@ -203,7 +203,7 @@ export class TownScene extends Phaser.Scene {
   private drawer: DrawerState = DRAWER_REST;
   /** Research project id seen last frame — completion flips it to a banner. */
   private lastActiveResearch: string | null = null;
-  private overlay: Overlay | null = null;
+  private overlay: OverlayApi | null = null;
   /** How to rebuild the open overlay after the viewport changes. */
   private overlayBuilder: (() => void) | null = null;
   /** Which of today's orders had paid out last frame — the banner watches it. */
@@ -605,7 +605,7 @@ export class TownScene extends Phaser.Scene {
   /** One overlay entry: a text block plus an optional action button.
    * Stacks on phones, sits side-by-side when there is room. */
   private overlayEntry(
-    ov: Overlay,
+    ov: OverlayApi,
     text: string,
     color: number,
     action?: { label: string; onTap: () => void; enabled?: boolean },
@@ -636,7 +636,7 @@ export class TownScene extends Phaser.Scene {
 
   private showMissions(): void {
     if (this.overlay || this.demoMode) return;
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: 'OPERATIONS MAP',
       subtitle: 'Replays of held sectors pay 35% of the original requisition.',
       container: this.board.ui,
@@ -679,7 +679,7 @@ export class TownScene extends Phaser.Scene {
   private showResearch(): void {
     if (this.overlay || this.demoMode) return;
     const radar = hasRadar(this.town);
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: 'RESEARCH & DOCTRINE',
       subtitle: radar
         ? `INTEL ${Math.floor(this.town.intel)} · one project at a time`
@@ -849,7 +849,7 @@ export class TownScene extends Phaser.Scene {
     const pending = this.town.pendingDefense;
     if (!pending) return;
     const bounty = liveDefenseBounty(pending.level);
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: `INBOUND — LEVEL ${pending.level}`,
       subtitle: `Contact in ${untilLabel(Math.max(0, pending.expiresAt - Date.now()))}.`,
       container: this.board.ui,
@@ -923,7 +923,7 @@ export class TownScene extends Phaser.Scene {
   /** Defense log overlay: offline probe history with replays. */
   private showDefenseLog(): void {
     if (this.overlay) return;
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: 'DEFENSE LOG',
       subtitle: 'Probes fought while you were away.',
       container: this.board.ui,
@@ -981,7 +981,7 @@ export class TownScene extends Phaser.Scene {
    * condition the front is fighting under today.
    */
   /** A section rule inside the record: a heading with air above it. */
-  private recordSection(ov: Overlay, title: string): void {
+  private recordSection(ov: OverlayApi, title: string): void {
     const { font, gap } = this.layout;
     // The air is the rule. A record is a wall of numbers; without a gap the
     // sections read as one paragraph and the headings stop doing any work.
@@ -1025,7 +1025,7 @@ export class TownScene extends Phaser.Scene {
     const today = contractsAt(now);
     const state = contractState(this.town, now);
     const done = state.paid.filter(Boolean).length;
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: 'DAY ORDERS',
       subtitle: `${done} of ${today.length} filled · new orders in ${untilLabel(
         contractsEndAt(now) - now,
@@ -1105,7 +1105,7 @@ export class TownScene extends Phaser.Scene {
     if (this.overlay) return;
     const now = Date.now();
     const vault = vaultOf(this.town);
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: 'REPLAY VAULT',
       subtitle:
         vault.length > 0
@@ -1226,7 +1226,7 @@ export class TownScene extends Phaser.Scene {
     if (this.overlay) return;
     const now = Date.now();
     const r: ServiceRecord = serviceRecord(this.town, now);
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: 'SERVICE RECORD',
       subtitle: `${r.army} · DAY ${r.day}`,
       container: this.board.ui,
@@ -1319,7 +1319,7 @@ export class TownScene extends Phaser.Scene {
     const league = leagueOf(this.town);
     const toNext = standingToNext(this.town);
     const condition = conditionAt(now);
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: `THE BOARD — ${league.label}`,
       subtitle: league.blurb,
       container: this.board.ui,
@@ -1431,7 +1431,7 @@ export class TownScene extends Phaser.Scene {
   /**
    * The card behind a long press on a build row.
    *
-   * Routed through `openOverlay` like every other card so an orientation flip
+   * Routed through `this.openOverlay` like every other card so an orientation flip
    * rebuilds it rather than leaving a portrait card on a landscape screen.
    * Refuses while something else is open: a hold that landed on a row showing
    * THROUGH a card is a mis-press, and stacking two overlays leaves the modal
@@ -1509,7 +1509,7 @@ export class TownScene extends Phaser.Scene {
     // composition as one block, which is what the main menu already does. The
     // scrim is opaque because a first-run card has nothing behind it worth
     // seeing — only a town HUD showing through the title.
-    const ov = new Overlay(this, this.layout, { scrim: 1, container: this.board.ui });
+    const ov = createOverlay(this, this.layout, { scrim: 1, container: this.board.ui });
     this.overlay = ov;
     const { gap, font } = this.layout;
     const air = this.layout.compact ? gap : Math.round(gap * 2);
@@ -1574,7 +1574,7 @@ export class TownScene extends Phaser.Scene {
     // Screen 2 of the same card, laid out the same way: everything measured,
     // everything in one centred block. An operation name is long enough to
     // wrap on a phone, and a pinned one would take the body's space with it.
-    const ov = new Overlay(this, this.layout, { scrim: 1, container: this.board.ui });
+    const ov = createOverlay(this, this.layout, { scrim: 1, container: this.board.ui });
     this.overlay = ov;
     const { gap, font } = this.layout;
     const air = this.layout.compact ? gap : Math.round(gap * 2);

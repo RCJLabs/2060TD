@@ -41,6 +41,9 @@ export function showTextBox(opts: TextBoxOptions): void {
   closeTextBox();
 
   const scrim = document.createElement('div');
+  // So a harness can say WHICH close it means. Since M30 an overlay under the
+  // box can be DOM too, with a CLOSE of its own.
+  scrim.dataset['ui'] = 'textbox';
   scrim.style.cssText = [
     'position:fixed', 'inset:0', 'z-index:50', 'background:rgba(10,12,10,0.92)',
     'display:flex', 'align-items:center', 'justify-content:center', 'padding:16px',

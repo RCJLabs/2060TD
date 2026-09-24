@@ -12,7 +12,8 @@ import {
 } from '../../meta/save';
 import { tick } from '../../meta/town';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
-import { Overlay } from '../overlay';
+import type { Ink } from '../ink';
+import { createOverlay, type OverlayApi } from '../overlay';
 import { COLORS } from '../palette';
 import { buildSettings } from '../settingsOverlay';
 
@@ -28,7 +29,7 @@ import { buildSettings } from '../settingsOverlay';
  */
 export class MenuScene extends Phaser.Scene {
   private layout!: Layout;
-  private page: Overlay | null = null;
+  private page: OverlayApi | null = null;
   /** Second tap confirms: erasing a war is destructive and has no undo. */
   private wipeArmedUntil = 0;
   private wipeArmedSlot = 0;
@@ -58,9 +59,9 @@ export class MenuScene extends Phaser.Scene {
    * Builders RETURN their overlay and this owns it — a builder that quietly
    * kept its own reference would stack a fresh copy on every rebuild.
    */
-  private builder: (() => Overlay) | null = null;
+  private builder: (() => OverlayApi) | null = null;
 
-  private show(build: () => Overlay): void {
+  private show(build: () => OverlayApi): void {
     this.page?.close();
     this.builder = build;
     this.page = build();
@@ -100,7 +101,7 @@ export class MenuScene extends Phaser.Scene {
     this.rebuild();
   }
 
-  private buildMenu(): Overlay {
+  private buildMenu(): OverlayApi {
     const now = Date.now();
     // The masthead is pinned now, and that reverses a v1.4 decision. It was
     // flowed inside the card because a title floating over a dark scrim left
@@ -108,7 +109,7 @@ export class MenuScene extends Phaser.Scene {
     // slab spanning the sheet since the ink pass, and a slab is an anchor
     // rather than a hole. The front door was the last screen still reading
     // like a text document with three buttons under it.
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       scrim: 1,
       title: '2060TD',
       subtitle:
@@ -133,7 +134,7 @@ export class MenuScene extends Phaser.Scene {
       opts: {
         align?: 'left' | 'center';
         sub?: string;
-        icon?: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void;
+        icon?: (g: Ink, x: number, y: number, size: number) => void;
       } = {},
     ) => ov.flowButton(label, onTap, { ...opts, width: menuWidth, gapAfter: menuGap });
     /**
@@ -180,8 +181,12 @@ export class MenuScene extends Phaser.Scene {
       ov.band(
         markBox,
         (g, rect) => {
-          const left = rect.x + Math.round((rect.w - menuWidth) / 2);
-          const step = menuWidth / FACTION_IDS.length;
+          // The column, or the card when the card is narrower. Spread across
+          // the full column on a 360px phone, the outer two marks were drawn
+          // half off the sheet: the buttons clamp to the card, this did not.
+          const span = Math.min(rect.w, menuWidth);
+          const left = rect.x + Math.round((rect.w - span) / 2);
+          const step = span / FACTION_IDS.length;
           FACTION_IDS.forEach((faction, i) => {
             drawFactionMark(g, faction, left + step * (i + 0.5) - markBox / 2, rect.y, markBox);
           });

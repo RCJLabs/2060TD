@@ -15,7 +15,7 @@ import { TERRAIN_VERSION } from '../../sim/terrain';
 import { siegeOnBoard } from '../../sim/board';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { Overlay } from '../overlay';
+import { createOverlay, type OverlayApi } from '../overlay';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
 export type BattleTag =
@@ -96,7 +96,7 @@ export class SiegeScene extends Phaser.Scene {
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
   private primary!: Button;
-  private overlay: Overlay | null = null;
+  private overlay: OverlayApi | null = null;
   private buttons: Record<string, Button> = {};
 
   constructor() {
@@ -790,7 +790,7 @@ export class SiegeScene extends Phaser.Scene {
       if (mission.unlockNote) lines.push(mission.unlockNote);
     }
 
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST',
       subtitle: mission ? `M${mission.index + 1} — ${mission.codename}` : 'AFTER ACTION',
       scrim: 0.8,

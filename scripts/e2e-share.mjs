@@ -146,13 +146,13 @@ try {
   const code = await page.evaluate(() => document.querySelector('textarea')?.value ?? '');
   check('a code is produced', code.length > 40 && /^[A-Za-z0-9\-_]+$/.test(code), `${code.length} chars`);
   await page.screenshot({ path: 'screenshots/e2e-sharecode.png' });
-  await page.click('text=CLOSE');
+  await page.click('[data-ui="textbox"] >> text=CLOSE');
   await wait(500);
 
   // Paste something broken first: it must be refused, in words.
   await tap('RAID A CODE', 900);
   await page.fill('textarea', `${code.slice(0, 30)}zz`);
-  await page.click('text=SCOUT IT');
+  await page.click('[data-ui="textbox"] >> text=SCOUT IT');
   await wait(600);
   const stillOpen = await page.evaluate(() => document.querySelector('textarea') !== null);
   const status = await page.evaluate(
@@ -162,7 +162,7 @@ try {
 
   // Now the real thing.
   await page.fill('textarea', code);
-  await page.click('text=SCOUT IT');
+  await page.click('[data-ui="textbox"] >> text=SCOUT IT');
   await wait(1800);
   const gone = await page.evaluate(() => document.querySelector('textarea') === null);
   check('a good code closes the box and opens the planner', gone && (await has('MUSTER')), (await labels()).slice(0, 6).join(', '));

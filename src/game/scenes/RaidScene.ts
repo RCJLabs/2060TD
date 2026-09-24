@@ -99,7 +99,7 @@ import { generateTerrain, TERRAIN_NONE, TERRAIN_VERSION } from '../../sim/terrai
 import { BoardView } from '../BoardView';
 import { haptic } from '../haptics';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
-import { Overlay } from '../overlay';
+import { createOverlay, type OverlayApi } from '../overlay';
 import { buildAttackerSpec } from '../spec';
 import { makeButton, mono, Panel, type Button, type PanelRow } from '../ui';
 
@@ -184,7 +184,7 @@ export class RaidScene extends Phaser.Scene {
   /** The drawer's share of the safe height. See `layout.ts` detents. */
   private drawer: DrawerState = DRAWER_REST;
   private launchButton!: Button;
-  private overlay: Overlay | null = null;
+  private overlay: OverlayApi | null = null;
   /** A duel against a pasted snapshot instead of a rung on the ladder. */
   private challenge: Challenge | null = null;
   /**
@@ -716,7 +716,7 @@ export class RaidScene extends Phaser.Scene {
   /** First arrival at the planner: what the four tabs are for. */
   private showPlannerBriefing(): void {
     if (this.overlay) return;
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: 'THE FRONT LINE',
       subtitle: 'A raid is planned, not driven. The plan is the whole skill.',
       container: this.board.ui,
@@ -822,7 +822,7 @@ export class RaidScene extends Phaser.Scene {
     const record = squadRoster(this.town)[slot] ?? { xp: 0, raids: 0, clears: 0, lost: 0 };
     const rank = rankFor(record.xp);
     const up = nextRank(record.xp);
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: squadName(this.town.faction, slot),
       subtitle: `${rank.name} — ${rank.tag}`,
       container: this.board.ui,
@@ -927,7 +927,7 @@ export class RaidScene extends Phaser.Scene {
       );
     }
 
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: res.cleared
         ? 'COMMAND POST DESTROYED'
         : res.withdrew

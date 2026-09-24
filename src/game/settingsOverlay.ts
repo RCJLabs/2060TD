@@ -4,7 +4,7 @@ import { downloadSave, pickAndImportSave, saveTown, SAVE_FILENAME } from '../met
 import type { TownState } from '../meta/town';
 import type { Layout } from './layout';
 import { haptic, hapticsSupported } from './haptics';
-import { Overlay } from './overlay';
+import { createOverlay, type OverlayApi } from './overlay';
 import { COLORS } from './palette';
 import {
   applySettings,
@@ -47,9 +47,9 @@ export function buildSettings(
   scene: Phaser.Scene,
   layout: Layout,
   opts: SettingsOptions,
-): Overlay {
+): OverlayApi {
   const settings = loadSettings();
-  const ov = new Overlay(scene, layout, {
+  const ov = createOverlay(scene, layout, {
     title: 'SETTINGS',
     subtitle: 'Sound and palette follow this device, not the campaign.',
     scrim: 0.94,

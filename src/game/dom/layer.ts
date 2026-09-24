@@ -1,0 +1,111 @@
+import { devicePixelRatioCapped, type Rect } from '../layout';
+
+/**
+ * The DOM layer (M30): one element over the canvas that every DOM component
+ * draws into.
+ *
+ * It takes no pointer events itself, so a tap anywhere a component is not goes
+ * through to the board exactly as it did before there was a layer. A component
+ * that wants input turns it back on for its own subtree.
+ *
+ * UNITS. The game lays everything out in DEVICE px (see layout.ts), because
+ * the canvas is drawn at the device's resolution and shown at CSS size. The
+ * DOM is laid out in CSS px. Every rect crossing from one to the other goes
+ * through `cssRect`, and every probe coming back through `deviceRect`, so a
+ * component never does the division itself and gets it wrong in one place.
+ */
+let layer: HTMLDivElement | null = null;
+
+export function uiLayer(): HTMLDivElement {
+  if (layer?.isConnected) return layer;
+  layer = document.createElement('div');
+  layer.id = 'ui';
+  layer.style.cssText = [
+    'position:fixed',
+    'left:0',
+    'top:0',
+    'width:100%',
+    'height:100%',
+    'pointer-events:none',
+    // Under the share-code box (50), which opens over overlays.
+    'z-index:10',
+    'overflow:hidden',
+    // The canvas kit has no text to select and no long-press menu. Neither
+    // does this one: a thumb resting on a row reads it, it does not copy it.
+    'user-select:none',
+    '-webkit-user-select:none',
+    '-webkit-touch-callout:none',
+    '-webkit-tap-highlight-color:transparent',
+  ].join(';');
+  // Space and Enter on a focused control activate the control. Phaser listens
+  // for keys on the window, so without this the same press would also fire
+  // whatever the scene binds to Space — on the front door, CONTINUE.
+  layer.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') e.stopPropagation();
+  });
+  // A press on this layer is not a press on the board. Phaser listens for
+  // touches and mouse buttons on the WINDOW as well as the canvas, and it
+  // hit-tests the canvas for every one it hears, wherever it landed — so a tap
+  // on a DOM button also pressed whatever canvas button sat under it. The
+  // canvas overlay never met this because its scrim was the topmost canvas
+  // object and swallowed the press; a DOM overlay leaves the drawer beneath it
+  // exposed, and the first harness run closed a spec card and changed tab in
+  // one tap. Stopping the event here keeps it from reaching the window at all.
+  for (const type of ['touchstart', 'touchend', 'touchcancel', 'mousedown', 'mouseup'] as const) {
+    layer.addEventListener(type, (e) => e.stopPropagation());
+  }
+  document.body.appendChild(layer);
+  return layer;
+}
+
+/** Where the canvas sits on the page, in CSS px. Device px count from here. */
+function canvasOrigin(): { left: number; top: number } {
+  const canvas = document.querySelector('#app canvas');
+  if (!canvas) return { left: 0, top: 0 };
+  const r = canvas.getBoundingClientRect();
+  return { left: r.left, top: r.top };
+}
+
+/** The current device px per CSS px, as the canvas uses it. */
+export function dpr(): number {
+  return devicePixelRatioCapped();
+}
+
+/** Device px to CSS px, for a length. */
+export function css(devicePx: number): number {
+  return devicePx / dpr();
+}
+
+/** A device-px rect from the layout, as page CSS px for `position:fixed`. */
+export function cssRect(rect: Rect): { left: number; top: number; width: number; height: number } {
+  const o = canvasOrigin();
+  const d = dpr();
+  return { left: o.left + rect.x / d, top: o.top + rect.y / d, width: rect.w / d, height: rect.h / d };
+}
+
+/** An element's box, as the device-px rect a probe reports. */
+export function deviceRect(el: Element): Rect {
+  const o = canvasOrigin();
+  const d = dpr();
+  const r = el.getBoundingClientRect();
+  return { x: (r.left - o.left) * d, y: (r.top - o.top) * d, w: r.width * d, h: r.height * d };
+}
+
+/** Set an element's absolute box from a rect in CSS px. */
+export function place(
+  el: HTMLElement,
+  box: { left: number; top: number; width: number; height: number },
+): void {
+  el.style.left = `${box.left}px`;
+  el.style.top = `${box.top}px`;
+  el.style.width = `${box.width}px`;
+  el.style.height = `${box.height}px`;
+}
+
+/** A hex colour number as CSS, with alpha when it is not opaque. */
+export function cssColor(color: number, alpha = 1): string {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  return alpha >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${alpha})`;
+}

@@ -1,8 +1,92 @@
 import Phaser from 'phaser';
+import { DomOverlay } from './dom/overlay';
+import { domUi } from './dom/flag';
+import type { Ink } from './ink';
 import type { Layout, Rect } from './layout';
 import { popModal, pushModal } from './modal';
 import { COLORS } from './palette';
 import { display, DRAG_SLOP, makeButton, mono, type Button } from './ui';
+
+/** The styles a caller may add to overlay text: what the callers use, and no more. */
+export interface TextExtra {
+  lineSpacing?: number;
+  align?: 'left' | 'center' | 'right';
+  fontStyle?: string;
+}
+
+/** A block of overlay text, as a caller holds it: where it landed, and a way to change it. */
+export interface OverlayText {
+  readonly y: number;
+  readonly height: number;
+  setText(value: string): unknown;
+}
+
+/** An overlay button, as a caller holds it. */
+export interface OverlayButton {
+  setActive(active: boolean): void;
+  setEnabled(enabled: boolean): void;
+  setVisible(visible: boolean): void;
+  setLabel(text: string): void;
+  setSub(text: string): void;
+  setFont(size: number): void;
+  destroy(): void;
+}
+
+/**
+ * What every overlay can do, whichever kit draws it (M30).
+ *
+ * The canvas `Overlay` and the DOM one both implement this, and callers get
+ * one from `createOverlay`, so a screen is written once and drawn by whichever
+ * kit the flag names.
+ */
+export interface OverlayApi {
+  /** Content area for flowed rows, in device px. */
+  readonly card: Rect;
+  flow(height: number, gapAfter?: number): Rect;
+  text(rect: Rect, value: string, size: number, color?: number, extra?: TextExtra): OverlayText;
+  centered(rect: Rect, value: string, size: number, color?: number, extra?: TextExtra): OverlayText;
+  paragraph(
+    value: string,
+    size: number,
+    color?: number,
+    opts?: { gapAfter?: number; width?: number; minHeight?: number; center?: boolean; lineSpacing?: number },
+  ): OverlayText;
+  chart(values: number[], height: number, opts?: { color?: number; latest?: number; gapAfter?: number }): Rect;
+  sketch(size: number, draw: (g: Ink, x: number, y: number, size: number) => void, opts?: { gapAfter?: number }): Rect;
+  band(height: number, draw: (g: Ink, rect: Rect) => void, gapAfter?: number): Rect;
+  button(rect: Rect, label: string, onTap: () => void, opts?: { align?: 'left' | 'center'; sub?: string }): OverlayButton;
+  flowButton(
+    label: string,
+    onTap: () => void,
+    opts?: {
+      align?: 'left' | 'center';
+      sub?: string;
+      width?: number;
+      gapAfter?: number;
+      font?: number;
+      icon?: (g: Ink, x: number, y: number, size: number) => void;
+    },
+  ): OverlayButton;
+  footer(label: string, onTap: () => void, index?: number, of?: number): OverlayButton;
+  readonly scrollable: boolean;
+  close(): void;
+}
+
+export interface OverlayOptions {
+  title?: string;
+  subtitle?: string;
+  scrim?: number;
+  depth?: number;
+  /** Pass a scene's HUD container, or the board camera draws the overlay
+   * a second time at board zoom. The DOM kit has no cameras and ignores it. */
+  container?: Phaser.GameObjects.Container;
+}
+
+/** An overlay from whichever kit the flag names. */
+export function createOverlay(scene: Phaser.Scene, layout: Layout, opts: OverlayOptions = {}): OverlayApi {
+  if (domUi()) return new DomOverlay(scene, layout, opts);
+  return new Overlay(scene, layout, opts);
+}
 
 /**
  * Full-screen overlays (briefings, research, logs, the faction pick) as one
@@ -10,7 +94,7 @@ import { display, DRAG_SLOP, makeButton, mono, type Button } from './ui';
  * body, and a fixed footer. Content is laid out by vertical flow rather than
  * hardcoded coordinates, so the same overlay reads on a phone and a monitor.
  */
-export class Overlay {
+export class Overlay implements OverlayApi {
   private readonly scene: Phaser.Scene;
   private readonly layout: Layout;
   private readonly objects: Phaser.GameObjects.GameObject[] = [];
@@ -35,19 +119,7 @@ export class Overlay {
   private closed = false;
   private closeHandler?: () => void;
 
-  constructor(
-    scene: Phaser.Scene,
-    layout: Layout,
-    opts: {
-      title?: string;
-      subtitle?: string;
-      scrim?: number;
-      depth?: number;
-      /** Pass a scene's HUD container, or the board camera draws the overlay
-       * a second time at board zoom. */
-      container?: Phaser.GameObjects.Container;
-    } = {},
-  ) {
+  constructor(scene: Phaser.Scene, layout: Layout, opts: OverlayOptions = {}) {
     this.scene = scene;
     this.layout = layout;
     this.depth = opts.depth ?? 60;
@@ -203,7 +275,7 @@ export class Overlay {
     value: string,
     size: number,
     color = COLORS.ink,
-    extra: Partial<Phaser.Types.GameObjects.Text.TextStyle> = {},
+    extra: TextExtra = {},
   ): Phaser.GameObjects.Text {
     const t = this.scene.add
       .text(rect.x, rect.y, value, {
@@ -221,7 +293,7 @@ export class Overlay {
     value: string,
     size: number,
     color = COLORS.ink,
-    extra: Partial<Phaser.Types.GameObjects.Text.TextStyle> = {},
+    extra: TextExtra = {},
   ): Phaser.GameObjects.Text {
     const t = this.scene.add
       .text(rect.x + rect.w / 2, rect.y, value, {
@@ -319,7 +391,7 @@ export class Overlay {
    */
   sketch(
     size: number,
-    draw: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void,
+    draw: (g: Ink, x: number, y: number, size: number) => void,
     opts: { gapAfter?: number } = {},
   ): Rect {
     const rect = this.flow(size, opts.gapAfter);
@@ -337,7 +409,7 @@ export class Overlay {
    * can lay out across the card and still get the scrolling, masking and
    * lifetime the body provides.
    */
-  band(height: number, draw: (g: Phaser.GameObjects.Graphics, rect: Rect) => void, gapAfter?: number): Rect {
+  band(height: number, draw: (g: Ink, rect: Rect) => void, gapAfter?: number): Rect {
     const rect = this.flow(height, gapAfter);
     const g = this.scene.add.graphics().setDepth(this.depth + 1);
     this.body.add(g);
@@ -390,7 +462,7 @@ export class Overlay {
        * `PanelRow.icon`, so one drawing function serves the drawer, the board
        * and an overlay without three sets of shapes drifting apart.
        */
-      icon?: (g: Phaser.GameObjects.Graphics, x: number, y: number, size: number) => void;
+      icon?: (g: Ink, x: number, y: number, size: number) => void;
     } = {},
   ): Button {
     const size = opts.font ?? this.layout.font.body;

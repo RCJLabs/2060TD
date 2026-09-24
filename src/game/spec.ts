@@ -43,7 +43,7 @@ import type {
 } from '../sim/types';
 import type { Layout } from './layout';
 import { COLORS } from './palette';
-import { Overlay } from './overlay';
+import { createOverlay, type OverlayApi } from './overlay';
 import { ATTACKER_GLYPH_SPAN, drawAttackerGlyph, drawStructureGlyph } from './glyphs';
 
 /**
@@ -180,11 +180,11 @@ export function buildStructureSpec(
   scene: Phaser.Scene,
   kind: string,
   opts: SpecOpts,
-): Overlay | null {
+): OverlayApi | null {
   const profile: StructureProfile | undefined = opts.catalog.structures[kind];
   if (!profile) return null;
   const { layout } = opts;
-  const ov = new Overlay(scene, layout, {
+  const ov = createOverlay(scene, layout, {
     title: profile.name.toUpperCase(),
     // Opaque, unlike most cards here. The default scrim leaves the drawer
     // readable underneath, and this is the densest card in the game: at 0.86
@@ -290,11 +290,11 @@ export function buildStructureSpec(
 }
 
 /** The card for a wall or a gate: no weapon, but the HP is the whole point. */
-export function buildWallSpec(scene: Phaser.Scene, kind: string, opts: SpecOpts): Overlay | null {
+export function buildWallSpec(scene: Phaser.Scene, kind: string, opts: SpecOpts): OverlayApi | null {
   const def: WallDef | undefined = opts.catalog.walls[kind];
   if (!def) return null;
   const { layout } = opts;
-  const ov = new Overlay(scene, layout, {
+  const ov = createOverlay(scene, layout, {
     title: def.name.toUpperCase(),
     scrim: 1,
     ...(opts.container ? { container: opts.container } : {}),
@@ -337,11 +337,11 @@ export function buildAttackerSpec(
   scene: Phaser.Scene,
   kind: string,
   opts: SpecOpts & { train?: TrainMeta },
-): Overlay | null {
+): OverlayApi | null {
   const profile: AttackerProfile | undefined = opts.catalog.attackers[kind];
   if (!profile) return null;
   const { layout } = opts;
-  const ov = new Overlay(scene, layout, {
+  const ov = createOverlay(scene, layout, {
     title: profile.name.toUpperCase(),
     scrim: 1,
     ...(opts.container ? { container: opts.container } : {}),

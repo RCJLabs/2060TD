@@ -6,7 +6,7 @@ import type { SimConfig } from '../../sim/types';
 import { audio } from '../audio';
 import { COLORS } from '../palette';
 import { layoutOf, onLayoutChange, type Layout } from '../layout';
-import { Overlay } from '../overlay';
+import { createOverlay, type OverlayApi, type OverlayText } from '../overlay';
 
 export interface BriefingData {
   mission: MissionDef;
@@ -25,9 +25,9 @@ export class BriefingScene extends Phaser.Scene {
   private briefing!: BriefingData;
   private revealed = 0;
   private revealTimer = 0;
-  private logText!: Phaser.GameObjects.Text;
+  private logText!: OverlayText;
   private layout!: Layout;
-  private page: Overlay | null = null;
+  private page: OverlayApi | null = null;
   private done = false;
 
   constructor() {
@@ -79,7 +79,7 @@ export class BriefingScene extends Phaser.Scene {
     const { mission } = this.briefing;
     const faction = this.briefing.faction ?? 'usa';
     this.page?.close();
-    const ov = new Overlay(this, this.layout, {
+    const ov = createOverlay(this, this.layout, {
       title: mission.codename,
       subtitle:
         `MISSION ${mission.index + 1} OF ${campaignFor(faction).length} · ` +

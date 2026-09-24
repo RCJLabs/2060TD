@@ -227,7 +227,7 @@ try {
     code.length > 100 && /^[A-Za-z0-9\-_]+$/.test(code),
     `${code.length} chars`,
   );
-  await page.click('text=CLOSE');
+  await page.click('[data-ui="textbox"] >> text=CLOSE');
   await wait(600);
 
   // Wipe the vault, then paste the code back: the battle survives the trip.
@@ -246,7 +246,7 @@ try {
   await tap('WATCH A CODE', 900);
   // The text box is DOM, so its buttons and its status line are read there.
   await page.fill('textarea', 'this is not a code');
-  await page.click('text=WATCH IT');
+  await page.click('[data-ui="textbox"] >> text=WATCH IT');
   await wait(700);
   const stillOpen = await page.evaluate(() => document.querySelector('textarea') !== null);
   const status = await page.evaluate(
@@ -255,7 +255,7 @@ try {
   check('a bad paste is refused, in words', stillOpen && status.length > 0, status);
 
   await page.fill('textarea', code);
-  await page.click('text=WATCH IT');
+  await page.click('[data-ui="textbox"] >> text=WATCH IT');
   await wait(2500);
   const gone = await page.evaluate(() => document.querySelector('textarea') === null);
   check('a good paste is accepted', gone, '');

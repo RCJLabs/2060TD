@@ -6,6 +6,12 @@ import { music } from './music';
 import { DRAWER_FULL, snapDrawer, type DrawerState, type Layout, type Rect } from './layout';
 import { modalOpen } from './modal';
 import { COLORS, css } from './palette';
+import { buttonProbes, domTextRects, type ButtonProbe, type TextRect } from './seam';
+import { DISPLAY_FAMILY, DISPLAY_SCALE, DRAG_SLOP, HOLD_MS, MONO_FAMILY } from './tokens';
+
+export { DISPLAY_FAMILY, DISPLAY_SCALE, DRAG_SLOP, MONO_FAMILY } from './tokens';
+
+export type { ButtonProbe, TextRect } from './seam';
 
 /**
  * Touch-first UI kit (v0.9). Buttons take real thumb-sized rects and their
@@ -51,26 +57,6 @@ export interface Button {
   destroy(): void;
 }
 
-/**
- * The two faces, and the split between them is the whole type system.
- *
- * DISPLAY is a condensed grotesque and carries every LABEL: a row's name, a
- * button, a tab, a heading, a masthead. It is what a comic sets its captions
- * and its shouting in, and it is where the ink direction's character comes
- * from — the mockups are set in it, and the game read like a terminal until
- * it arrived.
- *
- * MONO carries every FIGURE: costs, counts, timers, hashes, share codes, and
- * prose. A column of numbers has to line up, and a code has to be read a
- * character at a time.
- *
- * Both are inlined, so neither costs a request — see fonts.css.
- */
-export const MONO_FAMILY =
-  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace';
-export const DISPLAY_FAMILY =
-  '"Barlow Condensed", ui-sans-serif, system-ui, "Arial Narrow", sans-serif';
-
 export function mono(
   size: number,
   color: number = COLORS.ink,
@@ -78,17 +64,6 @@ export function mono(
 ): Phaser.Types.GameObjects.Text.TextStyle {
   return { fontFamily: MONO_FAMILY, fontSize: `${Math.round(size)}px`, color: css(color), ...extra };
 }
-
-/**
- * A label, in the display face.
- *
- * Sized UP against `mono` at the same token, because a condensed face at the
- * same pixel height reads noticeably smaller — narrower letters and a shorter
- * apparent width for the same string. The multiplier is what makes a row
- * label and the figure beside it look like the same size, which is the only
- * thing the two faces have to agree on.
- */
-export const DISPLAY_SCALE = 1.22;
 
 export function display(
   size: number,
@@ -103,19 +78,6 @@ export function display(
     ...extra,
   };
 }
-
-/** Travel (device px) past which a press counts as a drag, not a tap. */
-export const DRAG_SLOP = 16;
-
-/**
- * How long a press has to last to become a hold, in ms.
- *
- * 480 rather than the 500 most platforms use: this fires while the finger is
- * still down and is confirmed by a buzz, so the cost of being slightly eager
- * is a haptic the player did not want, while the cost of being slow is a
- * gesture that feels broken. Well clear of the ~150ms a deliberate tap takes.
- */
-const HOLD_MS = 480;
 
 export interface ButtonOptions {
   /** Font size in device px; defaults to a size derived from the height. */
@@ -163,23 +125,6 @@ export interface ButtonOptions {
   onHold?: () => void;
 }
 
-/** A button as the headless harness sees it: label + rect in device px. */
-export interface ButtonProbe {
-  label: string;
-  sub: string;
-  /** Painted as the current choice: the armed tool, the open tab. */
-  active: boolean;
-  /** The area a finger can actually land on: the drawn box, clipped. */
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  /** The box as laid out, before any clip — what the design intended. */
-  full: { x: number; y: number; w: number; h: number };
-  enabled: boolean;
-}
-
-const liveProbes = new Set<() => ButtonProbe & { visible: boolean; dead: boolean }>();
 
 /**
  * Every button currently on screen. The E2E harness taps by label instead of
@@ -204,34 +149,9 @@ export function liveTexts(scenes: Phaser.Scene[]): string[] {
     }
   };
   for (const scene of scenes) walk(scene.children.list);
+  // The DOM layer draws over the whole canvas, so its text comes last.
+  for (const t of domTextRects()) found.push(t.text);
   return found;
-}
-
-/**
- * Every visible text with the rectangle it actually occupies, in device px.
- *
- * The seam exists because this project has now shipped the same bug twice:
- * a block laid out from a GUESSED line count, drawn over by the block after
- * it once the text wrapped. Labels alone cannot catch that — a harness has
- * to be able to ask where things landed.
- */
-export interface TextRect {
-  text: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  depth: number;
-  /**
-   * True for text on the BOARD layer — a sector marker, a map label — which
-   * pans and zooms with the world and is expected to leave the screen (v1.40).
-   *
-   * Without this, "no static text runs off the screen" counted map marginalia
-   * as static, and passed only while the board happened to fit the viewport.
-   * A portrait world framed on a base does not, so the check started failing
-   * on text doing exactly what it is supposed to do.
-   */
-  onBoard: boolean;
 }
 
 export function liveTextRects(scenes: Phaser.Scene[]): TextRect[] {
@@ -259,16 +179,17 @@ export function liveTextRects(scenes: Phaser.Scene[]): TextRect[] {
     }
   };
   for (const scene of scenes) walk(scene.children.list, false);
+  found.push(...domTextRects());
   return found;
 }
 
 export function liveButtons(): ButtonProbe[] {
   const out: ButtonProbe[] = [];
-  for (const probe of liveProbes) {
+  for (const probe of buttonProbes) {
     const { visible, dead, ...rest } = probe();
     // Scene restarts destroy buttons without going through destroy() — drop
     // those probes here so a stale rect is never reported as tappable.
-    if (dead) liveProbes.delete(probe);
+    if (dead) buttonProbes.delete(probe);
     else if (visible) out.push(rest);
   }
   return out;
@@ -648,7 +569,7 @@ export function makeButton(
       dead: bg.scene === undefined,
     };
   };
-  liveProbes.add(probe);
+  buttonProbes.add(probe);
 
   return {
     bg,
@@ -734,7 +655,7 @@ export function makeButton(
     },
     destroy() {
       disarm();
-      liveProbes.delete(probe);
+      buttonProbes.delete(probe);
       scene.input.off('pointerup', sceneRelease);
       scene.input.off('pointerupoutside', sceneCancel);
       scene.input.off('gameout', sceneCancel);
