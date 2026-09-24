@@ -4415,6 +4415,92 @@ north", and it is where an endgame can live.
       whole economy.
 - [ ] **Phase 4 — the endgame.** The front reaches their capital, or yours.
 
+      **The plan, before the build.** Three phases made the Front Line a road
+      with a far end, and nothing happens at the far end yet. The stronghold
+      at the thirteenth rung is taken like any town, the map calls what lies
+      past it the stronghold's rear, and the enemy can push the front back
+      to the first town and no further. This phase decides what reaching the
+      enemy's capital means, and what the enemy reaching yours means. Four of
+      its choices were the commander's, asked before the plan: the war goes
+      on after it is won, the enemy can reach your capital but not end the
+      war there, the capital is taken by its three roads and then a citadel,
+      and the deep rungs are smoothed first.
+
+      *What the survey found.* The capital is reachable, but only just, and
+      the climb to it was never tuned. Past rung 5 the deal is rung 5's
+      pairs with the layouts moved on, guns stop growing at rung 10 and
+      levels at rung 7, and loot and standing keep rising. THE DEEP LADDER
+      (`npm run balance -- --deep`), the manpower a force of each faction's
+      reference shape needs to take a rung half the time, against the 66 a
+      built CC3 town can field (two barracks, a motor pool and an airfield
+      at level 3; research adds none):
+
+      | | T5 | T7 | T9 | T11 | T13 |
+      |---|---|---|---|---|---|
+      | USA | 25 | 47 | 64 | 53 | 64 |
+      | China | 28 | 38 | 42 | 48 | 54 |
+      | Russia | 27 | 38 | 59 | 54 | 48 |
+      | KPA | 25 | 34 | 60 | 60 | 54 |
+      | UN | 28 | 48 | over 66 | 60 | 54 |
+
+      The reference forces are 25-27 men, which is what rung 5 was tuned
+      for. The ninth rung is a spike that the UN cannot field enough to
+      pass, and the curve goes down as often as up. Played daily for ten
+      weeks with the reference force, the war instrument's USA stalls at the
+      ninth rung and Russia's at the sixth, and of those three only China
+      reaches the stronghold, in about six weeks. So the phase is three
+      steps, each shipped on its own.
+
+      *4a, the approach: the deep rungs, tuned.* Rows for rungs 6 to 13 are
+      selected by the same search that chose rungs 1 to 5: three (shape,
+      layout) pairs a rung, one per band, fifteen points apart, distinct
+      shapes, with the nudge toward shapes the faction has not met. It
+      measures them against a force that grows with the rung, which rungs 1
+      to 5 never needed: the reference shape resized to a budget that climbs
+      four men a rung from the reference's 26 at rung 5 to 58 at rung 13, and
+      each rung's middle post chosen to clear 55% at its budget. A commander
+      who grows the army four men a rung keeps rung 5's odds all the way up.
+      Past the stronghold, the rear keeps rung 13's pairs with the layouts
+      moving on, as today. The bar: THE DEEP LADDER climbs for every faction
+      with no rung above what a built town fields, rungs 1 to 5 do not move,
+      and the war instrument's commander, growing its force by the same
+      curve, reaches the stronghold.
+
+      *4b, the capital, and a war won.* The stronghold is not taken by any
+      three wins. Each of its three roads has to fall once (a second win in
+      a lane already taken pays, and counts for nothing more), and then the
+      citadel comes into range: the enemy's headquarters, a fourth target
+      and a new shape dealt nowhere else, two rings and positions dug a
+      level deeper around the largest post on the board and the richest
+      stores. It is tuned so the whole army can take it: about 62 of the 66
+      men a built town fields, clearing about half the time. Taking it wins
+      the war. The war is marked won on a victory screen, on the service
+      record and in the war menu (1 · UNITED STATES · WON DAY 43), and it
+      pays like the top band's season placement. Nothing resets. The front
+      moves into the enemy's rear, and the ladder goes on for loot and
+      standing until the supply line cannot feed it, the sixteenth rung for
+      a built CC3 town. A fall-back from the stronghold loses its roads, as
+      any fall-back loses its pushes. What is stored: the roads taken, and
+      when the war was won.
+
+      *4c, or yours: the last stand.* When a strike lands on a front already
+      at the first town, with nothing behind it but the base, in a war whose
+      front has been deeper, the enemy marches on your capital. It is
+      announced like the live-defence offer and answered the same two ways:
+      stand and fight it with the town's siege economy, or leave it to the
+      garrison, which fights the whole assault rather than a probe's two
+      waves, and can lose. Held, the enemy is thrown back, with a bounty and
+      standing. Lost, the capital is sacked: every building that fell is
+      wrecked, as in any played siege, a larger share of the stockpile than
+      a defeat's goes with it, and standing, and the service record says
+      SACKED. The war goes on from the first town. Its level is measured to
+      land where the commander's play decides it, as the offer's was. It
+      takes long neglect to get there: from the sixth rung, fifteen sectors
+      lost and one strike more, eight quiet spells with nothing retaken.
+
+      *What M28 gets.* A won war is a state with a date, which is what a
+      prestige reset needs to start from.
+
 ## M26 — "Asymmetry": factions become different games
 
 4.2-point parity means it is now SAFE to diverge. Give each faction a different

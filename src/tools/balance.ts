@@ -2813,6 +2813,21 @@ function graphTable(faction: FactionId): string {
  * choice. Loot moves with it: the soft shapes carry more economy, so an easy
  * clear pays for itself and a hard one has to be worth the army.
  */
+/**
+ * M25 Phase 4: the deep ladder's demand. The manpower a force of the reference
+ * shape needs to take each rung at least half the time, from the first rung to
+ * the enemy's stronghold at the thirteenth, against the most a built CC3 town
+ * can field (66). The endgame has to be climbable before it can mean anything.
+ */
+function deepTable(faction: FactionId, tiers: readonly number[] = [1, 3, 5, 7, 9, 10, 11, 13]): string {
+  const budgets = [...RUNG_BUDGETS, 54, 60, 66] as const;
+  const cells = tiers.map((tier) => {
+    const need = budgetToClear(faction, tier, RAID_PLANS[faction], budgets, 6, true);
+    return `T${tier} ${need === null ? '>66' : need}`;
+  });
+  return `${faction.toUpperCase().padEnd(7)} reference ${planManpower(faction)} MP · to clear half: ${cells.join('  ')}`;
+}
+
 function archetypeTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const lines = [
@@ -5594,6 +5609,12 @@ function main(): void {
   if (process.argv.includes('--shapes')) {
     console.log(archetypeTable('usa'));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--deep')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(deepTable(faction));
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
   if (process.argv.includes('--supply')) {
