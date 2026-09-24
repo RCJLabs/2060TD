@@ -131,7 +131,7 @@ export interface SpecOpts {
    * has no cost on the profile at all. Reading only the profile made the card
    * announce "NOT BUILDABLE" over a supply depot the player was standing in
    * front of a button to buy. The meta also carries the only answer to what an
-   * economy building is FOR — what it produces per minute — which was on no
+   * economy building is FOR — what it produces an hour — which was on no
    * screen in the game.
    */
   meta?: TownBuildingMeta;
@@ -144,7 +144,7 @@ function priceOf(level: { supplies: number; fuel: number; seconds: number }): st
   return level.seconds > 0 ? `${money} · ${level.seconds}s` : money;
 }
 
-/** What this building makes per minute at `level`, if it makes anything. */
+/** What this building makes an hour at `level`, if it makes anything. */
 function outputAt(meta: TownBuildingMeta | undefined, level: number): string {
   if (!meta) return '';
   const at = (list: number[] | undefined): number | undefined =>
@@ -153,9 +153,9 @@ function outputAt(meta: TownBuildingMeta | undefined, level: number): string {
   const supplies = at(meta.generatesSupplies);
   const fuel = at(meta.generatesFuel);
   const intel = at(meta.generatesIntel);
-  if (supplies) parts.push(`${supplies} SUP/MIN`);
-  if (fuel) parts.push(`${fuel} FUEL/MIN`);
-  if (intel) parts.push(`${intel} INT/MIN`);
+  if (supplies) parts.push(`${supplies} SUP/H`);
+  if (fuel) parts.push(`${fuel} FUEL/H`);
+  if (intel) parts.push(`${intel} INT/H`);
   const store = meta.storage ? meta.storage[Math.min(level, meta.storage.length) - 1] : undefined;
   if (store && (store.supplies > 0 || store.fuel > 0)) {
     parts.push(`+${store.supplies}/${store.fuel} CAP`);

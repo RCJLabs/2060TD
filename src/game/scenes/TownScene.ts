@@ -69,8 +69,9 @@ import {
   newTown,
   place,
   placeWall,
-  ratesPerMinute,
+  ratesPerHour,
   removeWall,
+  repairAllWrecks,
   repairCost,
   repairWreck,
   sell,
@@ -83,6 +84,8 @@ import {
   upgradeError,
   wallAt,
   townTerrain,
+  wreckBill,
+  wreckedIds,
   TOWN_GRID,
   onSpawnLane,
   type DefenseLogEntry,
@@ -280,6 +283,14 @@ export class TownScene extends Scene {
     }
 
     if (data?.outcome && !this.demoMode) {
+      // What THIS battle broke, and what putting it back costs (M24 Phase 2).
+      // A town can walk into a battle with a wreck already standing, and
+      // reporting the total would bill the player for the same building twice.
+      const wreckedBefore = wreckedIds(this.town);
+      const broke = (): string => {
+        const bill = wreckBill(this.town, wreckedBefore);
+        return bill.count > 0 ? ` ${bill.count} WRECKED — REPAIR ${bill.supplies}S+${bill.fuel}F.` : '';
+      };
       const mission =
         data.battle?.type === 'mission'
           ? this.missions().find((m) => m.id === (data.battle as { missionId: string }).missionId)
@@ -296,27 +307,22 @@ export class TownScene extends Scene {
           if (this.town.campaign.next >= this.missions().length) {
             parts.push('CAMPAIGN COMPLETE — THE FRONT LINE RUNS BOTH WAYS NOW.');
           }
-          this.setBanner(parts.join(' '), 16);
+          this.setBanner(parts.join(' ') + broke(), 16);
         } else {
           this.setBanner(
-            `M${mission.index + 1} ${mission.codename}: THE LINE BROKE. RAIDERS TOOK THEIR CUT.`,
+            `M${mission.index + 1} ${mission.codename}: THE LINE BROKE. RAIDERS TOOK THEIR CUT.` + broke(),
             14,
           );
         }
       } else if (data.battle?.type === 'defense') {
         const fought = data.battle;
-        // Count the wrecks THIS battle made. A town can walk into a defence
-        // with a wreck already standing, and reporting the total would bill
-        // the player for the same building twice.
-        const wreckedBefore = this.town.structures.filter((st) => st.wrecked).length;
         const entry = applyLiveDefense(this.town, fought, data.outcome, now);
-        const lost = this.town.structures.filter((st) => st.wrecked).length - wreckedBefore;
         const bounty = liveDefenseBounty(fought.level);
         this.setBanner(
           entry.held
-            ? `LEVEL ${fought.level} HELD IN PERSON. +${bounty.supplies} SUP +${bounty.fuel} FUEL.`
-            : `LEVEL ${fought.level} BROKE THROUGH. ` +
-              `${lost} WRECKED — REPAIR AND DIG IN.`,
+            ? `LEVEL ${fought.level} HELD IN PERSON. +${bounty.supplies} SUP +${bounty.fuel} FUEL.` + broke()
+            : // A defeat is counted in buildings even when it cost none.
+              `LEVEL ${fought.level} BROKE THROUGH.` + (broke() || ' 0 WRECKED — DIG IN.'),
           16,
         );
       } else if (data.battle?.type === 'counter') {
@@ -325,6 +331,7 @@ export class TownScene extends Scene {
           (data.outcome.victory
             ? 'COUNTERATTACK REPELLED — THE FRONT LINE HOLDS. BOUNTY PAID.'
             : 'THE COUNTERATTACK BROKE THROUGH. RAIDERS TOOK THEIR CUT.') +
+            broke() +
             ` STANDING ${this.town.frontline.standing} · ${leagueOf(this.town).label}.`,
           14,
         );
@@ -333,8 +340,8 @@ export class TownScene extends Scene {
         applySiegeResult(this.town, data.outcome, now);
         this.setBanner(
           data.outcome.victory
-            ? `SKIRMISH LV ${levelFought} REPELLED. LOOT SECURED.`
-            : `SKIRMISH LOST — RAIDERS TOOK THEIR CUT. REBUILD AND DIG IN.`,
+            ? `SKIRMISH LV ${levelFought} REPELLED. LOOT SECURED.` + broke()
+            : 'SKIRMISH LOST — RAIDERS TOOK THEIR CUT.' + (broke() || ' REBUILD AND DIG IN.'),
           14,
         );
       }
@@ -1996,7 +2003,24 @@ export class TownScene extends Scene {
     const town = this.town;
     const s = this.selected();
     if (!s) {
+      // The whole bill in one row (M24 Phase 2). Since production went to
+      // hours a lost siege's wrecks are a real cost, and a flattened gun line
+      // is nine structures to find and tap one by one.
+      const bill = wreckBill(town);
+      const repairs: PanelRow[] =
+        bill.count > 0
+          ? [
+              {
+                id: 'repairall',
+                label: `REPAIR ALL — ${bill.count} WRECK${bill.count > 1 ? 'S' : ''}`,
+                sub: `${bill.supplies}S+${bill.fuel}F`,
+                enabled: town.supplies >= bill.supplies && town.fuel >= bill.fuel,
+                onTap: () => this.onRepairAll(),
+              },
+            ]
+          : [];
       return [
+        ...repairs,
         { id: 'h', label: 'NOTHING SELECTED', heading: true },
         { id: 'hint', label: 'Tap a structure on the map', heading: true },
         { id: 'hint2', label: 'to inspect and upgrade it.', heading: true },
@@ -2033,9 +2057,9 @@ export class TownScene extends Scene {
     } else {
       info('STATUS: OPERATIONAL');
     }
-    if (meta?.generatesSupplies) info(`OUTPUT: ${meta.generatesSupplies[s.level - 1]} SUP/min`);
-    if (meta?.generatesFuel) info(`OUTPUT: ${meta.generatesFuel[s.level - 1]} FUEL/min`);
-    if (meta?.generatesIntel) info(`OUTPUT: ${meta.generatesIntel[s.level - 1]} INTEL/min`);
+    if (meta?.generatesSupplies) info(`OUTPUT: ${meta.generatesSupplies[s.level - 1]} SUP/h`);
+    if (meta?.generatesFuel) info(`OUTPUT: ${meta.generatesFuel[s.level - 1]} FUEL/h`);
+    if (meta?.generatesIntel) info(`OUTPUT: ${meta.generatesIntel[s.level - 1]} INTEL/h`);
     if (meta?.storage) {
       const t = meta.storage[s.level - 1]!;
       info(`STORAGE: +${t.supplies}S +${t.fuel}F`);
@@ -2383,6 +2407,10 @@ export class TownScene extends Scene {
     if (s && repairWreck(this.town, s.id)) this.saveSoon();
   }
 
+  private onRepairAll(): void {
+    if (repairAllWrecks(this.town)) this.saveSoon();
+  }
+
   private onReset(): void {
     const now = Date.now();
     if (now > this.resetArmedUntil) {
@@ -2413,7 +2441,7 @@ export class TownScene extends Scene {
   private updateHud(now: number): void {
     const town = this.town;
     const cap = caps(town);
-    const rate = ratesPerMinute(town);
+    const rate = ratesPerHour(town);
     const mission = this.nextMission();
     const headline = mission
       ? `M${mission.index + 1} ${mission.codename} · ${town.victories}W ${town.defeats}L`
@@ -2422,8 +2450,8 @@ export class TownScene extends Scene {
     // Portrait has one status line to spend; the rail can afford three. A full
     // store says so rather than quoting a rate nothing is being added at: M24
     // Phase 1 measured that a town is full most of the time it exists.
-    const flow = (held: number, cap: number, perMinute: number): string =>
-      held >= cap ? 'FULL' : `+${perMinute}/min`;
+    const flow = (held: number, cap: number, perHour: number): string =>
+      held >= cap ? 'FULL' : `+${perHour}/h`;
     const lines =
       this.layout.mode === 'portrait'
         ? [

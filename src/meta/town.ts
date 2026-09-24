@@ -611,7 +611,11 @@ export function caps(town: TownState): { supplies: number; fuel: number; intel: 
   };
 }
 
-export function ratesPerMinute(town: TownState): {
+/**
+ * What the town makes an hour (M24 Phase 2). It was a rate per minute, twenty
+ * times what these come to, until v1.50; see `TOWN_META`.
+ */
+export function ratesPerHour(town: TownState): {
   supplies: number;
   fuel: number;
   intel: number;
@@ -634,8 +638,8 @@ export function ratesPerMinute(town: TownState): {
   }
   const ratesMult = researchEffects(town).rates;
   return {
-    supplies: Math.round(supplies * ratesMult * 10) / 10,
-    fuel: Math.round(fuel * ratesMult * 10) / 10,
+    supplies: Math.round(supplies * ratesMult),
+    fuel: Math.round(fuel * ratesMult),
     intel,
   };
 }
@@ -683,16 +687,16 @@ export function tick(town: TownState, now: number): LadderSettlement {
     OFFLINE_CAP_HOURS * 3_600_000,
   );
   if (elapsed > 0) {
-    const rate = ratesPerMinute(town);
+    const rate = ratesPerHour(town);
     const cap = caps(town);
-    const minutes = elapsed / 60_000;
+    const hours = elapsed / 3_600_000;
     // Production fills storage to the cap and no further. What is already
     // above it stays until it is spent: loot, the day's orders and a season
     // placement are paid on top of the cap, and until M24 Phase 1 the next
     // frame's tick cut every one of them back to it — a full store kept none
     // of what the battles paid.
-    const fill = (held: number, cap: number, perMinute: number): number =>
-      Math.max(held, Math.min(cap, held + perMinute * minutes));
+    const fill = (held: number, cap: number, perHour: number): number =>
+      Math.max(held, Math.min(cap, held + perHour * hours));
     town.supplies = fill(town.supplies, cap.supplies, rate.supplies);
     town.fuel = fill(town.fuel, cap.fuel, rate.fuel);
     town.intel = fill(town.intel, cap.intel, rate.intel);
@@ -1045,6 +1049,53 @@ export function repairWreck(town: TownState, id: number): boolean {
   town.supplies -= cost.supplies;
   town.fuel -= cost.fuel;
   s.wrecked = false;
+  return true;
+}
+
+/** The ids of every structure standing wrecked right now. */
+export function wreckedIds(town: TownState): Set<number> {
+  return new Set(town.structures.filter((s) => s.wrecked).map((s) => s.id));
+}
+
+/**
+ * The town's wrecks and what putting them back costs (M24 Phase 2), leaving
+ * out any in `except` — the ones that were already standing before a battle,
+ * when the question is what THAT battle broke.
+ *
+ * The wreck is the damage that lasts in this game, and that was measured
+ * rather than assumed: fought headless through their bands, the damage the
+ * reference defences' surviving guns carry out of a siege is 5-9% of what it
+ * costs them to repair, and the wrecks are the rest. Priced in minutes of
+ * production until v1.50, nobody had to read it; priced in hours, it is the
+ * town's running cost.
+ */
+export function wreckBill(
+  town: TownState,
+  except: ReadonlySet<number> = new Set(),
+): { count: number; supplies: number; fuel: number } {
+  let count = 0;
+  let supplies = 0;
+  let fuel = 0;
+  for (const s of town.structures) {
+    if (!s.wrecked || except.has(s.id)) continue;
+    const cost = repairCost(town, s);
+    count++;
+    supplies += cost.supplies;
+    fuel += cost.fuel;
+  }
+  return { count, supplies, fuel };
+}
+
+/**
+ * Put back every wreck at once. All or nothing: a bill the stockpile cannot
+ * cover repairs nothing, and the wrecks are still there to repair one by one.
+ */
+export function repairAllWrecks(town: TownState): boolean {
+  const bill = wreckBill(town);
+  if (bill.count === 0 || town.supplies < bill.supplies || town.fuel < bill.fuel) return false;
+  for (const s of town.structures) {
+    if (s.wrecked) repairWreck(town, s.id);
+  }
   return true;
 }
 

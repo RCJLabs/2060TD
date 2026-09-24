@@ -101,11 +101,14 @@ export interface TownBuildingMeta {
   name: string;
   /** levels[0] = build cost of level 1; levels[n] = upgrade cost to level n+1. */
   levels: LevelCost[];
-  /** Supplies generated per minute at each level. */
+  /**
+   * Supplies generated per HOUR at each level (M24 Phase 2). They were per
+   * minute, and twenty times these, until v1.50: see `TOWN_META`.
+   */
   generatesSupplies?: number[];
-  /** Fuel generated per minute at each level. */
+  /** Fuel generated per hour at each level. */
   generatesFuel?: number[];
-  /** Intel generated per minute at each level (Signals Station). */
+  /** Intel generated per hour at each level (Signals Station). */
   generatesIntel?: number[];
   /** Storage cap added at each level. */
   storage?: { supplies: number; fuel: number }[];
@@ -115,6 +118,19 @@ export interface TownBuildingMeta {
   buildSpeed?: number[];
 }
 
+/**
+ * Production is a twentieth of what it was before v1.50 (M24 Phase 2), and
+ * the twentieth is derived rather than picked: it is the rate at which the
+ * storage below holds the eight hours of production the GDD promises. A built
+ * CC1 fills its supplies in 8.3 hours, CC2 in 9.5, CC3 in 11 — every bunker
+ * the stage allows is needed to get there — where until then they filled in
+ * half an hour and an absence kept 5-7% of what it made.
+ *
+ * Costs, caps and every battle's pay are unchanged, so the whole difference is
+ * in what those numbers are worth: the town takes days to buy rather than
+ * hours, and a siege pays an hour of CC3's production rather than three
+ * minutes. `npm run balance -- --economy` measures both.
+ */
 export const TOWN_META: Record<string, TownBuildingMeta> = {
   cc: {
     kind: 'cc',
@@ -133,7 +149,7 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
       { supplies: 400, fuel: 50, seconds: 45 },
       { supplies: 900, fuel: 150, seconds: 120 },
     ],
-    generatesSupplies: [40, 70, 110],
+    generatesSupplies: [120, 210, 330],
   },
   fuelDepot: {
     kind: 'fuelDepot',
@@ -143,7 +159,7 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
       { supplies: 500, fuel: 50, seconds: 60 },
       { supplies: 1100, fuel: 200, seconds: 150 },
     ],
-    generatesFuel: [8, 14, 22],
+    generatesFuel: [24, 42, 66],
   },
   storageBunker: {
     kind: 'storageBunker',
@@ -195,7 +211,7 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
       { supplies: 800, fuel: 150, seconds: 100 },
       { supplies: 1800, fuel: 400, seconds: 210 },
     ],
-    generatesIntel: [4, 7, 11],
+    generatesIntel: [12, 21, 33],
     intelCap: [150, 300, 500],
   },
   airfield: {

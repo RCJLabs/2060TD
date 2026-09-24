@@ -11,7 +11,8 @@ import {
   outcomeFromEngine,
   place,
   placeWall,
-  ratesPerMinute,
+  ratesPerHour,
+  repairAllWrecks,
   repairCost,
   repairWreck,
   sell,
@@ -22,6 +23,8 @@ import {
   unlockAll,
   upgrade,
   upgradeError,
+  wreckBill,
+  wreckedIds,
   TOWN_GRID,
   type SiegeOutcome,
   type TownState,
@@ -65,10 +68,10 @@ describe('town state', () => {
     const before = town.supplies;
     expect(place(town, 'supplyDepot', idx(5, 5), T0)).toBe(true);
     expect(town.supplies).toBe(before - 150);
-    expect(ratesPerMinute(town).supplies).toBe(0); // still scaffolding
+    expect(ratesPerHour(town).supplies).toBe(0); // still scaffolding
 
     tick(town, T0 + 16_000); // 15s build time
-    expect(ratesPerMinute(town).supplies).toBe(40); // online
+    expect(ratesPerHour(town).supplies).toBe(120); // online
   });
 
   it('enforces CC gating: counts, forbidden kinds, and footprint overlap', () => {
@@ -100,7 +103,7 @@ describe('town state', () => {
     expect(upgrade(cc2, depot2.id, T0 + minutes(1))).toBe(true);
     tick(cc2, T0 + minutes(3));
     expect(depot2.level).toBe(2);
-    expect(ratesPerMinute(cc2).supplies).toBe(70);
+    expect(ratesPerHour(cc2).supplies).toBe(210);
   });
 
   it('accrues offline generation, capped by storage and the 8h window', () => {
@@ -112,13 +115,13 @@ describe('town state', () => {
     town.supplies = 0;
     town.lastSeen = T0 + minutes(1);
 
-    tick(town, T0 + minutes(11)); // 10 minutes online
-    expect(town.supplies).toBeCloseTo(400, 0); // 40/min × 10
+    tick(town, T0 + minutes(61)); // an hour online
+    expect(town.supplies).toBeCloseTo(120, 0); // 120 an hour since v1.50
 
     town.supplies = 0;
     town.lastSeen = T0;
     tick(town, T0 + minutes(60 * 48)); // two days away
-    // 8h cap × 40/min = 19200, but CC1 storage caps at 800.
+    // The 8h window × 120/h = 960, but CC1 storage without a bunker caps at 800.
     expect(town.supplies).toBe(caps(town).supplies);
   });
 
@@ -133,9 +136,10 @@ describe('town state', () => {
     expect(town.supplies).toBe(cap + 500);
     tick(town, T0 + minutes(60));
     expect(town.supplies).toBe(cap + 500);
-    // Spent below the cap, it fills back up to it as it always did.
+    // Spent below the cap, it fills back up to it as it always did: an hour
+    // of one depot is 120.
     town.supplies = cap - 100;
-    tick(town, T0 + minutes(70));
+    tick(town, T0 + minutes(120));
     expect(town.supplies).toBe(cap);
   });
 
@@ -166,11 +170,44 @@ describe('town state', () => {
     expect(town.supplies).toBe(before + 30); // half of 60
 
     depot.wrecked = true;
-    expect(ratesPerMinute(town).supplies).toBe(0);
+    expect(ratesPerHour(town).supplies).toBe(0);
     const cost = repairCost(town, depot);
     expect(cost.supplies).toBe(Math.ceil(150 * 0.3));
     expect(repairWreck(town, depot.id)).toBe(true);
     expect(depot.wrecked).toBe(false);
+  });
+
+  it('prices every wreck at once, and repairs them all or none (M24 Phase 2)', () => {
+    const town = rich(yardTown(T0));
+    place(town, 'supplyDepot', idx(5, 5), T0);
+    place(town, 'm2nest', idx(6, 10), T0);
+    tick(town, T0 + minutes(1));
+    const depot = structureAt(town, idx(5, 5))!;
+    const nest = structureAt(town, idx(6, 10))!;
+    expect(wreckBill(town)).toEqual({ count: 0, supplies: 0, fuel: 0 });
+    expect(repairAllWrecks(town)).toBe(false);
+
+    depot.wrecked = true;
+    const before = wreckedIds(town);
+    nest.wrecked = true;
+    const bill = wreckBill(town);
+    expect(bill.count).toBe(2);
+    expect(bill.supplies).toBe(repairCost(town, depot).supplies + repairCost(town, nest).supplies);
+    expect(bill.fuel).toBe(repairCost(town, depot).fuel + repairCost(town, nest).fuel);
+    // What a battle broke leaves out what was already standing wrecked.
+    expect(wreckBill(town, before)).toEqual({ count: 1, ...repairCost(town, nest) });
+
+    // All or nothing: a bill the store cannot cover repairs nothing.
+    town.supplies = bill.supplies - 1;
+    town.fuel = bill.fuel;
+    expect(repairAllWrecks(town)).toBe(false);
+    expect(depot.wrecked && nest.wrecked).toBe(true);
+    town.supplies = bill.supplies;
+    expect(repairAllWrecks(town)).toBe(true);
+    expect(depot.wrecked || nest.wrecked).toBe(false);
+    expect(town.supplies).toBe(0);
+    expect(town.fuel).toBe(0);
+    expect(wreckBill(town).count).toBe(0);
   });
 
   it('stocks power charges with Fuel, up to the cap', () => {

@@ -17,7 +17,7 @@ import {
   newTown,
   place,
   queueTrain,
-  ratesPerMinute,
+  ratesPerHour,
   siegeConfig,
   startResearch,
   tick,
@@ -213,18 +213,18 @@ describe('research program', () => {
     const town = radarTown();
     place(town, 'supplyDepot', idx(5, 5), T0 + 60_000);
     tick(town, T0 + 120_000); // depot built
-    expect(ratesPerMinute(town).intel).toBe(4);
-    expect(ratesPerMinute(town).supplies).toBe(40);
+    expect(ratesPerHour(town).intel).toBe(12);
+    expect(ratesPerHour(town).supplies).toBe(120);
     expect(caps(town).intel).toBeGreaterThan(150);
     town.intel = 0;
-    tick(town, T0 + 120_000 + 10 * 60_000); // ten minutes of signals
-    expect(town.intel).toBeCloseTo(40, 0);
+    tick(town, T0 + 120_000 + 5 * 3_600_000); // five hours of signals
+    expect(town.intel).toBeCloseTo(60, 0);
 
     const before = caps(town);
     town.research.completed = ['logistics1', 'logistics3', 'strike3', 'logistics2'];
     const after = caps(town);
     expect(after.supplies).toBe(Math.floor(before.supplies * 1.2));
-    expect(ratesPerMinute(town).supplies).toBeCloseTo(40 * 1.15, 5);
+    expect(ratesPerHour(town).supplies).toBe(138); // 120 × 1.15
     expect(scoutPrice(town, 1)).toBe(Math.ceil(45 * 0.6));
 
     // Faster training: the queue head lands at 75% of book time.
