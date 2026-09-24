@@ -332,6 +332,31 @@ export function drawStructureGlyph(
       );
       break;
     }
+    case 'refinery': {
+      // A cracking column over a squat tank (M24 Phase 4): the only building
+      // taller than it is wide, so the works read apart from the depots.
+      haloBox(S * 0.8, S * 0.72);
+      box(0.8, 0.4, body, 0, 0.14);
+      box(0.18, 0.66, body, 0.2, -0.02);
+      box(0.1, 0.5, trim, 0.2, 0);
+      g.fillStyle(trim, 1);
+      g.fillCircle(px - S * 0.16, py + S * 0.14, S * 0.14);
+      g.lineStyle(Math.max(1, S * 0.03), cut, 0.8);
+      g.strokeCircle(px - S * 0.16, py + S * 0.14, S * 0.14);
+      break;
+    }
+    case 'bureau': {
+      // An office block with its files showing: three drawers and a whip
+      // aerial, which is a different mast from the Signals Station's dish.
+      shed(0.74, 0.62);
+      g.fillStyle(cut, 0.85);
+      for (let i = 0; i < 3; i++) {
+        g.fillRect(px - S * 0.24, py - S * 0.17 + i * S * 0.14, S * 0.48, S * 0.06);
+      }
+      g.fillStyle(ink, 1);
+      g.fillRect(px + S * 0.3, py - S * 0.5, S * 0.035, S * 0.24);
+      break;
+    }
     case 'engBay': {
       // A workshop with a gantry across it.
       shed();

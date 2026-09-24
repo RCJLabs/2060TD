@@ -161,6 +161,8 @@ export const NK_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   fuelDepot: rename(ECONOMY_STRUCTURES['fuelDepot']!, 'Fuel Cache'),
   storageBunker: rename(ECONOMY_STRUCTURES['storageBunker']!, 'Buried Depot'),
   generator: rename(ECONOMY_STRUCTURES['generator']!, 'Generator Cave'),
+  refinery: rename(ECONOMY_STRUCTURES['refinery']!, 'Fuel Works'),
+  bureau: rename(ECONOMY_STRUCTURES['bureau']!, 'Reconnaissance Bureau'),
   engBay: rename(ECONOMY_STRUCTURES['engBay']!, 'Tunnel Corps Post'),
   radar: rename(ECONOMY_STRUCTURES['radar']!, 'RGB Listening Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Light Infantry School'),

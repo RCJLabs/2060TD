@@ -160,6 +160,8 @@ export const CHINA_TOWN_STRUCTURES: Record<string, StructureProfile> = {
   fuelDepot: rename(ECONOMY_STRUCTURES['fuelDepot']!, 'Fuel Bowser Park'),
   storageBunker: rename(ECONOMY_STRUCTURES['storageBunker']!, 'Stores Pit'),
   generator: rename(ECONOMY_STRUCTURES['generator']!, 'Power Station'),
+  refinery: rename(ECONOMY_STRUCTURES['refinery']!, 'Refining Plant'),
+  bureau: rename(ECONOMY_STRUCTURES['bureau']!, 'Intelligence Section'),
   engBay: rename(ECONOMY_STRUCTURES['engBay']!, 'Engineer Corps'),
   radar: rename(ECONOMY_STRUCTURES['radar']!, 'Signals Post'),
   barracks: rename(ECONOMY_STRUCTURES['barracks']!, 'Militia Barracks'),

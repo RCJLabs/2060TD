@@ -85,6 +85,25 @@ export const ECONOMY_STRUCTURES: Record<string, StructureProfile> = {
     targetable: true,
     levels: [{ maxHp: 450 }, { maxHp: 540 }],
   },
+  // M24 Phase 4: the works that turn the surplus into what is short.
+  refinery: {
+    kind: 'refinery',
+    name: 'Refinery',
+    maxHp: 420,
+    footprint: 2,
+    blocks: true,
+    targetable: true,
+    levels: [{ maxHp: 520 }, { maxHp: 640 }],
+  },
+  bureau: {
+    kind: 'bureau',
+    name: 'Intel Bureau',
+    maxHp: 380,
+    footprint: 2,
+    blocks: true,
+    targetable: true,
+    levels: [{ maxHp: 470 }, { maxHp: 570 }],
+  },
   // v1.0: the air layer's home. Big, soft, and the first thing a raider
   // with a doctrine goes looking for.
   airfield: {
@@ -132,6 +151,13 @@ export interface TownBuildingMeta {
    * every cell within this many of it, diagonals included.
    */
   powerReach?: number[];
+  /**
+   * A converter (M24 Phase 4): the supplies an hour it takes out of the town's
+   * production at each level, and what it makes of them.
+   */
+  converts?: { to: 'fuel' | 'intel'; input: number[]; output: number[] };
+  /** The research that permits it, for a building research unlocks rather than the campaign. */
+  tech?: string;
 }
 
 /**
@@ -240,6 +266,28 @@ export const TOWN_META: Record<string, TownBuildingMeta> = {
     ],
     powerReach: [1, 2, 3],
   },
+  refinery: {
+    kind: 'refinery',
+    name: 'Refinery',
+    levels: [
+      { supplies: 400, fuel: 80, seconds: 30 },
+      { supplies: 900, fuel: 180, seconds: 75 },
+      { supplies: 1800, fuel: 360, seconds: 170 },
+    ],
+    converts: { to: 'fuel', input: [120, 240, 400], output: [16, 34, 60] },
+    tech: 'logistics1',
+  },
+  bureau: {
+    kind: 'bureau',
+    name: 'Intel Bureau',
+    levels: [
+      { supplies: 450, fuel: 90, seconds: 35 },
+      { supplies: 1000, fuel: 200, seconds: 85 },
+      { supplies: 2000, fuel: 400, seconds: 190 },
+    ],
+    converts: { to: 'intel', input: [120, 240, 400], output: [6, 13, 24] },
+    tech: 'logistics2',
+  },
   airfield: {
     kind: 'airfield',
     name: 'Airfield',
@@ -293,6 +341,8 @@ export const BUILDABLE_KINDS = [
   'fuelDepot',
   'storageBunker',
   'generator',
+  'refinery',
+  'bureau',
   'engBay',
   'radar',
   'barracks',
@@ -324,7 +374,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 1,
     walls: 25,
     counts: {
-      supplyDepot: 2, fuelDepot: 1, storageBunker: 1, generator: 0, engBay: 0, radar: 0,
+      supplyDepot: 2, fuelDepot: 1, storageBunker: 1, generator: 0, refinery: 0, bureau: 0, engBay: 0, radar: 0,
       barracks: 1, motorpool: 0, airfield: 0,
       m2nest: 2, autocannon: 1, mortar: 0, aa: 0,
     },
@@ -333,7 +383,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 2,
     walls: 40,
     counts: {
-      supplyDepot: 3, fuelDepot: 2, storageBunker: 2, generator: 1, engBay: 1, radar: 1,
+      supplyDepot: 3, fuelDepot: 2, storageBunker: 2, generator: 1, refinery: 0, bureau: 0, engBay: 1, radar: 1,
       barracks: 1, motorpool: 1, airfield: 1,
       m2nest: 3, autocannon: 2, mortar: 1, aa: 2,
     },
@@ -342,7 +392,7 @@ export const CC_GATING: CcGating[] = [
     maxStructureLevel: 3,
     walls: 60,
     counts: {
-      supplyDepot: 4, fuelDepot: 3, storageBunker: 3, generator: 2, engBay: 1, radar: 1,
+      supplyDepot: 4, fuelDepot: 3, storageBunker: 3, generator: 2, refinery: 1, bureau: 1, engBay: 1, radar: 1,
       barracks: 2, motorpool: 1, airfield: 1,
       m2nest: 4, autocannon: 3, mortar: 2, aa: 3,
     },

@@ -57,6 +57,8 @@ const SHARE_KINDS: string[] = [
   'mortar',
   'aa',
   'generator',
+  'refinery',
+  'bureau',
 ];
 const KIND_BYTE = new Map(SHARE_KINDS.map((kind, i) => [kind, i]));
 

@@ -141,6 +141,8 @@ export interface SpecOpts {
    * alone.
    */
   yardRule?: string;
+  /** What must be researched before it can be built, while it has not been. */
+  unlock?: string;
   onClose: () => void;
 }
 
@@ -162,6 +164,11 @@ function outputAt(meta: TownBuildingMeta | undefined, level: number): string {
   if (supplies) parts.push(`${supplies} SUP/H`);
   if (fuel) parts.push(`${fuel} FUEL/H`);
   if (intel) parts.push(`${intel} INT/H`);
+  if (meta.converts) {
+    const c = meta.converts;
+    const i = Math.min(level, c.input.length) - 1;
+    parts.push(`${c.input[i]} SUP/H → ${c.output[i]} ${c.to === 'fuel' ? 'FUEL' : 'INT'}/H`);
+  }
   const store = meta.storage ? meta.storage[Math.min(level, meta.storage.length) - 1] : undefined;
   if (store && (store.supplies > 0 || store.fuel > 0)) {
     parts.push(`+${store.supplies}/${store.fuel} CAP`);
@@ -238,6 +245,9 @@ export function buildStructureSpec(
     { gapAfter: gap * 2 },
   );
 
+  if (opts.unlock) {
+    ov.paragraph(opts.unlock, font.tiny, COLORS.intel, { gapAfter: gap * 2 });
+  }
   if (opts.yardRule) {
     ov.paragraph(opts.yardRule, font.tiny, COLORS.ink, { gapAfter: gap * 2 });
   }

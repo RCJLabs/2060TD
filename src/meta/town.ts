@@ -37,7 +37,7 @@ import {
 } from '../content/campaign';
 import { footprintOfKind } from '../content/catalog';
 import { MAP_CELL_SIZE } from '../content/bases';
-import { effectsOf, techPrereq, TECH_BY_ID, type ResearchEffects } from '../content/research';
+import { effectsOf, techPrereqs, TECH_BY_ID, type ResearchEffects } from '../content/research';
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
 import { newSquadRecords, type SquadRecord } from '../content/veterancy';
@@ -121,6 +121,11 @@ export interface PlacedStructure {
   trainQueue?: string[];
   /** Epoch ms when the head of the queue finishes. */
   trainEndsAt?: number;
+  /**
+   * A converter the commander has stood down (M24 Phase 4): it takes no
+   * supplies and makes nothing until it is told to resume.
+   */
+  stoodDown?: boolean;
 }
 
 export interface CampaignState {
@@ -531,6 +536,10 @@ export function newTown(now: number, faction: FactionId = 'usa'): TownState {
 }
 
 export function isUnlocked(town: TownState, key: string): boolean {
+  // A building research unlocks (M24 Phase 4) is permitted by its tech, and
+  // never by the campaign's list.
+  const tech = townMetaFor(town.faction)[key]?.tech;
+  if (tech !== undefined) return town.research.completed.includes(tech);
   return town.unlocked.includes(key);
 }
 
@@ -612,12 +621,132 @@ export function caps(town: TownState): { supplies: number; fuel: number; intel: 
 }
 
 /**
- * What the town makes an hour (M24 Phase 2), as its yard is laid out (Phase
- * 3): each producer scaled by `yardOutput`. It was a rate per minute, twenty
- * times what these come to, until v1.50; see `TOWN_META`.
+ * What the town gains an hour: what its producers make as the yard is laid
+ * out (M24 Phases 2 and 3), less the supplies its converters divert and plus
+ * what they make of them (Phase 4). It was a rate per minute, twenty times
+ * what these come to, until v1.50; see `TOWN_META`.
  */
 export function ratesPerHour(town: TownState): { supplies: number; fuel: number; intel: number } {
+  const made = productionPerHour(town);
+  const cap = caps(town);
+  const conv = conversionPerHour(town, made.supplies, {
+    fuel: town.fuel < cap.fuel,
+    intel: town.intel < cap.intel,
+  });
+  return {
+    supplies: made.supplies - conv.input,
+    fuel: made.fuel + conv.fuel,
+    intel: made.intel + conv.intel,
+  };
+}
+
+/** What the producers make an hour as the yard is laid out, before any converter. */
+export function productionPerHour(town: TownState): { supplies: number; fuel: number; intel: number } {
   return sumRates(town, (s) => yardOutput(town, s));
+}
+
+/**
+ * What the converters do an hour (M24 Phase 4): the supplies they divert from
+ * production, and the fuel and intel they make of them.
+ *
+ * Only the converters whose store has room run (`running`): one whose store is
+ * full idles rather than burn supplies into it. Out of power a converter runs
+ * at half, like a producer. And together they never take more than `produced`:
+ * a converter diverts production and never draws on the stockpile, so if the
+ * depots are making less than the works want, the works slow down to match.
+ */
+export function conversionPerHour(
+  town: TownState,
+  produced: number,
+  running: { fuel: boolean; intel: boolean } = { fuel: true, intel: true },
+): { input: number; fuel: number; intel: number; into: { fuel: number; intel: number } } {
+  const into = { fuel: 0, intel: 0 };
+  const out = { fuel: 0, intel: 0 };
+  for (const d of converterDemand(town, running)) {
+    into[d.to] += d.input;
+    out[d.to] += d.output;
+  }
+  const scale = converterShare(into.fuel + into.intel, produced);
+  // Cut back, what they take rounds down: never more than the depots make.
+  const take = (x: number): number => (scale < 1 ? Math.floor(x * scale) : Math.round(x));
+  const fuelIn = take(into.fuel);
+  const intelIn = take(into.intel);
+  return {
+    input: fuelIn + intelIn,
+    fuel: Math.round(out.fuel * scale),
+    intel: Math.round(out.intel * scale),
+    into: { fuel: fuelIn, intel: intelIn },
+  };
+}
+
+/** Each working converter whose store has room: what it would take and make an hour. */
+function converterDemand(
+  town: TownState,
+  running: { fuel: boolean; intel: boolean },
+): { id: number; to: 'fuel' | 'intel'; input: number; output: number }[] {
+  const efficiency = researchEffects(town).conversion;
+  const demand: { id: number; to: 'fuel' | 'intel'; input: number; output: number }[] = [];
+  for (const s of town.structures) {
+    if (!working(s) || s.stoodDown) continue;
+    const c = townMetaFor(town.faction)[s.kind]?.converts;
+    if (!c || !running[c.to]) continue;
+    const i = Math.min(s.level, c.input.length) - 1;
+    const k = yardOutput(town, s);
+    demand.push({ id: s.id, to: c.to, input: c.input[i]! * k, output: c.output[i]! * k * efficiency });
+  }
+  return demand;
+}
+
+/** The share of what the converters want that the depots make: 1 unless they want more. */
+const converterShare = (wanted: number, produced: number): number =>
+  wanted > produced ? Math.max(0, produced) / wanted : 1;
+
+/**
+ * What one converter is doing, for its card: the supplies it takes and what it
+ * makes an hour, and why that is less than its rating. `full` is its store
+ * full, so it idles; `short` is the works wanting more than the depots make,
+ * so each gets its share; `stopped` is wrecked or still being built; `down` is
+ * stood down by the commander.
+ */
+export interface ConverterState {
+  to: 'fuel' | 'intel';
+  input: number;
+  output: number;
+  state: 'running' | 'short' | 'full' | 'stopped' | 'down';
+}
+
+export function converterAt(town: TownState, s: PlacedStructure): ConverterState | null {
+  const c = townMetaFor(town.faction)[s.kind]?.converts;
+  if (!c) return null;
+  if (!working(s)) return { to: c.to, input: 0, output: 0, state: 'stopped' };
+  if (s.stoodDown) return { to: c.to, input: 0, output: 0, state: 'down' };
+  const cap = caps(town);
+  const running = { fuel: town.fuel < cap.fuel, intel: town.intel < cap.intel };
+  if (!running[c.to]) return { to: c.to, input: 0, output: 0, state: 'full' };
+  const demand = converterDemand(town, running);
+  const own = demand.find((d) => d.id === s.id)!;
+  const wanted = demand.reduce((n, d) => n + d.input, 0);
+  const scale = converterShare(wanted, productionPerHour(town).supplies);
+  return {
+    to: c.to,
+    input: Math.round(own.input * scale),
+    output: Math.round(own.output * scale),
+    state: scale < 1 ? 'short' : 'running',
+  };
+}
+
+/**
+ * Stand a converter down, or set it back to work. It takes supplies from
+ * production for as long as its store has room, which on a filling supply
+ * store is a price, and this is how a commander saving supplies stops paying
+ * it without selling the works.
+ */
+export function standDown(town: TownState, id: number, down: boolean): boolean {
+  const s = town.structures.find((x) => x.id === id);
+  if (!s || !townMetaFor(town.faction)[s.kind]?.converts) return false;
+  if (down) s.stoodDown = true;
+  else delete s.stoodDown;
+  return true;
 }
 
 /**
@@ -685,7 +814,7 @@ function sumRates(
 /** How far the Command Center powers on its own. */
 export const POST_POWER_REACH = 2;
 /** The kinds that make half as much without power. */
-export const NEEDS_POWER: readonly string[] = ['supplyDepot', 'fuelDepot', 'radar'];
+export const NEEDS_POWER: readonly string[] = ['supplyDepot', 'fuelDepot', 'radar', 'refinery', 'bureau'];
 /** What an unpowered producer makes, as a share of what it would. */
 export const UNPOWERED_OUTPUT = 0.5;
 /** What a depot gains for each Storage Bunker beside it... */
@@ -803,6 +932,9 @@ export function yardRuleText(kind: string, nameOf: (kind: string) => string): st
       return `EVERY DEPOT BESIDE IT MAKES ${pct(BUNKER_BONUS)} MORE`;
     case 'generator':
       return 'POWERS EVERY CELL WITHIN 1, 2 OR 3 OF IT, BY LEVEL';
+    case 'refinery':
+    case 'bureau':
+      return 'RUNS ON SUPPLY PRODUCTION, NEVER THE STOCKPILE · IDLES WHILE ITS STORE IS FULL · NEEDS POWER';
     case 'barracks':
     case 'motorpool':
     case 'airfield':
@@ -861,6 +993,58 @@ export function cumulativeCost(
   return { supplies, fuel };
 }
 
+/** What an interval of accrual leaves in the stores, and what the converters did in it. */
+export interface Accrual {
+  supplies: number;
+  fuel: number;
+  intel: number;
+  /** Supplies the converters diverted, and the fuel and intel they made. */
+  converted: { supplies: number; fuel: number; intel: number };
+}
+
+/**
+ * The stores after `elapsedMs` of production and conversion, the caller having
+ * capped it at the offline window. Pure: `tick` applies it, and the economy
+ * instrument books it.
+ *
+ * Production fills storage to the cap and no further. What is already above it
+ * stays until it is spent: loot, the day's orders and a season placement are
+ * paid on top of the cap, and until M24 Phase 1 the next frame's tick cut
+ * every one of them back to it — a full store kept none of what the battles
+ * paid.
+ *
+ * A converter (M24 Phase 4) runs until the store it fills is full and then
+ * stops, so an interval that fills it mid-way is only charged for the part it
+ * ran. What it diverts comes out of production: on a full supply store that is
+ * production which would have been lost anyway, which is the point of it.
+ */
+export function accrue(town: TownState, elapsedMs: number): Accrual {
+  const hours = Math.max(0, elapsedMs) / 3_600_000;
+  const made = productionPerHour(town);
+  const cap = caps(town);
+  const conv = conversionPerHour(town, made.supplies, {
+    fuel: town.fuel < cap.fuel,
+    intel: town.intel < cap.intel,
+  });
+  // How long a converter runs: until the store it fills is full, which the
+  // producers are filling too, or for the whole interval.
+  const runFor = (held: number, full: number, produced: number, converted: number): number => {
+    if (converted <= 0) return 0;
+    return Math.min(hours, Math.max(0, full - held) / (produced + converted));
+  };
+  const tFuel = runFor(town.fuel, cap.fuel, made.fuel, conv.fuel);
+  const tIntel = runFor(town.intel, cap.intel, made.intel, conv.intel);
+  const diverted = conv.into.fuel * tFuel + conv.into.intel * tIntel;
+  const fill = (held: number, cap: number, delta: number): number =>
+    Math.max(held, Math.min(cap, held + delta));
+  return {
+    supplies: fill(town.supplies, cap.supplies, made.supplies * hours - diverted),
+    fuel: fill(town.fuel, cap.fuel, made.fuel * hours + conv.fuel * tFuel),
+    intel: fill(town.intel, cap.intel, made.intel * hours + conv.intel * tIntel),
+    converted: { supplies: diverted, fuel: conv.fuel * tFuel, intel: conv.intel * tIntel },
+  };
+}
+
 /**
  * Advance real time: accrue generation since lastSeen (offline capped), then
  * complete any finished builds/upgrades. Call every frame and on load.
@@ -876,19 +1060,10 @@ export function tick(town: TownState, now: number): LadderSettlement {
     OFFLINE_CAP_HOURS * 3_600_000,
   );
   if (elapsed > 0) {
-    const rate = ratesPerHour(town);
-    const cap = caps(town);
-    const hours = elapsed / 3_600_000;
-    // Production fills storage to the cap and no further. What is already
-    // above it stays until it is spent: loot, the day's orders and a season
-    // placement are paid on top of the cap, and until M24 Phase 1 the next
-    // frame's tick cut every one of them back to it — a full store kept none
-    // of what the battles paid.
-    const fill = (held: number, cap: number, perHour: number): number =>
-      Math.max(held, Math.min(cap, held + perHour * hours));
-    town.supplies = fill(town.supplies, cap.supplies, rate.supplies);
-    town.fuel = fill(town.fuel, cap.fuel, rate.fuel);
-    town.intel = fill(town.intel, cap.intel, rate.intel);
+    const gained = accrue(town, elapsed);
+    town.supplies = gained.supplies;
+    town.fuel = gained.fuel;
+    town.intel = gained.intel;
   }
   town.lastSeen = now;
 
@@ -1043,9 +1218,11 @@ export function canResearch(town: TownState, id: string): ResearchError {
   if (town.research.completed.includes(id)) return 'done';
   if (town.research.active) return 'busy';
   if (!hasRadar(town)) return 'radar';
-  const prereq = techPrereq(tech);
-  if (prereq && !town.research.completed.includes(prereq)) return 'prereq';
+  // Every one of them (M24 Phase 4): the graph's upper tiers need a tech from
+  // another branch as well as their own.
+  if (techPrereqs(tech).some((p) => !town.research.completed.includes(p))) return 'prereq';
   if (town.intel < tech.intel) return 'cost';
+  if (town.supplies < (tech.supplies ?? 0) || town.fuel < (tech.fuel ?? 0)) return 'cost';
   return null;
 }
 
@@ -1053,6 +1230,8 @@ export function startResearch(town: TownState, id: string, now: number): boolean
   if (canResearch(town, id) !== null) return false;
   const tech = TECH_BY_ID[id]!;
   town.intel -= tech.intel;
+  town.supplies -= tech.supplies ?? 0;
+  town.fuel -= tech.fuel ?? 0;
   town.research.active = { id, endsAt: now + tech.seconds * 1000 };
   return true;
 }
@@ -1225,9 +1404,11 @@ export function sell(town: TownState, id: number): boolean {
 
 export function repairCost(town: TownState, s: PlacedStructure): { supplies: number; fuel: number } {
   const spent = cumulativeCost(town, s.kind, s.level);
-  // A wreck beside a working Engineering Bay repairs for half (M24 Phase 3).
+  // A wreck beside a working Engineering Bay repairs for half (M24 Phase 3),
+  // and Field Engineering takes its share off what is left (Phase 4).
   const beside = besideCount(town, s.cell, ['engBay'], s.id) > 0;
-  const fraction = wreckRepairFractionFor(town.faction) * (beside ? 1 - REPAIR_DISCOUNT : 1);
+  const fraction =
+    wreckRepairFractionFor(town.faction) * (beside ? 1 - REPAIR_DISCOUNT : 1) * researchEffects(town).repairs;
   return {
     supplies: Math.ceil(spent.supplies * fraction),
     fuel: Math.ceil(spent.fuel * fraction),
@@ -1292,10 +1473,15 @@ export function repairAllWrecks(town: TownState): boolean {
   return true;
 }
 
+/** How many charges of each ordnance this town may stock (Deep Strike adds one). */
+export function chargeCapOf(town: TownState): number {
+  return CHARGE_CAP + researchEffects(town).chargeCap;
+}
+
 export function buyCharge(town: TownState, power: string): boolean {
   const price = CHARGE_PRICES[power];
   if (price === undefined || !isUnlocked(town, power)) return false;
-  if ((town.charges[power] ?? 0) >= CHARGE_CAP) return false;
+  if ((town.charges[power] ?? 0) >= chargeCapOf(town)) return false;
   if (town.fuel < price) return false;
   town.fuel -= price;
   town.charges[power] = (town.charges[power] ?? 0) + 1;

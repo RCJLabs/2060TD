@@ -1,6 +1,12 @@
 /**
- * The research tree (M6, v0.4): nine doctrines in three branches, paid in
- * Intel from the Signals Station and researched one at a time.
+ * The research tree (M6, v0.4): doctrines in three branches, paid in Intel
+ * from the Signals Station and researched one at a time.
+ *
+ * Nine of them, three straight ladders, until M24 Phase 4 made it a graph: a
+ * fourth and fifth tier on each branch, and each of those needs a tech from
+ * another branch as well as its own. They cost supplies and fuel as well as
+ * intel, and take hours — they are what the surplus is for once the town is
+ * built.
  *
  * Effects fold into battles as deterministic multipliers carried INSIDE the
  * SimConfig (see sim/types DefenderMods/AttackerMods), so replays of old
@@ -13,13 +19,23 @@ export type TechBranch = 'fortify' | 'strike' | 'logistics';
 export interface TechDef {
   id: string;
   branch: TechBranch;
-  /** Position within the branch; tier n requires tier n-1. */
-  tier: 1 | 2 | 3;
+  /** Position within the branch; tier n requires tier n-1, and at 4 and 5 more (`requires`). */
+  tier: 1 | 2 | 3 | 4 | 5;
   name: string;
   desc: string;
   intel: number;
+  /** What it costs besides intel (M24 Phase 4). Absent on the first nine. */
+  supplies?: number;
+  fuel?: number;
   seconds: number;
+  /**
+   * Its prerequisites, where the branch's own ladder is not the whole of them:
+   * the graph's tiers 4 and 5 each need a tech from another branch too.
+   */
+  requires?: string[];
 }
+
+const HOUR = 3600;
 
 export const TECHS: TechDef[] = [
   // ---- FORTIFY — the defense doctrine ------------------------------------------
@@ -50,6 +66,30 @@ export const TECHS: TechDef[] = [
     intel: 170,
     seconds: 300,
   },
+  {
+    id: 'fortify4',
+    branch: 'fortify',
+    tier: 4,
+    name: 'Layered Defence',
+    desc: 'Walls +15% more HP · weapons +8% more',
+    intel: 400,
+    supplies: 8000,
+    fuel: 1500,
+    seconds: 4 * HOUR,
+    requires: ['fortify3', 'logistics2'],
+  },
+  {
+    id: 'fortify5',
+    branch: 'fortify',
+    tier: 5,
+    name: 'Kill Zones',
+    desc: 'Weapons +10% more · CP 10% cheaper again',
+    intel: 600,
+    supplies: 14000,
+    fuel: 3000,
+    seconds: 10 * HOUR,
+    requires: ['fortify4', 'strike3'],
+  },
   // ---- STRIKE — the raid doctrine ------------------------------------------------
   {
     id: 'strike1',
@@ -77,6 +117,30 @@ export const TECHS: TechDef[] = [
     desc: 'Training time −25%',
     intel: 170,
     seconds: 300,
+  },
+  {
+    id: 'strike4',
+    branch: 'strike',
+    tier: 4,
+    name: 'Veteran Cadres',
+    desc: 'Raid units +12% more HP',
+    intel: 400,
+    supplies: 8000,
+    fuel: 2000,
+    seconds: 4 * HOUR,
+    requires: ['strike3', 'fortify2'],
+  },
+  {
+    id: 'strike5',
+    branch: 'strike',
+    tier: 5,
+    name: 'Deep Strike',
+    desc: 'Raid unit damage +12% more · +1 charge of each ordnance',
+    intel: 600,
+    supplies: 14000,
+    fuel: 4000,
+    seconds: 10 * HOUR,
+    requires: ['strike4', 'logistics3'],
   },
   // ---- LOGISTICS — the economy doctrine --------------------------------------------
   {
@@ -106,17 +170,42 @@ export const TECHS: TechDef[] = [
     intel: 160,
     seconds: 270,
   },
+  {
+    id: 'logistics4',
+    branch: 'logistics',
+    tier: 4,
+    name: 'Field Engineering',
+    desc: 'Wreck repairs 30% cheaper',
+    intel: 400,
+    supplies: 6000,
+    fuel: 1000,
+    seconds: 4 * HOUR,
+    requires: ['logistics3', 'fortify2'],
+  },
+  {
+    id: 'logistics5',
+    branch: 'logistics',
+    tier: 5,
+    name: 'Strategic Reserve',
+    desc: 'Converters make 25% more · storage +20% more',
+    intel: 600,
+    supplies: 12000,
+    fuel: 2500,
+    seconds: 10 * HOUR,
+    requires: ['logistics4', 'strike2'],
+  },
 ];
 
 export const TECH_BY_ID: Record<string, TechDef> = Object.fromEntries(
   TECHS.map((t) => [t.id, t]),
 );
 
-/** The tech that must be completed first, or null for tier 1. */
-export function techPrereq(tech: TechDef): string | null {
-  if (tech.tier === 1) return null;
+/** Every tech that must be completed first: the one below it in its branch, or its own list. */
+export function techPrereqs(tech: TechDef): string[] {
+  if (tech.requires) return tech.requires;
+  if (tech.tier === 1) return [];
   const prev = TECHS.find((t) => t.branch === tech.branch && t.tier === tech.tier - 1);
-  return prev ? prev.id : null;
+  return prev ? [prev.id] : [];
 }
 
 /** Aggregated multipliers for a set of completed tech ids. */
@@ -130,19 +219,38 @@ export interface ResearchEffects {
   storage: number;
   scoutCost: number;
   rates: number;
+  /** What a converter makes from the same supplies (M24 Phase 4). */
+  conversion: number;
+  /** What a wreck costs to repair, as a share of its price before research. */
+  repairs: number;
+  /** Charges of each ordnance a town may stock beyond the standing cap. */
+  chargeCap: number;
 }
+
+/**
+ * The graph's tiers add to the branch's multipliers rather than compounding
+ * them, and every one is rounded to the thousandth: the battle multipliers
+ * ride inside a config, and a replay code carries them to the thousandth, so
+ * a value with more places in it would re-fight a different battle.
+ */
+const milli = (x: number): number => Math.round(x * 1000) / 1000;
 
 export function effectsOf(completed: string[]): ResearchEffects {
   const has = (id: string) => completed.includes(id);
+  const add = (...terms: [string, number][]): number =>
+    milli(terms.reduce((sum, [id, v]) => sum + (has(id) ? v : 0), 1));
   return {
-    wallHp: has('fortify1') ? 1.15 : 1,
-    weaponDamage: has('fortify2') ? 1.12 : 1,
-    cpCost: has('fortify3') ? 0.8 : 1,
-    unitHp: has('strike1') ? 1.12 : 1,
-    unitDamage: has('strike2') ? 1.12 : 1,
-    trainTime: has('strike3') ? 0.75 : 1,
-    storage: has('logistics1') ? 1.2 : 1,
-    scoutCost: has('logistics2') ? 0.6 : 1,
-    rates: has('logistics3') ? 1.15 : 1,
+    wallHp: add(['fortify1', 0.15], ['fortify4', 0.15]),
+    weaponDamage: add(['fortify2', 0.12], ['fortify4', 0.08], ['fortify5', 0.1]),
+    cpCost: add(['fortify3', -0.2], ['fortify5', -0.1]),
+    unitHp: add(['strike1', 0.12], ['strike4', 0.12]),
+    unitDamage: add(['strike2', 0.12], ['strike5', 0.12]),
+    trainTime: add(['strike3', -0.25]),
+    storage: add(['logistics1', 0.2], ['logistics5', 0.2]),
+    scoutCost: add(['logistics2', -0.4]),
+    rates: add(['logistics3', 0.15]),
+    conversion: add(['logistics5', 0.25]),
+    repairs: add(['logistics4', -0.3]),
+    chargeCap: has('strike5') ? 1 : 0,
   };
 }

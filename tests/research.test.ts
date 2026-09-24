@@ -6,7 +6,7 @@ import {
   raidCatalogFor,
   townMetaFor,
 } from '../src/content/factions';
-import { TECHS, effectsOf, techPrereq, TECH_BY_ID } from '../src/content/research';
+import { TECHS, effectsOf, techPrereqs, TECH_BY_ID } from '../src/content/research';
 import { deserialize } from '../src/meta/save';
 import {
   applyMissionResult,
@@ -247,17 +247,46 @@ describe('research program', () => {
     expect(siegeConfig(plain, 5).mods).toBeUndefined();
   });
 
-  it('tech table is well-formed: unique ids, linear prereqs, real effects', () => {
+  it('tech table is well-formed: unique ids, prereqs that exist and come first, real effects', () => {
     const ids = new Set(TECHS.map((t) => t.id));
     expect(ids.size).toBe(TECHS.length);
+    const tierOf = (id: string) => TECH_BY_ID[id]!.tier;
     for (const tech of TECHS) {
-      const prereq = techPrereq(tech);
-      if (tech.tier === 1) expect(prereq).toBeNull();
-      else expect(prereq && ids.has(prereq)).toBe(true);
+      const prereqs = techPrereqs(tech);
+      if (tech.tier === 1) expect(prereqs).toEqual([]);
+      else expect(prereqs.length).toBeGreaterThan(0);
+      for (const p of prereqs) {
+        expect(ids.has(p), `${tech.id} needs ${p}`).toBe(true);
+        expect(tierOf(p)).toBeLessThan(tech.tier);
+      }
+      // The graph (M24 Phase 4): every tier above three reaches into
+      // another branch as well as its own.
+      if (tech.tier > 3) {
+        expect(prereqs.some((p) => TECH_BY_ID[p]!.branch === tech.branch)).toBe(true);
+        expect(prereqs.some((p) => TECH_BY_ID[p]!.branch !== tech.branch)).toBe(true);
+      }
     }
     // Full board must move every knob off identity.
     const fx = effectsOf(TECHS.map((t) => t.id));
-    for (const value of Object.values(fx)) expect(value).not.toBe(1);
+    for (const [knob, value] of Object.entries(fx)) {
+      expect(value, knob).not.toBe(knob === 'chargeCap' ? 0 : 1);
+    }
+  });
+
+  it('keeps every battle multiplier to the thousandth a replay code carries', () => {
+    // Any subset, since a town can hold any set its prerequisites allowed.
+    const ids = TECHS.map((t) => t.id);
+    for (let mask = 0; mask < 1 << ids.length; mask += 97) {
+      const fx = effectsOf(ids.filter((_, i) => mask & (1 << i)));
+      for (const v of [fx.wallHp, fx.weaponDamage, fx.cpCost, fx.unitHp, fx.unitDamage]) {
+        expect(Math.round(v * 1000) / 1000).toBe(v);
+      }
+    }
+    // And the first nine are exactly what they always were.
+    const nine = effectsOf(['fortify1', 'fortify2', 'fortify3', 'strike1', 'strike2', 'strike3']);
+    expect([nine.wallHp, nine.weaponDamage, nine.cpCost, nine.unitHp, nine.unitDamage, nine.trainTime]).toEqual([
+      1.15, 1.12, 0.8, 1.12, 1.12, 0.75,
+    ]);
   });
 });
 

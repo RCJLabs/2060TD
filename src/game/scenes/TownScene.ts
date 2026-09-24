@@ -1,6 +1,6 @@
 import { clamp, Scene, SHUTDOWN, type Graphics, type Pointer } from '../stage';
 import { music } from '../music';
-import { BUILDABLE_KINDS, CHARGE_CAP, CHARGE_PRICES } from '../../content/buildings';
+import { BUILDABLE_KINDS, CC_GATING, CHARGE_PRICES } from '../../content/buildings';
 import type { MissionDef } from '../../content/campaign';
 import {
   campaignFor,
@@ -10,7 +10,7 @@ import {
   townMetaFor,
   type FactionId,
 } from '../../content/factions';
-import { TECHS, TECH_BY_ID } from '../../content/research';
+import { TECHS, TECH_BY_ID, techPrereqs, type TechDef } from '../../content/research';
 import { activeSlot, clearSave, loadSlot, saveTown } from '../../meta/save';
 import {
   applyLiveDefense,
@@ -76,6 +76,7 @@ import {
   repairWreck,
   sell,
   siegeConfig,
+  standDown,
   startResearch,
   structureAt,
   tick,
@@ -88,6 +89,8 @@ import {
   wreckedIds,
   besideCount,
   cellsApart,
+  chargeCapOf,
+  converterAt,
   edgeNeighbours,
   isPoweredCell,
   powerReachOf,
@@ -144,6 +147,19 @@ const SHARE_ERRORS: Record<ShareError, string> = {
   version: 'That code came from a different version of the game.',
   content: 'The code decoded to something that is not a base.',
 };
+
+/** `45s`, `4m 30s`, `4h`, `9h 58m`: a duration as the research board and its row say it. */
+function span(seconds: number): string {
+  const s = Math.max(0, Math.ceil(seconds));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) {
+    const m = Math.floor(s / 60);
+    return s % 60 ? `${m}m ${s % 60}s` : `${m}m`;
+  }
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
 
 const UNLOCK_MISSION: Record<FactionId, Record<string, number>> = {
   usa: {},
@@ -697,14 +713,24 @@ export class TownScene extends Scene {
     ov.footer('CLOSE', close);
   }
 
-  /** The research board: three doctrines, one project at a time. */
+  /** The buildings a tech unlocks, in the faction's own names. */
+  private techBuilds(tech: TechDef): string[] {
+    return BUILDABLE_KINDS.filter((kind) => this.meta(kind)?.tech === tech.id).map(this.nameOf);
+  }
+
+  /**
+   * The research board: three doctrines, one project at a time. Since M24
+   * Phase 4 the top two tiers of each need a tech from another branch too, and
+   * cost supplies and fuel as well as intel.
+   */
   private showResearch(): void {
     if (this.overlay || this.demoMode) return;
-    const radar = hasRadar(this.town);
+    const town = this.town;
+    const radar = hasRadar(town);
     const ov = createOverlay(this, this.layout, {
       title: 'RESEARCH & DOCTRINE',
       subtitle: radar
-        ? `INTEL ${Math.floor(this.town.intel)} · one project at a time`
+        ? `INTEL ${Math.floor(town.intel)} · SUPPLIES ${Math.floor(town.supplies)} · FUEL ${Math.floor(town.fuel)}`
         : 'A SIGNALS STATION MUST STAND TO RUN THE PROGRAM',
     });
     this.overlay = ov;
@@ -730,19 +756,31 @@ export class TownScene extends Scene {
           { fontStyle: 'bold' },
         );
       }
-      const err = canResearch(this.town, tech.id);
-      const done = this.town.research.completed.includes(tech.id);
-      const active = this.town.research.active?.id === tech.id;
-      const sub = done
-        ? 'IN DOCTRINE'
-        : active
-          ? 'IN PROGRESS'
-          : err === 'prereq'
-            ? 'REQUIRES THE PREVIOUS DOCTRINE'
-            : `${tech.intel} INTEL · ${tech.seconds}s`;
+      const err = canResearch(town, tech.id);
+      const done = town.research.completed.includes(tech.id);
+      const active = town.research.active?.id === tech.id;
+      const builds = this.techBuilds(tech);
+      const cost = [
+        `${tech.intel} INTEL`,
+        ...(tech.supplies ? [`${tech.supplies} SUP`] : []),
+        ...(tech.fuel ? [`${tech.fuel} FUEL`] : []),
+        span(tech.seconds),
+      ].join(' · ');
+      const missing = techPrereqs(tech)
+        .filter((id) => !town.research.completed.includes(id))
+        .map((id) => TECH_BY_ID[id]?.name.toUpperCase() ?? id);
+      const lines = [
+        `${tech.name} — ${tech.desc}${builds.length > 0 ? ` · builds the ${builds.join(', ')}` : ''}`,
+        done
+          ? 'IN DOCTRINE'
+          : active
+            ? `IN PROGRESS · ${span((town.research.active!.endsAt - Date.now()) / 1000)} LEFT`
+            : cost,
+        ...(!done && !active && missing.length > 0 ? [`NEEDS ${missing.join(' + ')}`] : []),
+      ];
       this.overlayEntry(
         ov,
-        `${tech.name} — ${tech.desc}\n${sub}`,
+        lines.join('\n'),
         done ? COLORS.olive : active ? COLORS.signal : COLORS.ink,
         !done && !active
           ? {
@@ -1464,6 +1502,7 @@ export class TownScene extends Scene {
       this.overlayBuilder = null;
     };
     const meta = this.meta(kind);
+    const tech = meta?.tech ? TECH_BY_ID[meta.tech] : undefined;
     const opts = {
       layout: this.layout,
       // As the board scales it (M34), so a card reads out the ranges, radii
@@ -1471,6 +1510,9 @@ export class TownScene extends Scene {
       catalog: scaleCatalog(defenseCatalogFor(this.town.faction), TOWN_GRID.cellSize),
       ...(meta ? { meta } : {}),
       ...(yardRuleText(kind, this.nameOf) ? { yardRule: yardRuleText(kind, this.nameOf)! } : {}),
+      ...(tech && !this.town.research.completed.includes(tech.id)
+        ? { unlock: `RESEARCH ${tech.name.toUpperCase()} (${tech.branch.toUpperCase()} ${tech.tier}) TO BUILD IT` }
+        : {}),
       onClose: close,
     };
     this.overlay = wall
@@ -1695,7 +1737,8 @@ export class TownScene extends Scene {
       drawStructureGlyph(g, s.kind, center.x, center.y, CELL, {
         level: s.level,
         wrecked: s.wrecked,
-        inert: building && s.upgradingTo === undefined,
+        // Not doing its job: going up for the first time, or works stood down.
+        inert: (building && s.upgradingTo === undefined) || s.stoodDown === true,
       });
       if (building) {
         const meta = this.meta(s.kind);
@@ -1808,6 +1851,18 @@ export class TownScene extends Scene {
     const town = this.town;
     const selfId = self?.id;
     const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 'S'}`;
+    const works = this.meta(kind)?.converts;
+    if (works) {
+      // A converter's cell decides only its power: what it takes and makes.
+      const k = yardOutputAt(town, kind, cell, selfId);
+      const i = Math.min(self?.level ?? 1, works.input.length) - 1;
+      const out = Math.round(works.output[i]! * k * researchEffects(town).conversion);
+      const power = isPoweredCell(town, cell) ? 'POWERED' : 'NO POWER — HALF';
+      return (
+        `HERE: ${Math.round(works.input[i]! * k)} SUP/h → ${out} ` +
+        `${works.to === 'fuel' ? 'FUEL' : 'INTEL'}/h — ${power}`
+      );
+    }
     if (NEEDS_POWER.includes(kind)) {
       const k = yardOutputAt(town, kind, cell, selfId);
       const parts = [isPoweredCell(town, cell) ? 'POWERED' : 'NO POWER — HALF'];
@@ -2088,6 +2143,7 @@ export class TownScene extends Scene {
       const meta = this.meta(kind)!;
       const cost = meta.levels[0]!;
       const max = g.counts[kind] ?? 0;
+      const firstCc = CC_GATING.findIndex((gate) => (gate.counts[kind] ?? 0) > 0) + 1;
       const have = countOf(town, kind);
       // The same silhouette the thing will have once it is standing on the
       // board — `drawStructureGlyph`, not a second set of shapes that would
@@ -2110,10 +2166,12 @@ export class TownScene extends Scene {
       };
       if (!isUnlocked(town, kind)) {
         const at = this.unlockAt(kind);
+        // Research unlocks the works (M24 Phase 4), and the row names it.
+        const tech = meta.tech ? TECH_BY_ID[meta.tech] : undefined;
         rows.push({
           id: kind,
           label: meta.name.toUpperCase(),
-          sub: `LOCKED${at !== undefined ? ` M${at + 1}` : ''}`,
+          sub: tech ? tech.name.toUpperCase() : `LOCKED${at !== undefined ? ` M${at + 1}` : ''}`,
           enabled: false,
           icon,
           // A locked row still answers what it is. Reading the card for
@@ -2127,7 +2185,9 @@ export class TownScene extends Scene {
       rows.push({
         id: kind,
         label: meta.name.toUpperCase(),
-        sub: `${costText} ${have}/${max}`,
+        // None allowed at this Command Center: say which one allows it,
+        // rather than a 0/0 that reads like a broken count.
+        sub: max === 0 && firstCc > 0 ? `NEEDS CC${firstCc}` : `${costText} ${have}/${max}`,
         enabled: max > 0 && have < max && town.supplies >= cost.supplies && town.fuel >= cost.fuel,
         active: this.tool.type === 'build' && this.tool.kind === kind,
         onTap: () => this.setTool({ type: 'build', kind }),
@@ -2252,6 +2312,16 @@ export class TownScene extends Scene {
     for (const line of this.yardLines(s)) info(line);
     const output = this.outputLine(s.kind, s.level, yardOutput(town, s));
     if (output) info(`OUTPUT: ${output}`);
+    const works = converterAt(town, s);
+    if (works) {
+      const made = works.to === 'fuel' ? 'FUEL' : 'INTEL';
+      if (works.state === 'full') info(`IDLE: THE ${made} STORE IS FULL`);
+      else if (works.state === 'down') info('STOOD DOWN: IT TAKES AND MAKES NOTHING');
+      else if (works.state !== 'stopped') {
+        info(`CONVERTS: ${works.input} SUP/h → ${works.output} ${made}/h`);
+        if (works.state === 'short') info('THE DEPOTS MAKE LESS THAN THE WORKS WANT');
+      }
+    }
     if (meta?.storage) {
       const t = meta.storage[s.level - 1]!;
       info(`STORAGE: +${t.supplies}S +${t.fuel}F`);
@@ -2295,6 +2365,17 @@ export class TownScene extends Scene {
         onTap: () => this.onRepair(),
       },
     );
+    // The works take supplies while their store has room, which is a price
+    // on a supply store that is filling. Standing them down stops paying it.
+    if (works) {
+      rows.push({
+        id: 'standdown',
+        label: s.stoodDown ? 'RESUME WORK' : 'STAND DOWN',
+        sub: s.stoodDown ? '' : 'KEEP THE SUPPLIES',
+        enabled: !this.demoMode,
+        onTap: () => this.onStandDown(),
+      });
+    }
     return rows;
   }
 
@@ -2307,9 +2388,7 @@ export class TownScene extends Scene {
       : hasRadar(town)
         ? 'RESEARCH'
         : 'RESEARCH — NO SIGNALS';
-    const researchSub = active
-      ? `${Math.max(0, Math.ceil((active.endsAt - now) / 1000))}s`
-      : '[T]';
+    const researchSub = active ? span((active.endsAt - now) / 1000) : '[T]';
 
     return [
       { id: 'h', label: 'OPERATIONS', heading: true },
@@ -2478,9 +2557,9 @@ export class TownScene extends Scene {
       }
       rows.push({
         id: power,
-        label: `${name} ×${stock}/${CHARGE_CAP}`,
+        label: `${name} ×${stock}/${chargeCapOf(town)}`,
         sub: `BUY ${price}F`,
-        enabled: stock < CHARGE_CAP && town.fuel >= price,
+        enabled: stock < chargeCapOf(town) && town.fuel >= price,
         onTap: () => {
           if (buyCharge(this.town, power)) this.saveSoon();
         },
@@ -2599,6 +2678,11 @@ export class TownScene extends Scene {
     if (s && repairWreck(this.town, s.id)) this.saveSoon();
   }
 
+  private onStandDown(): void {
+    const s = this.selected();
+    if (s && standDown(this.town, s.id, !s.stoodDown)) this.saveSoon();
+  }
+
   private onRepairAll(): void {
     if (repairAllWrecks(this.town)) this.saveSoon();
   }
@@ -2662,7 +2746,11 @@ export class TownScene extends Scene {
     if (this.lastActiveResearch && activeId === null) {
       const tech = TECH_BY_ID[this.lastActiveResearch];
       if (tech && town.research.completed.includes(tech.id)) {
-        this.setBanner(`RESEARCH COMPLETE: ${tech.name.toUpperCase()} — ${tech.desc.toUpperCase()}`, 12);
+        const builds = this.techBuilds(tech).map((name) => ` · NOW BUILD THE ${name.toUpperCase()}`);
+        this.setBanner(
+          `RESEARCH COMPLETE: ${tech.name.toUpperCase()} — ${tech.desc.toUpperCase()}${builds.join('')}`,
+          12,
+        );
         audio.sfx('research');
       }
     }
