@@ -25,6 +25,11 @@ export interface CoachState {
   deployed: number;
   /** Fire missions the player called, this battle. */
   casts: number;
+  /**
+   * What the cheapest field gun costs in this battle, where the screen knows:
+   * the USA's kit (M26) doubles it, so the lesson waits until one is in reach.
+   */
+  gun?: number;
 }
 
 export interface CoachStep {
@@ -84,7 +89,9 @@ export const FIRST_SIEGE: CoachStep[] = [
       'field guns, mines, fire missions. It does not carry home.',
     hold: true,
     dwell: 5,
-    done: (s) => s.cp >= 20 || battleOver(s),
+    // Twenty, or a field gun's price where that is more: "spend some" over
+    // a drawer of rows too dear to press is not a lesson.
+    done: (s) => s.cp >= Math.max(20, s.gun ?? 0) || battleOver(s),
   },
   {
     id: 'deploy',

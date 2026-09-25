@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { makeResolution, withDepots } from './helpers';
 import { M1_CATALOG } from '../src/content/catalog';
 import { FACTION_IDS, type FactionId } from '../src/content/factions';
@@ -10,6 +10,7 @@ import {
   RAPID_RESPONSE_KIT,
   RAPID_RESPONSE_REFUND,
   setSignaturesLive,
+  signaturesLive,
 } from '../src/content/signatures';
 import { deserialize, serialize } from '../src/meta/save';
 import {
@@ -122,6 +123,20 @@ describe('Rapid Response (USA): a field defence that lives through its wave pays
     expect(e.phase).toBe('prep');
     // The three guns were bought with supplies before the assault.
     expect(e.stats.cpRefunded).toBeUndefined();
+  });
+
+  it('is announced where it stands, for the board to letter', () => {
+    const e = siege({ refund: 0.5 });
+    e.enqueue({ tick: e.tick, type: 'placeStructure', cell: idx(31, 23), kind: 'foxhole' });
+    const events = until(e, ['prep']);
+    const foxhole = e.structureAt(idx(31, 23))!;
+    expect(events.filter((ev) => ev.type === 'refund')).toEqual([
+      { type: 'refund', id: foxhole.id, at: foxhole.center, cp: M1_CATALOG.structures['foxhole']!.cpCost! * 0.5 },
+    ]);
+    // And never without the rule.
+    const plain = siege();
+    plain.enqueue({ tick: plain.tick, type: 'placeStructure', cell: idx(31, 23), kind: 'foxhole' });
+    expect(until(plain, ['prep']).some((ev) => ev.type === 'refund')).toBe(false);
   });
 
   it('never past the cap', () => {
@@ -349,10 +364,15 @@ describe('no rule, no change', () => {
 
 // ---- the town's half (M26): the rules attached, the mandate, the surge -------------
 
-describe('the rules ride every town battle, once the game fights them', () => {
-  afterEach(() => setSignaturesLive(false));
+describe('the rules ride every town battle', () => {
+  afterEach(() => setSignaturesLive(true));
 
-  it('not yet: with the switch off no battle carries one', () => {
+  it('the game fights them: the switch is on', () => {
+    expect(signaturesLive()).toBe(true);
+  });
+
+  it('with the switch off no battle carries one', () => {
+    expect(setSignaturesLive(false)).toBe(true);
     for (const faction of FACTION_IDS) {
       const town = withDepots(unlockAll(newTown(T0, faction)), 2);
       expect(siegeConfig(town, 1).signature, faction).toBeUndefined();
@@ -364,7 +384,6 @@ describe('the rules ride every town battle, once the game fights them', () => {
   });
 
   it('the USA’s kit and refund, Russia’s hulk and trim; nothing of the sim’s for the other three', () => {
-    setSignaturesLive(true);
     const expected: Record<FactionId, Signature | undefined> = {
       usa: { refund: RAPID_RESPONSE_REFUND, elite: { ...RAPID_RESPONSE_KIT } },
       russia: { hulk: { ...OVERBUILT_HULK } },
@@ -382,7 +401,6 @@ describe('the rules ride every town battle, once the game fights them', () => {
   });
 
   it('the UN’s mandate rides the mods, on top of what research set, the standing one by default', () => {
-    setSignaturesLive(true);
     const town = withDepots(unlockAll(newTown(T0, 'un')), 2);
     expect(siegeConfig(town, 1).mods?.defender).toEqual({ postHp: MANDATES.shield.mods.postHp });
     town.mandate = 'works';
@@ -403,8 +421,7 @@ describe('the rules ride every town battle, once the game fights them', () => {
 });
 
 describe('Production Surge (China): training costs half after a battle fought', () => {
-  beforeEach(() => setSignaturesLive(true));
-  afterEach(() => setSignaturesLive(false));
+  afterEach(() => setSignaturesLive(true));
 
   const MIN = 60_000;
   const WINDOW = PRODUCTION_SURGE.minutes * MIN;

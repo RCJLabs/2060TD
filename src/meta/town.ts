@@ -41,15 +41,7 @@ import { MAP_CELL_SIZE } from '../content/bases';
 import { effectsOf, techPrereqs, TECH_BY_ID, type ResearchEffects } from '../content/research';
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
-import {
-  DEFAULT_MANDATE,
-  MANDATES,
-  PRODUCTION_SURGE,
-  signatureFor,
-  signatureModsFor,
-  signaturesLive,
-  type MandateId,
-} from '../content/signatures';
+import { battleRules, PRODUCTION_SURGE, signaturesLive, type MandateId } from '../content/signatures';
 import { newSquadRecords, type SquadRecord } from '../content/veterancy';
 import type { VaultEntry } from './vault';
 // Type-only, so no runtime edge is added back to warfare.ts (which imports
@@ -1681,30 +1673,9 @@ function battleConfig(
   reservedCells?: CellIndex[],
 ): SimConfig {
   const fx = researchEffects(town);
-  // The faction's signature (M26), when the game fights them: the sim's rule
-  // with its numbers, and the UN's mandate on top of what research set.
-  const live = signaturesLive();
-  const signature = live ? signatureFor(town.faction) : undefined;
-  const mandate = live && town.faction === 'un' ? MANDATES[town.mandate ?? DEFAULT_MANDATE].mods : {};
-  const kit = live ? signatureModsFor(town.faction) : {};
-  // Rounded to the thousandth a replay code keeps, so a product of two
-  // multipliers re-fights as exactly the number it was fought with.
-  const milli = (v: number): number => Math.round(v * 1000) / 1000;
-  const wallHp = mandate.wallHp !== undefined ? milli(fx.wallHp * mandate.wallHp) : fx.wallHp;
-  const cpCost = mandate.cpCost !== undefined ? milli(fx.cpCost * mandate.cpCost) : fx.cpCost;
-  const postHp = mandate.postHp ?? 1;
-  // The rules' own mods, where a rule has one: the post's HP, the trim.
-  const extra = {
-    ...(postHp !== 1 ? { postHp } : {}),
-    ...(mandate.fieldHp !== undefined ? { fieldHp: mandate.fieldHp } : {}),
-    ...(kit.emplacementHp !== undefined ? { emplacementHp: kit.emplacementHp } : {}),
-  };
-  const defender =
-    wallHp !== 1 || fx.weaponDamage !== 1 || cpCost !== 1
-      ? { wallHp, weaponDamage: fx.weaponDamage, cpCost, ...extra }
-      : Object.keys(extra).length > 0
-        ? extra
-        : undefined;
+  // The faction's signature (M26): the sim's rule with its numbers, and the
+  // mods on top of what research set, the UN's mandate among them.
+  const { signature, defender } = battleRules(town.faction, fx, town.mandate);
   return {
     width: TOWN_GRID.width,
     height: TOWN_GRID.height,

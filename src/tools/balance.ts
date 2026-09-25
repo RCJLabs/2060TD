@@ -63,6 +63,7 @@ import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
 import {
+  battleRules,
   DEFAULT_MANDATE,
   MANDATE_IDS,
   MANDATES,
@@ -70,6 +71,8 @@ import {
   RAPID_RESPONSE_REFUND,
   signatureFor,
   signatureModsFor,
+  signaturesLive,
+  setSignaturesLive,
 } from '../content/signatures';
 import { LAST_STAND_LEVEL } from '../content/theaters';
 import { economyTable } from './economy';
@@ -655,17 +658,27 @@ function siegeTraceOn(
   policy: SiegePolicy,
   chainVersion: number,
   attackerHp = 1,
-  /** A faction rule and a doctrine buff to fight under, and a kit to fight with (M26). */
-  extra: { signature?: Signature; mods?: DefenderMods; catalog?: Catalog } = {},
+  /**
+   * A faction rule and a doctrine buff to fight under, and a kit to fight
+   * with (M26), named outright by an instrument that reads a rule on and off:
+   * `{}` is none. Left out, the trace fights the rules the game does.
+   */
+  extra?: { signature?: Signature; mods?: DefenderMods; catalog?: Catalog },
 ): WaveTrace {
-  const catalog = extra.catalog ?? defenseCatalogFor(faction);
+  const catalog = extra?.catalog ?? defenseCatalogFor(faction);
   // The table's own battle, so a trace is of a row the snapshot publishes.
   const config = defenseConfigFor(faction, base, level, seed, {
     orders: policy ?? undefined,
     chainVersion,
     ...(FIGHT === 'probe' ? { siege: probeAssault(level, enemyRosterFor(faction)) } : {}),
-    ...(extra.signature ? { signature: extra.signature } : {}),
-    ...(extra.mods ? { mods: extra.mods } : {}),
+    ...(extra
+      ? {
+          rules: {
+            ...(extra.signature ? { signature: extra.signature } : {}),
+            ...(extra.mods ? { mods: extra.mods } : {}),
+          },
+        }
+      : {}),
   });
   if (attackerHp !== 1) config.mods = { ...config.mods, attacker: { hp: attackerHp } };
   const engine = layDefense(config, catalog);
@@ -1699,13 +1712,27 @@ function defenseConfigFor(
     /** Its tunnel mouths, physical, reserved as `missionConfig` reserves them. */
     tunnels?: readonly { col: number; row: number }[];
     /**
-     * A faction rule to fight under (M26). None by default, as the game fights
-     * none yet: when `battleConfig` starts attaching them, this has to follow.
+     * The faction rules to fight under (M26), named outright: the sim's rule,
+     * and the defender mods in place of `mods`. An instrument that reads a
+     * rule on and off names both, `{}` for none. Left out, the battle carries
+     * what `battleConfig` gives the faction's town, through the same
+     * `battleRules`, composed on `mods` as the game composes them on research:
+     * the rule, the trim, the UN's standing mandate.
      */
-    signature?: Signature;
+    rules?: { signature?: Signature; mods?: DefenderMods };
   } = {},
 ): SimConfig {
   const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT, ladder = LADDER } = opts;
+  const rules: { signature?: Signature; defender?: DefenderMods } = opts.rules
+    ? {
+        ...(opts.rules.signature ? { signature: opts.rules.signature } : {}),
+        ...(opts.rules.mods ? { defender: opts.rules.mods } : {}),
+      }
+    : signaturesLive()
+      ? battleRules(faction, mods ?? {}, undefined)
+      : mods
+        ? { defender: mods }
+        : {};
   const { board } = base;
   const authored = opts.siege ?? buildAssault(level, enemyRosterFor(faction), ladder);
   const reserved = (opts.tunnels ?? []).map(
@@ -1744,9 +1771,9 @@ function defenseConfigFor(
     // empty so every pre-v0.8 number is unchanged.
     powerCharges: orders ? { a10: 2, arty: 1 } : {},
     ...(orders ? { standingOrders: orders } : {}),
-    ...(mods ? { mods: { defender: mods } } : {}),
+    ...(rules.defender ? { mods: { defender: rules.defender } } : {}),
     ...(reserved.length > 0 ? { reservedCells: reserved } : {}),
-    ...(opts.signature ? { signature: opts.signature } : {}),
+    ...(rules.signature ? { signature: rules.signature } : {}),
   };
 }
 
@@ -6180,6 +6207,9 @@ function main(): void {
   const started = Date.now();
   const sections: string[] = [];
   if (process.argv.includes('--probes')) FIGHT = 'probe';
+  // The game without the faction rules (M26), for reading what they move:
+  // any table, `--md` included, measured as it stood before they switched on.
+  if (process.argv.includes('--no-signatures')) setSignaturesLive(false);
   // Tuning the rotation means running one table twenty times, not the whole
   // harness twenty times: `npm run balance -- --conditions` is that loop.
   if (process.argv.includes('--shapes')) {
@@ -7339,6 +7369,14 @@ function main(): void {
       '> bare defence row or a raid calls one on the attack, so those rows read exactly as',
       '> v1.46.0\'s did. The rows fought under standing orders moved, and HOLDFAST\'s gun run',
       '> waits for the assault to reach the post now.',
+      '>',
+      '> **v1.62.0 switches on the factions\' own rules (M26).** Every defence row fights under',
+      '> its faction\'s rule now, as the game does: the USA\'s field kit, Russia\'s hulks and',
+      '> trimmed emplacements, the UN\'s standing mandate (the humanitarian shield). The USA\'s',
+      '> HOLDFAST table moved, since its garrison\'s field defences cost twice as much, and so',
+      '> did Russia\'s and the UN\'s tables and missions. China\'s and the KPA\'s, and every raid',
+      '> row, read exactly as they did. Nothing between v1.47.0 and v1.61.0 moved a row: measured',
+      '> without the rules (`--no-signatures`), this file is v1.47.0\'s, row for row.',
       '',
       '```',
       body,

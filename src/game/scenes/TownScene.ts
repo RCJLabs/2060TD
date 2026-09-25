@@ -111,6 +111,14 @@ import {
   type TownState,
 } from '../../meta/town';
 import { STANDING_ORDER_IDS, type StandingOrdersId } from '../../content/standingOrders';
+import {
+  DEFAULT_MANDATE,
+  MANDATE_IDS,
+  MANDATES,
+  OVERBUILT_HULK,
+  OVERBUILT_TRIM,
+  signaturesLive,
+} from '../../content/signatures';
 import { BoardView } from '../BoardView';
 import { drawFactionMark, drawStructureGlyph, drawWallGlyph, wallJoins } from '../glyphs';
 import { haptic } from '../haptics';
@@ -1076,6 +1084,7 @@ export class TownScene extends Scene {
       COLORS.inkDim,
       { gapAfter: gap },
     );
+    this.mandateChoice(ov, () => this.showDefenseOffer());
     // Air above each heading, the way the service record sets its sections.
     // Without it the three blocks run together into one paragraph and the
     // headings stop doing any work.
@@ -1154,6 +1163,7 @@ export class TownScene extends Scene {
       COLORS.inkDim,
       { gapAfter: gap },
     );
+    this.mandateChoice(ov, () => this.showLastStandOffer());
     ov.flow(gap, 0);
     ov.paragraph('DEFEND — TAKE THE CONSOLE', font.label, COLORS.signal, { gapAfter: Math.round(gap / 2) });
     ov.paragraph(
@@ -1188,6 +1198,33 @@ export class TownScene extends Scene {
       this.declineLastStandHere();
     }, 1, 3);
     ov.footer('LATER', close, 2, 3);
+  }
+
+  /**
+   * The UN's mandate in a defence offer (M26): the doctrine both answers fight
+   * under, picked here for this defence and kept for the ones after it. A tap
+   * moves to the next and lays the offer out again, since the three read at
+   * different lengths; it sits at the top, so the re-layout loses nothing.
+   */
+  private mandateChoice(ov: OverlayApi, offer: () => void): void {
+    if (!signaturesLive() || this.town.faction !== 'un') return;
+    const { font, gap } = this.layout;
+    const mandate = MANDATES[this.town.mandate ?? DEFAULT_MANDATE];
+    ov.flow(gap, 0);
+    ov.paragraph('MANDATE — BOTH ANSWERS FIGHT UNDER IT', font.label, COLORS.ink, {
+      gapAfter: Math.round(gap / 2),
+    });
+    ov.flowButton(
+      mandate.name,
+      () => {
+        this.cycleMandate(false);
+        this.openOverlay(offer);
+      },
+      { align: 'left', sub: 'CHANGE', gapAfter: Math.round(gap / 2) },
+    );
+    ov.paragraph(`${mandate.detail.charAt(0).toUpperCase()}${mandate.detail.slice(1)}.`, font.body, COLORS.inkDim, {
+      gapAfter: gap,
+    });
   }
 
   /** Defense log overlay: offline probe history with replays. */
@@ -1727,11 +1764,32 @@ export class TownScene extends Scene {
     };
     const meta = this.meta(kind);
     const tech = meta?.tech ? TECH_BY_ID[meta.tech] : undefined;
+    // As the board scales it (M34), so a card reads out the ranges, radii
+    // and footprint the battle will actually give the thing on this board.
+    const catalog = scaleCatalog(defenseCatalogFor(this.town.faction), TOWN_GRID.cellSize);
+    const profile = wall ? undefined : catalog.structures[kind];
+    // Overbuilt (M26, Russia): an emplacement, the sim's own test for what
+    // burns on as a hulk. The card says so, and reads the trimmed HP.
+    const overbuilt =
+      signaturesLive() &&
+      this.town.faction === 'russia' &&
+      profile?.weapon !== undefined &&
+      profile.cpCost === undefined &&
+      kind !== 'cc';
     const opts = {
       layout: this.layout,
-      // As the board scales it (M34), so a card reads out the ranges, radii
-      // and footprint the battle will actually give the thing on this board.
-      catalog: scaleCatalog(defenseCatalogFor(this.town.faction), TOWN_GRID.cellSize),
+      catalog,
+      ...(overbuilt
+        ? {
+            signature: {
+              note:
+                `OVERBUILT: WHEN IT FALLS IT BURNS ON FOR ${OVERBUILT_HULK.seconds}s AS A HULK AT ` +
+                `${Math.round(OVERBUILT_HULK.strength * 100)}% OF ITSELF, STILL FIRING AND STILL IN THE WAY. ` +
+                'ITS CONCRETE IS TRIMMED TO PAY FOR IT.',
+              hpScale: OVERBUILT_TRIM,
+            },
+          }
+        : {}),
       ...(meta ? { meta } : {}),
       ...(yardRuleText(kind, this.nameOf) ? { yardRule: yardRuleText(kind, this.nameOf)! } : {}),
       ...(tech && !this.town.research.completed.includes(tech.id)
@@ -2845,6 +2903,17 @@ export class TownScene extends Scene {
         active: orders !== null,
         onTap: () => this.cycleOrders(),
       },
+      ...(signaturesLive() && town.faction === 'un'
+        ? [
+            {
+              id: 'mandate',
+              label: 'MANDATE',
+              sub: MANDATES[town.mandate ?? DEFAULT_MANDATE].short,
+              active: true,
+              onTap: () => this.cycleMandate(),
+            },
+          ]
+        : []),
       {
         id: 'log',
         label: 'DEFENSE LOG',
@@ -2918,6 +2987,19 @@ export class TownScene extends Scene {
             : 'STANDING ORDERS: TRIPWIRE — the garrison seeds mines on the approach and mans the inner line.',
       9,
     );
+  }
+
+  /**
+   * The UN's standing mandate (M26): the three in turn. Every battle the town
+   * fights carries it, the garrison's included, and a defence offer shows it
+   * first.
+   */
+  private cycleMandate(banner = true): void {
+    const index = MANDATE_IDS.indexOf(this.town.mandate ?? DEFAULT_MANDATE);
+    const next = MANDATES[MANDATE_IDS[(index + 1) % MANDATE_IDS.length]!];
+    this.town.mandate = next.id;
+    this.saveSoon();
+    if (banner) this.setBanner(`MANDATE: ${next.name} — ${next.detail}, in every battle the town fights.`, 9);
   }
 
   private selected(): PlacedStructure | null {

@@ -22,10 +22,12 @@
  * the rule it was fought under after a re-tune moves these. The surge is town
  * state, a time on the save.
  *
- * Phase 1 builds them and measures them in the harness. None has a line of UI
- * yet, and a hulk drawn as a live gun or a refund nobody can see is a rule
- * nobody can play, so none is fought in the game until Phase 3 gives it one:
- * `signaturesLive` is off, and only the instruments and the tests turn it on.
+ * Phase 1 built them dormant, since a hulk drawn as a live gun or a refund
+ * nobody can see is a rule nobody can play. Phase 3 gave each its line of UI
+ * (the hulk burns, the refund is lettered on the board, the mandate is picked
+ * in the WAR tab and the defence offers, the surge's clock runs on the
+ * training lines) and switched them on. `signaturesLive` stays, so the
+ * instruments can measure the game without them.
  */
 import type { DefenderMods, Signature } from '../sim/types';
 import type { FactionId } from './factions';
@@ -80,6 +82,8 @@ export const MANDATE_IDS: readonly MandateId[] = ['works', 'deployment', 'shield
 export interface Mandate {
   id: MandateId;
   name: string;
+  /** The name at the width of a panel row's tag. */
+  short: string;
   /** What it does, in the words the offer uses. */
   detail: string;
   /** How it reaches the sim: research's own multipliers, the post's, and the field defences' HP. */
@@ -90,6 +94,7 @@ export const MANDATES: Readonly<Record<MandateId, Mandate>> = {
   works: {
     id: 'works',
     name: 'DEFENSIVE WORKS',
+    short: 'WORKS',
     detail: 'walls 30% sturdier',
     mods: { wallHp: 1.3 },
   },
@@ -99,12 +104,14 @@ export const MANDATES: Readonly<Record<MandateId, Mandate>> = {
   deployment: {
     id: 'deployment',
     name: 'RAPID DEPLOYMENT',
+    short: 'DEPLOY',
     detail: 'field defences, HESCOs and fire missions 25% cheaper; field defences 20% lighter',
     mods: { cpCost: 0.75, fieldHp: 0.8 },
   },
   shield: {
     id: 'shield',
     name: 'HUMANITARIAN SHIELD',
+    short: 'SHIELD',
     detail: 'the post 30% harder to take',
     mods: { postHp: 1.3 },
   },
@@ -134,12 +141,58 @@ export function signatureModsFor(faction: FactionId): Pick<DefenderMods, 'emplac
   return faction === 'russia' ? { emplacementHp: OVERBUILT_TRIM } : {};
 }
 
-let live = false;
+let live = true;
 
-/** Whether the signatures are fought in the game. Off until Phase 3; see the file's note. */
+/** Whether the signatures are fought in the game: on since M26 Phase 3; see the file's note. */
 export const signaturesLive = (): boolean => live;
 
-/** For the instruments and the tests, which measure the game with the signatures in it. */
-export function setSignaturesLive(on: boolean): void {
+/**
+ * For the instruments and the tests, which measure the game with and without
+ * the signatures. Returns what it was, for the caller to put back.
+ */
+export function setSignaturesLive(on: boolean): boolean {
+  const was = live;
   live = on;
+  return was;
+}
+
+/**
+ * What a battle carries of its faction's rule (M26): the sim's rule with its
+ * numbers, and the defender mods on top of what research set: the UN's
+ * mandate multiplied into research's walls and prices, the post's HP, the
+ * lighter field defences and Russia's trim. Nothing of the rule while the
+ * signatures are off.
+ *
+ * The game's `battleConfig` builds every town battle's from this, and the
+ * balance harness its defence battles', so the battle the harness measures is
+ * the one the game fights.
+ */
+export function battleRules(
+  faction: FactionId,
+  research: Pick<DefenderMods, 'wallHp' | 'weaponDamage' | 'cpCost'>,
+  mandateId: MandateId | undefined,
+): { signature?: Signature; defender?: DefenderMods } {
+  const signature = live ? signatureFor(faction) : undefined;
+  const mandate: Mandate['mods'] = live && faction === 'un' ? MANDATES[mandateId ?? DEFAULT_MANDATE].mods : {};
+  const kit = live ? signatureModsFor(faction) : {};
+  // Rounded to the thousandth a replay code keeps, so a product of two
+  // multipliers re-fights as exactly the number it was fought with.
+  const milli = (v: number): number => Math.round(v * 1000) / 1000;
+  const weaponDamage = research.weaponDamage ?? 1;
+  const wallHp = mandate.wallHp !== undefined ? milli((research.wallHp ?? 1) * mandate.wallHp) : (research.wallHp ?? 1);
+  const cpCost = mandate.cpCost !== undefined ? milli((research.cpCost ?? 1) * mandate.cpCost) : (research.cpCost ?? 1);
+  const postHp = mandate.postHp ?? 1;
+  // The rules' own mods, where a rule has one: the post's HP, the trim.
+  const extra = {
+    ...(postHp !== 1 ? { postHp } : {}),
+    ...(mandate.fieldHp !== undefined ? { fieldHp: mandate.fieldHp } : {}),
+    ...(kit.emplacementHp !== undefined ? { emplacementHp: kit.emplacementHp } : {}),
+  };
+  const defender =
+    wallHp !== 1 || weaponDamage !== 1 || cpCost !== 1
+      ? { wallHp, weaponDamage, cpCost, ...extra }
+      : Object.keys(extra).length > 0
+        ? extra
+        : undefined;
+  return { ...(signature ? { signature } : {}), ...(defender ? { defender } : {}) };
 }

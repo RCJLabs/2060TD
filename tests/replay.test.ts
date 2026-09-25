@@ -177,6 +177,8 @@ describe('a replay code is the battle', () => {
 
   it('writes no rules block for a battle fought under none', () => {
     const config = probeFixture();
+    // The fixture is the USA's, which fights under its kit since M26 Phase 3.
+    delete config.signature;
     const code = encodeReplay({ kind: 'probe', faction: 'usa', title: 'P', won: false, config });
     const empty = encodeReplay({
       kind: 'probe',

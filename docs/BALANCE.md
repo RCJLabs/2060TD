@@ -1,4 +1,4 @@
-# Balance snapshot (v1.47.0)
+# Balance snapshot (v1.62.0)
 
 Deterministic headless matrices from `npm run balance -- --md`.
 20 seeds × 3 base variants per raid cell; 20 seeds per defense cell.
@@ -94,6 +94,14 @@ an active player defends one to two ladder levels above their probe floor.
 > bare defence row or a raid calls one on the attack, so those rows read exactly as
 > v1.46.0's did. The rows fought under standing orders moved, and HOLDFAST's gun run
 > waits for the assault to reach the post now.
+>
+> **v1.62.0 switches on the factions' own rules (M26).** Every defence row fights under
+> its faction's rule now, as the game does: the USA's field kit, Russia's hulks and
+> trimmed emplacements, the UN's standing mandate (the humanitarian shield). The USA's
+> HOLDFAST table moved, since its garrison's field defences cost twice as much, and so
+> did Russia's and the UN's tables and missions. China's and the KPA's, and every raid
+> row, read exactly as they did. Nothing between v1.47.0 and v1.61.0 moved a row: measured
+> without the rules (`--no-signatures`), this file is v1.47.0's, row for row.
 
 ```
 RAID — UNITED STATES strike force (25 MP) vs PLA Front Line
@@ -848,8 +856,8 @@ DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — HOLD
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |   25 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   15 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   90
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   90 |   15 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90
 
 DEFENSE — UNITED STATES permanent layer vs PLA assault ladder (hold%) — WITH AA COVER
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
@@ -896,29 +904,29 @@ LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  10
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |   95 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   55 |    5 |    0 |    0
+EARLY (CC1) |  100 |  100 |   80 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   90 |   25 |    0 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — HOLDFAST standing orders
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
-EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   65 |    5 |    0 |    0
+EARLY (CC1) |  100 |  100 |   80 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   75 |   10 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — WITH AA COVER
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   15 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   20 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — RUSSIAN GROUND FORCES permanent layer vs US ARMY assault ladder (hold%) — FORTIFY doctrine
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   25 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   10 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100
 
 DEFENSE — KOREAN PEOPLE'S ARMY permanent layer vs US ARMY assault ladder (hold%)
@@ -967,39 +975,39 @@ DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%)
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |   50 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   40 |   25 |    0 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   70 |   10
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   65 |   50 |    0 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   85 |   10
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — HOLDFAST standing orders
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |   50 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   65 |   70 |   15 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   70 |   80 |   20 |    0 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   50
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — WITH AA COVER
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |  100 |  100 |  100 |  100 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   95 |  100 |   60 |    0 |    0 |    0
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   95 |  100 |   70 |    0 |    0 |    0
 LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — Engineer Corps HQ on the line
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |   50 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   75 |   75 |    0 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   30
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   95 |   15 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   45
 
 DEFENSE — UN COALITION permanent layer vs PLA assault ladder (hold%) — FORTIFY doctrine
 STAGE       |   L1 |   L2 |   L3 |   L4 |   L5 |   L6 |   L7 |   L8 |   L9 |  L10 |  L11 |  L12
 ------------+------+------+------+------+------+------+------+------+------+------+------+------
 EARLY (CC1) |  100 |  100 |   90 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0 |    0
-MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   90 |   50 |    5 |    0 |    0 |    0
-LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   20
+MID (CC2)   |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   70 |   10 |    0 |    0 |    0
+LATE (CC3)  |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |  100 |   95 |   30
 
 MISSIONS — every campaign on 10x15 (chain v6), standard, 40 seeds, permanent layer alone, against v1.44 on 20x30 (chain v3, frozen)
-hold% v1.44 -> now per reference base · * the base the campaign allows by then · ! moved 24+ points (3x the noise floor of 7.9, never under 20)
+hold% v1.44 -> now per reference base · * the base the campaign allows by then · ! moved 24+ points (3x the noise floor of 8.0, never under 20)
 
 USA
 MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)  
@@ -1027,9 +1035,9 @@ MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)
 M1 THE RAILHEAD            | *100 -> 100   |  100 -> 100   |  100 -> 100  
 M2 WHITEOUT                | *100 -> 100   |  100 -> 100   |  100 -> 100  
 M3 SAPPERS ON THE ICE      | *100 -> 100   |  100 -> 100   |  100 -> 100  
-M4 RIDGELINE MISSILES      |   10 ->   3   | *100 -> 100   |  100 -> 100  
+M4 RIDGELINE MISSILES      |   10 ->   0   | *100 -> 100   |  100 -> 100  
 M5 STEEL ON STEEL          |    0 ->   0   | * 95 ->  98   |  100 -> 100  
-M6 THE CORRIDOR HOLDS      |    0 ->   0   | * 68 ->  73   |  100 -> 100  
+M6 THE CORRIDOR HOLDS      |    0 ->   0   | * 68 ->  65   |  100 -> 100  
 
 NK
 MISSION                    | EARLY (CC1)  | MID (CC2)    | LATE (CC3)  
@@ -1046,15 +1054,15 @@ M1 THE CORRIDOR            | *100 -> 100   |  100 -> 100   |  100 -> 100
 M2 RULES OF ENGAGEMENT     | *100 -> 100   |  100 -> 100   |  100 -> 100  
 M3 SAPPERS AT THE WIRE     | *100 -> 100   |  100 -> 100   |  100 -> 100  
 M4 GRENADIER LINE          |   50 ->  35   | *100 -> 100   |  100 -> 100  
-M5 ARMOR ON THE FIVE       |    0 ->   0   | * 90 ->  88   |  100 -> 100  
-M6 THE MANDATE HOLDS       |    0 ->   0   | * 13 ->  13   |  100 -> 100  
+M5 ARMOR ON THE FIVE       |    0 ->   0   | * 90 ->  98   |  100 -> 100  
+M6 THE MANDATE HOLDS       |    0 ->   0   | * 13 ->  33   |  100 -> 100  
 
-THE MISSION AS TUNED (the * cells): mean shift -0.6 points over 33, mean |shift| 2.0; 0 harder by 24+, 0 easier
+THE MISSION AS TUNED (the * cells): mean shift +0.1 points over 33, mean |shift| 2.7; 0 harder by 24+, 0 easier
   USA    mean shift   -1.1   held  99% of the time in v1.44,  98% now
   CHINA  mean shift   +1.7   held  78% of the time in v1.44,  80% now
-  RUSSIA mean shift   +1.3   held  94% of the time in v1.44,  95% now
+  RUSSIA mean shift   +0.0   held  94% of the time in v1.44,  94% now
   NK     mean shift   -4.2   held  85% of the time in v1.44,  81% now
-  UN     mean shift   -0.3   held  84% of the time in v1.44,  84% now
+  UN     mean shift   +4.7   held  84% of the time in v1.44,  89% now
 ```
 
 ## Reading the tables (v0.8 pass)

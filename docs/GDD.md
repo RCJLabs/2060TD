@@ -556,8 +556,9 @@ data-driven so later factions are content drops, not engine work.
 - **Signature mechanic:** **Rapid Response** — field defenses deploy instantly (no build-up
   animation delay) and refund partial CP when they survive a wave. *(M26: the USA fields its own
   kit, "few, expensive, excellent": every field defence has 30% more HP and damage at twice the
-  CP, and one standing at the end of the wave it was placed in pays back half its CP, once.
-  Built in v1.59.0, reshaped in v1.61.0, not yet in play.)*
+  CP, and one standing at the end of the wave it was placed in pays back half its CP, once,
+  lettered over it on the board. Built in v1.59.0, reshaped in v1.61.0, in play since
+  v1.62.0.)*
 
 | Units (offense) | Role |
 |---|---|
@@ -595,7 +596,8 @@ data-driven so later factions are content drops, not engine work.
 - **Signature mechanic:** **Production Surge** — barracks queue at double speed during and
   immediately after any battle. *(M26: built as written and measured almost inert, since a
   unit trains in 8 to 60 seconds. It now halves the price instead: for 30 minutes after a
-  battle the commander fights, training costs half. Built in v1.59.0, not yet in play.)*
+  battle the commander fights, training costs half, with the window's clock on the training
+  lines. Built in v1.59.0, in play since v1.62.0.)*
 
 | Units | Role |
 |---|---|
@@ -623,8 +625,9 @@ data-driven so later factions are content drops, not engine work.
 - **Signature mechanic:** **Overbuilt** — structures keep fighting at 25% effectiveness for a
   while after "destruction" (burning hulk state). *(M26: a destroyed emplacement burns on for
   up to 15 seconds with a quarter of its HP, firing at a quarter of its damage and still
-  blocking the path. Russia's emplacements are built to 0.875 of their HP to pay for it, so
-  it defends as well as before and differently. Built in v1.59.0, not yet in play.)*
+  blocking the path, drawn as a burning wreck with its own bar. Russia's emplacements are
+  built to 0.875 of their HP to pay for it, so it defends as well as before and differently.
+  Built in v1.59.0, in play since v1.62.0.)*
 
 ### 4.4 North Korea — Asymmetric & Tunnels *(v0.5+)*
 
@@ -649,8 +652,9 @@ data-driven so later factions are content drops, not engine work.
 - **Signature mechanic:** **Mandate** — pre-battle, choose one temporary doctrine buff for the
   whole engagement (defensive works, rapid deployment, humanitarian shield). *(M26: walls 30%
   sturdier; CP prices 25% lower with field defences 20% lighter; or the post 30% harder to
-  take. The town keeps a standing choice for the garrison, the shield by default. Built in
-  v1.59.0, not yet in play.)*
+  take. The town keeps a standing choice, set in the WAR tab and changed in a defence offer,
+  and every battle it fights carries it, the garrison's included; the shield by default.
+  Built in v1.59.0, in play since v1.62.0.)*
 
 ---
 

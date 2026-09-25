@@ -1356,3 +1356,17 @@ here with the change and its date.
   rapid deployment leaves its field defences 20% lighter, because any cut in
   price alone added more than a level where the UN leads. The UN's best mandate
   per attack is a skill ceiling above the held floor, reported but not held.
+- 2026-09-25 — **The signatures are fought in the game, and the harness fights
+  them too (M26 Phase 3b, v1.62.0).** Each rule got the UI it needed before it
+  went on: a hulk burns on the board with its own bar, a surviving field
+  defence's refund is lettered over it, the UN's mandate is a row in the WAR tab
+  and the first thing in both defence offers, and the surge's clock runs on the
+  training lines. Then `signaturesLive()` went on. What a battle carries of its
+  faction's rule is one function, `battleRules`, called by `battleConfig` and by
+  the balance harness's defence configs, so the harness cannot quietly go on
+  measuring a game without them. An instrument that compares a rule on and off
+  names its rules outright, and `--no-signatures` measures any table as the game
+  stood before. The last stand's levels are re-derived with the rules in the
+  battle, by the rule that placed them, which moved Russia's CC3 from 18 to 16.
+  The tutorial's CP lesson waits for a field gun's price where the USA's kit
+  makes it more than twenty.

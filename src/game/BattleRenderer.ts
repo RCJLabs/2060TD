@@ -198,6 +198,13 @@ export class BattleRenderer {
           audio.sfx('wallBreak');
           break;
         }
+        case 'refund': {
+          // Rapid Response (M26): the CP a field defence that held its wave
+          // hands back, lettered over it as it comes.
+          const word = `+${Math.round(event.cp)} CP`;
+          this.effects.push({ kind: 'shout', x: event.at.x, y: event.at.y - 0.4, word, size: 0.7, age: 0, life: 1.1 });
+          break;
+        }
         case 'structureDestroyed':
           this.effects.push({ kind: 'structBoom', x: event.at.x, y: event.at.y, age: 0, life: 0.9 });
           this.shout('structBoom', event.at.x, event.at.y, 1, 1.25);
@@ -301,9 +308,16 @@ export class BattleRenderer {
         footprint: s.profile.footprint === 2 ? 2 : 1,
         level: s.level,
         inert: s.inert,
+        // A hulk (M26, Overbuilt) is drawn as the wreck it already is.
+        wrecked: s.hulk !== undefined,
         hostile: this.hostileStructures,
         ...(aim !== undefined ? { aimAngle: aim } : {}),
       });
+      if (s.hulk) {
+        this.flames(g, px, py, c);
+        this.hpBar(g, px, py - 16, 22, Math.max(0, s.hp / s.hulk.from), false);
+        continue;
+      }
       if (s.profile.kind === 'claymore') {
         this.radius(g, px, py, (s.profile.trigger?.radius ?? 0.8) * c, 5);
       }
@@ -626,6 +640,22 @@ export class BattleRenderer {
       }
     }
     for (let i = shoutSlot; i < this.shouts.length; i++) this.shouts[i]!.setVisible(false);
+  }
+
+  /**
+   * A hulk burning (M26, Overbuilt): three tongues of flame over the wreck,
+   * each on its own flicker, in the accent, since a hulk is a thing that is
+   * happening and not a thing that stands.
+   */
+  private flames(g: Graphics, px: number, py: number, c: number): void {
+    const t = this.scene.time.now / 1000;
+    g.lineStyle(Math.max(2, c * 0.08), COLORS.signal, 0.9);
+    for (let k = -1; k <= 1; k++) {
+      const flick = 0.5 + 0.5 * Math.sin(t * 9 + k * 2.1 + px * 0.13);
+      const x = px + k * c * 0.22;
+      const top = py - c * (0.28 + 0.22 * flick);
+      g.lineBetween(x, py - c * 0.12, x + k * c * 0.05, top);
+    }
   }
 
   private hpBar(

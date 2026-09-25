@@ -125,6 +125,15 @@ describe('the real script never traps a player', () => {
     expect(runner.done).toBe(true);
   });
 
+  it('asks for a spend only once a field gun is in reach (M26: the USA’s kit doubles the price)', () => {
+    const cp = FIRST_SIEGE.find((step) => step.id === 'cp')!;
+    expect(cp.done(state({ phase: 'combat', cp: 20 }))).toBe(true);
+    expect(cp.done(state({ phase: 'combat', cp: 20, gun: 15 }))).toBe(true);
+    expect(cp.done(state({ phase: 'combat', cp: 25, gun: 30 }))).toBe(false);
+    expect(cp.done(state({ phase: 'combat', cp: 30, gun: 30 }))).toBe(true);
+    expect(cp.done(state({ phase: 'victory', cp: 0, gun: 30 }))).toBe(true);
+  });
+
   it('runs to the end for someone who ignores it entirely and loses', () => {
     const runner = new CoachRunner(FIRST_SIEGE);
     // Never deploys, never casts, and the post falls.

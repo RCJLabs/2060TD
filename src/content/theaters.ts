@@ -229,13 +229,18 @@ export const HUNGER_MS = DAY_MS;
  * that the level it holds nearest half (`npm run balance -- --laststand`). So
  * what the commander does decides it. By faction, because each fights a
  * different enemy's assault: Russia's CC3 town holds three quarters of level
- * 18, where the KPA's holds none of level 12. A CC1 town's band is one level
+ * 16, where the KPA's holds none of level 12. A CC1 town's band is one level
  * wide, the same for all five.
+ *
+ * Read with each faction's own rule in the battle (M26 Phase 3b), as the game
+ * fights it. That moved one: Russia's CC3, from 18. Its town holds 75% to 95%
+ * of every level from 13 to 18 and almost none of 19, so no level is near
+ * half, and the one nearest it, at 75%, is 16 under its rule rather than 18.
  */
 export const LAST_STAND_LEVEL: Readonly<Record<FactionId, Readonly<Record<number, number>>>> = {
   usa: { 1: 3, 2: 8, 3: 12 },
   china: { 1: 3, 2: 7, 3: 11 },
-  russia: { 1: 3, 2: 9, 3: 18 },
+  russia: { 1: 3, 2: 9, 3: 16 },
   nk: { 1: 3, 2: 7, 3: 10 },
   un: { 1: 3, 2: 7, 3: 11 },
 };

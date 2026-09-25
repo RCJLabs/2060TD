@@ -5202,7 +5202,7 @@ problem.
       FIT, the week at war's four new options for its commander, the
       spender's budget, and a timeout count in the defence tables. The 24
       e2e harnesses passed unchanged.
-- [ ] **Phase 3 — re-tune to hold 4.2 while the playstyles separate.**
+- [x] **Phase 3 — re-tune to hold 4.2 while the playstyles separate.**
 
       *The plan.* There are two parities to hold, and a third place to
       check:
@@ -5383,6 +5383,86 @@ problem.
       price and refund, the trim and a trimmed hulk, the lighter field
       defences, and the three new bits in replay codes. The 24 e2e
       harnesses passed unchanged.
+
+      **What 3b found.** *(Shipped in v1.62.0. The rules are on, and M26 is
+      done.)*
+
+      *The UI.* Each rule has the line it needed to be played:
+      - A hulk is drawn as the wreck it is, with flames over it and its own
+        bar burning down from the hulk's HP.
+      - A field defence that lives through its wave has its refund lettered
+        over it as the wave ends. The deploy tab prices each field defence
+        at what it costs in this battle, so the USA's read twice the price.
+      - The UN's mandate is a row under STANDING ORDERS in the WAR tab, and
+        a tap moves it to the next, with a banner saying what that one
+        does. Both defence offers, the live defence and the last stand,
+        open with it: the mandate both answers will fight under and what it
+        does, changed there for this defence and the ones after it.
+      - China's training tab shows the surge while it runs, with a clock
+        ("PRODUCTION SURGE — TRAINING HALF PRICE · 23:41 LEFT"), and prices
+        every line at the moment rather than at the town's last tick.
+      - Russia's emplacement cards say what Overbuilt does to them, and
+        read the trimmed HP.
+
+      *The switch.* `signaturesLive()` is on. What a battle carries of its
+      faction's rule is one function now, `battleRules`. `battleConfig`
+      calls it for every town battle, and the balance harness for every
+      defence battle, so the harness measures the battle the game fights.
+      An instrument that reads a rule on and off names its rules outright
+      (`{}` for none), and `--no-signatures` measures any table, the
+      snapshot included, as the game stood before.
+
+      *What moved downstream*, each read with the rules off and on:
+      - **The snapshot**, regenerated. Measured without the rules it is
+        v1.47.0's, row for row, so nothing between v1.47.0 and v1.61.0 had
+        moved a table. With them, 16 defence rows and 4 mission cells moved,
+        all of them the three factions whose rules act in battle: the USA's
+        HOLDFAST table (its garrison's field defences cost twice as much),
+        and Russia's and the UN's tables and missions. China's and the
+        KPA's tables and every raid row read as they did, so raid parity
+        is untouched, as the plan expected.
+        - Russia, nobody acting: CC1 holds 80% of level 3 (95% before), and
+          CC2 25% of level 9 (55%). The trim costs a little more than the
+          hulk gives back at the edge of the band; over the whole ladder it
+          is the −0.45 levels THE HOLD read.
+        - The UN, under the shield: CC2 holds 65% of level 7 (40%) and 50%
+          of level 8 (25%); CC3 85% of level 11 (70%). With the Engineer
+          Corps HQ on the line, CC2 holds 95% of levels 7 and 8 (75%).
+        - The campaign, on the base it allows by then: the UN's M6 THE
+          MANDATE HOLDS 13% → 33%, its M5 88% → 98%, Russia's M6 73% → 65%.
+          None moved by the table's alarm of 24 points.
+      - **The last stand**, re-read with the rules: the same level for every
+        faction and size but one. Russia's CC3 town holds 75% to 95% of
+        every level from 13 to 18 and almost none of 19, so no level is
+        near half, and the one nearest it moved from 18 to 16. It holds
+        75% of level 16 with nobody acting, as it held 75% of level 18
+        before. Russia's CC3 last stand is level 16 now. The UN's CC2 holds
+        65% of its level 7, from 40%, the edge of the band. Russia's CC2
+        holds 25% of level 9, from 55%, which is still the level nearest
+        half.
+      - **The probes**: every hold rate is the same (`--probe-held`, 8
+        seeds, five bases, levels 1 to 12). The USA's garrison buys fewer,
+        dearer field defences: across the five factions, TRIPWIRE carries
+        out 2.14 orders a probe instead of 2.43, and its upkeep falls with
+        them. No bill changes.
+      - **The tutorial.** Its CP lesson waited for 20 CP and then said
+        "spend some", but under the USA's kit the cheapest field gun costs
+        30. The lesson waits for 20 or a field gun's price now, whichever
+        is more.
+
+      *The gate.* 789 unit tests, three of them new: the refund is announced
+      where it stands, the switch is on (and with it off nothing rides),
+      and the CP lesson waits for a field gun. Two tests measure the game
+      without the rules and say so: the probe bill's liveness case, where
+      the USA's garrison buys one mine where it bought three and none goes
+      off, and the replay code's no-rules case. The 24 e2e harnesses passed
+      on the first run. A browser pass over each new control, since no
+      harness reaches them: the UN's mandate row cycles and is saved, and
+      the offer's changes it and lays the offer out again; a USA defence
+      prices its field kit at twice and letters +20 CP over a foxhole that
+      lived through its wave; a Russian defence draws its fallen nests as
+      burning wrecks with their own bars, for the second or three the
+      assault takes to finish them off.
 
 ## M27 — "The Other Commander": asynchronous PvP for real
 

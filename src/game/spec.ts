@@ -143,6 +143,12 @@ export interface SpecOpts {
   yardRule?: string;
   /** What must be researched before it can be built, while it has not been. */
   unlock?: string;
+  /**
+   * The faction's own rule for it (M26), where it has one: what it does, and
+   * what it scales the HP by, so the card reads the HP the battle gives it.
+   * Russia's Overbuilt is the one: its emplacements trimmed, and burning on.
+   */
+  signature?: { note: string; hpScale: number };
   onClose: () => void;
 }
 
@@ -230,10 +236,11 @@ export function buildStructureSpec(
         ? `${profile.cpCost} CP — DEPLOYED IN COMBAT`
         : 'PLACED BY THE GENERATOR — NOT BUILDABLE';
   const output = outputAt(opts.meta, 1);
+  const hpOf = (hp: number): number => Math.round(hp * (opts.signature?.hpScale ?? 1));
   ov.paragraph(
     [
       cost,
-      `${profile.maxHp} HP · ${profile.footprint}×${profile.footprint} CELL${profile.footprint === 2 ? 'S' : ''}`,
+      `${hpOf(profile.maxHp)} HP · ${profile.footprint}×${profile.footprint} CELL${profile.footprint === 2 ? 'S' : ''}`,
       output,
       profile.blocks ? 'BLOCKS MOVEMENT' : 'DOES NOT BLOCK',
       profile.targetable ? '' : 'CONCEALED — CANNOT BE SHOT AT',
@@ -250,6 +257,9 @@ export function buildStructureSpec(
   }
   if (opts.yardRule) {
     ov.paragraph(opts.yardRule, font.tiny, COLORS.ink, { gapAfter: gap * 2 });
+  }
+  if (opts.signature) {
+    ov.paragraph(opts.signature.note, font.tiny, COLORS.ink, { gapAfter: gap * 2 });
   }
 
   if (profile.weapon) {
@@ -293,7 +303,7 @@ export function buildStructureSpec(
     ov.paragraph('UPGRADES', font.tiny, COLORS.ink, { gapAfter: Math.round(gap / 2) });
     for (let level = 2; level <= top; level++) {
       const stat = stats[Math.min(level - 2, stats.length - 1)];
-      const hp = stat?.maxHp ?? profile.maxHp;
+      const hp = hpOf(stat?.maxHp ?? profile.maxHp);
       const w = stat?.weapon ?? profile.weapon;
       const dps = w ? `${num(Math.round(w.damage * w.shotsPerSecond * 10) / 10)} DPS` : '';
       const price = opts.meta?.levels[level - 1];

@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.61.0, in the browser. No install, no account, works on a phone.
+v1.62.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,38 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.61.0: the signatures, reshaped and tuned (still switched off)
+## Current state — v1.62.0: five nations, five different games
+
+**Each nation's signature rule is switched on,** with what you need to see it and use it:
+
+- **United States, Rapid Response.** Your field defences have 30% more HP and damage and cost
+  twice the CP, and the deploy tab shows the real price. One that survives the wave you placed
+  it in pays back half its CP, and you see the "+CP" rise over it as the wave ends.
+- **Russia, Overbuilt.** A destroyed emplacement burns on as a hulk for up to 15 seconds: still
+  firing at a quarter of its strength and still in the way, drawn in flames with its own bar.
+  Russian emplacements are built a little lighter to pay for it. Their info cards say so and
+  show the real HP.
+- **UN Coalition, Mandate.** Pick a doctrine in the WAR tab, under STANDING ORDERS, or at the
+  top of any defence offer: defensive works (walls 30% sturdier), rapid deployment (field
+  defences, HESCOs and fire missions 25% cheaper, field defences 20% lighter), or the
+  humanitarian shield (the post 30% harder to take). Every battle your town fights uses it,
+  including the ones the garrison fights while you're away.
+- **China, Production Surge.** For 30 minutes after a battle you fight, training costs half.
+  The training tab shows the clock.
+- **North Korea** keeps its tunnels.
+
+**Switching them on didn't make the game more lopsided.** On every test, the gap between the
+nation that defends best and the one that defends worst stayed within measuring noise of where
+it was. China's and North Korea's defence numbers, and every raid number, are exactly what they
+were.
+
+Two smaller changes come with it:
+- Russia's last stand at a CC3 capital comes at assault level 16 instead of 18, which keeps it
+  as hard as it was.
+- The first battle's tutorial waits until you can afford a field gun before it asks you to
+  deploy one.
+
+## v1.61.0: the signatures, reshaped and tuned (still switched off)
 
 **Nothing you play has changed yet.** This release reshapes and tunes the five nations' signature
 rules so they can be switched on fairly. The switch, with the art and controls each rule needs, is

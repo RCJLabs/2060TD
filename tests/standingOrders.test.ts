@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { buildAssault } from '../src/content/assaults';
 import { defenseCatalogFor, enemyRosterFor, FACTION_IDS } from '../src/content/factions';
 import { STANDING_ORDERS, STANDING_ORDER_IDS, standingOrdersFor } from '../src/content/standingOrders';
+import { setSignaturesLive } from '../src/content/signatures';
 import { decodeReplay, encodeReplay } from '../src/meta/replaycode';
 import { deserialize, serialize } from '../src/meta/save';
 import {
@@ -536,6 +537,13 @@ describe('standing orders in the meta', () => {
   it("a probe bills the town for its own buildings, not for the mines its garrison spent", () => {
     // One nest by the post: enough to hold a level-6 probe with nothing lost,
     // close enough in that TRIPWIRE's mines are walked into before it does.
+    // Without the USA's kit (M26), whose mines cost twice as much: at that
+    // price this garrison buys one where it bought three, and none goes off.
+    // The bill is the same rule either way; this reads it where it shows.
+    const was = setSignaturesLive(false);
+    onTestFinished(() => {
+      setSignaturesLive(was);
+    });
     const town = unlockAll(yardTown(T0 - 1_000_000, 'usa'));
     town.supplies = 50_000;
     town.fuel = 50_000;

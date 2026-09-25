@@ -42,6 +42,7 @@ import {
   place,
   queueTrain,
   structureAt,
+  surging,
   tick,
   unlockAll,
   TOWN_GRID,
@@ -682,8 +683,9 @@ export class RaidScene extends Scene {
     for (const s of this.town.structures) {
       if (s.kind !== meta.facility || s.wrecked) continue;
       if (s.buildEndsAt !== undefined && s.upgradingTo === undefined) continue;
-      if (canTrain(this.town, s.id, kind) !== null) continue;
-      const cost = trainingCost(this.town, s.id, kind);
+      // Priced now, not at the last tick: China's surge (M26) turns on a clock.
+      if (canTrain(this.town, s.id, kind, Date.now()) !== null) continue;
+      const cost = trainingCost(this.town, s.id, kind, Date.now());
       if (cost.supplies + cost.fuel < bestPrice) {
         best = s.id;
         bestPrice = cost.supplies + cost.fuel;
@@ -702,7 +704,7 @@ export class RaidScene extends Scene {
     for (const s of this.town.structures) {
       if (s.kind !== meta.facility || s.wrecked) continue;
       if (s.buildEndsAt !== undefined && s.upgradingTo === undefined) continue;
-      const cost = trainingCost(this.town, s.id, kind);
+      const cost = trainingCost(this.town, s.id, kind, Date.now());
       if (cost.supplies + cost.fuel < best.supplies + best.fuel) best = cost;
     }
     return best;
@@ -1271,6 +1273,12 @@ export class RaidScene extends Scene {
             heading: true,
           },
         ];
+        // Production Surge (M26, China): the window a battle opened, while it runs.
+        if (surging(town, now) && town.surgeUntil !== undefined) {
+          const left = Math.max(0, Math.ceil((town.surgeUntil - now) / 1000));
+          const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+          rows.push({ id: 'surge', label: `PRODUCTION SURGE — TRAINING HALF PRICE · ${clock} LEFT`, heading: true });
+        }
         for (const meta of this.trainable) {
           const price = this.cheapestPrice(meta.kind);
           const cost = price.fuel > 0 ? `${price.supplies}S+${price.fuel}F` : `${price.supplies}S`;

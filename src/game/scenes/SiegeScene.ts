@@ -457,6 +457,7 @@ export class SiegeScene extends Scene {
         kills: e.stats.kills,
         deployed: this.deployed,
         casts: this.casts,
+        gun: this.cheapestGun(),
       },
       dtSeconds,
     );
@@ -464,6 +465,17 @@ export class SiegeScene extends Scene {
     // Naming a tab is no use if it is not the one on screen.
     if (tab && this.panel.tab !== tab) this.panel.setTab(tab);
     return held;
+  }
+
+  /** The cheapest field gun on the deploy tab, at this battle's price. */
+  private cheapestGun(): number {
+    const e = this.engine;
+    let best = Infinity;
+    for (const kind of COMBAT_TOOL_KEYS) {
+      const cpCost = e.catalog.structures[kind]?.cpCost;
+      if (cpCost !== undefined) best = Math.min(best, e.fieldPrice(cpCost));
+    }
+    return Number.isFinite(best) ? best : 0;
   }
 
   private handleEvents(events: SimEvent[]): void {
@@ -542,9 +554,11 @@ export class SiegeScene extends Scene {
     const def = isWall ? e.catalog.walls[kind]! : e.catalog.structures[kind]!;
     const cpCost = def.cpCost;
     const supplyCost = (def as { supplyCost?: number }).supplyCost;
-    const cost = cpCost !== undefined ? `${cpCost} CP` : `${supplyCost ?? 0} SUP`;
-    const affordable =
-      cpCost !== undefined ? e.cp >= e.cpPrice(cpCost) : e.supplies >= (supplyCost ?? 0);
+    // What it costs in this battle: research's discount, and for a field
+    // defence the USA's kit (M26), which is twice the price.
+    const cpPriced = cpCost === undefined ? undefined : isWall ? e.cpPrice(cpCost) : e.fieldPrice(cpCost);
+    const cost = cpPriced !== undefined ? `${cpPriced} CP` : `${supplyCost ?? 0} SUP`;
+    const affordable = cpPriced !== undefined ? e.cp >= cpPriced : e.supplies >= (supplyCost ?? 0);
     const armed =
       this.tool !== null && 'kind' in this.tool && this.tool.kind === kind && this.tool.type !== 'power';
     return {

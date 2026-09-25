@@ -165,7 +165,7 @@ export interface Structure {
    * as it burns down. It fires at the hulk's strength, blocks, is shot at,
    * and is gone at zero; it was counted destroyed when it fell.
    */
-  hulk?: { burn: number };
+  hulk?: { burn: number; from: number };
 }
 
 export interface Projectile {
@@ -661,7 +661,7 @@ export class Engine {
         this.attackers.length === 0 &&
         this.projectiles.length === 0;
       if (waveDone) {
-        this.endWaveRules(siege.cpCap);
+        this.endWaveRules(siege.cpCap, events);
         this.supplies += siege.suppliesPerWave;
         if (this.waveIndex >= this.waves.length - 1) {
           // Unspent CP converts to salvaged Supplies — hoarding was a choice.
@@ -689,12 +689,14 @@ export class Engine {
    * whatever is still burning collapses, so a hulk is never repaired between
    * waves or counted among the survivors.
    */
-  private endWaveRules(cpCap: number): void {
+  private endWaveRules(cpCap: number, events: SimEvent[]): void {
     if (this.refundShare > 0) {
       let back = 0;
       for (const s of this.structures) {
         if (s.hp <= 0 || s.cpPaid === undefined || s.placedWave !== this.waveIndex) continue;
-        back += s.cpPaid * this.refundShare;
+        const cp = s.cpPaid * this.refundShare;
+        back += cp;
+        events.push({ type: 'refund', id: s.id, at: { ...s.center }, cp });
       }
       if (back > 0) {
         this.cp = Math.min(cpCap, this.cp + back);
@@ -2373,7 +2375,7 @@ export class Engine {
         // was, and the path through it stays shut until it is gone.
         const hp = structure.profile.maxHp * this.hulkRule.strength;
         structure.hp = hp;
-        structure.hulk = { burn: hp / this.hulkRule.ticks };
+        structure.hulk = { burn: hp / this.hulkRule.ticks, from: hp };
         this.stats.hulks = (this.stats.hulks ?? 0) + 1;
         continue;
       }

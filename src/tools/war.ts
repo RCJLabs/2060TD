@@ -739,11 +739,11 @@ export function reachTable(faction: FactionId = 'usa', days = 70): string {
 export function surgeTable(): string {
   const faction: FactionId = 'china';
   const week = (live: boolean, policy: WarPolicy, raidsPerSession: number): WarRun => {
-    setSignaturesLive(live);
+    const was = setSignaturesLive(live);
     try {
       return playWarWeek(warTown(faction), policy, 2, 7, 10, { raidsPerSession });
     } finally {
-      setSignaturesLive(false);
+      setSignaturesLive(was);
     }
   };
   const lines = [
@@ -843,7 +843,7 @@ function divergenceOf(shapes: Record<FactionId, TurnShape>, faction: FactionId, 
 export function turnTable(days = 7): string {
   const factions = Object.keys(DEFENCE_LINE) as FactionId[];
   const play = (faction: FactionId, live: boolean): WarRun => {
-    setSignaturesLive(live);
+    const was = setSignaturesLive(live);
     try {
       return playWarWeek(warTown(faction), 'raids+skirmish', 2, days, 10, {
         raidsPerSession: 3,
@@ -853,7 +853,7 @@ export function turnTable(days = 7): string {
         tunnel: true,
       });
     } finally {
-      setSignaturesLive(false);
+      setSignaturesLive(was);
     }
   };
   const runs = { off: {} as Record<FactionId, WarRun>, on: {} as Record<FactionId, WarRun> };
