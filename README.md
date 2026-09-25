@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.65.0, in the browser. No install, no account, works on a phone.
+v1.66.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,29 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.65.0: what if
+## Current state — v1.66.0: ghost raids
+
+**Raid a friend's base, and have them fight it.** Each war now has a callsign (WAR tab, CALLSIGN),
+and SHARE MY BASE hands out your base under it. Then:
+
+- **SEND A GHOST RAID:** paste a friend's base code and plan the raid as usual, from the north
+  edge. Instead of fighting, it gives you a code: a copy of your force, ranks and research
+  included. Send it to them. Your men never leave the yard.
+- **TAKE A GHOST CODE:** paste a ghost someone sent you, and your town fights it now, as it
+  stands, under your standing orders. The card tells you how it went and gives you the result
+  code to send back, and SEND ONE BACK plans a ghost against their base.
+- **Collect:** paste the result into TAKE A GHOST CODE. Your game fights the battle again to check
+  it, then pays you.
+
+Nothing is taken from anyone: no men, supplies, walls or ordnance. Standing moves both ways (a hold
++15, a breach −15, taking the post +30 and a duel's loot, being thrown back −14), and three ghost
+battles a day count on each side. Ghost battles go in the defence log and the replay vault, with
+their report and heat map.
+
+Also changed: a duel on a shared base now comes in from the north edge only (N1 or N2), the way
+every attack on a town does. From the south, attackers could walk straight into the command post.
+
+## v1.65.0: what if
 
 **Every raid can now be fought again with one thing changed.** Open a raid's report and tap
 WHAT IF, then pick the change: one more or one fewer of a unit in a squad, or a squad's entry

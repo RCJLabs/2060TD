@@ -47,8 +47,9 @@ import type { VaultEntry } from './vault';
 // Type-only, so no runtime edge is added back to warfare.ts (which imports
 // this module) — the same shape as the VaultEntry import above it.
 import type { StoredPlan } from './warfare';
+import type { GhostLedger } from './ghost';
 import type { Engine } from '../sim/engine';
-import type { CellIndex, SimConfig, SimStats, SpawnEdge } from '../sim/types';
+import type { AttackerMods, CellIndex, SimConfig, SimStats, SpawnEdge, WaveDef } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
 import { chargeHunger, lineFed } from './supply';
 import { creditContracts, normalizeContracts, type ContractState } from './contracts';
@@ -336,6 +337,8 @@ export interface DefenseLogEntry {
   lastStand?: boolean;
   /** Full battle config — every offline probe is replayable. */
   config: SimConfig;
+  /** A ghost raid (M27): the other commander, and the army they sent. */
+  ghost?: { callsign: string; faction: FactionId };
 }
 
 export interface ResearchState {
@@ -458,6 +461,17 @@ export interface TownState {
    * town that has not fought one, and on every town not China's.
    */
   surgeUntil?: number;
+  /**
+   * This war's commander (M27): the callsign every code it sends carries.
+   * Absent until chosen, when `callsignOf` makes one from when the war began.
+   */
+  callsign?: string;
+  /**
+   * Ghost raids (M27 Phase 1): the ones this war has sent and not been paid
+   * for, and the ones it has taken, so none is taken twice. Absent until the
+   * first is sent or taken.
+   */
+  ghosts?: GhostLedger;
   /**
    * The standing mandate (M26, the UN): the doctrine buff the garrison fights
    * under, and the one a live defence offers first. Absent means the default.
@@ -1780,6 +1794,39 @@ export function defenseConfig(town: TownState, level: number, seed: number): Sim
     name: `DEFENCE — LEVEL ${level}`,
     startingSupplies: Math.floor(town.supplies),
   });
+}
+
+/**
+ * The battle a ghost raid fights against the town (M27 Phase 1): the town as
+ * it stands, under its standing orders, fought as a probe is, with the other
+ * commander's wave in place of the enemy's and their army's research on it.
+ *
+ * The wave is already on this board: `raidWave` lays a plan out in cells, and
+ * the town's board is the raid board's size, so it goes in after the siege
+ * is mapped rather than through `siegeOnBoard`.
+ */
+export function ghostBattleConfig(
+  town: TownState,
+  name: string,
+  wave: WaveDef,
+  attacker: AttackerMods,
+  seed: number,
+): SimConfig {
+  const config = battleConfig(town, seed, {
+    ...probeAssault(1, enemyRosterFor(town.faction)),
+    name,
+    waves: [],
+    startingSupplies: 0,
+  });
+  config.siege!.waves = [wave];
+  // Only research that does something, as a raid writes it: a replay code
+  // reads identity back as nothing, and a config that did not match its own
+  // code would be a second battle.
+  const hp = attacker.hp ?? 1;
+  const damage = attacker.damage ?? 1;
+  if (hp !== 1 || damage !== 1) config.mods = { ...config.mods, attacker: { hp, damage } };
+  const orders = standingOrdersFor(town.standingOrders);
+  return orders ? { ...config, standingOrders: orders } : config;
 }
 
 /**

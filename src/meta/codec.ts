@@ -88,3 +88,36 @@ export function checksum(bytes: number[]): number {
   }
   return hash & 0xffff;
 }
+
+/** Fixed-point for the handful of fractional multipliers a code carries. */
+const MILLI = 1000;
+
+export const putMilli = (out: number[], value: number | undefined, fallback = 1): void =>
+  writeVarint(out, Math.round((value ?? fallback) * MILLI));
+
+export const getMilli = (cur: Cursor): number | null => {
+  const raw = readVarint(cur);
+  return raw === null ? null : raw / MILLI;
+};
+
+const UTF8 = new TextEncoder();
+const FROM_UTF8 = new TextDecoder();
+
+/**
+ * A string as its UTF-8 bytes behind a length. Replay codes name generated
+ * content (curly quotes, em dashes), so a byte per character would rename it.
+ */
+export function putString(out: number[], value: string): void {
+  const bytes = UTF8.encode(value.slice(0, 255));
+  writeVarint(out, bytes.length);
+  for (const byte of bytes) out.push(byte);
+}
+
+export function getString(cur: Cursor): string | null {
+  const length = readVarint(cur);
+  if (length === null || length > 1024) return null;
+  if (cur.at + length > cur.bytes.length) return null;
+  const bytes = Uint8Array.from(cur.bytes.slice(cur.at, cur.at + length));
+  cur.at += length;
+  return FROM_UTF8.decode(bytes);
+}

@@ -4,6 +4,7 @@ import {
   cleanTitle,
   decodeReplay,
   encodeReplay,
+  type GhostTag,
   type Replay,
   type ReplayKind,
 } from './replaycode';
@@ -65,6 +66,8 @@ export function recordBattle(
     at: number;
     detail: string;
     config: SimConfig;
+    /** A ghost raid's commanders (M27). */
+    ghost?: GhostTag;
   },
 ): string {
   const code = encodeReplay({
@@ -73,6 +76,7 @@ export function recordBattle(
     title: battle.title,
     won: battle.won,
     config: battle.config,
+    ...(battle.ghost ? { ghost: battle.ghost } : {}),
   });
   const vault = vaultOf(town);
   vault.unshift({

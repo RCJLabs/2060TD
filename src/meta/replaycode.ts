@@ -20,6 +20,10 @@ import { SPAWN_EDGES } from '../sim/types';
 import {
   checksum,
   fromBase64Url,
+  getMilli,
+  getString,
+  putMilli,
+  putString,
   readVarint,
   toBase64Url,
   writeVarint,
@@ -68,21 +72,39 @@ const MAX_CELL_SIZE = 8;
  */
 const CHAIN_LATEST = Math.max(...Object.keys(CHAIN_MODELS).map(Number));
 
-export type ReplayKind = 'raid' | 'duel' | 'probe';
-const REPLAY_KINDS: ReplayKind[] = ['raid', 'duel', 'probe'];
+export type ReplayKind = 'raid' | 'duel' | 'probe' | 'ghost';
+/** Appended to, never reordered: a code names its kind by its place here. */
+const REPLAY_KINDS: ReplayKind[] = ['raid', 'duel', 'probe', 'ghost'];
 
 const DOCTRINES: Doctrine[] = ['assault', 'hunt', 'raze'];
 const POWER_TARGETS: AutoPowerRule['target'][] = ['cc', 'guns'];
 
+/**
+ * Who fought a ghost raid (M27 Phase 1): the two commanders, whose army came
+ * in, and which ghost it was. Nothing in it moves the battle; it is what lets
+ * the attacker's game find the ghost it sent, and fight it on the right units.
+ */
+export interface GhostTag {
+  /** The attacker's faction: its units are in the battle beside the defender's buildings. */
+  attacker: FactionId;
+  attackerCallsign: string;
+  defenderCallsign: string;
+  /** The ghost's id, as the attacker's game filed it. */
+  id: number;
+}
+
 /** What a replay code decodes to: the battle, and what to call it. */
 export interface Replay {
   kind: ReplayKind;
+  /** Whose war the footage is from; for a ghost raid, the defender's. */
   faction: FactionId;
   /** Headline for the viewer — the post's name, or the probe's level. */
   title: string;
   /** Did the side the code is FROM win it? Flavour for the list, not sim. */
   won: boolean;
   config: SimConfig;
+  /** A ghost raid's commanders (kind 'ghost' only, and always there). */
+  ghost?: GhostTag;
 }
 
 const MAX_TITLE = 28;
@@ -116,25 +138,7 @@ class Dictionary {
   }
 }
 
-/** Fixed-point for the handful of fractional multipliers a config carries. */
-const MILLI = 1000;
-const putMilli = (out: number[], value: number | undefined, fallback = 1): void =>
-  writeVarint(out, Math.round((value ?? fallback) * MILLI));
-const getMilli = (cur: Cursor): number | null => {
-  const raw = readVarint(cur);
-  return raw === null ? null : raw / MILLI;
-};
-
 // ---- encode ------------------------------------------------------------------------
-
-const UTF8 = new TextEncoder();
-const FROM_UTF8 = new TextDecoder();
-
-function putString(out: number[], value: string): void {
-  const bytes = UTF8.encode(value.slice(0, 255));
-  writeVarint(out, bytes.length);
-  for (const byte of bytes) out.push(byte);
-}
 
 function putStructures(out: number[], dict: Dictionary, list: LayoutStructure[]): void {
   writeVarint(out, list.length);
@@ -344,7 +348,12 @@ export function encodeReplay(replay: Replay): string {
     (elite ? 8 : 0) |
     (emplacementHp !== 1 ? 16 : 0) |
     (fieldHp !== 1 ? 32 : 0);
-  const needCellSize = cellSize > 1 || signatureFlags !== 0;
+  // A ghost raid's commanders (M27) go on after the rules, so they force the
+  // rules block, written as a zero byte when there are none.
+  if (replay.kind === 'ghost' && !replay.ghost) throw new Error('a ghost raid names its commanders');
+  const needGhost = replay.kind === 'ghost';
+  const needSignature = signatureFlags !== 0 || needGhost;
+  const needCellSize = cellSize > 1 || needSignature;
   const needChain = chainVersion > CHAIN_NONE || needCellSize;
   const needEdge = edgeIndex > 0 || needChain;
   const needObjective = objectiveIndex > 0 || needEdge;
@@ -402,7 +411,7 @@ export function encodeReplay(replay: Replay): string {
   // it was fought with, and a re-tune never re-fights an archived battle
   // under different ones. A bit a reader does not know is a rule it cannot
   // fight, and the code is refused rather than re-fought without it.
-  if (signatureFlags !== 0) {
+  if (needSignature) {
     body.push(signatureFlags);
     if (refund > 0) putMilli(body, refund, 0);
     if (hulk) {
@@ -416,6 +425,15 @@ export function encodeReplay(replay: Replay): string {
     }
     if (emplacementHp !== 1) putMilli(body, emplacementHp);
     if (fieldHp !== 1) putMilli(body, fieldHp);
+  }
+
+  // The commanders of a ghost raid (M27 Phase 1), last of all.
+  if (needGhost) {
+    const g = replay.ghost!;
+    body.push(Math.max(0, FACTION_IDS.indexOf(g.attacker)));
+    putString(body, g.attackerCallsign);
+    putString(body, g.defenderCallsign);
+    writeVarint(body, g.id >>> 0);
   }
 
   // Header, dictionary, then the body — the reader needs the names first.
@@ -440,14 +458,6 @@ export type ReplayDecode =
 
 const bad = (error: CodeError): ReplayDecode => ({ ok: false, error });
 
-function getString(cur: Cursor): string | null {
-  const length = readVarint(cur);
-  if (length === null || length > 1024) return null;
-  if (cur.at + length > cur.bytes.length) return null;
-  const bytes = Uint8Array.from(cur.bytes.slice(cur.at, cur.at + length));
-  cur.at += length;
-  return FROM_UTF8.decode(bytes);
-}
 
 /**
  * Read a code back, refusing anything that is not exactly what we wrote.
@@ -828,13 +838,29 @@ export function decodeReplay(raw: string): ReplayDecode {
     if (flags & (1 | 2 | 8)) config.signature = signature;
   }
 
+  // A ghost raid's commanders (M27 Phase 1): a ghost raid has them, and
+  // nothing else has anything after the rules.
+  let ghost: GhostTag | undefined;
+  if (cur.at < body.length) {
+    if (kind !== 'ghost') return bad('content');
+    const attacker = FACTION_IDS[body[cur.at++]!];
+    const attackerCallsign = getString(cur);
+    const defenderCallsign = getString(cur);
+    const id = readVarint(cur);
+    if (!attacker) return bad('content');
+    if (attackerCallsign === null || defenderCallsign === null || id === null) return bad('truncated');
+    ghost = { attacker, attackerCallsign, defenderCallsign, id };
+  }
+  if (kind === 'ghost' && !ghost) return bad('content');
+  if (cur.at !== body.length) return bad('content');
+
   if (orders !== '' && isStandingOrdersId(orders)) {
     config.standingOrders = standingOrdersFor(orders, config.killChainVersion ?? CHAIN_NONE);
   }
 
   return {
     ok: true,
-    replay: { kind, faction, title, won: wonByte === 1, config },
+    replay: { kind, faction, title, won: wonByte === 1, config, ...(ghost ? { ghost } : {}) },
   };
 }
 

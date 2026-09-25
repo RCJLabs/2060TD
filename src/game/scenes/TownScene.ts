@@ -21,7 +21,25 @@ import {
   runOfflineProbes,
 } from '../../meta/warfare';
 import { fileCode, openEntry, vaultOf, VAULT_CAP } from '../../meta/vault';
-import { replayFingerprint, type ReplayKind } from '../../meta/replaycode';
+import { replayFingerprint, type Replay, type ReplayKind } from '../../meta/replaycode';
+import {
+  CALLSIGN_MAX,
+  callsignOf,
+  cleanCallsign,
+  collectGhost,
+  decodeGhost,
+  ghostCodeOf,
+  ghostLedger,
+  GHOST_PAID_PER_DAY,
+  setCallsign,
+  takeGhost,
+  type CollectError,
+  type CollectedGhost,
+  type TakenGhost,
+} from '../../meta/ghost';
+import { planUnitCount } from '../../meta/warfare';
+import { TICKS_PER_SECOND } from '../../sim/engine';
+import type { ReplayData } from './ReplayScene';
 import { contractsAt, contractsEndAt } from '../../content/contracts';
 import { contractPay, contractState } from '../../meta/contracts';
 import { COACH_KEYS } from '../../content/tutorial';
@@ -143,7 +161,6 @@ import { columnName, laneFor, theaterFor } from '../../content/theaters';
 import { closeTextBox, setTextBoxStatus, showTextBox } from '../textbox';
 import {
   baseFromShare,
-  cleanName,
   codeFingerprint,
   decodeBase,
   encodeBase,
@@ -169,6 +186,15 @@ const SHARE_ERRORS: Record<ShareError, string> = {
   checksum: 'The code is damaged in transit. Ask for it again.',
   version: 'That code came from a different version of the game.',
   content: 'The code decoded to something that is not a base.',
+};
+
+/** Why a pasted result was not paid (M27), in words a commander can act on. */
+const COLLECT_ERRORS: Partial<Record<CollectError, string>> = {
+  kind: 'That is a battle, not the result of a ghost raid.',
+  stranger: 'That result is for a ghost this war did not send, or one too old to be kept.',
+  collected: 'That result has already been paid.',
+  tampered:
+    'That is not the battle that was sent: its men, their ranks, the research or the dice are different.',
 };
 
 /** `45s`, `4m 30s`, `4h`, `9h 58m`: a duration as the research board and its row say it. */
@@ -1232,7 +1258,7 @@ export class TownScene extends Scene {
     if (this.overlay) return;
     const ov = createOverlay(this, this.layout, {
       title: 'DEFENSE LOG',
-      subtitle: 'Probes fought while you were away.',
+      subtitle: 'Probes fought while you were away, and ghost raids taken.',
     });
     this.overlay = ov;
     const close = (): void => {
@@ -1250,6 +1276,32 @@ export class TownScene extends Scene {
     }
     for (const entry of this.town.defenseLog) {
       const when = new Date(entry.at).toISOString().slice(5, 16).replace('T', ' ');
+      // Another commander's plan (M27): named, and nothing taken to list.
+      if (entry.ghost) {
+        const { callsign, faction } = entry.ghost;
+        this.overlayEntry(
+          ov,
+          `${when}Z · GHOST RAID — ${callsign} (${flavorFor(faction).short}) — ` +
+            `${entry.held ? 'HELD' : 'BREACHED'}\nNothing taken` +
+            `${entry.orders ? ` · ORDERS: ${entry.orders.toUpperCase()}` : ''}`,
+          entry.held ? COLORS.olive : COLORS.alarm,
+          {
+            label: 'WATCH',
+            onTap: () => {
+              close();
+              this.scene.start('replay', {
+                config: entry.config,
+                kind: 'defense',
+                title: `GHOST — ${callsign}`,
+                faction: this.town.faction,
+                attacker: faction,
+                backTo: 'town',
+              } satisfies ReplayData);
+            },
+          },
+        );
+        continue;
+      }
       this.overlayEntry(
         ov,
         `${when}Z · ${entry.lastStand ? 'LAST STAND' : entry.live ? 'DEFENDED' : 'PROBE'} LV ${entry.level} — ` +
@@ -1441,9 +1493,16 @@ export class TownScene extends Scene {
       raid: 'RAID',
       duel: 'DUEL',
       probe: 'DEFENSE',
+      ghost: 'GHOST',
     };
     for (const entry of vault) {
-      const outcomeWord = entry.won ? (entry.kind === 'probe' ? 'HELD' : 'TAKEN') : 'LOST';
+      const outcomeWord = entry.won
+        ? entry.kind === 'probe'
+          ? 'HELD'
+          : entry.kind === 'ghost'
+            ? 'WON'
+            : 'TAKEN'
+        : 'LOST';
       this.overlayEntry(
         ov,
         `${KIND_LABEL[entry.kind]} · ${entry.title}\n` +
@@ -1455,16 +1514,7 @@ export class TownScene extends Scene {
             const replay = openEntry(entry);
             if (!replay) return;
             close();
-            this.scene.start('replay', {
-              config: replay.config,
-              // The viewer only knows two camera stories: your army going in,
-              // or something coming at your town.
-              kind: replay.kind === 'probe' ? 'defense' : 'raid',
-              title: replay.title,
-              faction: replay.faction,
-              backTo: 'town',
-              backData: { town: this.town },
-            });
+            this.scene.start('replay', this.watchData(replay));
           },
         },
       );
@@ -1509,14 +1559,7 @@ export class TownScene extends Scene {
             closeTextBox();
             saveTown(this.town);
             close();
-            this.scene.start('replay', {
-              config: filed.replay.config,
-              kind: filed.replay.kind === 'probe' ? 'defense' : 'raid',
-              title: filed.replay.title,
-              faction: filed.replay.faction,
-              backTo: 'town',
-              backData: { town: this.town },
-            });
+            this.scene.start('replay', this.watchData(filed.replay));
           },
         });
       },
@@ -1701,20 +1744,341 @@ export class TownScene extends Scene {
     ov.footer('CLOSE', close);
   }
 
-  /** Hand the player their own layout as a string they can paste anywhere. */
+  /**
+   * Hand the player their own layout as a string they can paste anywhere,
+   * named for their callsign (M27): the name a ghost raid planned against it
+   * is addressed to.
+   */
   private shareBase(): void {
-    const flavor = flavorFor(this.town.faction);
-    const name = `${flavor.base.split(',')[0] ?? 'FORWARD POST'}`;
-    const code = encodeBase(this.town, cleanName(name));
+    const callsign = callsignOf(this.town);
     showTextBox({
-      title: 'YOUR BASE, AS A CODE',
+      title: `YOUR BASE, AS A CODE — ${callsign}`,
       note:
-        'Send this to a friend and they can raid a snapshot of your layout. ' +
-        'It carries the wire, the emplacements and the command post — nothing ' +
-        'else. They fight a copy: nothing here changes, whatever they do to it.',
-      value: code,
+        'Send this to a friend and they can raid a snapshot of your layout, or ' +
+        'plan a ghost raid against it and send it to you to fight. It carries ' +
+        'your callsign, the wire, the emplacements and the command post — ' +
+        'nothing else. Nothing here changes, whatever they do to it.',
+      value: encodeBase(this.town, callsign),
       readOnly: true,
     });
+  }
+
+  /**
+   * The viewer's data for a battle out of the vault or a pasted code. The
+   * viewer tells two camera stories, an army going in or something coming at
+   * a town; a ghost raid (M27) is the second when this town was its target,
+   * and is fought on the attacker's own units either way.
+   */
+  private watchData(replay: Replay): ReplayData {
+    const ghost = replay.ghost;
+    const defending =
+      replay.kind === 'probe' || (ghost !== undefined && ghost.defenderCallsign === callsignOf(this.town));
+    return {
+      config: replay.config,
+      kind: defending ? 'defense' : 'raid',
+      title: replay.title,
+      faction: replay.faction,
+      ...(ghost ? { attacker: ghost.attacker } : {}),
+      backTo: 'town',
+      backData: { town: this.town },
+    };
+  }
+
+  /** This war's callsign (M27): every code it sends carries it. */
+  private chooseCallsign(): void {
+    showTextBox({
+      title: 'YOUR CALLSIGN',
+      note:
+        'Every code this war sends carries it: your base, the ghost raids you ' +
+        'send and the results you send back. A ghost raid is for the callsign ' +
+        'on the base it was planned against, so choose it before you share your ' +
+        `base. Letters, digits, spaces and hyphens, up to ${CALLSIGN_MAX}.`,
+      value: callsignOf(this.town),
+      confirm: 'SET CALLSIGN',
+      onConfirm: (value) => {
+        if (!setCallsign(this.town, value)) {
+          setTextBoxStatus('Two letters or digits at least.');
+          return;
+        }
+        closeTextBox();
+        saveTown(this.town);
+      },
+    });
+  }
+
+  /** Plan a ghost raid against a pasted base (M27): the planner, whose launch sends a code. */
+  private sendGhostRaid(): void {
+    showTextBox({
+      title: 'SEND A GHOST RAID',
+      note:
+        'Paste the base code of the commander you mean to hit. You plan against ' +
+        'their snapshot, from their entry edge, and send the plan as a code: their ' +
+        'game fights it on their town as it stands. Nobody’s men, stores or walls ' +
+        'are touched. Standing moves both ways, and a win pays a duel’s loot.',
+      confirm: 'PLAN IT',
+      onConfirm: (value) => {
+        const result = decodeBase(value);
+        if (!result.ok) {
+          setTextBoxStatus(SHARE_ERRORS[result.error]);
+          return;
+        }
+        const name = result.base.name;
+        if (cleanCallsign(name) !== name) {
+          setTextBoxStatus('That base is not named for a callsign. Ask for a new code.');
+          return;
+        }
+        if (name === callsignOf(this.town)) {
+          setTextBoxStatus('That is your own base.');
+          return;
+        }
+        closeTextBox();
+        this.planGhost(value);
+      },
+    });
+  }
+
+  /** Open the planner in ghost mode on a base code already known to read. */
+  private planGhost(code: string): void {
+    const read = decodeBase(code);
+    if (!read.ok) return;
+    saveTown(this.town);
+    this.scene.start('raid', {
+      town: this.town,
+      challenge: { base: baseFromShare(read.base), fingerprint: codeFingerprint(code.trim()), ghost: true },
+    });
+  }
+
+  /** Take a ghost raid sent to this town, or collect the result of one it sent (M27). */
+  private takeGhostCode(): void {
+    showTextBox({
+      title: 'TAKE A GHOST CODE',
+      note:
+        'Paste a ghost raid sent to you, and your town fights it now, as it ' +
+        'stands, under your standing orders. Or paste the result of one you ' +
+        'sent, and your game fights it again and pays you for it. ' +
+        `${GHOST_PAID_PER_DAY} of each a day move standing.`,
+      confirm: 'TAKE IT',
+      onConfirm: (value) => {
+        const now = Date.now();
+        const ghost = decodeGhost(value);
+        if (ghost.ok) {
+          const took = takeGhost(this.town, value, now);
+          if (!took.ok) {
+            setTextBoxStatus(
+              took.error === 'own'
+                ? 'That ghost is your own. Send it to the commander it is for.'
+                : took.error === 'address'
+                  ? `That ghost is for ${ghost.ghost.to}, and you are ${callsignOf(this.town)}.`
+                  : took.error === 'taken'
+                    ? 'Your town has already fought that ghost.'
+                    : SHARE_ERRORS[took.error],
+            );
+            return;
+          }
+          closeTextBox();
+          saveTown(this.town);
+          this.openOverlay(() => this.showGhostTaken(took.taken));
+          return;
+        }
+        const got = collectGhost(this.town, value, now);
+        if (!got.ok) {
+          const neither = got.error === 'version' && ghost.error === 'version';
+          setTextBoxStatus(
+            COLLECT_ERRORS[got.error] ??
+              (neither
+                ? 'That does not read as a ghost raid or the result of one.'
+                : SHARE_ERRORS[got.error as ShareError]),
+          );
+          return;
+        }
+        closeTextBox();
+        saveTown(this.town);
+        this.openOverlay(() => this.showGhostCollected(got.collected));
+      },
+    });
+  }
+
+  /** How a ghost raid ended, in a sentence that is right for none, some or all fallen. */
+  private static ghostEnding(lost: number, sent: number, took: boolean, ticks: number, held: string): string {
+    const at = `T+${Math.round(ticks / TICKS_PER_SECOND)}s`;
+    if (took) {
+      return lost === 0
+        ? `They took the command post at ${at} without losing a man.`
+        : `${lost} of them fell, and the rest took the command post at ${at}.`;
+    }
+    const fell = lost === 0 ? 'None of them fell' : lost === sent ? `All ${sent} fell` : `${lost} of them fell`;
+    return `${fell}, and ${held}.`;
+  }
+
+  /** What a standing change reads as on a ghost's card. */
+  private static ghostStanding(standing: number, extra = ''): string {
+    if (standing > 0) return `+${standing} standing${extra}.`;
+    if (standing < 0) return `Standing −${-standing}.`;
+    return `Nothing moves: ${GHOST_PAID_PER_DAY} ghost raids have paid today.`;
+  }
+
+  /** A ghost raid this town just fought (M27): how it went, and the two codes it can send. */
+  private showGhostTaken(taken: TakenGhost): void {
+    const { ghost, held, standing, resolution } = taken;
+    const ov = createOverlay(this, this.layout, {
+      title: held ? 'GHOST RAID HELD' : 'GHOST RAID — BREACHED',
+      subtitle: `${ghost.from.callsign} · ${flavorFor(ghost.from.faction).faction}`,
+    });
+    this.overlay = ov;
+    const { font, gap } = this.layout;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    const sent = planUnitCount(ghost.plan);
+    const lost = Object.values(resolution.losses).reduce((a, b) => a + b, 0);
+    ov.paragraph(
+      `${ghost.from.callsign} sent ${sent} men in by your entry edge. ` +
+        TownScene.ghostEnding(lost, sent, !held, resolution.ticks, held ? 'the wire held' : ''),
+      font.body,
+      held ? COLORS.olive : COLORS.alarm,
+      { gapAfter: gap },
+    );
+    ov.paragraph(TownScene.ghostStanding(standing), font.body, COLORS.ink, { gapAfter: gap });
+    ov.paragraph(
+      'Nothing was taken. A ghost is a copy of their army, and your town was ' +
+        'fought, not damaged: its stores, walls and ordnance are as they were. ' +
+        'Send them the result so their game can see how it went.',
+      font.tiny,
+      COLORS.inkDim,
+      { gapAfter: gap },
+    );
+    ov.flowButton(
+      'SEND THE RESULT',
+      () =>
+        showTextBox({
+          title: `THE RESULT, FOR ${ghost.from.callsign}`,
+          note:
+            'The battle, as your town fought it. Their game fights it again ' +
+            'before it pays them anything.',
+          value: taken.result,
+          readOnly: true,
+        }),
+      { sub: 'CODE', gapAfter: Math.round(gap / 2) },
+    );
+    ov.flowButton(
+      'SEND ONE BACK',
+      () => {
+        close();
+        this.planGhost(ghost.base);
+      },
+      { sub: 'PLAN ▸' },
+    );
+    ov.footer(
+      'WATCH IT',
+      () => {
+        close();
+        this.scene.start('replay', {
+          config: taken.config,
+          kind: 'defense',
+          title: `GHOST — ${ghost.from.callsign}`,
+          faction: this.town.faction,
+          attacker: ghost.from.faction,
+          backTo: 'town',
+          backData: { town: this.town },
+        } satisfies ReplayData);
+      },
+      0,
+      2,
+    );
+    ov.footer('CLOSE', close, 1, 2);
+  }
+
+  /** The result of a ghost this war sent (M27): fought again here, and paid. */
+  private showGhostCollected(collected: CollectedGhost): void {
+    const { tag, won, standing, loot, resolution, replay } = collected;
+    const ov = createOverlay(this, this.layout, {
+      title: won ? 'GHOST RAID — POST TAKEN' : 'GHOST RAID — THROWN BACK',
+      subtitle: `${tag.defenderCallsign} · ${flavorFor(replay.faction).faction}`,
+    });
+    this.overlay = ov;
+    const { font, gap } = this.layout;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    const sent = Object.values(resolution.deployed).reduce((a, b) => a + b, 0);
+    const lost = Object.values(resolution.losses).reduce((a, b) => a + b, 0);
+    ov.paragraph(
+      `Your ghost of ${sent} men went in on ${tag.defenderCallsign}’s town as it stood. ` +
+        TownScene.ghostEnding(lost, sent, won, resolution.ticks, won ? '' : 'the post held'),
+      font.body,
+      won ? COLORS.olive : COLORS.alarm,
+      { gapAfter: gap },
+    );
+    ov.paragraph(
+      TownScene.ghostStanding(standing, won ? ` · +${loot.supplies} SUP · +${loot.fuel} FUEL` : ''),
+      font.body,
+      COLORS.ink,
+      { gapAfter: gap },
+    );
+    ov.paragraph(
+      'Your game fought the battle again from the result before believing it. ' +
+        'Your men never left the yard.',
+      font.tiny,
+      COLORS.inkDim,
+    );
+    ov.footer(
+      'WATCH IT',
+      () => {
+        close();
+        this.scene.start('replay', {
+          config: replay.config,
+          kind: 'raid',
+          title: `GHOST — ${tag.defenderCallsign}`,
+          faction: replay.faction,
+          attacker: tag.attacker,
+          backTo: 'town',
+          backData: { town: this.town },
+        } satisfies ReplayData);
+      },
+      0,
+      2,
+    );
+    ov.footer('CLOSE', close, 1, 2);
+  }
+
+  /** Ghosts this war sent that are waiting on a result (M27), each one's code again. */
+  private showGhostsOut(): void {
+    if (this.overlay) return;
+    const now = Date.now();
+    const ov = createOverlay(this, this.layout, {
+      title: 'GHOSTS OUT',
+      subtitle: 'Sent, and waiting on a result.',
+    });
+    this.overlay = ov;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    for (const sent of ghostLedger(this.town).sent) {
+      this.overlayEntry(
+        ov,
+        `FOR ${sent.to} · ${planUnitCount(sent.plan)} MEN · ${TownScene.agoLabel(Math.max(0, now - sent.at))}`,
+        COLORS.ink,
+        {
+          label: 'CODE',
+          onTap: () =>
+            showTextBox({
+              title: `GHOST RAID FOR ${sent.to}`,
+              note:
+                'The same ghost, again. Send it to them; when they send back the ' +
+                'result, paste it into TAKE A GHOST CODE.',
+              value: ghostCodeOf(this.town, sent),
+              readOnly: true,
+            }),
+        },
+      );
+    }
+    ov.footer('CLOSE', close);
   }
 
   /** Take a friend's code and go and see how good their maze really is. */
@@ -2849,7 +3213,15 @@ export class TownScene extends Scene {
     });
 
     // Share-code duels (v1.2): no server, no ladder — a snapshot and a boast.
+    // And since M27 a commander with a name, and ghost raids between two.
     rows.push({ id: 'h3', label: 'CHALLENGE', heading: true });
+    rows.push({
+      id: 'callsign',
+      label: `CALLSIGN — ${callsignOf(town)}`,
+      sub: 'CHANGE',
+      enabled: !this.demoMode,
+      onTap: () => this.chooseCallsign(),
+    });
     rows.push({
       id: 'share',
       label: 'SHARE MY BASE',
@@ -2864,6 +3236,29 @@ export class TownScene extends Scene {
       enabled: !this.demoMode && isUnlocked(town, 'frontline'),
       onTap: () => this.raidCode(),
     });
+    rows.push({
+      id: 'ghostSend',
+      label: 'SEND A GHOST RAID',
+      sub: 'PASTE',
+      enabled: !this.demoMode && isUnlocked(town, 'frontline'),
+      onTap: () => this.sendGhostRaid(),
+    });
+    rows.push({
+      id: 'ghostTake',
+      label: 'TAKE A GHOST CODE',
+      sub: 'PASTE',
+      enabled: !this.demoMode,
+      onTap: () => this.takeGhostCode(),
+    });
+    const out = town.ghosts?.sent.length ?? 0;
+    if (out > 0) {
+      rows.push({
+        id: 'ghostsOut',
+        label: 'GHOSTS OUT',
+        sub: `${out} WAITING`,
+        onTap: () => this.openOverlay(() => this.showGhostsOut()),
+      });
+    }
 
     rows.push({ id: 'h2', label: 'ORDNANCE (FUEL)', heading: true });
     const powers = defenseCatalogFor(town.faction).powers;

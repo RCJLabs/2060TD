@@ -12,6 +12,7 @@ import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
 import { regridTown } from './regrid';
 import { normalizePlan } from './warfare';
+import { cleanCallsign, normalizeGhosts } from './ghost';
 import { normalizeContracts } from './contracts';
 import {
   gating,
@@ -326,6 +327,15 @@ export function deserialize(json: string): TownState | null {
       delete town.surgeUntil;
     }
     if (town.mandate !== undefined && !isMandateId(town.mandate)) delete town.mandate;
+    // The callsign and the ghost ledger arrived with M27. A callsign is kept
+    // only as one reads back in a code; a ledger only as what it can check.
+    const callsign: unknown = town.callsign;
+    const clean = typeof callsign === 'string' ? cleanCallsign(callsign) : null;
+    if (clean) town.callsign = clean;
+    else delete town.callsign;
+    const ghosts = normalizeGhosts(town.ghosts);
+    if (ghosts) town.ghosts = ghosts;
+    else delete town.ghosts;
     // The coach ledger arrived in v1.5; an older file has simply read nothing.
     town.seen = Array.isArray(town.seen)
       ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)

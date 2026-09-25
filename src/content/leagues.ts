@@ -149,6 +149,18 @@ export const COUNTER_LOST = -40;
  */
 export const LAST_STAND_HELD = 50;
 export const LAST_STAND_LOST = -100;
+/**
+ * A ghost raid between commanders (M27 Phase 1). The defender's garrison
+ * fought another commander's plan, not a rung's worth of the enemy, so a hold
+ * pays three probes and a breach costs half of one: nothing was taken, since
+ * a ghost carries nothing off. The attacker took another commander's town,
+ * which pays like a middle rung, and a ghost thrown back costs what a raid
+ * thrown back does.
+ */
+export const GHOST_HELD = 15;
+export const GHOST_BREACHED = -15;
+export const GHOST_WON = 30;
+export const GHOST_FAILED = FAILED_RAID;
 
 export function clearStanding(tier: number): number {
   return CLEAR_BASE + CLEAR_PER_TIER * Math.max(1, tier);

@@ -26,6 +26,7 @@ import type { Catalog, Doctrine, SimConfig, WaveEntry } from '../sim/types';
 import {
   DELAY_STEPS,
   DOCTRINE_IDS,
+  entrySectors,
   fightRaid,
   raidWave,
   sectorCells,
@@ -152,11 +153,16 @@ export function refought(config: SimConfig, plan: readonly SquadPlan[], trainabl
   return next;
 }
 
-/** What each kind of change can be for a squad: every choice but the one it was fought with. */
+/**
+ * What each kind of change can be for a squad: every choice but the one it was
+ * fought with. `sectors` is where the planner may send a squad in: all eight
+ * on a post, the entry edge on a commander's town (M27).
+ */
 export function choicesFor(
   plan: readonly SquadPlan[],
   slot: number,
   trainable: readonly TrainMeta[],
+  sectors: readonly SectorId[] = SECTOR_IDS,
 ): { more: string[]; fewer: string[]; entry: SectorId[]; doctrine: Doctrine[]; start: number[] } {
   const squad = plan.find((s) => s.slot === slot);
   if (!squad) return { more: [], fewer: [], entry: [], doctrine: [], start: [] };
@@ -164,7 +170,7 @@ export function choicesFor(
     more: trainable.map((t) => t.kind),
     fewer: trainable.map((t) => t.kind).filter((kind) => (squad.units[kind] ?? 0) > 0),
     // A squad that came up through a gallery never crossed a sector line.
-    entry: squad.tunnel !== undefined ? [] : SECTOR_IDS.filter((id) => id !== squad.sector),
+    entry: squad.tunnel !== undefined ? [] : sectors.filter((id) => id !== squad.sector),
     doctrine: DOCTRINE_IDS.filter((d) => d !== squad.doctrine),
     start: DELAY_STEPS.filter((s) => s !== squad.delay),
   };
@@ -254,6 +260,11 @@ export class Counterfactual {
   /** A duel pins its dice (`combatSeed`): there is only the one roll. */
   get fixedDice(): boolean {
     return this.config.combatSeed !== undefined;
+  }
+
+  /** Where a squad may go in: a duel is on a commander's town, entered by its edge (M27). */
+  get sectors(): SectorId[] {
+    return entrySectors(this.fixedDice);
   }
 
   private rolls(config: SimConfig): Rolls {

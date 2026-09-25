@@ -5489,8 +5489,115 @@ opponent, seasonal ladders with resets, and a base genuinely fought by other
 people overnight. The sim is deterministic and already replay-coded, so the hard
 part is done.
 
-- [ ] **Phase 1 — ghost raids.** Your base, their force, resolved locally,
+- [x] **Phase 1 — ghost raids.** Your base, their force, resolved locally,
       results exchanged by code.
+
+      **The plan, from the survey.** *(Written against v1.65.0.)* What one
+      commander can send another today is a base (SHARE MY BASE) and a battle
+      (a replay code). A base code is raided as a duel on the raider's own
+      machine, against the snapshot; nothing goes back, so the base's owner
+      never hears of it, and nobody has a name. Standing, decay and seasons
+      already run locally, on a calendar every commander shares.
+
+      And a duel is not fought the way a town is built to be fought. A town
+      is walled against its entry edge, the north, where every probe comes
+      from; a duel may come in by any of eight sectors, and the south ones
+      are the row under the town's command post. Measured on a walled town:
+      four militia die at the wire from the north, west and east, ten times
+      in ten, and take the post from the south, ten times in ten.
+
+      Settled with the commander:
+      - **The defender fights it, on their live base.** The attacker plans
+        against the base a code shows them and sends the plan as a code: a
+        ghost of their force. The defender's game fights it against the
+        town as it stands now, through its entry edge, under its standing
+        orders, as a probe is fought. The defender sends back the battle,
+        and the attacker's game fights it again before believing it.
+      - **Standing both ways.** Holding pays the defender standing and a
+        breach costs some; a win pays the attacker standing and a duel's
+        loot, a loss costs standing. Nobody's stores, walls, ordnance or
+        men are touched: the ghost is a copy of the attacker's army, with
+        its ranks and research, and the defender's town is fought, not
+        damaged.
+      - **Duels come in by the entry edge.** A duel on a shared town enters
+        by the north sectors only, as probes and ghost raids do.
+
+      The build:
+      - **A callsign.** Each war gets one, chosen by the commander and
+        generated until then, and every code sent carries it: a shared base
+        is named for it, and the defence log names who hit you.
+      - **The ghost code**, a new code: the attacker's callsign and faction,
+        the plan (each squad's men, sector, doctrine, start and rank), the
+        army's research, the seed, the target's callsign, the attacker's own
+        base (so the defender can send one back), and an id. The plan is
+        fought through `raidWave`, the same wave a raid gets. No galleries,
+        no fire plan, and it goes for the post.
+      - **Taking one** fights it headless against the town (`battleConfig`,
+        the probes' seam, with the ghost's wave in place of the enemy's), on
+        a catalog of the defender's buildings and the attacker's own units.
+        It goes in the defence log and the vault naming the attacker, moves
+        the defender's standing, and hands back a **result code**: a replay
+        code of a new kind, `ghost`, carrying both callsigns, the attacker's
+        faction and the ghost's id in a trailing block, as every block since
+        v1.19 has been added. A ghost is taken once.
+      - **Collecting the result** matches it to a ghost the town sent and
+        has not been paid for, checks its wave is the one sent, man for man,
+        and its army's research, fights it again, and pays by the ending it
+        reaches itself.
+      - **The planner** has a ghost mode, the duel's with the entry edge,
+        no galleries and no fire plan, whose launch sends instead of fights.
+      - **The UI**: CALLSIGN, SEND A GHOST RAID and TAKE A GHOST CODE in the
+        war tab's challenge rows; a ghost battle is watchable from the vault
+        and the log with its report and heat map; the defender's result card
+        offers SEND THE RESULT and SEND ONE BACK.
+      - **Tests**: the codes round-trip and old codes decode as before; the
+        defender's battle and the attacker's re-fight reach the same ending;
+        a tampered wave, a stranger's result, a second collection and a
+        second take are refused; the standing moves as settled; a duel
+        cannot be planned from the south. A new harness plays both
+        commanders in two war slots of one browser.
+
+      Not in Phase 1: fighting a ghost live, which cannot be checked by
+      re-fighting it (a live defence is commands, not a config); revenge
+      with anything riding on it, matchmaking, leaderboards (Phases 2-3).
+
+      **What Phase 1 found.** *(v1.66.0)*
+      - **The two games agree because both fight a raid.** The defender's
+        game fights the ghost through `resolveRaid`, and the attacker's
+        fights the result through it again: one loop, one clock. A probe's
+        loop runs to 8000 ticks and reads a battle still going as a breach,
+        where a raid's stops at 6000 and reads it as a repulse, so a ghost
+        fought as a probe and checked as a raid could have been won on both
+        screens. The tests fight three pairings, one of them two towns of
+        the same side, and the harness plays the whole exchange in two war
+        slots of one browser: the endings, the clock and the losses match.
+      - **A code can check the attacker's half of the battle.** A result is
+        refused if its men, their seconds or their rank differ from the
+        ghost sent, or the research, the dice, a fire plan against it or
+        what it came for; the tests make each of those eight edits. The
+        defender's half, a live town, cannot be checked by anybody, and
+        nothing stops a commander who writes a result by hand or raids a
+        second war of their own. So a day pays three ghost battles each way
+        (`GHOST_PAID_PER_DAY`) and fights the rest for nothing: that is
+        what either trick is worth. Signing a result is Phase 2's.
+      - **A ghost is for a callsign.** It is addressed to the name on the
+        base it was planned against, and a town takes only the ghosts
+        addressed to it. Share codes before v1.66 were named for the
+        faction's town (every American war shared FORWARD BASE COOS BAY),
+        so the planner refuses a ghost against one and asks for a new code;
+        a duel still takes them.
+      - **Sizes.** Against the three reference towns, a ghost of three
+        squads and thirty-one men is 208 to 254 characters: 152 of them the
+        plan, both callsigns and the dice, the rest the sender's own base.
+        The result carries the defender's whole town and every man, and is
+        520 to 591. Both paste whole into a chat window.
+      - **Duels come in by the edge.** The planner offers N1 and N2 on a
+        commander's town, moves each squad of a plan written against a post
+        to the nearer of the two, and a duel's what-if offers only those.
+      - **Nothing but standing and loot moves.** The tests hold a town's
+        stores, charges, walls, guns and shield as they were through a
+        ghost it lost, and an army as it was through a ghost sent, won and
+        paid.
 - [ ] **Phase 2 — a thin server (or peer exchange)** for matchmaking and standing.
 - [ ] **Phase 3 — seasons, revenge, leaderboards.**
 

@@ -1292,8 +1292,8 @@ The simulator is deterministic, so **a battle is its config**: re-running it rep
 fight exactly, down to the state hash. There is no frame log and nothing that can desync,
 which is what makes both halves of this feature possible at all.
 
-The **vault** keeps the last ten hands-off battles — ladder raids, code duels, and the
-offline probes fought while you were away — on the WAR tab, each still watchable. A
+The **vault** keeps the last ten hands-off battles — ladder raids, code duels, ghost raids
+(v1.66) and the offline probes fought while you were away — on the WAR tab, each still watchable. A
 **replay code** is any one of them as a pasteable string: whoever pastes it watches exactly
 the battle that was fought, and risks nothing of their own doing so.
 
@@ -1315,6 +1315,42 @@ quotes while probes are titled with an em dash.
 command, and the config never held it; a "replay" of one would be a battle nobody fought.
 Recording those would mean a command log and a second replay path, which is a different
 feature.
+
+### 5.10a Ghost raids *(v1.66, M27)*
+
+A share code was a boast with nothing riding on it: a friend raided a snapshot of your base on
+their own machine, and you never heard of it. A **ghost raid** is that raid with the other
+commander on the other end of it, and still no server: what goes between the two is codes.
+
+- **A callsign.** Each war has one, chosen on the WAR tab and made from when the war began until
+  it is. Every code a war sends carries it, and SHARE MY BASE is named for it.
+- **Sending one.** SEND A GHOST RAID takes a base code and opens the planner on that snapshot,
+  entered by its edge, with no galleries and no fire plan. The launch sends a **ghost code**
+  instead of fighting: each squad's men, sector, doctrine, start and rank, the army's research,
+  the dice, who it is from and who it is for, and the sender's own base, so it can be answered.
+  The men never leave the yard. GHOSTS OUT keeps each ghost, and its code, until its result
+  comes back.
+- **Taking one.** TAKE A GHOST CODE fights it on the town as it stands, under its standing
+  orders, as a probe is fought, on the attacker's own units. The defence log and the vault name
+  who sent it, and its report and heat map are the attacker's raid seen from the wire. The card
+  offers SEND THE RESULT, the battle as a replay code, and SEND ONE BACK, the planner on the
+  sender's base. A town takes a ghost once, and only one addressed to its callsign.
+- **Collecting.** The result goes into the same box. The attacker's game matches it to a ghost it
+  sent, checks the battle is that ghost (the same men on the same seconds at the same rank, the
+  same research and dice, nothing fired at them, a fight for the post), fights it again and pays
+  by the ending it reaches itself. A result pays once.
+
+**What moves is standing.** A hold pays the defender 15 and a breach costs 15; taking the post
+pays the attacker 30 and a duel's loot, and being thrown back costs what a failed raid does. A
+ghost is a copy of an army, and the town it hits is fought, not damaged: nobody's men, stores,
+walls or ordnance change. Three ghost battles a day move standing, each way, and the rest are
+fought and filed for nothing, because without a server nothing can tell a real result from one
+written by hand, or a friend from a second war of one's own.
+
+**A commander's town is entered by its edge.** A town is walled against its north edge, and the
+south sectors are the row under its command post, so a ghost, and since v1.66 a duel, comes in
+by N1 or N2. A plan written against a post opens on a town with each squad moved to the nearer
+of the two, and a duel's what-if offers only those.
 
 ### 5.11 Day orders *(v1.12)*
 

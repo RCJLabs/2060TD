@@ -86,7 +86,7 @@ export function buildWhatIfCard(scene: Scene, opts: WhatIfCardOptions): OverlayA
   let kindAt = 0;
   let valueAt = 0;
   const slots = cf.plan.map((s) => s.slot ?? 0);
-  const choices = () => choicesFor(cf.plan, slots[squadAt]!, cf.trainable);
+  const choices = () => choicesFor(cf.plan, slots[squadAt]!, cf.trainable, cf.sectors);
   const kinds = (): ChangeKind[] => CHANGE_KINDS.filter((kind) => choices()[kind].length > 0);
   const kind = (): ChangeKind => kinds()[kindAt]!;
   const values = (): (string | number)[] => choices()[kind()];

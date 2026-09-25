@@ -81,6 +81,48 @@ import { resolveLapsedLastStand } from './laststand';
 export type SectorId = 'N1' | 'N2' | 'E1' | 'E2' | 'S1' | 'S2' | 'W1' | 'W2';
 export const SECTOR_IDS: SectorId[] = ['N1', 'N2', 'E1', 'E2', 'S1', 'S2', 'W1', 'W2'];
 
+/**
+ * The sectors a TOWN is entered by (M27 Phase 1): its entry edge, the north
+ * (`TOWN_GRID.spawnEdge`), where every probe comes from and every town is
+ * walled against. A duel or a ghost raid on a commander's town comes in here.
+ * Every other sector is somewhere a town was never built to be attacked
+ * from, and the south ones are the row under its command post.
+ */
+export const TOWN_ENTRY_SECTORS: SectorId[] = ['N1', 'N2'];
+
+/** The sectors a planner may send a squad in by: a town's entry edge, or all eight. */
+export const entrySectors = (onTown: boolean): SectorId[] => (onTown ? TOWN_ENTRY_SECTORS : SECTOR_IDS);
+
+/** The next of `allowed` after `sector`, wrapping; the first if it is not one of them. */
+export function nextSector(sector: SectorId, allowed: readonly SectorId[]): SectorId {
+  return allowed[(allowed.indexOf(sector) + 1) % allowed.length]!;
+}
+
+/**
+ * A sector brought within `allowed`: itself if it is one, or else the allowed
+ * sector nearest it, so a plan made against a post and opened on a town
+ * moves each squad to the part of the entry edge on its own side.
+ */
+export function sectorWithin(sector: SectorId, allowed: readonly SectorId[]): SectorId {
+  if (allowed.includes(sector)) return sector;
+  const mid = (id: SectorId): { col: number; row: number } => {
+    const cells = sectorCells(id);
+    return cells[Math.floor(cells.length / 2)]!;
+  };
+  const from = mid(sector);
+  let best = allowed[0]!;
+  let bestDist = Infinity;
+  for (const id of allowed) {
+    const to = mid(id);
+    const dist = (to.col - from.col) ** 2 + (to.row - from.row) ** 2;
+    if (dist < bestDist) {
+      best = id;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
 /** The doctrines a formation can be given, in picker order. Lives here rather
  * than in the scene because a stored plan read off disk has to be checked
  * against the same list the planner cycles. */

@@ -3,13 +3,14 @@ import { music } from '../music';
 import { defenseCatalogFor, raidCatalogFor, trainableFor, trainMetaFor, type FactionId } from '../../content/factions';
 import { afterAction, BattleRecorder } from '../../meta/afteraction';
 import { Counterfactual } from '../../meta/counterfactual';
+import { ghostCatalog } from '../../meta/ghost';
 import { buildAfterActionCard } from '../afterActionCard';
 import { buildWhatIfCard } from '../whatIfCard';
 import type { OverlayApi } from '../dom/overlay';
 import { DT, Engine } from '../../sim/engine';
 import { OBJECTIVES, isObjectiveId, watchObjective } from '../../meta/objectives';
 import { RAID_MAX_TICKS } from '../../meta/warfare';
-import type { SimConfig } from '../../sim/types';
+import type { Catalog, SimConfig } from '../../sim/types';
 import { BattleRenderer } from '../BattleRenderer';
 import { drawHeatMap, heatLegend } from '../heatMap';
 import { COLORS } from '../palette';
@@ -26,6 +27,12 @@ export interface ReplayData {
   title: string;
   /** Whose war this footage is from (picks the catalogs; default 'usa'). */
   faction?: FactionId;
+  /**
+   * A ghost raid (M27): the attacking army's side. The battle is fought on
+   * `faction`'s town with this side's own units, and whichever camera story
+   * `kind` tells, it is a raid: it has a report, and the raid's clock.
+   */
+  attacker?: FactionId;
   /** Scene key to return to (with its restart payload). */
   backTo: 'town' | 'raid';
   backData?: object;
@@ -84,10 +91,7 @@ export class ReplayScene extends Scene {
 
   create(): void {
     music.play('quiet');
-    const faction = this.replay.faction ?? 'usa';
-    const catalog =
-      this.replay.kind === 'raid' ? raidCatalogFor(faction) : defenseCatalogFor(faction);
-    this.engine = new Engine(this.replay.config, catalog);
+    this.engine = new Engine(this.replay.config, this.catalog());
     const objective = this.replay.config.objective;
     this.watch = isObjectiveId(objective)
       ? watchObjective(objective, (cls) => this.engine.countStanding(cls))
@@ -137,6 +141,18 @@ export class ReplayScene extends Scene {
     if (this.replay.skip) this.skipToEnd();
   }
 
+  /** The catalog the footage is fought on: a raid's, a town's, or a ghost's (M27). */
+  private catalog(): Catalog {
+    const faction = this.replay.faction ?? 'usa';
+    if (this.replay.attacker) return ghostCatalog(faction, this.replay.attacker);
+    return this.replay.kind === 'raid' ? raidCatalogFor(faction) : defenseCatalogFor(faction);
+  }
+
+  /** A raid on a post, or another commander's plan on a town: footage with a report. */
+  private get isRaid(): boolean {
+    return this.replay.kind === 'raid' || this.replay.attacker !== undefined;
+  }
+
   private applyLayout(): void {
     this.layout = layoutOf(this, this.drawer, 0, 1, this.board.cols / this.board.rows);
     this.board.applyLayout(this.layout, true);
@@ -162,7 +178,11 @@ export class ReplayScene extends Scene {
 
   private rows(): PanelRow[] {
     return [
-      { id: 'h', label: this.replay.kind === 'raid' ? 'RAID FOOTAGE' : 'DEFENSE FOOTAGE', heading: true },
+      {
+        id: 'h',
+        label: this.replay.attacker ? 'GHOST RAID FOOTAGE' : this.replay.kind === 'raid' ? 'RAID FOOTAGE' : 'DEFENSE FOOTAGE',
+        heading: true,
+      },
       { id: 'speed', label: `SPEED ×${this.speedMult}`, sub: '[S]', onTap: () => this.cycleSpeed() },
       {
         id: 'paths',
@@ -187,7 +207,7 @@ export class ReplayScene extends Scene {
         : []),
       { id: 'skip', label: 'SKIP TO END', sub: '[SPACE]', onTap: () => this.skipToEnd() },
       // A raid's report (M29), fought from the same config this is playing.
-      ...(this.replay.kind === 'raid'
+      ...(this.isRaid
         ? [{ id: 'report', label: 'AFTER ACTION REPORT', onTap: () => this.showReport() }]
         : []),
       { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
@@ -197,10 +217,15 @@ export class ReplayScene extends Scene {
 
   private showReport(): void {
     if (this.overlay) return;
-    const faction = this.replay.faction ?? 'usa';
-    const catalog = raidCatalogFor(faction);
+    // The force's side: the town's own on a raid, the other commander's on a ghost.
+    const faction = this.replay.attacker ?? this.replay.faction ?? 'usa';
+    const catalog = this.catalog();
     const meta = trainMetaFor(faction);
-    const cf = this.replay.whatIf ? null : Counterfactual.of(this.replay.config, catalog, trainableFor(faction));
+    // A ghost's plan was another commander's, and so is any what-if about it.
+    const cf =
+      this.replay.whatIf || this.replay.attacker
+        ? null
+        : Counterfactual.of(this.replay.config, catalog, trainableFor(faction));
     this.overlay = buildAfterActionCard(this, afterAction(this.replay.config, catalog), {
       layout: this.layout,
       title: this.replay.title,
@@ -268,7 +293,7 @@ export class ReplayScene extends Scene {
   private ended(): boolean {
     if (this.engine.phase === 'victory' || this.engine.phase === 'defeat') return true;
     // A raid's resolution stops at its hard limit, so its footage does too.
-    if (this.replay.kind === 'raid' && this.engine.tick >= RAID_MAX_TICKS) return true;
+    if (this.isRaid && this.engine.tick >= RAID_MAX_TICKS) return true;
     return this.watch?.met() === true;
   }
 
@@ -318,7 +343,9 @@ export class ReplayScene extends Scene {
             : 'RAID REPELLED'
         : attackersWon
           ? 'PERIMETER BREACHED'
-          : 'PROBE REPELLED';
+          : this.replay.attacker
+            ? 'RAID REPELLED'
+            : 'PROBE REPELLED';
       const killer = this.engine.stats.ccKillerKind;
       const cause = attackersWon && !withdrew && killer ? `\nKILLING BLOW: ${killer.toUpperCase()}` : '';
       this.stamp = createLabel(this, text + cause, {

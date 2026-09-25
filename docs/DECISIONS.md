@@ -1418,3 +1418,28 @@ here with the change and its date.
   The wire format is unchanged and the fix is in the decoder alone: a wave with
   no squads (probes, last stands) decodes exactly as before, and an old code of
   such a raid now plays the battle that was fought rather than another one.
+- 2026-09-25 — **Ghost raids: the defender fights them, standing moves both ways,
+  and three a day pay (M27 Phase 1, v1.66.0).** Settled with the commander. A
+  ghost is a plan sent as a code, with the army's ranks and research: the
+  defender's game fights it on their town as it stands, under its standing
+  orders, and sends the battle back as a replay code of a new kind; the
+  attacker's game checks it is the battle sent and fights it again before
+  paying. A hold pays the defender standing and a breach costs some; a win pays
+  the attacker standing and a duel's loot, a loss costs what a failed raid does.
+  Nobody's men, stores, walls or ordnance are touched. Both sides fight it as a
+  raid, one loop and one clock, so they cannot read a timeout differently. The
+  codes can check only the attacker's half of the battle, and a second war of
+  one's own or a result written by hand cannot be told from the real thing
+  without a server, so a day pays three each way and the rest are fought for
+  nothing. Each war has a callsign, chosen or made from when it began; a shared
+  base is named for it, and a ghost is for the callsign on the base it was
+  planned against.
+- 2026-09-25 — **A commander's town is entered by its edge (M27 Phase 1,
+  v1.66.0).** A town is walled against its north edge, where every probe comes
+  from, and the south sectors are the row under its command post: measured on a
+  walled town, four militia died at the wire from the north, west and east ten
+  times in ten, and took the post from the south ten times in ten. So a duel on
+  a shared base, like a ghost, comes in by N1 or N2 only. The planner moves each
+  squad of a plan written against a post to the nearer of the two, and a duel's
+  what-if offers only those. A ladder post is a generated base and keeps all
+  eight sectors.

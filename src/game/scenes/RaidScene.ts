@@ -52,10 +52,12 @@ import {
 import {
   applyRaidResult,
   delayOf,
+  entrySectors,
   isScouted,
   DOCTRINE_IDS,
   FLAT_PAYOUT,
   nextDelay,
+  nextSector,
   planShortfall,
   planUnitCount,
   raidConfig,
@@ -65,13 +67,13 @@ import {
   postAt,
   scoutTarget,
   sectorCells,
+  sectorWithin,
   slotOf,
   squadRoster,
   storePlan,
   squadVet,
   tunnelFuelCost,
   tunnelSiteValid,
-  SECTOR_IDS,
   TUNNEL_DIG_TICKS,
   type RaidResolution,
   type SectorId,
@@ -124,11 +126,29 @@ import { wonDay } from '../../meta/record';
 import { columnName, laneFor, strongholdTier, theaterFor } from '../../content/theaters';
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
+import { sendGhost, type SendError } from '../../meta/ghost';
+import { showTextBox, textBoxOpen } from '../textbox';
+
+/** Why a ghost raid could not be sent (M27), as the planner's hint line says it. */
+const GHOST_REFUSED: Record<SendError, string> = {
+  empty: 'NO MEN IN THE PLAN',
+  sector: 'A TOWN IS ENTERED BY ITS NORTH EDGE',
+  gallery: 'NO GALLERIES ON A GHOST RAID',
+  army: 'THE PLAN FIELDS MORE MEN THAN THE YARD HOLDS',
+  address: 'THAT BASE IS NOT NAMED FOR A CALLSIGN',
+  self: 'THAT IS YOUR OWN BASE',
+};
 
 /** A pasted base plus the fingerprint that stops it paying twice. */
 export interface Challenge {
   base: GeneratedBase;
   fingerprint: string;
+  /**
+   * Send the plan as a ghost raid instead of fighting it (M27): the
+   * commander whose base this is fights it on their town. No galleries and
+   * no fire plan, and the launch sends a code.
+   */
+  ghost?: boolean;
 }
 
 const CELL = 32;
@@ -323,6 +343,7 @@ export class RaidScene extends Scene {
     // After the hint line exists, not before: reopening says something, and a
     // scene that talks before it has a mouth talks through the last scene's.
     this.reopenLastPlan();
+    this.fitPlan();
 
     // Tunnel siting: a map tap places the selected squad's gallery head.
     this.board.onTap((col, row) => {
@@ -340,7 +361,8 @@ export class RaidScene extends Scene {
     });
 
     // Sector markers ride the world layer so they pan and zoom with the map.
-    for (const id of SECTOR_IDS) {
+    // Only the ones a squad may go in by: a commander's town has one edge.
+    for (const id of this.sectors) {
       const cells = sectorCells(id);
       const mid = cells[Math.floor(cells.length / 2)]!;
       const label = this.add
@@ -355,7 +377,8 @@ export class RaidScene extends Scene {
       this.board.world.add(label);
     }
 
-    this.panel = createPanel(this, RAID_TABS);
+    // A ghost carries no fire plan: the town's ordnance stays home with its men.
+    this.panel = createPanel(this, this.ghostMode ? RAID_TABS.filter((t) => t.id !== 'fire') : RAID_TABS);
     this.panel.onDrawerToggle = () => {
       this.drawer = toggleDrawer(this.drawer);
       this.applyLayout();
@@ -584,6 +607,7 @@ export class RaidScene extends Scene {
   private newPlan(): void {
     if (this.result) return;
     this.squads = RaidScene.freshPlan();
+    this.fitPlan();
     this.selectedSquad = 0;
     this.siting = false;
     this.hint('PLAN CLEARED — THREE EMPTY FORMATIONS');
@@ -594,9 +618,31 @@ export class RaidScene extends Scene {
     this.hintUntil = Date.now() + 2200;
   }
 
-  /** Tunnel insertion needs the doctrine (NK) and a scouted layout to dig to. */
+  /** Tunnel insertion needs the doctrine (NK) and a scouted layout to dig to; a ghost digs none. */
   private canUseTunnel(): boolean {
-    return canTunnel(this.town.faction) && this.scouted();
+    return !this.ghostMode && canTunnel(this.town.faction) && this.scouted();
+  }
+
+  /** Planning a ghost raid (M27): the launch sends the plan rather than fighting it. */
+  private get ghostMode(): boolean {
+    return this.challenge?.ghost === true;
+  }
+
+  /** Where a squad may go in: a commander's town by its entry edge (M27), a post by any side. */
+  private get sectors(): SectorId[] {
+    return entrySectors(this.challenge !== null);
+  }
+
+  /**
+   * Bring the plan within where this base may be entered: a plan written
+   * against a post and opened on a commander's town moves each squad to the
+   * part of the edge on its own side, and a ghost's galleries are filled in.
+   */
+  private fitPlan(): void {
+    for (const squad of this.squads) {
+      squad.sector = sectorWithin(squad.sector, this.sectors);
+      if (this.ghostMode) delete squad.tunnel;
+    }
   }
 
   private scout(): void {
@@ -668,20 +714,20 @@ export class RaidScene extends Scene {
 
   private cycleSector(): void {
     const squad = this.squads[this.selectedSquad]!;
+    const allowed = this.sectors;
     // Tunnel mode sits at the end of the sector cycle for tunnel factions.
     if (this.siting || squad.tunnel !== undefined) {
       delete squad.tunnel;
       this.siting = false;
-      squad.sector = SECTOR_IDS[0]!;
+      squad.sector = allowed[0]!;
       return;
     }
-    const index = SECTOR_IDS.indexOf(squad.sector);
-    if (index === SECTOR_IDS.length - 1 && this.canUseTunnel()) {
+    if (allowed.indexOf(squad.sector) === allowed.length - 1 && this.canUseTunnel()) {
       this.siting = true;
       this.hint('TUNNEL — click the map to site the gallery head');
       return;
     }
-    squad.sector = SECTOR_IDS[(index + 1) % SECTOR_IDS.length] as SectorId;
+    squad.sector = nextSector(squad.sector, allowed);
   }
 
   private cycleDoctrine(): void {
@@ -754,7 +800,13 @@ export class RaidScene extends Scene {
   }
 
   private launch(): void {
-    if (this.result || planUnitCount(this.squads) === 0) return;
+    // SPACE reaches here once focus leaves a text box that is still up, and
+    // the one this planner opens holds a ghost it has just sent.
+    if (textBoxOpen() || this.result || planUnitCount(this.squads) === 0) return;
+    if (this.ghostMode) {
+      this.sendGhostRaid();
+      return;
+    }
     if (this.town.frontline.pendingCounterattack) return;
     // The heaviest thing this screen does gets the heaviest answer. A raid is
     // committed manpower — it cannot be taken back — and that should be felt
@@ -847,6 +899,33 @@ export class RaidScene extends Scene {
     this.lastConfig = config;
     this.refreshGhost();
     this.showResult(resolution, standingBefore);
+  }
+
+  /**
+   * Send the plan as a ghost raid (M27) instead of fighting it: a code for
+   * the commander whose base this is. Nothing leaves the yard, and GHOSTS OUT
+   * keeps it until the result comes back.
+   */
+  private sendGhostRaid(): void {
+    const squads = this.squads.map((s, i) => ({ ...s, slot: slotOf(s, i) }));
+    const sent = sendGhost(this.town, this.base, squads, Date.now());
+    if (!sent.ok) {
+      this.hint(GHOST_REFUSED[sent.error]);
+      return;
+    }
+    haptic('commit');
+    this.saveSoon();
+    const to = sent.ghost.to;
+    showTextBox({
+      title: `GHOST RAID FOR ${to}`,
+      note:
+        `Send this to ${to}. Their game fights it on their town as it stands, and ` +
+        'hands them a result code to send back: paste that into TAKE A GHOST CODE ' +
+        'to be paid. Nothing of yours was spent.',
+      value: sent.code,
+      readOnly: true,
+      onClose: () => this.goHome(),
+    });
   }
 
   /**
@@ -1324,14 +1403,17 @@ export class RaidScene extends Scene {
         if (this.challenge) {
           const beaten = town.duels?.includes(this.challenge.fingerprint) === true;
           return [
-            { id: 'h', label: `CHALLENGE · ${this.base.name}`, heading: true },
+            { id: 'h', label: `${this.ghostMode ? 'GHOST RAID' : 'CHALLENGE'} · ${this.base.name}`, heading: true },
             {
               id: 'note',
-              label: beaten
-                ? 'ALREADY BEATEN — no further loot'
-                : 'A shared snapshot. Losses are real; the ladder does not move.',
+              label: this.ghostMode
+                ? 'Your plan, sent as a code: their game fights it on their town as it stands. Nobody’s men or stores are touched.'
+                : beaten
+                  ? 'ALREADY BEATEN — no further loot'
+                  : 'A shared snapshot. Losses are real; the ladder does not move.',
               heading: true,
             },
+            { id: 'edge', label: 'A town is entered by its north edge: N1 and N2.', heading: true },
             ...this.ghostRows(),
             { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
             { id: 'back', label: 'RETURN TO BASE', sub: '[ESC]', onTap: () => this.goHome() },
@@ -1612,7 +1694,10 @@ export class RaidScene extends Scene {
     const total = planUnitCount(this.squads);
     const activeSquads = this.squads.filter((s) => Object.values(s.units).some((n) => n > 0));
     const galleryFuel = tunnelFuelCost(activeSquads);
-    if (town.frontline.pendingCounterattack) {
+    if (this.ghostMode) {
+      this.launchButton.setLabel(`SEND GHOST RAID · ${total} UNIT${total === 1 ? '' : 'S'}`);
+      this.launchButton.setEnabled(total > 0);
+    } else if (town.frontline.pendingCounterattack) {
       this.launchButton.setLabel('COUNTERATTACK — GO DEFEND');
       this.launchButton.setEnabled(false);
     } else if (galleryFuel > 0 && town.fuel < galleryFuel) {
