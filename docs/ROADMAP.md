@@ -5605,7 +5605,105 @@ planning half feel like skill, because it teaches.
       run, the raid harness with five new checks: REPORT on the result names
       the three parts and every squad, closes back onto the result, and the
       replay offers the same report.
-- [ ] **Phase 2 — a spatial heat map** over the board.
+- [x] **Phase 2 — a spatial heat map** over the board.
+
+      **The plan, from the survey.** *(Written against v1.63.0.)* The card
+      says what killed the force and how long each squad was held. What it
+      cannot say is where, and the where is what a plan changes: the sector
+      a squad goes in by, the wire it has to cut, the gun it walks past. The
+      battle knows both places:
+      - *Where they fell.* Every death in the report has its place
+        (`Death.at`), to a fraction of a cell.
+      - *Where they were held up.* Every man holds a state each tick, and
+        three of them are time not spent getting on: cutting the wire or
+        pulling down what blocks the way, stuck with no way through, and
+        pinned by a fire mission. In a raid nothing pins (the base fires no
+        missions at the force), so it is the wire and the walls; in a
+        defence it is the town's wire and the commander's fire missions. The
+        report keeps whose time it was and how much, not where.
+
+      Two boards show a raid's ground: the replay, which fights it again,
+      and the planner, which shows the post the next raid goes for. The heat
+      map goes on both, drawn by one function:
+      - **The data.** The report's observer becomes a recorder that anything
+        stepping a battle can feed tick by tick, so the replay builds the
+        same map as it plays that the report does in one go. It adds the
+        seconds men were held up in each cell. Tests: a replay's own loop
+        and the report make the same map; a man cutting wire is held in his
+        own cell for as long as he cuts, and nowhere else; the dead lie on
+        the board.
+      - **The drawing.** A cross where each man fell, in the page's one
+        colour on a paper halo, and a shade of the same colour over each cell
+        men were held up in, darker the longer they were held. The shade is
+        scaled to the raid's worst cell, but never below a floor, so a raid
+        held for two seconds does not paint a cell as if it were the wall
+        that stopped it.
+      - **The replay.** HEAT MAP, on from the start, draws it as the footage
+        plays: a cross when a man falls, a shade that deepens while they are
+        held. Defence footage gets it too: where the probe fell, and where the
+        town's wire held it. The verdict moves to the top of the board so it
+        does not sit on the post, and skipping to the end drops the effects
+        it queued, rather than drawing every explosion of the battle at once.
+      - **The report's way to it.** The card gets ON THE MAP beside CLOSE:
+        from the result it opens the replay at its end, and in the replay it
+        skips there.
+      - **The planner.** The last raid on a post is drawn on the post. The
+        vault keeps the last ten battles; the newest raid or duel of the
+        commander's own (not a code filed from somebody else) fought on this
+        post's ground is fought again, and its map goes on the board under
+        the plan. A row under VIEW in the target tab turns it off, and says
+        how many fell. Nothing is added to the save.
+
+      Not in Phase 2: the re-run with one change (Phase 3).
+
+      **What Phase 2 found.** *(Shipped in v1.64.0.)* It was built as planned,
+      but for the shade:
+      - *The shade is where men were hit, not where they were held.* Before
+        drawing it, the held-up time was measured on 60 generated raids (two
+        plans, five rungs, three posts, two seeds). It was nothing at all in
+        40 of them, and never more than about ten man-seconds in the rest, in
+        one or two cells: a raid walks round wire far more often than it
+        cuts it, and nothing in a raid pins. A shade that is blank on two
+        raids in three says nothing. The damage the force took was on every
+        one of the 60, over 5 to 20 cells. So the recorder keeps the damage
+        each man took, in the cell he stood in when it landed, counted in
+        men's worth (a hit is its share of his whole health, so a man killed
+        outright is one), and the heat map shades that. It shows the killing
+        ground on a raid that lost nobody, which the crosses cannot. The
+        floor is one man's worth.
+      - *One recorder.* `BattleRecorder` is what `afterAction` feeds in one go
+        and what the replay feeds as it plays, and a test holds that the two
+        make the same report on four raids, one of them ended on its watch.
+        The drawing is `heatMap.ts`, one function for both boards.
+      - *The replay* draws it from the first frame, on the ground under the
+        battle, with HEAT MAP to turn it off. Two things the footage did
+        wrong, found on the way: at speed it could step a tick or two past a
+        raid that withdrew on its objective, which the report does not, and
+        it had no hard limit where the resolution does. It stops on both
+        now. Skipping to the end drops the effects it queued, and the
+        verdict sits across the top of the board.
+      - *The planner* finds the last raid on a post in the vault by its
+        ground: the same board, post, terrain and every wall and building,
+        so a post raided twice matches and another post, or one from an
+        older generator, does not. Codes filed from somebody else, other
+        factions' battles and probes are passed over. It is fought again on
+        arrival and when the target changes; nothing is added to the save.
+      - *The showcase has raided its first post* (`?demo=raid`): two light
+        squads on a fixed seed, filed in its vault and touching nothing else,
+        so the planner opens on a heat map and the raid harness can check
+        one with men on it. For the USA it is two of four lost, and hits
+        over twelve cells.
+
+      *The gate.* 813 unit tests, 10 of them new: the replay and the report
+      making the same map, the dead lying in shade, the damage counted in
+      men, one man's whole health laid where it was taken off him, the
+      ground matched and the vault searched, and the drawing's scale, floor
+      and crosses. No file in `src/sim` changed. The raid harness has six
+      new checks: the showcase post opens with its last raid marked and the
+      row turns it off and on, the report leads to the map, the footage
+      draws it from the start, every man the footage saw fall is marked, and
+      back at the planner the post carries the raid just fought. Its check
+      on the footage's verdict now gets there by ON THE MAP.
 - [ ] **Phase 3 — the counterfactual.** Re-run with one substitution, diff the
       outcome, show both.
 

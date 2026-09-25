@@ -11,9 +11,19 @@
  * same battle, tick for tick. A report costs a fraction of a second, on
  * demand, and needs nothing but the config, so a raid watched again from the
  * vault has one as well.
+ *
+ * Phase 2 adds where. The dead already had their place; the recorder keeps
+ * where the fire landed on the living, cell by cell, and the heat map draws
+ * both. It is fed tick by tick, by `afterAction` in one go or by the replay as
+ * it plays, so the map on the footage is the report's own. The last raid on a
+ * post is found in the vault (`lastRaidOn`), so the planner can draw it on the
+ * post.
  */
+import { MAP_H, MAP_W, type GeneratedBase } from '../content/bases';
 import { Engine, TICKS_PER_SECOND } from '../sim/engine';
-import type { Catalog, DamageType, SimConfig, Vec2 } from '../sim/types';
+import type { Catalog, DamageType, LayoutStructure, LayoutWall, SimConfig, SimEvent, Vec2 } from '../sim/types';
+import type { TownState } from './town';
+import { isFiled, openEntry, vaultOf } from './vault';
 import { fightRaid } from './warfare';
 
 /**
@@ -56,7 +66,7 @@ export interface SquadReport {
   seconds: Record<SquadActivity, number>;
 }
 
-/** One man lost, for the report's tallies and the heat map (Phase 2). */
+/** One man lost, for the report's tallies and the heat map's crosses (Phase 2). */
 export interface Death {
   tick: number;
   kind: string;
@@ -78,54 +88,74 @@ export interface AfterAction {
   /** The tick each kill-chain stage fell, in order: breach, suppress, charge, burn. */
   stages: number[];
   deaths: Death[];
+  /** The board's width in cells, which `hits` is laid out by. */
+  width: number;
+  /**
+   * Where the fire landed (Phase 2): the damage men took in each cell,
+   * row-major, in men's worth (a hit counts its share of the man's whole
+   * health, so a man killed outright is one). The heat map's shade.
+   */
+  hits: number[];
 }
 
-/** Fight the raid in `config` again, and report what it did. */
-export function afterAction(config: SimConfig, catalog: Catalog): AfterAction {
-  // What the plan sent, from the config itself: every unit is an entry with
-  // its squad, including any the battle ends before it arrives.
-  const sent = new Map<number, number>();
-  const order: number[] = [];
-  for (const wave of config.siege?.waves ?? []) {
-    for (const entry of wave.entries) {
-      const squad = entry.squad ?? -1;
-      if (squad < 0) continue;
-      if (!sent.has(squad)) order.push(squad);
-      sent.set(squad, (sent.get(squad) ?? 0) + 1);
+const noActivity = (): Record<SquadActivity, number> => ({
+  pinned: 0,
+  stuck: 0,
+  breaking: 0,
+  assaulting: 0,
+  engaging: 0,
+  moving: 0,
+});
+
+/**
+ * A battle's report, kept as it is fought (M29 Phase 2).
+ *
+ * Whatever steps a battle feeds it each tick: `afterAction` fighting a raid
+ * again in one go, or the replay as it plays. Both get the same report from
+ * the same ticks, so the heat map on the footage is the report's own.
+ */
+export class BattleRecorder {
+  /** Every man lost so far, in the order they fell. */
+  readonly deaths: Death[] = [];
+  /** Men's worth of damage taken in each cell so far, row-major (`AfterAction.hits`). */
+  readonly hits: number[];
+  private readonly width: number;
+  private readonly height: number;
+  /** What the plan sent, by squad, and the squads in plan order. */
+  private readonly sent = new Map<number, number>();
+  private readonly order: number[] = [];
+  /**
+   * Who each man was, learned the tick he is first on the map: by the time
+   * his death is told he has been taken off it.
+   */
+  private readonly who = new Map<number, { kind: string; squad: number }>();
+  /** Each man's health when last seen, against his whole: what the next hit takes off him. */
+  private readonly health = new Map<number, { hp: number; max: number }>();
+  private readonly ticksIn = new Map<number, Record<SquadActivity, number>>();
+  private readonly stages: number[] = [];
+
+  constructor(config: SimConfig) {
+    this.width = config.width;
+    this.height = config.height;
+    this.hits = new Array<number>(config.width * config.height).fill(0);
+    // What the plan sent, from the config itself: every unit is an entry with
+    // its squad, including any the battle ends before it arrives.
+    for (const wave of config.siege?.waves ?? []) {
+      for (const entry of wave.entries) {
+        const squad = entry.squad ?? -1;
+        if (squad < 0) continue;
+        if (!this.sent.has(squad)) this.order.push(squad);
+        this.sent.set(squad, (this.sent.get(squad) ?? 0) + 1);
+      }
     }
   }
-  const squads = new Map<number, SquadReport>();
-  const report = (slot: number): SquadReport => {
-    let r = squads.get(slot);
-    if (!r) {
-      r = {
-        slot,
-        sent: sent.get(slot) ?? 0,
-        back: 0,
-        late: 0,
-        lost: {},
-        killedBy: {},
-        seconds: { pinned: 0, stuck: 0, breaking: 0, assaulting: 0, engaging: 0, moving: 0 },
-      };
-      squads.set(slot, r);
-    }
-    return r;
-  };
-  for (const slot of order) report(slot);
 
-  const engine = new Engine(config, catalog);
-  engine.enqueue({ tick: 0, type: 'startAssault' });
-  // Who each man was, learned the tick he is first on the map: by the time
-  // his death is told he has been taken off it.
-  const who = new Map<number, { kind: string; squad: number }>();
-  const ticksIn = new Map<number, Record<SquadActivity, number>>();
-  const deaths: Death[] = [];
-  const stages: number[] = [];
-  const { withdrew } = fightRaid(engine, config, (events) => {
+  /** One tick: the events it raised, and the engine after it. */
+  observe(engine: Engine, events: readonly SimEvent[]): void {
     for (const event of events) {
       if (event.type !== 'attackerDied') continue;
-      const man = who.get(event.id);
-      deaths.push({
+      const man = this.who.get(event.id);
+      this.deaths.push({
         tick: engine.tick,
         kind: man?.kind ?? 'unknown',
         squad: man?.squad ?? -1,
@@ -133,65 +163,152 @@ export function afterAction(config: SimConfig, catalog: Catalog): AfterAction {
         damageType: event.damageType ?? null,
         at: { ...event.at },
       });
+      // The blow that killed him took what he had left, where he fell. He is
+      // off the map by now, so this is the only place it can be counted.
+      const was = this.health.get(event.id);
+      this.hit(event.at, was ? was.hp / was.max : 1);
+      this.health.delete(event.id);
     }
     const counts = new Map<number, Record<SquadActivity, number>>();
     for (const a of engine.attackers) {
-      if (!who.has(a.id)) who.set(a.id, { kind: a.profile.kind, squad: a.squad });
-      if (a.hp <= 0 || a.squad < 0) continue;
+      if (!this.who.has(a.id)) this.who.set(a.id, { kind: a.profile.kind, squad: a.squad });
+      // Whatever he has lost since he was last seen, he lost where he stands.
+      const hp = Math.max(0, a.hp);
+      const was = this.health.get(a.id) ?? { hp: a.maxHp, max: a.maxHp };
+      if (hp < was.hp) this.hit(a.pos, (was.hp - hp) / was.max);
+      this.health.set(a.id, { hp, max: was.max });
+      if (a.hp <= 0) continue;
+      const activity: SquadActivity = a.pinnedUntil > engine.tick ? 'pinned' : a.state;
+      if (a.squad < 0) continue;
       let c = counts.get(a.squad);
       if (!c) {
-        c = { pinned: 0, stuck: 0, breaking: 0, assaulting: 0, engaging: 0, moving: 0 };
+        c = noActivity();
         counts.set(a.squad, c);
       }
-      c[a.pinnedUntil > engine.tick ? 'pinned' : a.state]++;
+      c[activity]++;
     }
     for (const [squad, c] of counts) {
       let best: SquadActivity = SQUAD_ACTIVITIES[0]!;
       for (const activity of SQUAD_ACTIVITIES) if (c[activity] > c[best]) best = activity;
-      let t = ticksIn.get(squad);
+      let t = this.ticksIn.get(squad);
       if (!t) {
-        t = { pinned: 0, stuck: 0, breaking: 0, assaulting: 0, engaging: 0, moving: 0 };
-        ticksIn.set(squad, t);
+        t = noActivity();
+        this.ticksIn.set(squad, t);
       }
       t[best]++;
     }
-    while (stages.length < engine.chainStagesCleared) stages.push(engine.tick);
-  });
-
-  const spawned = new Map<number, number>();
-  for (const man of who.values()) spawned.set(man.squad, (spawned.get(man.squad) ?? 0) + 1);
-  for (const a of engine.attackers) if (a.squad >= 0) report(a.squad).back++;
-  for (const death of deaths) {
-    if (death.squad < 0) continue;
-    const r = report(death.squad);
-    r.lost[death.kind] = (r.lost[death.kind] ?? 0) + 1;
-    const by = death.by ?? 'unknown';
-    r.killedBy[by] = (r.killedBy[by] ?? 0) + 1;
-  }
-  for (const r of squads.values()) {
-    r.late = Math.max(0, r.sent - (spawned.get(r.slot) ?? 0));
-    const t = ticksIn.get(r.slot);
-    if (t) for (const activity of SQUAD_ACTIVITIES) r.seconds[activity] = t[activity] / TICKS_PER_SECOND;
+    while (this.stages.length < engine.chainStagesCleared) this.stages.push(engine.tick);
   }
 
-  const tally = new Map<string, Killer>();
-  for (const death of deaths) {
-    const key = death.by ?? '';
-    const k = tally.get(key) ?? { by: death.by, damageType: death.damageType, kills: 0 };
-    k.kills++;
-    tally.set(key, k);
+  /** Damage landing on a man at `at`, in men's worth. */
+  private hit(at: Vec2, share: number): void {
+    const x = Math.floor(at.x);
+    const y = Math.floor(at.y);
+    if (share > 0 && x >= 0 && x < this.width && y >= 0 && y < this.height) this.hits[y * this.width + x]! += share;
   }
-  const killers = [...tally.values()].sort(
-    (a, b) => b.kills - a.kills || (a.by ?? '~').localeCompare(b.by ?? '~'),
+
+  /** The report, from the battle as it stands: call it once the battle is over. */
+  report(engine: Engine, withdrew: boolean): AfterAction {
+    const squads = new Map<number, SquadReport>();
+    const squadFor = (slot: number): SquadReport => {
+      let r = squads.get(slot);
+      if (!r) {
+        r = { slot, sent: this.sent.get(slot) ?? 0, back: 0, late: 0, lost: {}, killedBy: {}, seconds: noActivity() };
+        squads.set(slot, r);
+      }
+      return r;
+    };
+    for (const slot of this.order) squadFor(slot);
+
+    const spawned = new Map<number, number>();
+    for (const man of this.who.values()) spawned.set(man.squad, (spawned.get(man.squad) ?? 0) + 1);
+    for (const a of engine.attackers) if (a.squad >= 0) squadFor(a.squad).back++;
+    for (const death of this.deaths) {
+      if (death.squad < 0) continue;
+      const r = squadFor(death.squad);
+      r.lost[death.kind] = (r.lost[death.kind] ?? 0) + 1;
+      const by = death.by ?? 'unknown';
+      r.killedBy[by] = (r.killedBy[by] ?? 0) + 1;
+    }
+    for (const r of squads.values()) {
+      r.late = Math.max(0, r.sent - (spawned.get(r.slot) ?? 0));
+      const t = this.ticksIn.get(r.slot);
+      if (t) for (const activity of SQUAD_ACTIVITIES) r.seconds[activity] = t[activity] / TICKS_PER_SECOND;
+    }
+
+    const tally = new Map<string, Killer>();
+    for (const death of this.deaths) {
+      const key = death.by ?? '';
+      const k = tally.get(key) ?? { by: death.by, damageType: death.damageType, kills: 0 };
+      k.kills++;
+      tally.set(key, k);
+    }
+    const killers = [...tally.values()].sort(
+      (a, b) => b.kills - a.kills || (a.by ?? '~').localeCompare(b.by ?? '~'),
+    );
+
+    return {
+      ticks: engine.tick,
+      cleared: engine.phase === 'defeat',
+      withdrew,
+      killers,
+      squads: this.order.map((slot) => squadFor(slot)),
+      stages: [...this.stages],
+      deaths: this.deaths.map((d) => ({ ...d, at: { ...d.at } })),
+      width: this.width,
+      hits: [...this.hits],
+    };
+  }
+}
+
+/** Fight the raid in `config` again, and report what it did. */
+export function afterAction(config: SimConfig, catalog: Catalog): AfterAction {
+  const engine = new Engine(config, catalog);
+  engine.enqueue({ tick: 0, type: 'startAssault' });
+  const recorder = new BattleRecorder(config);
+  const { withdrew } = fightRaid(engine, config, (events) => recorder.observe(engine, events));
+  return recorder.report(engine, withdrew);
+}
+
+/** A layout as one comparable string: what stands where, in any order. */
+function groundKey(walls: readonly LayoutWall[], structures: readonly LayoutStructure[]): string {
+  return [
+    ...walls.map((w) => `w${w.cell}:${w.kind}`),
+    ...structures.map((s) => `s${s.cell}:${s.kind}:${s.level ?? 1}`),
+  ]
+    .sort()
+    .join(',');
+}
+
+/**
+ * Was this battle fought on this base: the same board, ground, post and
+ * everything built around it? A base is generated from its rung, its slot
+ * and the faction, so a post raided twice is the same layout both times; a
+ * layout from an older generator, or another post, is not this one.
+ */
+export function sameGround(config: SimConfig, base: GeneratedBase): boolean {
+  return (
+    config.width === MAP_W &&
+    config.height === MAP_H &&
+    config.ccOrigin === base.ccOrigin &&
+    (config.ccLevel ?? 1) === base.ccLevel &&
+    (config.terrainSeed ?? 0) === base.terrainSeed &&
+    groundKey(config.layout?.walls ?? [], config.layout?.structures ?? []) ===
+      groundKey(base.walls, base.structures)
   );
+}
 
-  return {
-    ticks: engine.tick,
-    cleared: engine.phase === 'defeat',
-    withdrew,
-    killers,
-    squads: order.map((slot) => report(slot)),
-    stages,
-    deaths,
-  };
+/**
+ * The newest raid (or duel) this commander fought on a base's ground, from
+ * the vault, or null if none is kept. Only the town's own battles: a code
+ * filed from somebody else is their raid, not the last one here.
+ */
+export function lastRaidOn(town: TownState, base: GeneratedBase): { config: SimConfig; at: number } | null {
+  for (const entry of vaultOf(town)) {
+    if ((entry.kind !== 'raid' && entry.kind !== 'duel') || isFiled(entry)) continue;
+    const replay = openEntry(entry);
+    if (!replay || replay.faction !== town.faction) continue;
+    if (sameGround(replay.config, base)) return { config: replay.config, at: entry.at };
+  }
+  return null;
 }

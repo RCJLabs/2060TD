@@ -1389,3 +1389,13 @@ here with the change and its date.
   the one loop `resolveRaid` uses (`fightRaid`). So nothing is added to the save or
   the resolution, a report costs milliseconds and is made when asked for, and any
   raid with a replay code can have one.
+- 2026-09-25 — **The heat map shades where men were hit, not where they were held
+  (M29 Phase 2, v1.64.0).** The plan shaded the time men spent cutting wire, stuck
+  or pinned. Measured first on 60 generated raids, that was nothing in 40 of them
+  and never more than about ten man-seconds in the rest: a raid walks round wire
+  far more often than it cuts it, and nothing in a raid pins. The damage the force
+  took was on all 60, over 5 to 20 cells. So the shade is damage, counted in men's
+  worth, in the cell each man stood in when it landed, and a cross marks where each
+  man fell. It shows the killing ground even on a raid that lost nobody. The last
+  raid on a post is found in the vault by its ground and fought again, so the
+  planner's map, like the report, adds nothing to the save.

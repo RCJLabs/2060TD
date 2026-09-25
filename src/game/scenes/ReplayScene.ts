@@ -1,13 +1,15 @@
-import { clamp, Scene } from '../stage';
+import { clamp, Scene, type Graphics } from '../stage';
 import { music } from '../music';
 import { defenseCatalogFor, raidCatalogFor, trainMetaFor, type FactionId } from '../../content/factions';
-import { afterAction } from '../../meta/afteraction';
+import { afterAction, BattleRecorder } from '../../meta/afteraction';
 import { buildAfterActionCard } from '../afterActionCard';
 import type { OverlayApi } from '../dom/overlay';
 import { DT, Engine } from '../../sim/engine';
 import { OBJECTIVES, isObjectiveId, watchObjective } from '../../meta/objectives';
+import { RAID_MAX_TICKS } from '../../meta/warfare';
 import type { SimConfig } from '../../sim/types';
 import { BattleRenderer } from '../BattleRenderer';
+import { drawHeatMap, heatLegend } from '../heatMap';
 import { COLORS } from '../palette';
 import { BoardView } from '../BoardView';
 import { DRAWER_REST, layoutOf, onLayoutChange, toggleDrawer, type DrawerState, type Layout } from '../layout';
@@ -25,6 +27,8 @@ export interface ReplayData {
   /** Scene key to return to (with its restart payload). */
   backTo: 'town' | 'raid';
   backData?: object;
+  /** Open on the battle's end, heat map and all: the report's ON THE MAP (M29). */
+  skip?: boolean;
 }
 
 /**
@@ -39,6 +43,13 @@ export class ReplayScene extends Scene {
   private accumulator = 0;
   private speedMult = 2;
   private showPaths = true;
+  /**
+   * The heat map (M29 Phase 2): the battle's report, kept as the footage
+   * plays, and drawn on the ground under the battle.
+   */
+  private recorder!: BattleRecorder;
+  private heatLayer!: Graphics;
+  private showHeat = true;
   private board!: BoardView;
   private panel!: PanelApi;
   private layout!: Layout;
@@ -58,6 +69,7 @@ export class ReplayScene extends Scene {
     this.replay = data;
     this.accumulator = 0;
     this.speedMult = 2;
+    this.showHeat = true;
     this.endShown = false;
     this.stamp = null;
     this.overlay = null;
@@ -74,11 +86,16 @@ export class ReplayScene extends Scene {
       ? watchObjective(objective, (cls) => this.engine.countStanding(cls))
       : null;
     this.engine.enqueue({ tick: 0, type: 'startAssault' });
+    this.recorder = new BattleRecorder(this.replay.config);
     this.board = new BoardView(this, {
       cols: this.replay.config.width,
       rows: this.replay.config.height,
       cell: 32,
     });
+    // In the world before the battle's own layers, so it lies on the ground:
+    // the sheet goes in under it, and the walls, guns and men over it.
+    this.heatLayer = this.add.graphics();
+    this.board.world.add(this.heatLayer);
     this.battle = new BattleRenderer(
       this,
       this.engine,
@@ -105,8 +122,12 @@ export class ReplayScene extends Scene {
     kb?.on('keydown-P', () => {
       this.showPaths = !this.showPaths;
     });
+    kb?.on('keydown-H', () => {
+      this.showHeat = !this.showHeat;
+    });
     kb?.on('keydown-SPACE', () => this.skipToEnd());
     kb?.on('keydown-ESC', () => this.goBack());
+    if (this.replay.skip) this.skipToEnd();
   }
 
   private applyLayout(): void {
@@ -121,10 +142,15 @@ export class ReplayScene extends Scene {
     }
   }
 
+  /**
+   * The verdict, at the top of the board. It sat over the middle until the
+   * heat map (M29), where it covered the post: the ground the whole map is
+   * read against.
+   */
   private placeStamp(): void {
     if (!this.stamp) return;
-    const { board, font } = this.layout;
-    this.stamp.setFontSize(font.title).setPosition(board.x + board.w / 2, board.y + board.h / 2);
+    const { board, font, pad } = this.layout;
+    this.stamp.setFontSize(font.title).setPosition(board.x + board.w / 2, board.y + pad);
   }
 
   private rows(): PanelRow[] {
@@ -140,6 +166,18 @@ export class ReplayScene extends Scene {
           this.showPaths = !this.showPaths;
         },
       },
+      {
+        id: 'heat',
+        label: 'HEAT MAP',
+        sub: '[H]',
+        active: this.showHeat,
+        onTap: () => {
+          this.showHeat = !this.showHeat;
+        },
+      },
+      ...(this.showHeat
+        ? [{ id: 'heatnote', label: heatLegend(this.recorder.deaths.length), heading: true }]
+        : []),
       { id: 'skip', label: 'SKIP TO END', sub: '[SPACE]', onTap: () => this.skipToEnd() },
       // A raid's report (M29), fought from the same config this is playing.
       ...(this.replay.kind === 'raid'
@@ -162,6 +200,13 @@ export class ReplayScene extends Scene {
       catalog,
       unit: (kind) => meta[kind]?.short ?? kind,
       chain: this.replay.config.killChainVersion !== undefined,
+      // Where it happened: the end of this footage, with the heat map on.
+      onMap: () => {
+        this.overlay?.close();
+        this.overlay = null;
+        this.showHeat = true;
+        this.skipToEnd();
+      },
       onClose: () => {
         this.overlay?.close();
         this.overlay = null;
@@ -181,14 +226,23 @@ export class ReplayScene extends Scene {
    */
   private ended(): boolean {
     if (this.engine.phase === 'victory' || this.engine.phase === 'defeat') return true;
+    // A raid's resolution stops at its hard limit, so its footage does too.
+    if (this.replay.kind === 'raid' && this.engine.tick >= RAID_MAX_TICKS) return true;
     return this.watch?.met() === true;
+  }
+
+  /** One tick of footage: the board's effects and the heat map both hear it. */
+  private advance(): void {
+    const events = this.engine.step();
+    this.recorder.observe(this.engine, events);
+    this.battle.consumeEvents(events);
   }
 
   private skipToEnd(): void {
     let safety = 20_000;
-    while (!this.ended() && safety-- > 0) {
-      this.battle.consumeEvents(this.engine.step());
-    }
+    while (!this.ended() && safety-- > 0) this.advance();
+    this.accumulator = 0;
+    this.battle.settle();
   }
 
   private goBack(): void {
@@ -199,9 +253,9 @@ export class ReplayScene extends Scene {
     if (!this.ended()) {
       this.accumulator += (deltaMs / 1000) * this.speedMult;
       let safety = 24;
-      while (this.accumulator >= DT && safety-- > 0) {
+      while (this.accumulator >= DT && safety-- > 0 && !this.ended()) {
         this.accumulator -= DT;
-        this.battle.consumeEvents(this.engine.step());
+        this.advance();
       }
       if (this.accumulator > DT) this.accumulator = 0;
     } else if (!this.endShown) {
@@ -238,13 +292,21 @@ export class ReplayScene extends Scene {
         padX: 16,
         padY: 10,
         originX: 0.5,
-        originY: 0.5,
+        originY: 0,
       });
       this.placeStamp();
     }
 
     const alpha = clamp(this.accumulator / DT, 0, 1);
     this.battle.draw(this.ended() ? 1 : alpha, deltaMs / 1000, { showPaths: this.showPaths });
+    this.heatLayer.clear();
+    if (this.showHeat) {
+      drawHeatMap(
+        this.heatLayer,
+        { width: this.replay.config.width, hits: this.recorder.hits, deaths: this.recorder.deaths },
+        32,
+      );
+    }
 
     const e = this.engine;
     this.panel.setRows(this.rows());

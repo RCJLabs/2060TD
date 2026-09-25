@@ -5,7 +5,8 @@
  * One card for both places a raid is looked back on, the result of the raid
  * just fought and a raid watched again, so the two cannot read differently.
  * It is handed the report (`meta/afteraction.ts`) and the names to read it
- * in, and draws nothing that is not in the report.
+ * in, and draws nothing that is not in the report. Where it happened is the
+ * heat map's (Phase 2), which ON THE MAP opens.
  */
 import type { FactionId } from '../content/factions';
 import { squadName } from '../content/veterancy';
@@ -40,6 +41,8 @@ export interface AfterActionCardOptions {
   unit: (kind: string) => string;
   /** Whether the battle was fought on the kill chain (it names stages only if so). */
   chain: boolean;
+  /** Show where it happened (Phase 2): the replay's heat map, at the battle's end. */
+  onMap?: () => void;
   onClose: () => void;
 }
 
@@ -110,6 +113,11 @@ export function buildAfterActionCard(scene: Scene, report: AfterAction, opts: Af
     });
   }
 
-  ov.footer('CLOSE', opts.onClose);
+  if (opts.onMap) {
+    ov.footer('ON THE MAP', opts.onMap, 0, 2);
+    ov.footer('CLOSE', opts.onClose, 1, 2);
+  } else {
+    ov.footer('CLOSE', opts.onClose);
+  }
   return ov;
 }

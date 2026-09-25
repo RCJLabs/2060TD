@@ -30,6 +30,7 @@ import {
 import type { TrainMeta } from '../../content/usaUnits';
 import { ladderPayout, leagueOf } from '../../meta/ladder';
 import { saveTown } from '../../meta/save';
+import { recordBattle } from '../../meta/vault';
 import { airReadOf, slowestAirSpeed, AIR_READ_SECTORS } from '../../meta/airread';
 import {
   armyManpower,
@@ -85,8 +86,9 @@ import {
   type ObjectiveId,
 } from '../../meta/objectives';
 import { researchEffects } from '../../meta/town';
-import { afterAction } from '../../meta/afteraction';
+import { afterAction, lastRaidOn, type AfterAction } from '../../meta/afteraction';
 import { buildAfterActionCard } from '../afterActionCard';
+import { drawHeatMap, heatLegend } from '../heatMap';
 import type { AutoPowerRule } from '../../sim/types';
 import {
   ATTACKER_GLYPH_SPAN,
@@ -199,6 +201,13 @@ export class RaidScene extends Scene {
   private hintText!: SceneLabel;
 
   private baseLayer!: Graphics;
+  /**
+   * The last raid on this post, as its heat map (M29 Phase 2): where its men
+   * fell and were hit, over the post the next one goes for.
+   */
+  private ghostLayer!: Graphics;
+  private ghost: AfterAction | null = null;
+  private showGhost = true;
   private dynLayer!: Graphics;
   private fogText!: SceneLabel;
   private sectorLabels: Text[] = [];
@@ -257,6 +266,7 @@ export class RaidScene extends Scene {
 
     this.board = new BoardView(this, { cols: MAP_W, rows: MAP_H, cell: CELL });
     this.baseLayer = this.add.graphics();
+    this.ghostLayer = this.add.graphics();
     this.dynLayer = this.add.graphics();
     // The ground the battle will be fought on, which the engine generates
     // around everything the base has built and from the base's own entry
@@ -282,7 +292,9 @@ export class RaidScene extends Scene {
       spawnLane: -1, // no home entry strip: this is somebody else's ground
       spawnEdge: TOWN_GRID.spawnEdge,
     });
-    this.board.world.add([sheet, this.baseLayer, this.dynLayer]);
+    // The last raid's marks over the post, so no gun hides a cross; the plan's
+    // own highlights over both.
+    this.board.world.add([sheet, this.baseLayer, this.ghostLayer, this.dynLayer]);
     this.board.passable = (col, row) => raidGround.passable(row * MAP_W + col);
 
     this.fogText = createLabel(this, 'RECON REQUIRED\nSCOUT THE TARGET TO REVEAL IT', {
@@ -366,6 +378,7 @@ export class RaidScene extends Scene {
     this.applyLayout();
     onLayoutChange(this, () => this.applyLayout());
     this.redrawBase();
+    this.refreshGhost();
 
     // The planner is the second thing in the game that has to be taught, and
     // the only one with four tabs. Once, on first arrival, and never again.
@@ -519,6 +532,7 @@ export class RaidScene extends Scene {
     this.siting = false;
     this.clearResult();
     this.redrawBase();
+    this.refreshGhost();
   }
 
   /**
@@ -821,7 +835,60 @@ export class RaidScene extends Scene {
     this.saveSoon();
     this.result = resolution;
     this.lastConfig = config;
+    this.refreshGhost();
     this.showResult(resolution, standingBefore);
+  }
+
+  /**
+   * Find the last raid on this post and fight it again for its heat map
+   * (M29 Phase 2). A few milliseconds, on arrival and when the target
+   * changes, and nothing kept in the save: the vault already has the battle.
+   */
+  private refreshGhost(): void {
+    const last = lastRaidOn(this.town, this.base);
+    this.ghost = last ? afterAction(last.config, raidCatalogFor(this.town.faction)) : null;
+    this.drawGhost();
+  }
+
+  private drawGhost(): void {
+    this.ghostLayer.clear();
+    if (this.ghost && this.showGhost) drawHeatMap(this.ghostLayer, this.ghost, CELL);
+  }
+
+  /** The last raid here, as a row that turns its marks on and off, and what they mean. */
+  private ghostRows(): PanelRow[] {
+    if (!this.ghost) return [];
+    const fell = this.ghost.deaths.length;
+    return [
+      {
+        id: 'ghost',
+        label: 'THE LAST RAID HERE',
+        sub: `${fell} FELL`,
+        active: this.showGhost,
+        onTap: () => {
+          this.showGhost = !this.showGhost;
+          this.drawGhost();
+        },
+      },
+      ...(this.showGhost ? [{ id: 'ghostnote', label: heatLegend(), heading: true }] : []),
+    ];
+  }
+
+  /**
+   * The footage of the raid just fought, from the result: from the start, or
+   * at its end with the heat map on (the report's ON THE MAP).
+   */
+  private watchReplay(skip = false): void {
+    if (!this.lastConfig) return;
+    this.scene.start('replay', {
+      config: this.lastConfig,
+      kind: 'raid',
+      title: this.base.name,
+      faction: this.town.faction,
+      backTo: 'raid',
+      backData: { town: this.town },
+      ...(skip ? { skip: true } : {}),
+    });
   }
 
   /** First arrival at the planner: what the four tabs are for. */
@@ -1101,22 +1168,7 @@ export class RaidScene extends Scene {
     ov.paragraph(lines.join('\n'), font.body, res.objectiveMet ? COLORS.olive : COLORS.ink, {
       center: true,
     });
-    ov.footer(
-      'WATCH REPLAY',
-      () => {
-        if (!this.lastConfig) return;
-        this.scene.start('replay', {
-          config: this.lastConfig,
-          kind: 'raid',
-          title: this.base.name,
-          faction: this.town.faction,
-          backTo: 'raid',
-          backData: { town: this.town },
-        });
-      },
-      0,
-      3,
-    );
+    ov.footer('WATCH REPLAY', () => this.watchReplay(), 0, 3);
     // What the resolution left out (M29): the raid fought again for the card,
     // which closes back onto this report.
     ov.footer(
@@ -1134,6 +1186,7 @@ export class RaidScene extends Scene {
           catalog,
           unit: (kind) => this.trainMeta[kind]?.short ?? kind,
           chain: config.killChainVersion !== undefined,
+          onMap: () => this.watchReplay(true),
           onClose: () => {
             this.overlay?.close();
             this.overlay = null;
@@ -1216,6 +1269,7 @@ export class RaidScene extends Scene {
                 : 'A shared snapshot. Losses are real; the ladder does not move.',
               heading: true,
             },
+            ...this.ghostRows(),
             { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
             { id: 'back', label: 'RETURN TO BASE', sub: '[ESC]', onTap: () => this.goHome() },
           ];
@@ -1288,6 +1342,7 @@ export class RaidScene extends Scene {
             heading: true,
           },
           { id: 'h2', label: 'VIEW', heading: true },
+          ...this.ghostRows(),
           { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
           { id: 'back', label: 'RETURN TO BASE', sub: '[ESC]', onTap: () => this.goHome() },
         ];
@@ -1616,6 +1671,38 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
   }
   town.charges = { a10: 2, arty: 1 };
   town.intel = 120;
+  fileShowcaseRaid(town, now);
   town.lastSeen = now;
   return town;
+}
+
+/**
+ * A raid the showcase already fought (M29 Phase 2), on its first post, so the
+ * planner opens on the heat map it left there: two light squads, one from
+ * each flank, on a fixed seed, so every screenshot shows the same marks. It
+ * goes in the vault as the town's own and touches nothing else: the army,
+ * the stores and the ladder are as the showcase set them.
+ */
+function fileShowcaseRaid(town: TownState, now: number): void {
+  const first = raidTargetKeys(town)[0];
+  const trainable = trainableFor(town.faction);
+  const infantry = trainable[0]?.kind;
+  if (!first || !infantry) return;
+  const base = postAt(town, first.tier, first.slot);
+  const plan: SquadPlan[] = [
+    { units: { [infantry]: 2 }, sector: 'W2', doctrine: 'assault', slot: 0 },
+    { units: { [infantry]: 2 }, sector: 'E2', doctrine: 'assault', slot: 1, delay: 6 },
+  ];
+  const config = raidConfig(base, plan, 20_240_917, trainable);
+  const res = resolveRaid(config, plan, base.tier, raidCatalogFor(town.faction));
+  const lost = Object.values(res.losses).reduce((a, b) => a + b, 0);
+  recordBattle(town, {
+    kind: 'raid',
+    faction: town.faction,
+    title: base.name,
+    won: res.cleared,
+    at: now - 3_600_000,
+    detail: `${Math.round(res.destructionPct * 100)}% destroyed · ${lost} lost · +${res.loot.supplies} SUP`,
+    config,
+  });
 }

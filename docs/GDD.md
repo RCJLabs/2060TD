@@ -1158,6 +1158,20 @@ The report is not stored. A raid is its config, so the report is fought again wh
 the same battle tick for tick, and a replay code carries everything it needs. Nothing in it
 changes a battle: the killing blow is kept on the unit that took it and read only when it dies.
 
+**Where it happened** *(v1.64)*. The heat map puts the report on the board, in the page's one
+colour: a cross where each man fell, and a shade over each cell the fire landed in, deeper the
+more of the force it hit there, counted in men (a hit is its share of the man's whole health). It
+shows the killing ground even on a raid that lost nobody. It is on in two places:
+
+- **The replay** draws it as the footage plays, on the ground under the battle; HEAT MAP turns it
+  off. The report's ON THE MAP opens the footage at its end with the map on.
+- **The raid planner** draws the last raid on a post over the post the next one goes for, found in
+  the replay vault by its ground and fought again. THE LAST RAID HERE, under VIEW, says how many
+  fell and turns it off.
+
+It began as the time men were held at the wire. Raids hardly spend any (none in two raids of
+three, measured), so the shade is where they were hit.
+
 ### 5.7 Offline probes
 
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).

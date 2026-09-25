@@ -46,6 +46,14 @@ export function vaultOf(town: TownState): VaultEntry[] {
   return town.vault;
 }
 
+/** What a code filed by hand says in place of its outcome. */
+const FILED = 'FILED · ';
+
+/** Was this entry pasted in from a code, rather than fought here? */
+export function isFiled(entry: VaultEntry): boolean {
+  return entry.detail.startsWith(FILED);
+}
+
 /** A battle worth keeping, newest first. Returns the code it was filed under. */
 export function recordBattle(
   town: TownState,
@@ -141,7 +149,7 @@ export function fileCode(
     at: now,
     // Somebody else's battle: the config cannot say what it cost them, but it
     // does say whose army fought it, which is the useful half.
-    detail: `FILED · ${flavorFor(decoded.replay.faction).faction}`,
+    detail: `${FILED}${flavorFor(decoded.replay.faction).faction}`,
   };
   vault.unshift(entry);
   vault.length = Math.min(vault.length, VAULT_CAP);

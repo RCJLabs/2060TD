@@ -1,6 +1,7 @@
 /**
  * E2E of the offense loop: raid planner → assign units → launch → result
- * overlay → watch replay. Runs on ?demo=raid (showcase town).
+ * overlay → report → watch replay → its heat map → the planner, which keeps
+ * the last raid on the post. Runs on ?demo=raid (showcase town).
  *
  * REWRITTEN (v1.21) because it was passing without doing anything. It clicked
  * fixed pixel coordinates and its only assertion was "no page errors", so
@@ -113,6 +114,12 @@ try {
     }
   };
   const copy = async (re) => (await texts()).find((t) => re.test(t)) ?? '';
+  /** A button's state by label: whether it is lit, and its sub-line. */
+  const buttonState = (needle) =>
+    page.evaluate((text) => {
+      const hit = window.lastline.buttons().find((b) => b.label.toUpperCase().includes(text));
+      return hit ? { label: hit.label, sub: hit.sub, active: hit.active, enabled: hit.enabled } : null;
+    }, needle.toUpperCase());
   /**
    * The rect of the first text matching `re`, or null. A label over the board
    * is set on its own lines, and one left to wrap against its host, which is
@@ -136,6 +143,24 @@ try {
   // inert here, which is the trap the old pixel coordinates fell into.
   check('the planner opens on a target', (await copy(/TARGET GRID/i)) !== '', await copy(/TARGET GRID/i));
   check('nothing is committed yet', (await mustered()) === 0, `${await mustered()} units`);
+
+  // ---- the last raid on the post (M29 Phase 2) ------------------------------
+  // The showcase has raided this post once already, and the planner opens on
+  // where that raid bled: a cross for each man it lost, a shade where it was
+  // hit. The row says how many fell, and turns the marks off and on.
+  const opened = await buttonState('THE LAST RAID HERE');
+  const openedFell = /(\d+) FELL/.exec(opened?.sub ?? '');
+  check(
+    'the post opens with the last raid on it marked',
+    opened?.active === true && openedFell !== null && Number(openedFell[1]) > 0,
+    opened ? opened.sub : 'no row',
+  );
+  await page.screenshot({ path: 'screenshots/e2e-raid-ghost.png' });
+  await tap('THE LAST RAID HERE', 300);
+  const hidden = await buttonState('THE LAST RAID HERE');
+  await tap('THE LAST RAID HERE', 300);
+  const shown = await buttonState('THE LAST RAID HERE');
+  check('and its row turns the marks off and on again', hidden?.active === false && shown?.active === true, '');
 
   // The air read (v1.34). The deal picks a rung's three targets against GROUND
   // difficulty, so what the same target is worth FLOWN is the thing the panel
@@ -281,6 +306,8 @@ try {
     card.replace(/\s+/g, ' ').slice(0, 120),
   );
   check('and every squad that went in has a line', /\d+ of \d+ back/.test(card), '');
+  // Where it happened is the heat map's (Phase 2), and the card leads to it.
+  check('and it leads to the map', (await find('ON THE MAP')) !== null, '');
   await page.screenshot({ path: 'screenshots/e2e-raid-report.png' });
   await tap('CLOSE', 800);
   check(
@@ -297,6 +324,9 @@ try {
   const playing =
     offered && (await until(async () => /REPLAY —/i.test((await texts()).join('\n')), 15000));
   check('the replay runs a clock', playing, await copy(/T\+\d+s/i));
+  // The heat map (M29 Phase 2) is drawn from the first frame of the footage.
+  const heat = await buttonState('HEAT MAP');
+  check('the footage draws its heat map from the start', heat?.active === true, heat ? '' : 'no HEAT MAP row');
   await page.screenshot({ path: 'screenshots/e2e-raid-replay.png' });
   // The footage carries the same report, fought from the config it is playing.
   const again = await tap('AFTER ACTION REPORT', 1200);
@@ -305,17 +335,39 @@ try {
     again && /WHAT KILLED THEM/.test((await texts()).join('\n')),
     '',
   );
-  await tap('CLOSE', 800);
-  // And it ends on a verdict, set as written over the middle of the board.
-  await page.keyboard.press('Space'); // skip to the end
+  // ON THE MAP closes the card onto the end of the footage, and the footage
+  // ends on a verdict, set as written across the top of the board.
+  const mapped = await tap('ON THE MAP', 1200);
   const verdictRe = /COMMAND POST DESTROYED|RAID REPELLED|WITHDRAWN/;
-  const ended = await until(async () => (await rectOf(verdictRe)) !== null, 15000);
+  const ended = mapped && (await until(async () => (await rectOf(verdictRe)) !== null, 15000));
   const verdict = await rectOf(verdictRe);
   check(
-    'the footage ends on its verdict, set as written',
+    'ON THE MAP goes to the end of the footage, its verdict set as written',
     ended && setAsWritten(verdict),
     verdict ? `${verdict.text.split('\n')[0]} ${Math.round(verdict.w)}x${Math.round(verdict.h)}` : 'no verdict',
   );
+  // Every man the footage saw fall is marked where he fell.
+  const marked = /WHERE EACH MAN FELL \((\d+)\)/.exec(await copy(/WHERE EACH MAN FELL/));
+  const killed = /KILLS\s+(\d+)/.exec(await copy(/KILLS\s+\d+/));
+  check(
+    'and every man who fell is on the map',
+    marked !== null && killed !== null && marked[1] === killed[1],
+    `${marked?.[1] ?? '?'} marked of ${killed?.[1] ?? '?'} killed`,
+  );
+  await page.screenshot({ path: 'screenshots/e2e-raid-heat.png' });
+
+  // ---- and the planner remembers (M29 Phase 2) -----------------------------
+  // Back on the post, the last raid on it is drawn over it, and says how many
+  // it lost: the same men the footage marked.
+  await tap('BACK', 1500);
+  await until(async () => (await buttonState('THE LAST RAID HERE')) !== null, 10000);
+  const ghost = await buttonState('THE LAST RAID HERE');
+  check(
+    'back at the planner, the post carries the last raid on it',
+    ghost?.active === true && ghost.sub === `${marked?.[1]} FELL`,
+    ghost ? `${ghost.sub}${ghost.active ? '' : ', off'}` : 'no row',
+  );
+  await page.screenshot({ path: 'screenshots/e2e-raid-planner-heat.png' });
 
   await browser.close();
   if (errors.length) {
@@ -327,7 +379,7 @@ try {
     console.error(`\n${failures} raid check(s) failed`);
     process.exitCode = 1;
   } else {
-    console.log('\nRAID OK: a real force planned, launched, reported and replayed.');
+    console.log('\nRAID OK: a real force planned, launched, reported, replayed and mapped.');
   }
 } finally {
   // A stray dev server from an interrupted run leaves this pid invalid; a

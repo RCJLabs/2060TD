@@ -262,6 +262,16 @@ export class BattleRenderer {
     }
   }
 
+  /**
+   * Drop every effect still queued. A replay that skips to its end has heard
+   * the whole battle's events at once, and would otherwise draw every shot
+   * and blast of it on the next frame.
+   */
+  settle(): void {
+    this.effects = [];
+    for (const shout of this.shouts) shout.setVisible(false);
+  }
+
   // ---- dynamic layer -------------------------------------------------------------------
 
   draw(alpha: number, dtSeconds: number, opts: DrawOptions): void {

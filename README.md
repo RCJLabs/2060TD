@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.63.0, in the browser. No install, no account, works on a phone.
+v1.64.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,23 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.63.0: the after-action report
+## Current state — v1.64.0: the heat map
+
+**Every raid now shows where it bled, on the map.** A red cross marks where each man fell, and a
+red shade covers the ground where the enemy's fire hit your force: the darker, the more of it
+landed there. You see it in two places:
+
+- **In the replay.** HEAT MAP is on from the start, so the marks build up as the footage plays.
+  The report's new ON THE MAP button jumps to the end with the map on.
+- **On the raid planner.** Go back to a post you have raided, and the last raid on it is drawn
+  over it: where your men fell, and where the fire hit them. THE LAST RAID HERE, on the target
+  tab, says how many fell and turns the marks off.
+
+Also fixed: at high speed, the replay of a raid that pulled out on its objective could run a tick
+or two past the end, and skipping to the end drew every explosion of the battle at once. The
+verdict now sits at the top of the board, clear of the post.
+
+## v1.63.0: the after-action report
 
 **Every raid now has a report.** Tap REPORT on the raid result, or AFTER ACTION REPORT while
 watching a raid again, to see:

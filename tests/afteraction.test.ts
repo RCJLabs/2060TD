@@ -3,7 +3,17 @@ import { CHINA_BASE_KIT, generateBase } from '../src/content/bases';
 import { M1_CATALOG } from '../src/content/catalog';
 import { raidCatalogFor } from '../src/content/factions';
 import { TRAINABLE } from '../src/content/usaUnits';
-import { afterAction, SQUAD_ACTIVITIES } from '../src/meta/afteraction';
+import {
+  afterAction,
+  BattleRecorder,
+  lastRaidOn,
+  sameGround,
+  SQUAD_ACTIVITIES,
+} from '../src/meta/afteraction';
+import { isObjectiveId, watchObjective } from '../src/meta/objectives';
+import { encodeReplay } from '../src/meta/replaycode';
+import { newTown } from '../src/meta/town';
+import { fileCode, recordBattle } from '../src/meta/vault';
 import { raidConfig, resolveRaid, type SquadPlan } from '../src/meta/warfare';
 import { Engine, TICKS_PER_SECOND } from '../src/sim/engine';
 import type { SimConfig, SimEvent } from '../src/sim/types';
@@ -85,22 +95,23 @@ describe('the killing blow (M29): every death says what landed it', () => {
   });
 });
 
-describe('the after-action report (M29): the raid fought again, with what it threw away kept', () => {
-  const CATALOG = raidCatalogFor('usa');
-  const plan = (): SquadPlan[] => [
-    { units: { abrams: 2, ranger: 2 }, sector: 'W1', doctrine: 'assault', slot: 0 },
-    { units: { javelin: 2, engineer: 2 }, sector: 'N1', doctrine: 'hunt', slot: 1 },
-    { units: { ranger: 3 }, sector: 'W1', doctrine: 'assault', slot: 2, delay: 20 },
-  ];
-  const raids = ([
-    [2, 0, 11],
-    [3, 1, 4242],
-    [4, 2, 99],
-  ] as const).map(([tier, variant, seed]) => {
-    const config = raidConfig(generateBase(tier, variant, CHINA_BASE_KIT), plan(), seed, TRAINABLE);
-    return { tier, config, res: resolveRaid(config, plan(), tier, CATALOG), aar: afterAction(config, CATALOG) };
-  });
+const CATALOG = raidCatalogFor('usa');
+const plan = (): SquadPlan[] => [
+  { units: { abrams: 2, ranger: 2 }, sector: 'W1', doctrine: 'assault', slot: 0 },
+  { units: { javelin: 2, engineer: 2 }, sector: 'N1', doctrine: 'hunt', slot: 1 },
+  { units: { ranger: 3 }, sector: 'W1', doctrine: 'assault', slot: 2, delay: 20 },
+];
+const raids = ([
+  [2, 0, 11],
+  [3, 1, 4242],
+  [4, 2, 99],
+] as const).map(([tier, variant, seed]) => {
+  const base = generateBase(tier, variant, CHINA_BASE_KIT);
+  const config = raidConfig(base, plan(), seed, TRAINABLE);
+  return { tier, base, config, res: resolveRaid(config, plan(), tier, CATALOG), aar: afterAction(config, CATALOG) };
+});
 
+describe('the after-action report (M29): the raid fought again, with what it threw away kept', () => {
   it('is the battle the resolution fought: its length, its end, and every squad’s men sent and back', () => {
     for (const { res, aar } of raids) {
       expect(aar.ticks).toBe(res.ticks);
@@ -162,5 +173,117 @@ describe('the after-action report (M29): the raid fought again, with what it thr
   it('is the same report every time', () => {
     const { config } = raids[1]!;
     expect(afterAction(config, CATALOG)).toEqual(afterAction(config, CATALOG));
+  });
+});
+
+describe('the heat map (M29 Phase 2): where they fell, and where they were hit', () => {
+  /** Fight a battle the way the replay does: step, feed the recorder, stop where it stops. */
+  function watched(config: SimConfig): { recorder: BattleRecorder; engine: Engine; withdrew: boolean } {
+    const engine = new Engine(config, CATALOG);
+    engine.enqueue({ tick: 0, type: 'startAssault' });
+    const recorder = new BattleRecorder(config);
+    const objective = isObjectiveId(config.objective) ? config.objective : 'post';
+    const watch = watchObjective(objective, (cls) => engine.countStanding(cls));
+    while (engine.phase !== 'victory' && engine.phase !== 'defeat' && !watch.met()) {
+      recorder.observe(engine, engine.step());
+    }
+    return { recorder, engine, withdrew: watch.met() };
+  }
+
+  it('is the same map whether the battle is fought in one go or played as footage', () => {
+    // One raid for guns as well, which the footage ends on its watch.
+    const hunt = raidConfig(raids[1]!.base, plan(), 4242, TRAINABLE, { objective: 'guns' });
+    expect(afterAction(hunt, CATALOG).withdrew).toBe(true);
+    for (const config of [...raids.map((r) => r.config), hunt]) {
+      const { recorder, engine, withdrew } = watched(config);
+      expect(recorder.report(engine, withdrew)).toEqual(afterAction(config, CATALOG));
+    }
+  });
+
+  it('lays the shade out on the board, and every man who fell on it, in shade', () => {
+    for (const { config, aar } of raids) {
+      expect(aar.width).toBe(config.width);
+      expect(aar.hits).toHaveLength(config.width * config.height);
+      expect(aar.hits.every((s) => s >= 0)).toBe(true);
+      for (const death of aar.deaths) {
+        const x = Math.floor(death.at.x);
+        const y = Math.floor(death.at.y);
+        expect(x >= 0 && x < config.width && y >= 0 && y < config.height, `${death.kind} off the board`).toBe(true);
+        // The blow that killed him landed where he fell.
+        expect(aar.hits[y * config.width + x]!).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('counts the damage in men: all of each man who fell, and no more than was sent', () => {
+    for (const { aar } of raids) {
+      const shade = aar.hits.reduce((a, b) => a + b, 0);
+      const sent = aar.squads.reduce((a, s) => a + s.sent, 0);
+      // Nobody in this force heals, so what landed is the dead and the wounds.
+      expect(shade).toBeGreaterThanOrEqual(aar.deaths.length - 1e-9);
+      expect(shade).toBeLessThanOrEqual(sent + 1e-9);
+    }
+    // The fixture hits somebody who lived, or the shade says no more than the crosses.
+    expect(raids.some(({ aar }) => aar.hits.reduce((a, b) => a + b, 0) > aar.deaths.length + 0.1)).toBe(true);
+  });
+
+  it('puts a man’s whole health where it was taken off him, and nowhere else', () => {
+    // A militiaman at full health walks past a machine gun until it kills him.
+    const e = new Engine(board(), M1_CATALOG);
+    const recorder = new BattleRecorder(board());
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(20, 12), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'spawnAttacker', cell: idx(10, 12), kind: 'militia' });
+    const stood = new Set<number>();
+    let hp = Infinity;
+    for (let i = 0; i < 1200 && recorder.deaths.length === 0; i++) {
+      const events = e.step();
+      recorder.observe(e, events);
+      const man = e.attackers[0];
+      // Where he was when a hit took something off him (or where he fell).
+      if (man && man.hp < hp) stood.add(Math.floor(man.pos.y) * WIDTH + Math.floor(man.pos.x));
+      if (man) hp = man.hp;
+    }
+    expect(recorder.deaths).toHaveLength(1);
+    const fell = recorder.deaths[0]!.at;
+    stood.add(Math.floor(fell.y) * WIDTH + Math.floor(fell.x));
+    expect(recorder.hits.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9);
+    recorder.hits.forEach((share, cell) => {
+      if (share > 0) expect(stood.has(cell), `hit in a cell he never stood in: ${cell}`).toBe(true);
+    });
+  });
+});
+
+describe('the last raid on a post (M29 Phase 2): found in the vault, on its own ground', () => {
+  const T0 = 1_700_000_000_000;
+  const file = (town: ReturnType<typeof newTown>, config: SimConfig, at: number, kind: 'raid' | 'duel' = 'raid') =>
+    recordBattle(town, { kind, faction: town.faction, title: 'POST', won: false, at, detail: '', config });
+
+  it('knows a battle fought on a base’s ground from one fought anywhere else', () => {
+    const [a, b] = raids;
+    expect(sameGround(a!.config, a!.base)).toBe(true);
+    expect(sameGround(b!.config, a!.base)).toBe(false);
+    // One wall moved is another post.
+    const moved = { ...a!.base, walls: a!.base.walls.map((w, i) => (i === 0 ? { ...w, cell: w.cell + 1 } : w)) };
+    expect(sameGround(a!.config, moved)).toBe(false);
+  });
+
+  it('is the newest of the commander’s own raids and duels there, and nothing else', () => {
+    const town = newTown(T0, 'usa');
+    const [a, b] = raids;
+    expect(lastRaidOn(town, a!.base)).toBeNull();
+
+    file(town, a!.config, T0 + 1);
+    const later = raidConfig(a!.base, plan(), 777, TRAINABLE);
+    file(town, later, T0 + 2, 'duel');
+    // Newer, but elsewhere, or not a raid of the commander's own.
+    file(town, b!.config, T0 + 3);
+    fileCode(town, encodeReplay({ kind: 'raid', faction: 'usa', title: 'A FRIEND', won: true, config: a!.config }), T0 + 4);
+    recordBattle(town, { kind: 'raid', faction: 'china', title: 'POST', won: true, at: T0 + 5, detail: '', config: a!.config });
+
+    const found = lastRaidOn(town, a!.base);
+    expect(found?.at).toBe(T0 + 2);
+    expect(found?.config.seed).toBe(777);
+    expect(lastRaidOn(town, b!.base)?.at).toBe(T0 + 3);
+    expect(lastRaidOn(town, raids[2]!.base)).toBeNull();
   });
 });
