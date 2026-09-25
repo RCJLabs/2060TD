@@ -63,6 +63,7 @@ import { effectsOf, TECHS, type TechBranch } from '../content/research';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
+import { LAST_STAND_LEVEL } from '../content/theaters';
 import { economyTable } from './economy';
 import { yardTable } from './yard';
 import { frontTable, reachTable, supplyTable, warTable } from './war';
@@ -2933,6 +2934,67 @@ function citadelTable(faction: FactionId, pool = 24, seeds = 12): string {
   ].join('\n');
 }
 
+/**
+ * M25 Phase 4c: the last stand at the capital, measured where it lands. Each
+ * reference town fights the whole assault at every level of the ladder with
+ * nobody acting, and the last stand's level for its faction and command post
+ * is the lowest it holds within fifteen points of half, or failing that the
+ * one it holds nearest half: its contested band, where what the commander
+ * does decides it, which is how the live defence's offer was placed. The
+ * lowest, because the curves plateau and then fall off a cliff, and the level
+ * nearest half on twenty seeds is as often the one on the lip of it. Then at
+ * that level, the garrison's battle:
+ * under each shipped standing-orders preset, with a typically stocked
+ * magazine, as a commander who leaves it to them would have it fought.
+ */
+function lastStandTable(seeds = 20, top = 16): string {
+  const policies: [string, SiegePolicy][] = [
+    ['HOLDFAST', STANDING_ORDERS.holdfast],
+    ['C-BATTERY', STANDING_ORDERS.counterbattery],
+    ['TRIPWIRE', STANDING_ORDERS.tripwire],
+  ];
+  const heldAt = (faction: FactionId, base: ReferenceBase, level: number, policy: SiegePolicy): number => {
+    let held = 0;
+    for (let i = 0; i < seeds; i++) {
+      if (siegeTrace(faction, base, level, seedOf(level, base.ccLevel, i), policy).held) held++;
+    }
+    return Math.round((held / seeds) * 100);
+  };
+  const lines = [
+    `THE LAST STAND — the whole assault at the capital, held % of ${seeds} seeds`,
+    `FACTION  | BASE        | PICK | NOBODY | ${policies.map(([name]) => pad(name, 9)).join(' | ')} | NOBODY BY LEVEL, 1-${top}`,
+  ];
+  const picks: Record<string, Record<number, number>> = {};
+  for (const faction of FACTION_IDS) {
+    for (const base of referenceBases()) {
+      const bare = Array.from({ length: top }, (_, i) => heldAt(faction, base, i + 1, null));
+      // The lowest within fifteen points of half, or else the nearest half.
+      let pick = bare.findIndex((held) => Math.abs(held - 50) <= 15) + 1;
+      if (pick === 0) {
+        pick = 1;
+        bare.forEach((held, i) => {
+          if (Math.abs(held - 50) < Math.abs(bare[pick - 1]! - 50)) pick = i + 1;
+        });
+      }
+      (picks[faction] ??= {})[base.ccLevel] = pick;
+      const garrison = policies.map(([, policy]) => pad(`${heldAt(faction, base, pick, policy)}%`, 9));
+      const shipped = LAST_STAND_LEVEL[faction][base.ccLevel];
+      lines.push(
+        `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(`L${pick}`, 4)} | ` +
+          `${pad(`${bare[pick - 1]}%`, 6)} | ${garrison.join(' | ')} | ${bare.join(' ')}` +
+          (shipped === pick ? '' : ` · shipped L${shipped}`),
+      );
+    }
+  }
+  lines.push(
+    '',
+    'export const LAST_STAND_LEVEL: Readonly<Record<FactionId, Readonly<Record<number, number>>>> = {',
+    ...FACTION_IDS.map((f) => `  ${f}: { 1: ${picks[f]![1]}, 2: ${picks[f]![2]}, 3: ${picks[f]![3]} },`),
+    '};',
+  );
+  return lines.join('\n');
+}
+
 function archetypeTable(faction: FactionId): string {
   const flavor = flavorFor(faction);
   const lines = [
@@ -5719,6 +5781,12 @@ function main(): void {
   if (process.argv.includes('--reach')) {
     const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
     for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${reachTable(faction)}\n`);
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--laststand')) {
+    const at = process.argv.indexOf('--top');
+    console.log(lastStandTable(20, at >= 0 ? Number(process.argv[at + 1]) : 22));
     console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

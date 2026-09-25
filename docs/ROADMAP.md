@@ -4413,8 +4413,8 @@ north", and it is where an endgame can live.
       put the enemy's stronghold at the thirteenth rung where a CC3 town
       without its yard runs out of supply: reaching the capital asks for the
       whole economy.
-- [ ] **Phase 4 — the endgame.** The front reaches their capital, or yours.
-      *(4a shipped in v1.56.0, 4b in v1.57.0.)*
+- [x] **Phase 4 — the endgame.** The front reaches their capital, or yours.
+      *(4a shipped in v1.56.0, 4b in v1.57.0, 4c in v1.58.0.)*
 
       **The plan, before the build.** Three phases made the Front Line a road
       with a far end, and nothing happens at the far end yet. The stronghold
@@ -4725,6 +4725,92 @@ north", and it is where an endgame can live.
 
       *What it hands on.* 4c, the last stand at your own capital. And a won
       war is a state with a date, which is what M28 needs.
+
+      **The record, 4c (v1.58.0).** The last stand is built as planned, and
+      it cannot end the war. The plan left its level to measurement, and the
+      measurement made the level the faction's.
+
+      *Where it lives.* `meta/laststand.ts`: the march, the offer, the
+      garrison's battle, the record and the repair off disk. The strikes
+      sound the march: a quiet spell's strike that finds the front at the
+      first town, with nothing behind it to take, in a war whose front has
+      been deeper, marches on the capital instead of landing nowhere. How
+      deep the war has gone is stored only once the front falls back from it
+      (`deepest`), so most files carry nothing new; storing it always had
+      put a field in every save, which three round-trip tests caught. The
+      town folds the battle as it folds any played siege. Sixteen new tests.
+
+      *The rules, as built.* One march waits at a time, so a quiet spell
+      sounds at most one. It is offered as the live defence is, for thirty
+      minutes from when the commander next sees it: DEFEND, the whole
+      assault with the town's siege economy behind them, or GARRISON, the
+      same battle fought headless under the standing orders, which can lose
+      it. Walking away, or walking out of a defence mid-battle, is GARRISON
+      on the next load. Held, it pays a skirmish's whole loot at its level,
+      where a live defence pays half, and 50 standing. Lost, the capital is
+      sacked: the fold wrecks every building that fell, 40% of the supplies,
+      fuel and intel go, where a defeat takes 15%, standing falls by 100,
+      the probe shield goes up, and the war log counts the sack and dates
+      it. Fought in person it restarts the quiet clock; fought by the
+      garrison it does not, and its battle is filed in the vault, as a
+      probe's is. The front stays at the first town either way.
+
+      *The level.* The plan said the level is measured to land where the
+      commander's play decides it, as the offer's was: the contested band,
+      where the permanent defences alone hold the whole assault some of the
+      time. `npm run balance -- --laststand` scans every level from 1 to 22
+      for each faction's reference town of each size with nobody acting,
+      and takes the lowest held within fifteen points of half, or failing
+      that the level held nearest half. The lowest, because the curves
+      plateau and then fall off a cliff, and the level nearest half on
+      twenty seeds is as often the one on the lip. What each town holds at
+      its level, with nobody acting and then under the three shipped
+      standing orders, which is the garrison's battle:
+
+      | | CC1 | CC2 | CC3 |
+      |---|---|---|---|
+      | USA | L3: 20% · 25-50% | L8: 65% · 80-100% | L12: 65% · 90-95% |
+      | China | L3: 80% · 80-85% | L7: 40% · 55-70% | L11: 55% · 65-90% |
+      | Russia | L3: 95% · 95-100% | L9: 55% · 65-70% | L18: 75% · 80-95% |
+      | KPA | L3: 30% · 25-35% | L7: 5% · 20-25% | L10: 55% · 90-100% |
+      | UN | L3: 50% · 40-50% | L7: 40% · 65-100% | L11: 70% · 85-100% |
+
+      A CC1 town's band is one level wide, level 3, for all five. The levels
+      differ by faction because each faces a different enemy's assault:
+      Russia's CC3 town holds three quarters of level 18, and the KPA's none
+      of level 12. Three picks stand at a cliff with no plateau before it:
+      the KPA's CC2 town holds level 6 every time and level 7 once in
+      twenty, the UN's CC3 holds 70% of level 11 and 10% of level 12, and
+      Russia's CC3 75% of level 18 and 15% of level 19. The garrison holds
+      more than nobody does, which is what standing orders are for, and a
+      commander at the console, with the CP to spend, can hold more again.
+
+      *What the player sees.* On the load that finds a march it leads the
+      banners: THE PLA IS MARCHING ON COOS BAY — LEVEL 3. DEFEND IT YOURSELF
+      OR LEAVE IT TO THE GARRISON. [SPACE], and SPACE defends. The WAR tab
+      leads with THE CAPITAL and its clock, the THEATER row says LAST STAND,
+      and at the first town of a war that has been deeper the map's clock
+      says when the enemy marches on the capital. The offer says what each
+      answer is and, in red, what a sack costs. The result is bannered:
+      COOS BAY HELD — LEVEL 3 THROWN BACK FROM THE GATES, or THE GARRISON
+      FOUGHT IT. COOS BAY IS SACKED, with what it took and the wrecks to
+      repair. The defence log names a LAST STAND, HELD or SACKED, and the
+      service record counts them: Last stands at the capital: 0 held ·
+      SACKED once, last on day 1. Read at 412 px portrait and 1440 px: the
+      offer, the garrison's sack, the record, and a defence launched as LAST
+      STAND — LEVEL 3 and walked out of, which the garrison fought on the
+      next load.
+
+      *The gate.* 754 unit tests, sixteen of them new, and one older test of
+      the war log's repaired shape now expects the two new counters. The 24
+      e2e harnesses passed unchanged, on the first batch.
+
+      *What M25 hands on.* M25 is done. The Front Line is a road with an end
+      at both ends: the enemy's capital, which wins the war, and yours, which
+      a long neglect can see sacked but never lose. A war won and a capital
+      sacked are both states with dates on the service record, and M28's
+      prestige needs one of them to start from. M26's asymmetry can now make
+      the five wars different games on the same map.
 
 ## M26 — "Asymmetry": factions become different games
 
@@ -5985,6 +6071,12 @@ roads and then its citadel, whose strength is each faction's, tuned so the whole
 army takes it about half the time; its fall wins the war, dated and paid, and the
 war goes on into the enemy's rear. A grown army wins in thirteen to sixteen days.
 4c, the last stand at your own capital, is what is left of M25.*
+
+*M25 Phase 4c (v1.58.0) finished it. A front pushed back to the first town, in a
+war that has been deeper, and left quiet again, brings the enemy to the capital: a
+last stand, offered like a live defence, fought in person or by the garrison at a
+level measured to be contested for the town's faction and size. Lost, the capital
+is sacked, and the war goes on. M25 is done.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

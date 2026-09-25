@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.57.0, in the browser. No install, no account, works on a phone.
+v1.58.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,33 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.57.0: the war can be won
+## Current state — v1.58.0: the last stand
+
+**Neglect the war long enough and the enemy comes for your capital.** If the enemy has pushed
+your front all the way back to the first town, after it had been further out, and the front goes
+quiet again, there's nothing left behind it to take. So the enemy marches on your base itself.
+Getting there takes a long time away: from the 6th rung, about eight quiet spells with nothing
+retaken.
+
+**You get the same choice as a live defence.** You have 30 minutes from when you next open the
+game. **Defend** it yourself with your siege economy: hold, and the enemy is thrown back from the
+gates, paying a full skirmish's loot and standing. Or leave it to the **garrison**, which fights
+the whole assault under your standing orders, not just two waves, and can lose. Walking away, or
+quitting partway through the battle, counts as leaving it to the garrison.
+
+**Lose it and your capital is sacked.** Every building that falls is wrecked, 40% of your stores
+go (a normal defeat takes 15%), and you lose standing. The service record says SACKED. But the war
+doesn't end: it goes on from the first town.
+
+**It's pitched at your town's size.** The attack's level depends on your faction and your command
+post's level, set where a town like yours holds about half the time with nobody at the controls,
+so how you fight decides it. Level 3 for a CC1 town, 7 to 9 for CC2, and 10 to 18 for CC3.
+
+**Where you see it.** A banner leads when you log in: `THE PLA IS MARCHING ON COOS BAY — LEVEL 3`.
+SPACE defends. The WAR tab shows THE CAPITAL with the time left, the THEATER row says LAST STAND,
+and the defence log and service record keep count.
+
+## v1.57.0: the war can be won
 
 **The enemy's stronghold is its capital.** Three wins no longer take it. Each of its three roads
 has to fall once. You can raid a road you've already taken for loot and standing, but it doesn't

@@ -95,6 +95,9 @@ your Command Center.
   Front Line" in section 3.
 - **The capital** *(v1.57)*: the enemy's stronghold falls to its three roads and then its
   citadel, and the citadel's fall wins the war, which goes on. See "The Front Line" in section 3.
+- **The last stand** *(v1.58)*: a front pushed back to the first town and left quiet brings the
+  enemy to your capital, offered like a live defence; lost, the capital is sacked, and the war goes
+  on. See "The Front Line" in section 3.
 
 ---
 
@@ -228,6 +231,28 @@ fields take it about half the time.
 The map marks the roads as they fall and draws the citadel past the stronghold; the planner opens
 on it once it is in range. A commander who grows the army four men a rung and raids daily wins in
 thirteen to sixteen days.
+
+**The last stand** *(v1.58)*. The enemy can reach your capital too. When a quiet spell's strike
+finds the front already at the first town, in a war whose front has been deeper, there is nothing
+behind it left to retake, and the enemy marches on the capital instead. It takes long neglect: from
+the sixth rung, fifteen sectors lost, eight quiet spells with nothing retaken, and a strike more.
+
+- **Offered like a live defence**, for thirty minutes from when you next see it, and answered the
+  same two ways: DEFEND, the whole assault with the town's siege economy behind you, or GARRISON,
+  the same assault fought by the standing orders, which can lose it. Walking away, or out of the
+  battle, is GARRISON.
+- **Held**, the enemy is thrown back from the gates: a skirmish's whole loot at its level, and
+  standing.
+- **Lost**, the capital is **sacked**: every building that fell is wrecked, as in any played siege,
+  40% of the stockpile goes where a defeat takes 15%, standing goes with it, and the service
+  record says SACKED. The war goes on from the first town: a sack cannot end it.
+- **Its level is the town's own**, by faction and the level of the command post: the lowest level
+  at which that faction's reference town of that size, its permanent defences alone, holds the
+  whole assault within fifteen points of half the time. So what the commander does decides it.
+  By faction, because each faces a different enemy's assault.
+
+The WAR tab leads with THE CAPITAL while a march waits, the map's clock says when the enemy will
+march from the first town of a war that has been deeper, and the defence log keeps the last stands.
 
 ### Base archetypes *(v1.6)*
 

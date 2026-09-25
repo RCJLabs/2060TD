@@ -1290,3 +1290,20 @@ here with the change and its date.
   UN's armour none, so each faction's guns and layout were chosen together, and
   every citadel is taken 38-71% of the time by 62 men of the 66 a built town
   fields. And a grown army, raiding daily, wins in thirteen to sixteen days.
+- 2026-09-25 — **The enemy can reach your capital, and a sack cannot end the war
+  (M25 Phase 4c, v1.58.0).** When a quiet spell's strike finds the front already at
+  the first town, in a war whose front has been deeper, there is nothing behind it
+  to retake and the enemy marches on the capital instead. The last stand is offered
+  like a live defence and answered the same two ways: in person, with the town's
+  siege economy, or by the garrison, which fights the whole assault under the
+  standing orders and can lose it. Held, it pays a skirmish's loot at its level and
+  standing. Lost, the capital is sacked: the buildings that fell are wrecked, 40%
+  of the stores go where a defeat takes 15%, standing with them, and the service
+  record says so; the war goes on from the first town. Its level is the town's own,
+  by faction and command post, measured to be contested: the lowest level at which
+  that faction's reference town of that size, its permanent defences alone, holds
+  the whole assault within fifteen points of half, so what the commander does
+  decides it. One level per size could not do that, because each faction faces a
+  different enemy's assault: Russia's CC3 town holds three quarters of level 18,
+  and the KPA's none of level 12. It takes long neglect to get there: from the
+  sixth rung, eight quiet spells with nothing retaken, and a strike more.
