@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeResolution } from './helpers';
+import { makeResolution, withDepots } from './helpers';
 import { DAY_MS } from '../src/content/leagues';
 import { QUIET_MS, STRIKES_PER_QUIET } from '../src/content/theaters';
 import { awardStanding } from '../src/meta/ladder';
@@ -217,7 +217,7 @@ describe('retaking', () => {
   });
 
   it('a raid at the front lands what the quiet spell owed first, on the front as it stood', () => {
-    const town = atFront();
+    const town = withDepots(atFront());
     town.frontline.wins = 2;
     // Launched 40 hours into a quiet spell: the strike due at 36 hours takes
     // NEWPORT's heavy lane before the raid takes LINCOLN CITY.

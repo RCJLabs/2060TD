@@ -519,6 +519,16 @@ export type DealPair = readonly [ArchetypeId, number];
  * layout index names a different base than it did, and the old pairs' rates
  * described bases nobody is dealt any more. And again when the keep's guns
  * spread (v1.45.2).
+ *
+ * ## The deep rungs (M25 Phase 4a)
+ *
+ * Rungs 6 to 13, up to the enemy's stronghold, are selected by
+ * `--deeplayouts` against a force that grows with the rung: the reference
+ * shape resized to a budget four men a rung past its own (`deepBudget`), the
+ * middle post at 55% and the others 15 points either side of it, as at rung 5.
+ * Their numbers say the force they were chosen at. The UN's rungs 6 and 8 to
+ * 12 come from a pool of 36 layouts (`--pool 36`), because the usual twelve
+ * held no UN post near the targets there.
  */
 export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
   usa: [
@@ -527,6 +537,14 @@ export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
     [['corridor', 7], ['depot', 10], ['strongpoints', 2]], // T3 67/83/100
     [['keep', 5], ['camp', 7], ['compound', 9]], // T4 50/67/83
     [['bunker', 8], ['compound', 7], ['camp', 6]], // T5 42/58/75
+    [['camp', 1], ['keep', 3], ['strongpoints', 8]], // T6 42/58/67 at 28 MP
+    [['keep', 5], ['bunker', 4], ['camp', 3]], // T7 42/58/75 at 31 MP
+    [['depot', 5], ['bunker', 7], ['keep', 4]], // T8 42/58/83 at 36 MP
+    [['camp', 8], ['strongpoints', 6], ['keep', 2]], // T9 42/50/67 at 39 MP
+    [['compound', 7], ['camp', 4], ['strongpoints', 2]], // T10 42/58/67 at 45 MP
+    [['corridor', 2], ['depot', 6], ['bunker', 5]], // T11 42/58/75 at 47 MP
+    [['camp', 11], ['compound', 4], ['strongpoints', 2]], // T12 42/58/67 at 53 MP
+    [['corridor', 4], ['camp', 4], ['compound', 5]], // T13 42/58/67 at 56 MP
   ],
   china: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
@@ -534,6 +552,14 @@ export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
     [['compound', 7], ['corridor', 2], ['depot', 0]], // T3 67/83/100
     [['keep', 2], ['strongpoints', 9], ['compound', 8]], // T4 58/75/83
     [['keep', 5], ['corridor', 10], ['bunker', 4]], // T5 42/58/67
+    [['strongpoints', 1], ['camp', 5], ['keep', 11]], // T6 42/50/75 at 30 MP
+    [['compound', 7], ['depot', 5], ['camp', 6]], // T7 42/58/67 at 34 MP
+    [['camp', 3], ['compound', 9], ['bunker', 8]], // T8 42/67/67 at 38 MP
+    [['camp', 6], ['corridor', 5], ['keep', 1]], // T9 42/50/67 at 42 MP
+    [['compound', 3], ['keep', 4], ['bunker', 3]], // T10 42/58/67 at 46 MP
+    [['camp', 2], ['strongpoints', 1], ['compound', 6]], // T11 42/58/67 at 50 MP
+    [['camp', 3], ['bunker', 8], ['strongpoints', 2]], // T12 42/58/75 at 54 MP
+    [['compound', 11], ['corridor', 7], ['depot', 0]], // T13 42/58/67 at 58 MP
   ],
   russia: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
@@ -541,6 +567,14 @@ export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
     [['corridor', 5], ['strongpoints', 8], ['depot', 0]], // T3 67/83/100
     [['keep', 10], ['compound', 11], ['camp', 8]], // T4 58/67/83
     [['compound', 2], ['camp', 6], ['bunker', 9]], // T5 42/50/67
+    [['strongpoints', 9], ['depot', 8], ['camp', 0]], // T6 42/50/67 at 31 MP
+    [['strongpoints', 0], ['bunker', 10], ['camp', 9]], // T7 33/58/75 at 35 MP
+    [['strongpoints', 11], ['bunker', 11], ['camp', 11]], // T8 8/42/67 at 38 MP
+    [['bunker', 3], ['camp', 2], ['keep', 1]], // T9 42/58/67 at 43 MP
+    [['camp', 11], ['depot', 2], ['bunker', 2]], // T10 42/58/67 at 46 MP
+    [['strongpoints', 8], ['compound', 6], ['bunker', 2]], // T11 42/58/58 at 51 MP
+    [['corridor', 5], ['camp', 9], ['bunker', 7]], // T12 17/58/67 at 54 MP
+    [['corridor', 2], ['depot', 5], ['compound', 4]], // T13 33/58/67 at 59 MP
   ],
   nk: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
@@ -548,6 +582,14 @@ export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
     [['star', 0], ['strongpoints', 2], ['depot', 0]], // T3 75/83/100
     [['compound', 11], ['keep', 0], ['camp', 1]], // T4 58/67/83
     [['compound', 2], ['keep', 11], ['bunker', 10]], // T5 42/58/67
+    [['strongpoints', 8], ['camp', 3], ['bunker', 0]], // T6 42/58/67 at 30 MP
+    [['camp', 8], ['compound', 10], ['corridor', 10]], // T7 42/58/67 at 34 MP
+    [['bunker', 6], ['compound', 9], ['camp', 3]], // T8 42/50/67 at 38 MP
+    [['compound', 8], ['camp', 6], ['bunker', 5]], // T9 42/58/75 at 42 MP
+    [['compound', 4], ['corridor', 2], ['bunker', 8]], // T10 42/58/67 at 46 MP
+    [['corridor', 9], ['compound', 5], ['camp', 9]], // T11 33/42/75 at 50 MP
+    [['compound', 1], ['corridor', 8], ['camp', 0]], // T12 33/58/67 at 54 MP
+    [['corridor', 11], ['strongpoints', 2], ['compound', 5]], // T13 42/58/67 at 58 MP
   ],
   un: [
     [['compound', 0], ['camp', 0], ['corridor', 0]], // T1 100/100/100
@@ -555,6 +597,14 @@ export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
     [['compound', 6], ['depot', 4], ['strongpoints', 0]], // T3 67/83/100
     [['compound', 5], ['keep', 1], ['corridor', 1]], // T4 50/67/92
     [['compound', 9], ['bunker', 8], ['camp', 1]], // T5 42/50/67
+    [['keep', 35], ['compound', 25], ['camp', 23]], // T6 33/50/58 at 30 MP
+    [['depot', 2], ['bunker', 3], ['camp', 3]], // T7 25/50/67 at 34 MP
+    [['compound', 0], ['bunker', 6], ['camp', 33]], // T8 0/42/75 at 37 MP
+    [['keep', 19], ['bunker', 14], ['camp', 15]], // T9 8/17/58 at 42 MP
+    [['depot', 17], ['camp', 9], ['bunker', 1]], // T10 25/58/67 at 46 MP
+    [['compound', 0], ['camp', 4], ['bunker', 27]], // T11 0/58/67 at 49 MP
+    [['strongpoints', 2], ['bunker', 14], ['camp', 13]], // T12 8/58/67 at 54 MP
+    [['corridor', 7], ['bunker', 3], ['camp', 9]], // T13 42/58/75 at 57 MP
   ],
 };
 
@@ -562,9 +612,9 @@ export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
  * What a rung deals in slot `slot`, or undefined for a faction or rung the
  * table does not cover.
  *
- * Above the top row the shapes stay at the hard end and only the layout moves
- * on, so a deep rung is a new problem of the same weight rather than the exact
- * board the player just cleared.
+ * Above the top row, the stronghold's, the shapes stay and only the layout
+ * moves on, so a rung in the enemy's rear is a new problem of the same weight
+ * rather than the exact board the player just cleared.
  */
 export function dealPairFor(
   tier: number,

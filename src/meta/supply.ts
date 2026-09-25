@@ -48,6 +48,22 @@ export function supplyLine(fl: FrontlineState): number {
   return lineShares(fl).reduce((n, s) => n + s.perHour, 0);
 }
 
+/** What the line would take an hour once the front's town is taken: all three of its sectors join it. */
+export function lineAfterTaking(fl: FrontlineState): number {
+  return supplyLine(fl) + STRIKE_ORDER.length * SUPPLY_PER_RUNG * Math.max(1, fl.tier);
+}
+
+/**
+ * Whether the depots, making `produced` an hour, could feed the line with the
+ * front's town in it (M25 Phase 4a). A town they could not feed holds: the
+ * third push waits for them. Hunger alone was too slow to be a ceiling, since
+ * a commander raiding three times a day takes a town a day and a starving
+ * front loses at most a sector a day.
+ */
+export function canFeedNext(fl: FrontlineState, produced: number): boolean {
+  return lineAfterTaking(fl) <= produced;
+}
+
 /** What the line gets an hour of `produced`: all it takes, when the depots make that much. */
 export function lineFed(fl: FrontlineState, produced: number): number {
   return Math.min(supplyLine(fl), Math.max(0, produced));

@@ -190,6 +190,19 @@ export function yardTown(now: number, faction?: FactionId): TownState {
 }
 
 /**
+ * Give a test town working supply depots, enough to feed a front a dozen
+ * rungs deep (M25 Phase 4a): a town is taken only if its depots could feed
+ * the line with it, and a test about something else should not stall on
+ * that. Pushed rather than built, so no clock or ground is involved.
+ */
+export function withDepots(town: TownState, count = 8): TownState {
+  for (let i = 0; i < count; i++) {
+    town.structures.push({ id: 9000 + i, kind: 'supplyDepot', cell: 10 + i, level: 3, wrecked: false });
+  }
+  return town;
+}
+
+/**
  * A RaidResolution with everything filled in, so a test can state only the
  * two or three fields it actually cares about.
  *

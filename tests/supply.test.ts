@@ -3,13 +3,17 @@ import { DAY_MS } from '../src/content/leagues';
 import { HUNGER_MS, QUIET_MS, SUPPLY_PER_RUNG } from '../src/content/theaters';
 import { deserialize, serialize } from '../src/meta/save';
 import {
+  canFeedNext,
   chargeHunger,
+  lineAfterTaking,
   lineShares,
   nextHungerAt,
   normalizeSupply,
   shortShare,
   supplyLine,
 } from '../src/meta/supply';
+import { applyRaidResult, raidConfig, targetFor } from '../src/meta/warfare';
+import { makeResolution } from './helpers';
 import {
   accrue,
   converterAt,
@@ -128,6 +132,33 @@ describe('feeding it', () => {
     const after = accrue(town, 3 * HOUR);
     expect(after.supplies).toBe(held);
     expect(after.fed).toBeCloseTo(240 * 3, 6);
+  });
+});
+
+describe('the ceiling (M25 Phase 4a)', () => {
+  it('a town the depots could not feed holds, and the third push waits for them', () => {
+    // 240 made. Taking the fifth rung's town puts the line at 225: fed.
+    const fifth = depots(5);
+    expect(lineAfterTaking(fifth.frontline)).toBe(225);
+    expect(canFeedNext(fifth.frontline, 240)).toBe(true);
+    // Taking the sixth's would put it at 315, which the depots cannot feed.
+    const town = depots(6);
+    expect(lineAfterTaking(town.frontline)).toBe(315);
+    expect(canFeedNext(town.frontline, 240)).toBe(false);
+    town.frontline.wins = 2;
+    const base = targetFor(town, 2);
+    const config = raidConfig(base, [{ units: { ranger: 1 }, sector: 'W1', doctrine: 'assault' }], 1);
+    applyRaidResult(town, base, makeResolution(), config, town.lastSeen + MIN);
+    expect(town.frontline.tier).toBe(6);
+    expect(town.frontline.wins).toBe(2);
+    // It still pays: the win counts on the record and the board.
+    expect(town.frontline.totalWins).toBe(1);
+    // And the same win at the fifth rung takes its town.
+    fifth.frontline.wins = 2;
+    const next = targetFor(fifth, 2);
+    applyRaidResult(fifth, next, makeResolution(), config, fifth.lastSeen + MIN);
+    expect(fifth.frontline.tier).toBe(6);
+    expect(fifth.frontline.wins).toBe(0);
   });
 });
 

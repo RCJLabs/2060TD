@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { yardTown, makeResolution } from './helpers';
+import { yardTown, makeResolution, withDepots } from './helpers';
 import { CHINA_BASE_KIT, generateBase, lootFor, MAP_H, MAP_W } from '../src/content/bases';
 import { footprintOfKind } from '../src/content/catalog';
 import { deserialize, serialize } from '../src/meta/save';
@@ -383,7 +383,7 @@ describe('raid planning and resolution', () => {
   });
 
   it('every second cleared post triggers a counterattack; three wins climb a tier', () => {
-    const town = devTown();
+    const town = withDepots(devTown());
     const base = generateBase(1, 0);
     const plan: SquadPlan[] = [{ units: { ranger: 1 }, sector: 'W1', doctrine: 'assault' }];
     const config = raidConfig(base, plan, 1);

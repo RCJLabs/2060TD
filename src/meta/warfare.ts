@@ -49,6 +49,7 @@ import {
   defenseBounty,
   defenseConfig,
   probeConfig,
+  productionPerHour,
   researchEffects,
   warLog,
   type DefenseLogEntry,
@@ -59,6 +60,7 @@ import {
 import { recordBattle } from './vault';
 import { creditContracts } from './contracts';
 import { chargeStrikes, retakeSector } from './strikes';
+import { canFeedNext } from './supply';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -841,8 +843,14 @@ export function applyRaidResult(
     if (base.tier === frontline.tier) {
       frontline.wins++;
       if (frontline.wins >= 3) {
-        frontline.tier++;
-        frontline.wins = 0;
+        // The front's town is taken only if the depots can feed the line with
+        // it (M25 Phase 4a); until they can, it holds at its last push.
+        if (canFeedNext(frontline, productionPerHour(town).supplies)) {
+          frontline.tier++;
+          frontline.wins = 0;
+        } else {
+          frontline.wins = 2;
+        }
       }
     } else {
       // A sector behind the front that the enemy had retaken is the
