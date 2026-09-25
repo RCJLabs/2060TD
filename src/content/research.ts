@@ -8,6 +8,13 @@
  * intel, and take hours — they are what the surplus is for once the town is
  * built.
  *
+ * Since M28 Phase 2 the top of the graph is the war's DOCTRINE: every war buys
+ * the nine lower techs, but the first tier-4 tech it starts commits it to that
+ * branch for good, and tier 4 and above of the other two are closed to it. In
+ * return the branch it chose has a sixth tier, a capstone only its doctrine can
+ * buy. Every war of a faction ended with the same research; now it ends with
+ * one of three.
+ *
  * Effects fold into battles as deterministic multipliers carried INSIDE the
  * SimConfig (see sim/types DefenderMods/AttackerMods), so replays of old
  * battles keep their original math. Meta-side effects (storage, rates,
@@ -19,8 +26,11 @@ export type TechBranch = 'fortify' | 'strike' | 'logistics';
 export interface TechDef {
   id: string;
   branch: TechBranch;
-  /** Position within the branch; tier n requires tier n-1, and at 4 and 5 more (`requires`). */
-  tier: 1 | 2 | 3 | 4 | 5;
+  /**
+   * Position within the branch; tier n requires tier n-1, and from 4 up more
+   * (`requires`). Tier 6 is the capstone (M28 Phase 2).
+   */
+  tier: 1 | 2 | 3 | 4 | 5 | 6;
   name: string;
   desc: string;
   intel: number;
@@ -36,6 +46,12 @@ export interface TechDef {
 }
 
 const HOUR = 3600;
+
+/** The tier from which a tech is doctrine (M28 Phase 2): starting one commits the war. */
+export const DOCTRINE_TIER = 4;
+
+/** Is this tech past the nine: one only the war's doctrine may buy? */
+export const isDoctrineTech = (tech: TechDef): boolean => tech.tier >= DOCTRINE_TIER;
 
 export const TECHS: TechDef[] = [
   // ---- FORTIFY — the defense doctrine ------------------------------------------
@@ -90,6 +106,18 @@ export const TECHS: TechDef[] = [
     seconds: 10 * HOUR,
     requires: ['fortify4', 'strike3'],
   },
+  {
+    id: 'fortify6',
+    branch: 'fortify',
+    tier: 6,
+    name: 'The Last Line',
+    desc: 'Command post +25% HP · weapons +8% more',
+    intel: 600,
+    supplies: 16000,
+    fuel: 4000,
+    seconds: 16 * HOUR,
+    requires: ['fortify5', 'logistics3'],
+  },
   // ---- STRIKE — the raid doctrine ------------------------------------------------
   {
     id: 'strike1',
@@ -141,6 +169,18 @@ export const TECHS: TechDef[] = [
     fuel: 4000,
     seconds: 10 * HOUR,
     requires: ['strike4', 'logistics3'],
+  },
+  {
+    id: 'strike6',
+    branch: 'strike',
+    tier: 6,
+    name: 'Shock Doctrine',
+    desc: 'Raid units +10% more HP · +10% more damage',
+    intel: 600,
+    supplies: 16000,
+    fuel: 4500,
+    seconds: 16 * HOUR,
+    requires: ['strike5', 'fortify3'],
   },
   // ---- LOGISTICS — the economy doctrine --------------------------------------------
   {
@@ -194,11 +234,46 @@ export const TECHS: TechDef[] = [
     seconds: 10 * HOUR,
     requires: ['logistics4', 'strike2'],
   },
+  {
+    id: 'logistics6',
+    branch: 'logistics',
+    tier: 6,
+    name: 'War Economy',
+    desc: 'Supplies & Fuel generation +20% more · converters +25% more',
+    intel: 600,
+    supplies: 14000,
+    fuel: 3000,
+    seconds: 16 * HOUR,
+    requires: ['logistics5', 'strike3'],
+  },
 ];
 
 export const TECH_BY_ID: Record<string, TechDef> = Object.fromEntries(
   TECHS.map((t) => [t.id, t]),
 );
+
+/** The branches in board order, which is also the order a tie is settled in. */
+export const TECH_BRANCHES: TechBranch[] = ['fortify', 'strike', 'logistics'];
+
+/**
+ * The doctrine a war's research shows (M28 Phase 2), for a save written
+ * before a doctrine was kept: the branch it went furthest past the nine in,
+ * counting what it is researching now, and the first of them on a tie. None
+ * for a war that has not gone past the nine.
+ */
+export function doctrineOf(ids: readonly string[]): TechBranch | undefined {
+  const depth = (branch: TechBranch): number =>
+    ids.filter((id) => TECH_BY_ID[id]?.branch === branch && isDoctrineTech(TECH_BY_ID[id]!)).length;
+  let best: TechBranch | undefined;
+  for (const branch of TECH_BRANCHES) {
+    if (depth(branch) > 0 && (best === undefined || depth(branch) > depth(best))) best = branch;
+  }
+  return best;
+}
+
+/** Every tech a war of this doctrine can buy: the nine, and the top of its own branch. */
+export const techsOpenTo = (doctrine: TechBranch): TechDef[] =>
+  TECHS.filter((t) => !isDoctrineTech(t) || t.branch === doctrine);
 
 /** Every tech that must be completed first: the one below it in its branch, or its own list. */
 export function techPrereqs(tech: TechDef): string[] {
@@ -213,6 +288,8 @@ export interface ResearchEffects {
   wallHp: number;
   weaponDamage: number;
   cpCost: number;
+  /** The command post's health (M28 Phase 2, FORTIFY's capstone). */
+  postHp: number;
   unitHp: number;
   unitDamage: number;
   trainTime: number;
@@ -241,15 +318,16 @@ export function effectsOf(completed: string[]): ResearchEffects {
     milli(terms.reduce((sum, [id, v]) => sum + (has(id) ? v : 0), 1));
   return {
     wallHp: add(['fortify1', 0.15], ['fortify4', 0.15]),
-    weaponDamage: add(['fortify2', 0.12], ['fortify4', 0.08], ['fortify5', 0.1]),
+    weaponDamage: add(['fortify2', 0.12], ['fortify4', 0.08], ['fortify5', 0.1], ['fortify6', 0.08]),
     cpCost: add(['fortify3', -0.2], ['fortify5', -0.1]),
-    unitHp: add(['strike1', 0.12], ['strike4', 0.12]),
-    unitDamage: add(['strike2', 0.12], ['strike5', 0.12]),
+    postHp: add(['fortify6', 0.25]),
+    unitHp: add(['strike1', 0.12], ['strike4', 0.12], ['strike6', 0.1]),
+    unitDamage: add(['strike2', 0.12], ['strike5', 0.12], ['strike6', 0.1]),
     trainTime: add(['strike3', -0.25]),
     storage: add(['logistics1', 0.2], ['logistics5', 0.2]),
     scoutCost: add(['logistics2', -0.4]),
-    rates: add(['logistics3', 0.15]),
-    conversion: add(['logistics5', 0.25]),
+    rates: add(['logistics3', 0.15], ['logistics6', 0.2]),
+    conversion: add(['logistics5', 0.25], ['logistics6', 0.25]),
     repairs: add(['logistics4', -0.3]),
     chargeCap: has('strike5') ? 1 : 0,
   };

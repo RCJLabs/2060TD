@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.67.0, in the browser. No install, no account, works on a phone.
+v1.68.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,25 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.67.0: officers
+## Current state — v1.68.0: doctrines
+
+**Each war now picks a doctrine.** Every war still researches the nine lower techs. The first
+tier-4 tech you start commits your war to that branch for good:
+
+- **FORTIFY** (the wire holds), **STRIKE** (the raids bite) or **LOGISTICS** (the war runs).
+  Tier 4 and up of the other two branches close for the rest of the war.
+- **A capstone for your branch:** each branch has a sixth tech that only its doctrine can
+  research. The Last Line: command post +25% health, weapons +8%. Shock Doctrine: raid units
+  +10% health and damage. War Economy: supplies and fuel +20%, the works +25%.
+- **The board asks first:** the research board says what the first tier-4 tech will close, and
+  it takes two taps to start it. The service record names your war's doctrine.
+
+Each capstone is worth about one tier of the research graph. In a week of war, FORTIFY climbs
+the skirmish ladder furthest, STRIKE clears a few more raids, and LOGISTICS finishes its research
+first and spends the least. Wars saved before this version keep every tech they already
+researched, and their doctrine is the branch they went furthest in.
+
+## v1.67.0: officers
 
 **Your squads now have officers.** The first time one of your three squads reaches LINE rank,
 one of its soldiers takes command: a named officer who is best at one doctrine (ASSAULT, HUNT or

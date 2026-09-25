@@ -5710,7 +5710,129 @@ this extends it into a reason for run #4.
         that changes a squad's doctrine on the raid just fought uses the edge
         its officer had at launch. Ghost raids leave officers alone, and a war
         saved with a squad at LINE is dealt its officer on load.
-- [ ] **Phase 2 — doctrine trees** replacing the 3x3 research ladder.
+- [x] **Phase 2 — doctrine trees** replacing the 3x3 research ladder.
+
+      **The plan, from the survey.** *(Written against v1.67.0.)* The line
+      above predates M24: research has not been a 3x3 ladder since v1.52. It
+      is a graph of fifteen techs in three branches the board already calls
+      doctrines (RESEARCH & DOCTRINE; a finished tech reads IN DOCTRINE):
+      FORTIFY for the wire, STRIKE for the raids, LOGISTICS for the economy.
+      Tiers 1-3 of each are cheap and quick; tiers 4 and 5 need a tech from
+      another branch too, cost supplies and fuel as well as intel, and take
+      four and ten hours. What M24 measured:
+      - an active commander has the nine lower techs by day 2-3 and the whole
+        graph by day 5.5-6.3, so every war of a faction ends with the same
+        research, and only its faction, map and officers tell it apart;
+      - in battle the top two tiers of a branch move about as far as the
+        three below them;
+      - the graph is the biggest thing a town buys: 62,000 of the 122,000
+        supplies a played fortnight spent.
+
+      The ladder, the citadel and the last stand were all tuned with the nine
+      (the harness's force carries STRIKE 1 and 2, the war instrument's town
+      the nine techs), so the top tiers are power no tuning assumed.
+
+      Settled with the commander:
+      - **A war commits to one branch.** Every war still buys the nine; the
+        top tiers become three doctrines, FORTIFY, STRIKE and LOGISTICS, and a
+        war takes one of them.
+      - **At its first top-tier tech.** Starting a tier-4 tech commits the war
+        to that branch (research cannot be cancelled), and the board says what
+        the choice closes before it is made.
+      - **Never changed.** It is what the war is; Phase 3's reset can carry
+        something of it into the next.
+      - **A capstone.** A sixth tier that only the chosen doctrine can buy.
+
+      The build:
+      - **The doctrine**, on the town's research: absent until the first
+        tier-4 tech is started, then that tech's branch for good. Tier 4 and
+        above in any other branch is refused. A war saved with top-tier techs
+        in more than one branch keeps every one it paid for, and its doctrine
+        is the branch it went furthest in.
+      - **Three capstones**, through the hooks research already uses, each
+        priced under what a built CC3 town can store (17,520 supplies, 4,980
+        fuel, 660 intel), so the top of a doctrine is two top tiers and a
+        capstone rather than six top tiers. What each does, to be measured
+        before it is fixed: FORTIFY's the post's health and the weapons,
+        STRIKE's the raiding units' health and damage, LOGISTICS's the
+        town's production and its converters.
+      - **The board**: a doctrine line at the top (none yet, and what the
+        first top-tier tech will do; or the doctrine and what it closed); the
+        closed branches' top tiers read CLOSED; the first tier-4 tech asks to
+        be tapped twice; the capstones under their branches. The service
+        record names the war's doctrine.
+      - **Measured**: the graph table in battle (`--graph`) with the capstones
+        on top of tiers 1-5, the production a LOGISTICS war gains, and what a
+        war gives up against v1.67's whole graph.
+      - **Tests**: the commitment and what it refuses, the capstones, old
+        saves, the save, and the board's words in the build harness.
+
+      Not in Phase 2: anything carried from one war to the next (Phase 3).
+
+      **What Phase 2 found.** *(v1.68.0)*
+      - **Each capstone is worth about one tier, the size the graph's tiers
+        were built to.** On the graph table (`--graph`), FORTIFY's (the post
+        +25% HP, weapons +8% more) adds +0.22 to +0.63 defence levels, mean
+        +0.44, on top of tiers 1-5. Tiers 4 and 5 together add +0.40 to
+        +1.38, mean +0.86. STRIKE's (+10% more health and damage) reads only
+        +0.03 to +0.13 raid tiers against the reference force, but that
+        reading is nearly full: STRIKE 1-5 already clears 4.35-4.70 of its
+        five tiers. At three quarters of the force there is room, and there
+        the capstone adds +0.20 to +0.38 tiers (mean +0.27) where tiers 4
+        and 5 add +0.19 to +0.83 (mean +0.45). The table now carries that
+        second reading. Nothing was retuned.
+      - **LOGISTICS's capstone is the economy's.** Before the yard, a
+        built-out CC3 town with the nine makes 1,518 supplies and 228 fuel
+        an hour. With the LOGISTICS doctrine it makes 1,782 and 267 (+17%),
+        its works make half as much again (90 fuel and 36 intel an hour
+        instead of 60 and 24), it stores 20,440 supplies and 5,810 fuel
+        instead of 17,520 and 4,980, and its repairs cost 30% less
+        (`--economy`, THE DOCTRINES).
+      - **A doctrine is finished sooner than the graph was.** The played
+        fortnight's commander, a session every two hours, finishes its
+        doctrine on day 4.7 (LOGISTICS) or 5.0 (the other two). v1.67's
+        commander finished the whole graph on day 5.5-6.3. Research now
+        takes 32,000-38,000 of the fortnight's supplies instead of 62,000.
+      - **In a war, each doctrine wins on one axis and gives up the others.**
+        The week at war (`--doctrines`): raids and skirmishes every two
+        hours, from the war instrument's town, fought first by v1.67's
+        commander with all fifteen techs (a what-if the game cannot reach)
+        and then committed to each doctrine in turn:
+
+        | skirmish level · raids cleared | USA | China | Russia | KPA | UN |
+        |---|---|---|---|---|---|
+        | v1.67, all fifteen | 31 · 24/63 | 25 · 24/63 | 34 · 22/42 | 20 · 23/41 | 26 · 23/43 |
+        | FORTIFY | 32 · 22/63 | 27 · 23/63 | 33 · 21/42 | 25 · 22/41 | 34 · 21/42 |
+        | STRIKE | 31 · 24/63 | 20 · 24/63 | 32 · 23/43 | 20 · 23/42 | 24 · 25/44 |
+        | LOGISTICS | 31 · 22/63 | 20 · 23/63 | 32 · 21/42 | 20 · 22/41 | 24 · 21/42 |
+
+        FORTIFY climbs the skirmish ladder furthest, beating v1.67's
+        commander for four sides of five. STRIKE clears as many raids as
+        v1.67's commander or more. LOGISTICS finishes its research first
+        (day 1.7-3.0, against 3.0-3.5) and spends the least. Every doctrine
+        holds all seven defences and reaches the eighth or ninth rung.
+      - **A war without Field Engineering pays for it in repairs, out of
+        surplus.** FORTIFY and STRIKE wars repair at full price. The USA's
+        STRIKE week spends 23,800 supplies a day on repairs, against 15,200
+        for v1.67's commander. Across the five sides, FORTIFY and STRIKE
+        wars net 4,000-11,000 a day less than v1.67's. The USA's STRIKE war
+        still loses 16,200 a day to a full store (v1.67 lost 20,500), so the
+        war is spending surplus that was being lost, not going short.
+        LOGISTICS makes the most and loses the most to a full store: 33,100
+        a day.
+      - **Wars saved before this keep what they paid for.** A war with
+        top-tier techs in more than one branch keeps every one of them. Its
+        doctrine is the branch it went furthest in, counting what it is
+        researching, with ties going to the branch listed first on the board.
+      - **Nothing in `src/sim` changed.** The capstone's post health uses
+        the post multiplier the UN's HUMANITARIAN SHIELD already set. The
+        two are multiplied (1.3 × 1.25 = 1.625) and kept to the thousandth,
+        so a replay code carries them.
+      - **Harnesses:** the build harness commits a doctrine in the browser
+        (two taps, then CLOSED rows), and the record harness reads the
+        doctrine line. The build harness's three gesture checks fail on the
+        phone viewport, as they already did in v1.67. The gate runs it on
+        desktop.
 - [ ] **Phase 3 — prestige and the meta-currency it feeds.**
 
 ## M29 — "After Action": make the sim explain itself

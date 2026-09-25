@@ -80,8 +80,9 @@ your Command Center.
 - **Offline resource generation:** depots keep producing while you're away, capped by storage.
 - **Build & research timers:** construction and tech complete in real time. Timers are short and
   generous (minutes to a few hours) — there is no monetization pressure, only pacing. The longest
-  are the research graph's top tiers *(v1.52)*: four hours and ten, an afternoon and a night. A
-  week-long graph was measured and refused on this line (see 5.2e).
+  are the research graph's top tiers *(v1.52)*: four hours and ten, an afternoon and a night, and
+  a doctrine's capstone, sixteen *(v1.68)*. A week-long graph was measured and refused on this
+  line (see 5.2e).
 - **Offline probe raids:** AI factions test your base while you're gone. Resolved by the sim
   against your permanent layer only. You return to a **defense log**: outcomes, losses, loot
   changes, and watchable replays. Probes are frequency-capped and loss-capped (never punishing),
@@ -924,7 +925,41 @@ town, on day five or six, and the top tiers move a defence about as far as the t
 them: about half a level a tier. Stretching the timers to a week was measured and refused
 (2.3). With no war to spend fuel and intel, the works run on what research takes and idle the
 rest of the time: most of what a built town makes is still lost to a full store until the war
-spends it.
+spends it. Since v1.68 a war buys the top of one branch only (5.2f).
+
+### 5.2f The war's doctrine *(v1.68, M28)*
+
+With the graph, every war of a faction ended with the same fifteen techs by its sixth day.
+Now the top of the graph is a choice each war makes once.
+
+- **Every war buys the nine.** Tiers 1 to 3 of all three branches are open to every war and
+  commit it to nothing.
+- **The first tier-4 tech commits it.** Starting one (not finishing it: research cannot be
+  cancelled) makes its branch the war's doctrine for good, and tier 4 and above of the other
+  two branches close. The board says what the first tier-4 tech will close and takes two taps
+  to start it. The closed rows read CLOSED.
+- **A capstone.** Each branch has a sixth tier that only its doctrine can buy, priced under a
+  built-out CC3 town's stores:
+
+  | tech | needs | does | costs |
+  |---|---|---|---|
+  | FORTIFY 6, The Last Line | Kill Zones, Forward Logistics | the command post +25% HP, weapons +8% more | 600 I, 16,000 S, 4,000 F, 16 h |
+  | STRIKE 6, Shock Doctrine | Deep Strike, Rapid Entrenchment | raid units +10% more HP and +10% more damage | 600 I, 16,000 S, 4,500 F, 16 h |
+  | LOGISTICS 6, War Economy | Strategic Reserve, Rapid Mobilization | supplies and fuel generation +20% more, the works +25% more | 600 I, 14,000 S, 3,000 F, 16 h |
+
+  The post's extra health multiplies with the UN's HUMANITARIAN SHIELD (1.3 × 1.25 = 1.625),
+  kept to the thousandth like every battle multiplier.
+- **Never changed.** The doctrine is part of what the war is, and the service record names it.
+  A war saved before doctrines keeps every tech it paid for, and its doctrine is the branch it
+  went furthest in.
+
+Measured (M28 Phase 2): each capstone moves its reading about as far as one of the graph's
+tiers: FORTIFY's +0.44 defence levels, STRIKE's +0.27 raid tiers at three quarters of the
+force, LOGISTICS's +17% production and half as much again from the works. In a week at war,
+FORTIFY climbs the skirmish ladder furthest, STRIKE clears the most raids, and LOGISTICS
+finishes its research first and spends least. A war without Field Engineering pays full price
+for repairs, out of the surplus a full store would have lost. A played fortnight has its
+doctrine around day five.
 
 ### 5.3 The maze rule (core mechanic)
 

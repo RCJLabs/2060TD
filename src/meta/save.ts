@@ -14,6 +14,7 @@ import { regridTown } from './regrid';
 import { normalizePlan } from './warfare';
 import { cleanCallsign, normalizeGhosts } from './ghost';
 import { normalizeCadre, promoteDue } from './cadre';
+import { doctrineOf, TECH_BRANCHES, type TechBranch } from '../content/research';
 import { normalizeContracts } from './contracts';
 import {
   gating,
@@ -258,6 +259,18 @@ export function deserialize(json: string): TownState | null {
     }
     if (typeof town.intel !== 'number' || !Number.isFinite(town.intel)) town.intel = 0;
     if (!town.research) town.research = { completed: [], active: null };
+    // The war's doctrine arrived with M28 Phase 2. One saved before it has
+    // the branch it went furthest past the nine in, and keeps every tech it
+    // paid for; one that had not gone past the nine chooses when it does.
+    const doctrine: unknown = town.research.doctrine;
+    if (!TECH_BRANCHES.includes(doctrine as TechBranch)) {
+      const derived = doctrineOf([
+        ...(Array.isArray(town.research.completed) ? town.research.completed : []),
+        ...(town.research.active ? [town.research.active.id] : []),
+      ]);
+      if (derived) town.research.doctrine = derived;
+      else delete town.research.doctrine;
+    }
     if (!isStandingOrdersId(town.standingOrders)) town.standingOrders = null;
     // The duel ledger arrived in v1.2; older files simply have not fought one.
     town.duels = Array.isArray(town.duels)

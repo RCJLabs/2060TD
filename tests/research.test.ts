@@ -278,7 +278,7 @@ describe('research program', () => {
     const ids = TECHS.map((t) => t.id);
     for (let mask = 0; mask < 1 << ids.length; mask += 97) {
       const fx = effectsOf(ids.filter((_, i) => mask & (1 << i)));
-      for (const v of [fx.wallHp, fx.weaponDamage, fx.cpCost, fx.unitHp, fx.unitDamage]) {
+      for (const v of [fx.wallHp, fx.weaponDamage, fx.cpCost, fx.postHp, fx.unitHp, fx.unitDamage]) {
         expect(Math.round(v * 1000) / 1000).toBe(v);
       }
     }

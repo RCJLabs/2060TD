@@ -77,7 +77,7 @@ import {
 import { LAST_STAND_LEVEL } from '../content/theaters';
 import { economyTable } from './economy';
 import { yardTable } from './yard';
-import { frontTable, reachTable, supplyTable, surgeTable, turnTable, warTable } from './war';
+import { doctrineWarTable, frontTable, reachTable, supplyTable, surgeTable, turnTable, warTable } from './war';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
 import {
   CITADEL_BUDGET,
@@ -2692,7 +2692,7 @@ function graphTable(faction: FactionId): string {
   const levels = Array.from({ length: 20 }, (_, i) => i + 1);
   const fortify = (tier: number): DefenderMods => {
     const e = effectsOf(branchTo('fortify', tier));
-    return { wallHp: e.wallHp, weaponDamage: e.weaponDamage };
+    return { wallHp: e.wallHp, weaponDamage: e.weaponDamage, ...(e.postHp !== 1 ? { postHp: e.postHp } : {}) };
   };
   const strike = (tier: number): RaidSupport => {
     const e = effectsOf(branchTo('strike', tier));
@@ -2705,32 +2705,55 @@ function graphTable(faction: FactionId): string {
     defenseMatrix(faction, undefined, [], undefined, levels),
     defenseMatrix(faction, fortify(3), [], undefined, levels),
     defenseMatrix(faction, fortify(5), [], undefined, levels),
+    defenseMatrix(faction, fortify(6), [], undefined, levels),
   ];
-  lines.push('DEFENCE, levels held of L1-L20: STAGE | NONE | FORTIFY 1-3 | FORTIFY 1-5');
+  lines.push('DEFENCE, levels held of L1-L20: STAGE | NONE | FORTIFY 1-3 | FORTIFY 1-5 | FORTIFY 1-6');
   const held = defence.map((rows) => rows.map((r) => area(r.holdPct)));
   defence[0]!.forEach((row, i) => {
     lines.push(
       `  ${row.stage.padEnd(11)} | ${pad(held[0]![i]!.toFixed(2), 5)} | ${pad(held[1]![i]!.toFixed(2), 11)} | ` +
-        `${pad(held[2]![i]!.toFixed(2), 11)}`,
+        `${pad(held[2]![i]!.toFixed(2), 11)} | ${pad(held[3]![i]!.toFixed(2), 11)}`,
     );
   });
   const meanShift = (a: number[], b: number[]): string =>
     (b.reduce((n, x, i) => n + x - a[i]!, 0) / a.length).toFixed(2);
   lines.push(
     `  mean: tiers 1-3 +${meanShift(held[0]!, held[1]!)} levels, tiers 4-5 on top of them ` +
-      `+${meanShift(held[1]!, held[2]!)}`,
+      `+${meanShift(held[1]!, held[2]!)}, the capstone on top of those +${meanShift(held[2]!, held[3]!)}`,
   );
-  const raids = [raidMatrix(faction), raidMatrix(faction, strike(3)), raidMatrix(faction, strike(5))];
+  const raids = [
+    raidMatrix(faction),
+    raidMatrix(faction, strike(3)),
+    raidMatrix(faction, strike(5)),
+    raidMatrix(faction, strike(6)),
+  ];
   lines.push(`RAID, clear% by tier: ROW | ${RAID_TIERS.map((t) => `T${t}`).join(' | ')} | TIERS CLEARED`);
   const cleared = raids.map((rows) => area(rows.map((r) => r.clearPct)));
-  ['NONE', 'STRIKE 1-3 + fire plan', 'STRIKE 1-5 + fire plan'].forEach((label, i) => {
+  ['NONE', 'STRIKE 1-3 + fire plan', 'STRIKE 1-5 + fire plan', 'STRIKE 1-6 + fire plan'].forEach((label, i) => {
     lines.push(
       `  ${label.padEnd(22)} | ${raids[i]!.map((r) => pad(r.clearPct, 3)).join(' | ')} | ${cleared[i]!.toFixed(2)}`,
     );
   });
   lines.push(
     `  tiers 1-3 and the fire plan +${(cleared[1]! - cleared[0]!).toFixed(2)} tiers, ` +
-      `tiers 4-5 on top of them +${(cleared[2]! - cleared[1]!).toFixed(2)}`,
+      `tiers 4-5 on top of them +${(cleared[2]! - cleared[1]!).toFixed(2)}, ` +
+      `the capstone on top of those +${(cleared[3]! - cleared[2]!).toFixed(2)}`,
+  );
+  // The reference force with STRIKE 1-5 clears most of five tiers, so the
+  // reading above has little room left for a sixth (M28 Phase 2). The same
+  // shape at three quarters of its manpower has the room.
+  const smaller = planAtBudget(faction, Math.round(planManpower(faction) * 0.75));
+  const lean = [3, 5, 6].map((tier) => raidMatrix(faction, strike(tier), false, smaller));
+  const leanCleared = lean.map((rows) => area(rows.map((r) => r.clearPct)));
+  lines.push(`RAID at three quarters of the force (${planManpower(faction, smaller)} MP):`);
+  ['STRIKE 1-3 + fire plan', 'STRIKE 1-5 + fire plan', 'STRIKE 1-6 + fire plan'].forEach((label, i) => {
+    lines.push(
+      `  ${label.padEnd(22)} | ${lean[i]!.map((r) => pad(r.clearPct, 3)).join(' | ')} | ${leanCleared[i]!.toFixed(2)}`,
+    );
+  });
+  lines.push(
+    `  tiers 4-5 +${(leanCleared[1]! - leanCleared[0]!).toFixed(2)} tiers, ` +
+      `the capstone on top of them +${(leanCleared[2]! - leanCleared[1]!).toFixed(2)}`,
   );
   return lines.join('\n');
 }
@@ -6312,6 +6335,12 @@ function main(): void {
   if (process.argv.includes('--war')) {
     const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
     for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${warTable(faction)}\n`);
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--doctrines')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${doctrineWarTable(faction)}\n`);
     console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

@@ -1459,3 +1459,22 @@ here with the change and its date.
   which job rather than what a squad is ordered. CAPTAIN and MAJOR were raised
   to 120 and 360 experience after the first numbers made MAJOR a quarter to two
   thirds of officer-led raids; a major is now an officer kept alive.
+- 2026-09-25 — **A war commits to one doctrine at its first top-tier tech,
+  for good (M28 Phase 2, v1.68.0).** Settled with the commander: every war still
+  buys the nine lower techs. Starting the first tier-4 tech commits the war to
+  that branch, and tier 4 and above of the other two branches close. The choice
+  is never changed within a war (Phase 3's reset may carry something of it
+  forward), and the chosen branch has a sixth tier, a capstone only its doctrine
+  can buy. The survey's reason: an active commander had the whole graph by day
+  5.5-6.3, so every war of a faction ended with the same research. The war
+  commits when the tech is started, not when it lands, because research cannot
+  be cancelled. So the board says what the first tier-4 tech will close and
+  asks for two taps. Each capstone is priced under what a built CC3 town can
+  store, and each was measured at about one tier's worth, the size the graph's
+  tiers were built to: FORTIFY's +0.44 defence levels on the graph table,
+  STRIKE's +0.27 raid tiers at three quarters of the force (its full-force
+  reading is saturated), and LOGISTICS's +17% production with half as much
+  again from the works. A war saved before this keeps every tech it paid for,
+  and its doctrine is the branch it went furthest in. In the week at war, each
+  doctrine gains on one axis and gives up the others. FORTIFY and STRIKE wars
+  pay full price for repairs, out of surplus a full store was losing.

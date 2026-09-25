@@ -169,7 +169,7 @@ export function setSignaturesLive(on: boolean): boolean {
  */
 export function battleRules(
   faction: FactionId,
-  research: Pick<DefenderMods, 'wallHp' | 'weaponDamage' | 'cpCost'>,
+  research: Pick<DefenderMods, 'wallHp' | 'weaponDamage' | 'cpCost' | 'postHp'>,
   mandateId: MandateId | undefined,
 ): { signature?: Signature; defender?: DefenderMods } {
   const signature = live ? signatureFor(faction) : undefined;
@@ -181,7 +181,8 @@ export function battleRules(
   const weaponDamage = research.weaponDamage ?? 1;
   const wallHp = mandate.wallHp !== undefined ? milli((research.wallHp ?? 1) * mandate.wallHp) : (research.wallHp ?? 1);
   const cpCost = mandate.cpCost !== undefined ? milli((research.cpCost ?? 1) * mandate.cpCost) : (research.cpCost ?? 1);
-  const postHp = mandate.postHp ?? 1;
+  // The post's health: the UN's mandate, and FORTIFY's capstone (M28 Phase 2).
+  const postHp = milli((mandate.postHp ?? 1) * (research.postHp ?? 1));
   // The rules' own mods, where a rule has one: the post's HP, the trim.
   const extra = {
     ...(postHp !== 1 ? { postHp } : {}),

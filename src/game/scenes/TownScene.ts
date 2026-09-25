@@ -10,7 +10,16 @@ import {
   townMetaFor,
   type FactionId,
 } from '../../content/factions';
-import { TECHS, TECH_BY_ID, techPrereqs, type TechDef } from '../../content/research';
+import {
+  DOCTRINE_TIER,
+  isDoctrineTech,
+  TECH_BRANCHES,
+  TECHS,
+  TECH_BY_ID,
+  techPrereqs,
+  type TechBranch,
+  type TechDef,
+} from '../../content/research';
 import { activeSlot, clearSave, loadSlot, saveTown } from '../../meta/save';
 import {
   applyLiveDefense,
@@ -175,7 +184,7 @@ import { makeSheet } from '../ground';
 import type { BattleTag } from './SiegeScene';
 import { createButton, type FreeButton } from '../dom/button';
 import { createLabel, type SceneLabel } from '../dom/label';
-import { createOverlay, type OverlayApi } from '../dom/overlay';
+import { createOverlay, type OverlayApi, type OverlayButton } from '../dom/overlay';
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
 
@@ -197,6 +206,13 @@ const COLLECT_ERRORS: Partial<Record<CollectError, string>> = {
   collected: 'That result has already been paid.',
   tampered:
     'That is not the battle that was sent: its men, their ranks, the research or the dice are different.',
+};
+
+/** What each branch of the research board is for, as its header and the service record say it. */
+const DOCTRINE_WORDS: Record<TechBranch, string> = {
+  fortify: 'the wire holds',
+  strike: 'the raids bite',
+  logistics: 'the war runs',
 };
 
 /** `45s`, `4m 30s`, `4h`, `9h 58m`: a duration as the research board and its row say it. */
@@ -735,7 +751,7 @@ export class TownScene extends Scene {
     text: string,
     color: number,
     action?: { label: string; onTap: () => void; enabled?: boolean },
-  ): void {
+  ): OverlayButton | undefined {
     const { rowH, gap, font, compact, px } = this.layout;
     if (compact || !action) {
       ov.paragraph(text, font.body, color, {
@@ -744,8 +760,9 @@ export class TownScene extends Scene {
       if (action) {
         const b = ov.button(ov.flow(rowH), action.label, action.onTap);
         if (action.enabled === false) b.setEnabled(false);
+        return b;
       }
-      return;
+      return undefined;
     }
     const btnW = px(150);
     const t = ov.paragraph(text, font.body, color, {
@@ -758,6 +775,7 @@ export class TownScene extends Scene {
       action.onTap,
     );
     if (action.enabled === false) b.setEnabled(false);
+    return b;
   }
 
   private showMissions(): void {
@@ -806,9 +824,14 @@ export class TownScene extends Scene {
   }
 
   /**
-   * The research board: three doctrines, one project at a time. Since M24
+   * The research board: three branches, one project at a time. Since M24
    * Phase 4 the top two tiers of each need a tech from another branch too, and
    * cost supplies and fuel as well as intel.
+   *
+   * Since M28 Phase 2 the top of the board is the war's doctrine. The line at
+   * the head of it says whether one has been chosen and what choosing does;
+   * the first tier-4 tech says what it will close, and asks to be tapped
+   * twice, because research cannot be cancelled and neither can this.
    */
   private showResearch(): void {
     if (this.overlay || this.demoMode) return;
@@ -826,18 +849,34 @@ export class TownScene extends Scene {
       this.overlay = null;
       this.overlayBuilder = null;
     };
-    const branchHeaders: Record<string, string> = {
-      fortify: 'FORTIFY — the wire holds',
-      strike: 'STRIKE — the raids bite',
-      logistics: 'LOGISTICS — the war runs',
-    };
+    const doctrine = town.research.doctrine;
+    const others = (branch: TechBranch): string =>
+      TECH_BRANCHES.filter((b) => b !== branch)
+        .map((b) => b.toUpperCase())
+        .join(' and ');
+    const capstone = (branch: TechBranch): string =>
+      (TECHS.find((t) => t.branch === branch && t.tier === 6)?.name ?? '').toUpperCase();
+    ov.paragraph(
+      doctrine
+        ? `DOCTRINE: ${doctrine.toUpperCase()}. ${others(doctrine)} are closed to this war above tier 3, ` +
+            `and ${capstone(doctrine)} is its to buy.`
+        : 'DOCTRINE: NONE YET. Every war buys the nine below tier 4. The first tier-4 tech it starts ' +
+            "commits it to that branch for good: the other two close above tier 3, and the branch's " +
+            'capstone opens.',
+      this.layout.font.body,
+      doctrine ? COLORS.ink : COLORS.inkDim,
+      { gapAfter: this.layout.gap },
+    );
+    // One row at a time is armed to commit; arming another disarms it.
+    let armed: { id: string; button: OverlayButton } | null = null;
     let lastBranch = '';
     for (const tech of TECHS) {
       if (tech.branch !== lastBranch) {
         lastBranch = tech.branch;
         ov.text(
           ov.flow(Math.round(this.layout.font.label * 1.4)),
-          branchHeaders[tech.branch]!,
+          `${tech.branch.toUpperCase()} — ${DOCTRINE_WORDS[tech.branch]}` +
+            (tech.branch === doctrine ? " · THIS WAR'S DOCTRINE" : ''),
           this.layout.font.label,
           COLORS.intel,
           { fontStyle: 'bold' },
@@ -846,6 +885,11 @@ export class TownScene extends Scene {
       const err = canResearch(town, tech.id);
       const done = town.research.completed.includes(tech.id);
       const active = town.research.active?.id === tech.id;
+      // Past the nine, in a branch this war did not choose.
+      const closed = isDoctrineTech(tech) && doctrine !== undefined && tech.branch !== doctrine;
+      // The tech that would choose it: always a tier-4 one, since the tier
+      // below every other top tech is one.
+      const commits = tech.tier === DOCTRINE_TIER && doctrine === undefined;
       const builds = this.techBuilds(tech);
       const cost = [
         `${tech.intel} INTEL`,
@@ -859,25 +903,47 @@ export class TownScene extends Scene {
       const lines = [
         `${tech.name} — ${tech.desc}${builds.length > 0 ? ` · builds the ${builds.join(', ')}` : ''}`,
         done
-          ? 'IN DOCTRINE'
+          ? // A war saved before doctrines keeps what it paid for in any branch.
+            closed
+            ? 'KEPT FROM BEFORE THE DOCTRINE'
+            : 'IN DOCTRINE'
           : active
             ? `IN PROGRESS · ${span((town.research.active!.endsAt - Date.now()) / 1000)} LEFT`
-            : cost,
-        ...(!done && !active && missing.length > 0 ? [`NEEDS ${missing.join(' + ')}`] : []),
+            : closed
+              ? `CLOSED · THIS WAR IS ${doctrine!.toUpperCase()}`
+              : cost,
+        ...(!done && !active && !closed && missing.length > 0 ? [`NEEDS ${missing.join(' + ')}`] : []),
+        ...(!done && !active && commits
+          ? [`COMMITS THE WAR TO ${tech.branch.toUpperCase()} · CLOSES ${others(tech.branch).toUpperCase()} ABOVE TIER 3`]
+          : []),
       ];
-      this.overlayEntry(
+      const button = this.overlayEntry(
         ov,
         lines.join('\n'),
-        done ? COLORS.olive : active ? COLORS.signal : COLORS.ink,
-        !done && !active
+        done ? COLORS.olive : active ? COLORS.signal : closed ? COLORS.inkDim : COLORS.ink,
+        !done && !active && !closed
           ? {
-              label: 'START',
+              label: commits ? 'COMMIT' : 'START',
               enabled: err === null,
               onTap: () => {
+                // The first tap on a commitment arms it; the second makes it.
+                if (commits && armed?.id !== tech.id) {
+                  armed?.button.setLabel('COMMIT');
+                  armed?.button.setActive(false);
+                  armed = button ? { id: tech.id, button } : null;
+                  button?.setLabel('TAP AGAIN');
+                  button?.setActive(true);
+                  return;
+                }
                 if (startResearch(this.town, tech.id, Date.now())) {
                   saveTown(this.town);
                   audio.sfx('radio');
-                  this.setBanner(`RESEARCH STARTED: ${tech.name.toUpperCase()}`, 8);
+                  this.setBanner(
+                    commits
+                      ? `DOCTRINE: ${tech.branch.toUpperCase()}. RESEARCH STARTED: ${tech.name.toUpperCase()}`
+                      : `RESEARCH STARTED: ${tech.name.toUpperCase()}`,
+                    8,
+                  );
                   close();
                 }
               },
@@ -1653,6 +1719,13 @@ export class TownScene extends Scene {
     // ---- the long game -----------------------------------------------------
     this.recordSection(ov, 'THE LONG GAME');
     line(`Missions completed ${r.missions} · technologies ${r.research}`, COLORS.inkDim);
+    // The war's doctrine (M28 Phase 2): what its research committed it to.
+    line(
+      r.doctrine
+        ? `Doctrine ${r.doctrine.toUpperCase()}: ${DOCTRINE_WORDS[r.doctrine]}`
+        : 'Doctrine not yet chosen: the first tier-4 tech will choose it',
+      r.doctrine ? COLORS.ink : COLORS.inkDim,
+    );
     if (r.seasons.length > 0) {
       for (const season of r.seasons) {
         line(

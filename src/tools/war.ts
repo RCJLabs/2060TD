@@ -8,7 +8,8 @@
  * raids the Front Line every session with the harness's force, stands and
  * fights every defence the probes offer and every counterattack its raids
  * earn, repairs what the war wrecks, rebuilds the wire, restocks its fire
- * plan and buys the research graph as the builder does. A second commander
+ * plan and buys research as the builder does, the cheapest first, which since
+ * M28 Phase 2 commits it to the LOGISTICS doctrine. A second commander
  * climbs the skirmish ladder as well, a skirmish a session until one is lost
  * that day, and a third does not fight at all, so the same town and the same
  * week read three ways.
@@ -27,7 +28,7 @@ import {
   type FactionId,
 } from '../content/factions';
 import { LADDER_EPOCH } from '../content/leagues';
-import { TECHS } from '../content/research';
+import { TECH_BRANCHES, TECHS, techsOpenTo, type TechBranch, type TechDef } from '../content/research';
 import { ladderPayout } from '../meta/ladder';
 import {
   applyCounterResult,
@@ -145,6 +146,14 @@ export interface WarOptions {
    * short at the next raid until the session after.
    */
   keepQueues?: boolean;
+  /**
+   * The doctrine the commander's research commits to (M28 Phase 2). Unset,
+   * it buys the cheapest open tech first, as it bought the whole graph before
+   * a war had to choose, and that commits it to LOGISTICS. 'all' is v1.67's
+   * commander, who bought tiers 4 and 5 of every branch and had no capstone:
+   * a what-if for the instrument, since no war in the game can be it.
+   */
+  doctrine?: TechBranch | 'all';
 }
 
 export interface WarBooks extends Accruals {
@@ -187,8 +196,8 @@ export interface WarRun {
   hungry: number;
   /** Days between sessions: one below a day's cadence. */
   everyDays: number;
-  /** Days into the week the graph was finished, or null if it never was. */
-  graph: number | null;
+  /** Days into the week the doctrine was finished, or null if it never was (the whole graph before M28 Phase 2). */
+  doctrine: number | null;
   /** Defences the commander fought, and the CP they spent and got back (M26 Phase 2). */
   commanded: number;
   cpSpent: number;
@@ -296,6 +305,17 @@ function betterDefence(a: SiegeOutcome, b: SiegeOutcome): boolean {
  * started, and the rest of the session ticked through minute by minute so
  * the training completes.
  */
+/**
+ * What the commander's research may buy: a doctrine's twelve, v1.67's whole
+ * graph of fifteen for 'all', or anything open while an unset commander has
+ * not chosen yet ('unset').
+ */
+function openTo(doctrine: TechBranch | 'all' | 'unset' | undefined): TechDef[] {
+  if (doctrine === 'all') return TECHS.filter((t) => t.tier <= 5);
+  if (doctrine === undefined || doctrine === 'unset') return [...TECHS];
+  return techsOpenTo(doctrine);
+}
+
 export function playWarWeek(
   start: TownState,
   policy: WarPolicy,
@@ -351,7 +371,7 @@ export function playWarWeek(
     fellBack: 0,
     hungry: 0,
     everyDays,
-    graph: null,
+    doctrine: null,
     commanded: 0,
     cpSpent: 0,
     cpRefunded: 0,
@@ -548,14 +568,19 @@ export function playWarWeek(
       });
       act('research', () => {
         if (town.research.active) return;
-        const next = [...TECHS]
+        // v1.67's commander is never committed to anything.
+        if (opts.doctrine === 'all') delete town.research.doctrine;
+        const next = openTo(opts.doctrine)
           .sort((a, b) => a.intel - b.intel || (a.supplies ?? 0) - (b.supplies ?? 0))
           .find((t) => canResearch(town, t.id) === null);
         if (next) startResearch(town, next.id, at);
       });
 
       for (let m = 1; m < sessionMinutes; m++) advance(clock + m * MIN);
-      if (run.graph === null && town.research.completed.length === TECHS.length) run.graph = (at - begin) / DAY;
+      const goal = openTo(opts.doctrine === undefined ? town.research.doctrine ?? 'unset' : opts.doctrine);
+      if (run.doctrine === null && goal.every((t) => town.research.completed.includes(t.id))) {
+        run.doctrine = (at - begin) / DAY;
+      }
     }
   }
   run.tier = town.frontline.tier;
@@ -592,7 +617,7 @@ export function warTable(faction: FactionId = 'usa'): string {
     `A WEEK AT WAR — ${faction.toUpperCase()}: CC3 built out, the LATE defence with its economy behind the lines, ` +
       `ten-minute sessions from 07:00 to 23:00, the skirmish ladder climbed to level ${start.assaultLevel}; per day`,
     'EVERY | WHO            | MADE S | LOST FULL S/F/I | LOST PAST 8H | CONVERTED | THE WAR, NET S/F/I | ' +
-      'RAIDS CLEARED | RUNG | DEFENCES HELD | SKIRMISHES HELD | LEVEL | GRAPH BY',
+      'RAIDS CLEARED | RUNG | DEFENCES HELD | SKIRMISHES HELD | LEVEL | DOCTRINE BY',
   ];
   const when = (d: number | null): string => (d === null ? 'never' : `day ${d.toFixed(1)}`);
   let fullest: WarRun | null = null;
@@ -612,7 +637,7 @@ export function warTable(faction: FactionId = 'usa'): string {
           `${pad(policy === 'peace' ? '—' : `${run.cleared}/${run.raids}`, 13)} | ${pad(run.tier, 4)} | ` +
           `${pad(policy === 'peace' ? '—' : `${run.defencesHeld}/${run.defences}`, 13)} | ` +
           `${pad(policy === 'raids+skirmish' ? `${run.skirmishesHeld}/${run.skirmishes}` : '—', 15)} | ` +
-          `${pad(run.assaultLevel, 5)} | ${when(run.graph)}`,
+          `${pad(run.assaultLevel, 5)} | ${when(run.doctrine)}`,
       );
     }
   }
@@ -720,6 +745,33 @@ export function reachTable(faction: FactionId = 'usa', days = 70): string {
     lines.push(
       `${name.padEnd(10)} | ${tiers.map((t) => on(run.reachedOn[t]).padStart(6)).join(' | ')} | ` +
         `${on(run.wonOn).padStart(6)} | ${pad(run.tier, 4)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * M28 Phase 2: what a war gives up by committing to a doctrine. The week at
+ * war, raids and skirmishes every two hours, fought four times from the same
+ * town (which starts with the nine): by v1.67's commander, who bought tiers 4
+ * and 5 of all three branches, and committed to each doctrine in turn, with
+ * its capstone.
+ */
+export function doctrineWarTable(faction: FactionId = 'usa', days = 7): string {
+  const start = warTown(faction);
+  const when = (d: number | null): string => (d === null ? 'never' : `day ${d.toFixed(1)}`);
+  const lines = [
+    `THE DOCTRINES AT WAR — ${faction.toUpperCase()}: the week at war, raids and skirmishes every 2 h, ${days} days`,
+    'RESEARCH       | FINISHED  | RAIDS CLEARED | RUNG | DEFENCES HELD | SKIRMISHES HELD | LEVEL | THE WAR, NET S/F/I A DAY',
+  ];
+  for (const doctrine of ['all', ...TECH_BRANCHES] as const) {
+    const run = playWarWeek(start, 'raids+skirmish', 2, days, 10, { doctrine });
+    const net = warNet(run.books);
+    lines.push(
+      `${(doctrine === 'all' ? 'v1.67, all 15' : doctrine.toUpperCase()).padEnd(14)} | ${pad(when(run.doctrine), 9)} | ` +
+        `${pad(`${run.cleared}/${run.raids}`, 13)} | ${pad(run.peakTier, 4)} | ` +
+        `${pad(`${run.defencesHeld}/${run.defences}`, 13)} | ${pad(`${run.skirmishesHeld}/${run.skirmishes}`, 15)} | ` +
+        `${pad(run.assaultLevel, 5)} | ${k(net.supplies / run.span)}/${k(net.fuel / run.span)}/${k(net.intel / run.span)}`,
     );
   }
   return lines.join('\n');

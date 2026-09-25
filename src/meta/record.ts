@@ -2,6 +2,7 @@ import { DAY_MS, leagueAt, type League } from '../content/leagues';
 import { flavorFor, type FactionId } from '../content/factions';
 import { rankFor, squadName, type Rank, type SquadRecord } from '../content/veterancy';
 import type { FallenOfficer } from '../content/officers';
+import type { TechBranch } from '../content/research';
 import { leagueOf, standingSeries } from './ladder';
 import { readSlot, SLOT_COUNT } from './save';
 import { warLog, type SeasonRecord, type TownState } from './town';
@@ -65,6 +66,8 @@ export interface ServiceRecord {
   // the long game
   missions: number;
   research: number;
+  /** The branch the war's research committed to (M28 Phase 2), or null before it has. */
+  doctrine: TechBranch | null;
 }
 
 /**
@@ -124,6 +127,7 @@ export function serviceRecord(town: TownState, now: number): ServiceRecord {
     sackedDay: log.sackedAt === undefined ? null : warDay(town, log.sackedAt),
     missions: town.campaign.completed.length,
     research: town.research.completed.length,
+    doctrine: town.research.doctrine ?? null,
   };
 }
 

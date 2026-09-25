@@ -29,7 +29,7 @@ import {
   type FactionId,
 } from '../content/factions';
 import { LADDER_EPOCH } from '../content/leagues';
-import { TECHS } from '../content/research';
+import { effectsOf, TECH_BRANCHES, TECHS, techsOpenTo, type TechBranch } from '../content/research';
 import type { LadderSettlement } from '../meta/ladder';
 import {
   accrue,
@@ -44,6 +44,7 @@ import {
   outcomeFromEngine,
   place,
   baseRatesPerHour,
+  conversionPerHour,
   productionPerHour,
   trainingDiscount,
   yardOutput,
@@ -420,7 +421,7 @@ export interface Run {
   lastPurchase: number;
   /**
    * Supplies made with nothing left to buy: the town built out, and every tech
-   * of the graph researched or in progress.
+   * its doctrine can buy researched or in progress.
    */
   idleMade: number;
   /** Supplies made once the town was built out, research or not: Phase 3's reading. */
@@ -538,6 +539,11 @@ export function playFortnight(
   days: number,
   sessionMinutes: number,
   placement: Placement = 'naive',
+  /**
+   * What its research commits to (M28 Phase 2). LOGISTICS unless told: the
+   * doctrine a commander buying the cheapest first commits to.
+   */
+  doctrine: TechBranch = 'logistics',
 ): Run {
   const ledger: Ledger = {
     made: zero(),
@@ -560,8 +566,9 @@ export function playFortnight(
     'CC3': null,
     'CC3 built out': null,
     'the nine': null,
-    'the graph': null,
+    'the doctrine': null,
   };
+  const open = techsOpenTo(doctrine);
   const nine = TECHS.filter((t) => t.tier <= 3).map((t) => t.id);
   let lastPurchase = 0;
   /** Supplies made with nothing left to buy, and made after the build-out. */
@@ -569,7 +576,7 @@ export function playFortnight(
   let builtOutMade = 0;
   const nothingToBuy = (): boolean =>
     milestones['CC3 built out'] !== null &&
-    TECHS.every((t) => town.research.completed.includes(t.id) || town.research.active?.id === t.id);
+    open.every((t) => town.research.completed.includes(t.id) || town.research.active?.id === t.id);
   const book = (kind: string, cost: { supplies: number; fuel: number }): void => {
     const bin = (ledger.spent[CATEGORY[kind] ?? kind] ??= { supplies: 0, fuel: 0 });
     bin.supplies += cost.supplies;
@@ -651,12 +658,12 @@ export function playFortnight(
 
   /**
    * The next project, cheapest in intel first. A tech that costs supplies or
-   * fuel — the graph's top two tiers — waits until there is nothing left to
-   * build: a commander who wants a bigger town buys the town first.
+   * fuel — the doctrine's three — waits until there is nothing left to build:
+   * a commander who wants a bigger town buys the town first.
    */
   const research = (now: number, builtOut: boolean): void => {
     if (town.research.active) return;
-    const next = [...TECHS]
+    const next = [...open]
       .filter((t) => builtOut || (!t.supplies && !t.fuel))
       .sort((a, b) => a.intel - b.intel || (a.supplies ?? 0) - (b.supplies ?? 0))
       .find((t) => canResearch(town, t.id) === null);
@@ -693,7 +700,7 @@ export function playFortnight(
         mark('CC3', townCc(town).level >= 3 && townCc(town).buildEndsAt === undefined);
         mark('CC3 built out', isBuiltOut(town, 3));
         mark('the nine', nine.every((id) => town.research.completed.includes(id)));
-        mark('the graph', town.research.completed.length === TECHS.length);
+        mark('the doctrine', open.every((t) => town.research.completed.includes(t.id)));
       }
     }
   }
@@ -714,8 +721,8 @@ function fortnightTable(faction: FactionId, days = 14, sessionMinutes = 10): str
   const lines = [
     `A PLAYED FORTNIGHT — ${faction.toUpperCase()}: ${days} days, a ${sessionMinutes}-minute session at a fixed ` +
       `cadence from 07:00 to 23:00, buying production, then storage, intel, the Command Center and the rest, ` +
-      `then the research graph`,
-    'EVERY  | SESSIONS | CC2 BY | CC3 BY | ALL BOUGHT | THE NINE | THE GRAPH | SUPPLIES MADE | BANKED | CONVERTED | ' +
+      `then research, committed to LOGISTICS`,
+    'EVERY  | SESSIONS | CC2 BY | CC3 BY | ALL BOUGHT | THE NINE | THE DOCTRINE | SUPPLIES MADE | BANKED | CONVERTED | ' +
       'LOST FULL | LOST PAST 8H | MADE AFTER THE BUILD-OUT | MADE WITH NOTHING TO BUY',
   ];
   for (const { h, run } of runs) {
@@ -724,7 +731,7 @@ function fortnightTable(faction: FactionId, days = 14, sessionMinutes = 10): str
     lines.push(
       `${pad(h < 1 ? `${h * 60} min` : `${h} h`, 6)} | ${pad(String(run.sessionsPerDay), 8)} | ` +
         `${pad(when(m['CC2']!), 6)} | ${pad(when(m['CC3']!), 6)} | ${pad(when(m['CC3 built out']!), 10)} | ` +
-        `${pad(when(m['the nine']!), 8)} | ${pad(when(m['the graph']!), 9)} | ${pad(k(L.made.supplies), 13)} | ` +
+        `${pad(when(m['the nine']!), 8)} | ${pad(when(m['the doctrine']!), 12)} | ${pad(k(L.made.supplies), 13)} | ` +
         `${pad(pct(L.banked.supplies, L.made.supplies), 6)} | ${pad(pct(L.converted.supplies, L.made.supplies), 9)} | ` +
         `${pad(pct(L.atCap.supplies, L.made.supplies), 9)} | ` +
         `${pad(pct(L.pastOffline.supplies, L.made.supplies), 12)} | ${pad(pct(run.builtOutMade, L.made.supplies), 24)} | ` +
@@ -818,11 +825,52 @@ function worksTable(faction: FactionId): string[] {
   return lines;
 }
 
+/**
+ * THE DOCTRINES (M28 Phase 2): what each gives a built-out CC3 town, and when
+ * the played fortnight's commander has it. Every war buys the nine; the rows
+ * differ only in the three techs past them, and only LOGISTICS's three touch
+ * the economy's rates. The town stands off the board, as the stages do, so
+ * this is the rate before the yard; the works run on what it makes.
+ */
+function doctrineTable(faction: FactionId): string[] {
+  const nine = TECHS.filter((t) => t.tier <= 3).map((t) => t.id);
+  const rows: { label: string; ids: string[]; doctrine?: TechBranch }[] = [
+    { label: 'THE NINE', ids: nine },
+    ...TECH_BRANCHES.map((b) => ({ label: b.toUpperCase(), ids: techsOpenTo(b).map((t) => t.id), doctrine: b })),
+  ];
+  const when = (d: number | null | undefined): string =>
+    d === undefined ? '—' : d === null ? 'never' : `${d.toFixed(1)} d`;
+  const lines = [
+    `THE DOCTRINES — ${faction.toUpperCase()}: a built-out CC3 town with the nine and each doctrine's three, ` +
+      `and the played fortnight's commander committed to each, a session every 2 h`,
+    'DOCTRINE  | MAKES AN HOUR      | THE WORKS MAKE | STORES S/F    | REPAIRS | THE DOCTRINE BY | ITS THREE COST',
+  ];
+  for (const row of rows) {
+    const town = builtOut(faction, 3);
+    town.research.completed = row.ids;
+    const rate = baseRatesPerHour(town);
+    const works = conversionPerHour(town, rate.supplies);
+    const cap = caps(town);
+    const top = TECHS.filter((t) => t.branch === row.doctrine && t.tier > 3);
+    const cost = top.reduce((sum, t) => ({ s: sum.s + (t.supplies ?? 0), f: sum.f + (t.fuel ?? 0) }), { s: 0, f: 0 });
+    const by = row.doctrine ? playFortnight(faction, 2, 14, 10, 'naive', row.doctrine).milestones['the doctrine'] : undefined;
+    lines.push(
+      `${row.label.padEnd(9)} | ${pad(`${rate.supplies} S ${rate.fuel} F ${rate.intel} I`, 18)} | ` +
+        `${pad(`${works.fuel} F ${works.intel} I`, 14)} | ${pad(`${cap.supplies} / ${cap.fuel}`, 13)} | ` +
+        `${pad(`x${effectsOf(row.ids).repairs}`, 7)} | ${pad(when(by), 15)} | ` +
+        (row.doctrine ? `${k(cost.s)} S ${k(cost.f)} F` : '—'),
+    );
+  }
+  return lines;
+}
+
 export function economyTable(faction: FactionId = 'usa'): string {
   return [
     ...stageTable(faction),
     '',
     ...worksTable(faction),
+    '',
+    ...doctrineTable(faction),
     '',
     ...defenceTable(faction),
     '',

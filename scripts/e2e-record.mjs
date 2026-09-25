@@ -154,6 +154,9 @@ try {
   check('and names the formations that took them', /HAMMER/.test(formation), formation);
   const away = await copyLike('While you were away');
   check('the defense counts the war nobody watched', /probe/.test(away), away);
+  // The showcase war has one tech and no doctrine (M28 Phase 2).
+  const doctrine = await copyLike('Doctrine');
+  check('the long game says whether the war has chosen its doctrine', /Doctrine not yet chosen/.test(doctrine), doctrine);
 
   // The overlay is long, and this project has shipped the same overlap bug
   // twice: a block laid out from a guessed line count, drawn over by the next
@@ -172,6 +175,7 @@ try {
       'While you were away',
       'THE LONG GAME',
       'Missions completed',
+      'Doctrine',
     ];
     const all = window.lastline.textRects() ?? [];
     // Scope to the modal layer. The WAR tab behind the scrim has a heading

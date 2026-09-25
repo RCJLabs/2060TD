@@ -401,6 +401,81 @@ try {
   );
   await page.screenshot({ path: `screenshots/e2e-build${isMobile ? '-phone' : ''}.png` });
 
+  // ---- the research board commits the war to a doctrine (M28 Phase 2) ------
+  //
+  // The depot just built becomes a finished Signals Station in the save, and
+  // the war has the nine lower techs and the stores for any of the top three.
+  // The board has to say no doctrine is chosen and what the first tier-4 tech
+  // closes, take two taps to start one, and then read the choice back, with
+  // the other two branches' top tiers closed.
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('lastline_save_v1')).town.research);
+  // The board is longer than a screen: bring an overlay button into its view
+  // before asking for it, as a thumb would scroll to it.
+  const scrollTo = (label) =>
+    page.evaluate((text) => {
+      const hit = [...document.querySelectorAll('[data-ui="overlay"] button')].find((b) =>
+        b.textContent.toUpperCase().includes(text),
+      );
+      hit?.scrollIntoView({ block: 'center' });
+      return Boolean(hit);
+    }, label);
+  // The depot if it was built; if not (the phone's gesture checks can fail
+  // before it is), a station on the free cell the build aimed at.
+  const aimedCell = pickTo ? await page.evaluate(([c, r]) => r * window.lastline.grid().cols + c, pickTo) : -1;
+  await page.evaluate(([cell, aimed]) => {
+    const save = JSON.parse(localStorage.getItem('lastline_save_v1'));
+    let station = save.town.structures.find((s) => s.kind === 'supplyDepot' && s.cell === cell);
+    if (!station) {
+      station = { id: save.town.nextId++, kind: 'radar', cell: aimed, level: 1, wrecked: false };
+      save.town.structures.push(station);
+    }
+    station.kind = 'radar';
+    delete station.buildEndsAt;
+    const nine = ['fortify', 'strike', 'logistics'].flatMap((b) => [1, 2, 3].map((t) => `${b}${t}`));
+    save.town.research = { completed: nine, active: null };
+    save.town.intel = 2000;
+    save.town.supplies = 20000;
+    save.town.fuel = 8000;
+    localStorage.setItem('lastline_save_v1', JSON.stringify(save));
+  }, [added[0]?.cell ?? -1, aimedCell]);
+  await page.reload({ waitUntil: 'networkidle' });
+  await wait(2500);
+  await tap('1 · UNITED STATES', 1800);
+  await openTab('OPS');
+  await tapRow('RESEARCH', 900);
+  check('the research board says no doctrine is chosen yet', await copyHas('DOCTRINE: NONE YET'), '');
+  check(
+    'and what the first tier-4 tech will close',
+    await copyHas('COMMITS THE WAR TO FORTIFY · CLOSES STRIKE AND LOGISTICS ABOVE TIER 3'),
+    '',
+  );
+  await scrollTo('COMMIT');
+  await settle();
+  await tap('COMMIT', 700);
+  const armedResearch = await saved();
+  check(
+    'the first tap on a tier-4 tech only arms it',
+    (await find('TAP AGAIN')) !== null && armedResearch.active === null && armedResearch.doctrine === undefined,
+    JSON.stringify(armedResearch.active),
+  );
+  await tap('TAP AGAIN', 900);
+  const committed = await saved();
+  check(
+    'and the second commits the war to its branch',
+    committed.doctrine === 'fortify' && committed.active?.id === 'fortify4',
+    `${committed.doctrine} · ${committed.active?.id}`,
+  );
+  await tapRow('LAYERED DEFENCE', 900);
+  check('the board names the doctrine', await copyHas('DOCTRINE: FORTIFY'), '');
+  check(
+    'and the other branches read CLOSED past tier 3',
+    await copyHas('CLOSED · THIS WAR IS FORTIFY'),
+    '',
+  );
+  check('nothing on it asks to commit again', (await find('COMMIT')) === null, '');
+  await page.screenshot({ path: `screenshots/e2e-build-doctrine${isMobile ? '-phone' : ''}.png` });
+  await tap('CLOSE', 700);
+
   await browser.close();
   if (errors.length) {
     console.error('page errors:');

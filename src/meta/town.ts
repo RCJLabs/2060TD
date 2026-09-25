@@ -38,7 +38,14 @@ import {
 } from '../content/campaign';
 import { footprintOfKind } from '../content/catalog';
 import { MAP_CELL_SIZE } from '../content/bases';
-import { effectsOf, techPrereqs, TECH_BY_ID, type ResearchEffects } from '../content/research';
+import {
+  effectsOf,
+  isDoctrineTech,
+  techPrereqs,
+  TECH_BY_ID,
+  type ResearchEffects,
+  type TechBranch,
+} from '../content/research';
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
 import { battleRules, PRODUCTION_SURGE, signaturesLive, type MandateId } from '../content/signatures';
@@ -347,6 +354,12 @@ export interface ResearchState {
   completed: string[];
   /** The single in-flight project, if any. */
   active: { id: string; endsAt: number } | null;
+  /**
+   * The war's doctrine (M28 Phase 2): the branch whose tier-4 tech it started
+   * first, fixed for good. Tier 4 and above of the other two are closed to it.
+   * Absent until then.
+   */
+  doctrine?: TechBranch;
 }
 
 export interface RaidRecord {
@@ -1367,7 +1380,7 @@ export function surge(town: TownState, now: number): void {
 
 // ---- research -----------------------------------------------------------------------
 
-export type ResearchError = 'unknown' | 'done' | 'busy' | 'prereq' | 'radar' | 'cost' | null;
+export type ResearchError = 'unknown' | 'done' | 'busy' | 'prereq' | 'radar' | 'cost' | 'doctrine' | null;
 
 /** A functional Signals Station hosts the research program. */
 export function hasRadar(town: TownState): boolean {
@@ -1380,6 +1393,10 @@ export function canResearch(town: TownState, id: string): ResearchError {
   const tech = TECH_BY_ID[id];
   if (!tech) return 'unknown';
   if (town.research.completed.includes(id)) return 'done';
+  // Past the nine, only the war's doctrine (M28 Phase 2): closed for good,
+  // whatever else is true of the town today.
+  const doctrine = town.research.doctrine;
+  if (isDoctrineTech(tech) && doctrine !== undefined && tech.branch !== doctrine) return 'doctrine';
   if (town.research.active) return 'busy';
   if (!hasRadar(town)) return 'radar';
   // Every one of them (M24 Phase 4): the graph's upper tiers need a tech from
@@ -1397,6 +1414,8 @@ export function startResearch(town: TownState, id: string, now: number): boolean
   town.supplies -= tech.supplies ?? 0;
   town.fuel -= tech.fuel ?? 0;
   town.research.active = { id, endsAt: now + tech.seconds * 1000 };
+  // The first tech past the nine is the war's doctrine, for good.
+  if (isDoctrineTech(tech) && town.research.doctrine === undefined) town.research.doctrine = tech.branch;
   return true;
 }
 
