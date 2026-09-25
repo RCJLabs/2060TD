@@ -64,9 +64,23 @@ function span(ms: number): string {
  * that is about to cost. Null when there is nothing behind the front to lose.
  */
 export function clockLine(town: TownState, now: number): { text: string; urgent: boolean } | null {
-  if (town.frontline.tier <= 1) return null;
-  const clock = enemyClock(town, now);
   const enemy = flavorFor(town.faction).enemy;
+  const fl = town.frontline;
+  // At the first town, in a war that has been deeper, the enemy's next move
+  // is on the capital (M25 Phase 4c).
+  const home = theaterFor(town.faction).home;
+  if (fl.lastStand) {
+    return { text: `THE ${enemy} IS MARCHING ON ${home} — THE LAST STAND, LEVEL ${fl.lastStand.level}`, urgent: true };
+  }
+  if (fl.tier <= 1 && (fl.deepest ?? fl.tier) <= 1) return null;
+  const clock = enemyClock(town, now);
+  if (fl.tier <= 1) {
+    if (clock.next === null) return null;
+    const urgent = clock.next - now <= 12 * HOUR;
+    return clock.quiet < QUIET_MS
+      ? { text: `QUIET ${span(clock.quiet)} · THE ${enemy} MARCHES ON ${home} AT ${span(QUIET_MS)}`, urgent }
+      : { text: `QUIET ${span(clock.quiet)} · THE ${enemy} MARCHES ON ${home} IN ${span(clock.next - now)}`, urgent };
+  }
   if (clock.next === null) {
     return {
       text: `QUIET ${span(clock.quiet)} · BOTH STRIKES HAVE LANDED — A RAID STARTS THE CLOCK AGAIN`,
@@ -156,6 +170,7 @@ export function capitalReport(town: TownState, before: CapitalSortie, slot: numb
 
 /** The THEATER row's note: a front short of supply, what is lost behind it, or a strike about to land. */
 export function theaterNote(town: TownState, now: number): string {
+  if (town.frontline.lastStand) return 'LAST STAND · [G]';
   if (nextHungerAt(town, now, productionPerHour(town).supplies) !== null) return 'SHORT · [G]';
   const lost = town.frontline.lost?.length ?? 0;
   if (lost > 0) return `${lost} LOST · [G]`;

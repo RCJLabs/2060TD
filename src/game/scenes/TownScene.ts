@@ -119,6 +119,15 @@ import type { Ink } from '../ink';
 import { buildSettings } from '../settingsOverlay';
 import { buildStructureSpec, buildWallSpec } from '../spec';
 import { buildTheaterMap, theaterNote, type RaidTarget } from '../theaterMap';
+import {
+  applyLastStand,
+  claimLastStand,
+  declineLastStand,
+  lastStandBounty,
+  resolveLapsedLastStand,
+  standConfig,
+  type LastStandResult,
+} from '../../meta/laststand';
 import { frontLabel } from '../../meta/theater';
 import type { EnemyStrike } from '../../meta/strikes';
 import { lineFed, supplyLine } from '../../meta/supply';
@@ -273,7 +282,27 @@ export class TownScene extends Scene {
       const settlement = tick(town, now);
       const placed = settlement.payout.supplies + settlement.payout.fuel;
       const gained = Math.floor(town.supplies + town.fuel) - before - placed;
-      if (settlement.placement) {
+      const march = town.frontline.lastStand;
+      const stoodWhileAway = probes.find((p) => p.lastStand);
+      if (march) {
+        // The enemy at the gates outranks everything: it has a clock on it (M25 Phase 4c).
+        this.setBanner(
+          `THE ${flavorFor(town.faction).enemy} IS MARCHING ON ${theaterFor(town.faction).home} — ` +
+            `LEVEL ${march.level}. DEFEND IT YOURSELF OR LEAVE IT TO THE GARRISON. [SPACE]`,
+          22,
+        );
+        saveTown(town);
+      } else if (stoodWhileAway) {
+        this.setBanner(
+          `WHILE YOU WERE AWAY THE ${flavorFor(town.faction).enemy} MARCHED ON ` +
+            `${theaterFor(town.faction).home}: ` +
+            (stoodWhileAway.held
+              ? 'THE GARRISON HELD IT.'
+              : `IT WAS SACKED — −${stoodWhileAway.suppliesLost} SUP −${stoodWhileAway.fuelLost} FUEL. SEE THE LOG.`),
+          18,
+        );
+        saveTown(town);
+      } else if (settlement.placement) {
         // A closed season outranks everything else that happened while away.
         const record = settlement.placement;
         const paid = [
@@ -365,6 +394,16 @@ export class TownScene extends Scene {
               `LEVEL ${fought.level} BROKE THROUGH.` + (broke() || ' 0 WRECKED — DIG IN.'),
           16,
         );
+      } else if (data.battle?.type === 'laststand') {
+        const fought = data.battle;
+        const stand = this.town.frontline.lastStand ?? {
+          at: fought.at,
+          level: fought.level,
+          seed: fought.config.seed,
+          expiresAt: fought.at,
+        };
+        const result = applyLastStand(this.town, stand, data.outcome, fought.config, now, true);
+        this.setBanner(TownScene.lastStandLine(this.town, result) + broke(), 18);
       } else if (data.battle?.type === 'counter') {
         applyCounterResult(this.town, data.outcome, now);
         this.setBanner(
@@ -832,7 +871,8 @@ export class TownScene extends Scene {
   private launchPrimary(): void {
     // The offer goes first because it is the only one of these with a clock
     // on it. A counterattack waits; an offered defence lands.
-    if (this.town.pendingDefense) this.launchLiveDefense();
+    if (this.town.frontline.lastStand) this.launchLastStand();
+    else if (this.town.pendingDefense) this.launchLiveDefense();
     else if (this.town.frontline.pendingCounterattack) this.launchCounterattack();
     else if (this.nextMission()) this.launchMission();
     else this.launchSkirmish();
@@ -863,6 +903,41 @@ export class TownScene extends Scene {
       faction: this.town.faction,
       ...(this.claimCoach() ? { coach: true } : {}),
     });
+  }
+
+  /**
+   * Make the last stand in person (M25 Phase 4c). Claimed as a live defence
+   * is, so walking out mid-battle leaves it to the garrison on the next load.
+   */
+  private launchLastStand(): void {
+    const stand = this.town.frontline.lastStand;
+    const config = standConfig(this.town);
+    if (this.demoMode || !stand || !config) return;
+    claimLastStand(this.town);
+    saveTown(this.town);
+    this.scene.start('siege', {
+      config,
+      fromTown: true,
+      battle: { type: 'laststand', level: stand.level, at: stand.at, config },
+      faction: this.town.faction,
+    });
+  }
+
+  /** Leave the last stand to the garrison: it is fought now, the whole assault. */
+  private declineLastStandHere(): void {
+    if (this.demoMode || !this.town.frontline.lastStand) return;
+    const result = declineLastStand(this.town, Date.now());
+    if (result) this.setBanner(TownScene.lastStandLine(this.town, result), 16);
+    this.saveSoon();
+  }
+
+  /** One line for a last stand that is over, held or sacked, fought in person or by the garrison. */
+  private static lastStandLine(town: TownState, r: LastStandResult): string {
+    const home = theaterFor(town.faction).home;
+    const who = r.live ? '' : 'THE GARRISON FOUGHT IT. ';
+    return r.held
+      ? `${who}${home} HELD — LEVEL ${r.level} THROWN BACK FROM THE GATES. +${r.bounty.supplies} SUP +${r.bounty.fuel} FUEL.`
+      : `${who}${home} IS SACKED — LEVEL ${r.level} BROKE THROUGH. −${r.suppliesLost} SUP −${r.fuelLost} FUEL.`;
   }
 
   /** Hand it back to the garrison. It resolves now, at the offline price. */
@@ -1048,6 +1123,73 @@ export class TownScene extends Scene {
     ov.footer('LATER', close, 2, 3);
   }
 
+  /**
+   * The last stand (M25 Phase 4c): the enemy has pushed the front back to the
+   * first town and marches on the capital. The same two answers as a live
+   * defence, but the garrison fights the whole assault and can lose it, and
+   * losing it is a sack.
+   */
+  private showLastStandOffer(): void {
+    if (this.overlay) return;
+    const stand = this.town.frontline.lastStand;
+    if (!stand) return;
+    const home = theaterFor(this.town.faction).home;
+    const enemy = flavorFor(this.town.faction).enemy;
+    const bounty = lastStandBounty(stand.level);
+    const ov = createOverlay(this, this.layout, {
+      title: `THE LAST STAND — LEVEL ${stand.level}`,
+      subtitle: `The ${enemy} reaches ${home} in ${untilLabel(Math.max(0, stand.expiresAt - Date.now()))}.`,
+    });
+    this.overlay = ov;
+    const close = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    const { font, gap } = this.layout;
+    ov.paragraph(
+      `The front has been pushed back to the first town, and there is nothing behind it but ${home}. ` +
+        'The war goes on whatever happens here: the question is what it costs.',
+      font.body,
+      COLORS.inkDim,
+      { gapAfter: gap },
+    );
+    ov.flow(gap, 0);
+    ov.paragraph('DEFEND — TAKE THE CONSOLE', font.label, COLORS.signal, { gapAfter: Math.round(gap / 2) });
+    ov.paragraph(
+      `The whole assault, with the town's siege economy behind you. Hold it and the ${enemy} is thrown back ` +
+        `from the gates: +${bounty.supplies} SUP +${bounty.fuel} FUEL and standing.`,
+      font.body,
+      COLORS.ink,
+      { gapAfter: gap },
+    );
+    ov.flow(gap, 0);
+    ov.paragraph('GARRISON — LEAVE IT TO THE ORDERS', font.label, COLORS.ink, { gapAfter: Math.round(gap / 2) });
+    ov.paragraph(
+      'Standing orders fight the same assault, all of it, not a probe’s two waves, and they can lose it.',
+      font.body,
+      COLORS.inkDim,
+      { gapAfter: gap },
+    );
+    ov.flow(gap, 0);
+    ov.paragraph(
+      `Lost either way, ${home} is SACKED: every building that falls is wrecked, 40% of the stores go, and ` +
+        'standing with them. Walking away is the same as GARRISON.',
+      font.body,
+      COLORS.alarm,
+      { gapAfter: gap },
+    );
+    ov.footer('DEFEND', () => {
+      close();
+      this.launchLastStand();
+    }, 0, 3);
+    ov.footer('GARRISON', () => {
+      close();
+      this.declineLastStandHere();
+    }, 1, 3);
+    ov.footer('LATER', close, 2, 3);
+  }
+
   /** Defense log overlay: offline probe history with replays. */
   private showDefenseLog(): void {
     if (this.overlay) return;
@@ -1073,8 +1215,8 @@ export class TownScene extends Scene {
       const when = new Date(entry.at).toISOString().slice(5, 16).replace('T', ' ');
       this.overlayEntry(
         ov,
-        `${when}Z · ${entry.live ? 'DEFENDED' : 'PROBE'} LV ${entry.level} — ` +
-          `${entry.held ? 'HELD' : 'BREACHED'}` +
+        `${when}Z · ${entry.lastStand ? 'LAST STAND' : entry.live ? 'DEFENDED' : 'PROBE'} LV ${entry.level} — ` +
+          `${entry.held ? 'HELD' : entry.lastStand ? 'SACKED' : 'BREACHED'}` +
           `${!entry.held && entry.killer ? ` (CC LOST TO ${entry.killer.toUpperCase()})` : ''}` +
           `\n−${entry.suppliesLost} SUP · −${entry.fuelLost} FUEL` +
           `${entry.orders ? ` · ORDERS: ${entry.orders.toUpperCase()}` : ''}`,
@@ -1092,7 +1234,7 @@ export class TownScene extends Scene {
                 this.scene.start('replay', {
                   config: entry.config,
                   kind: 'defense',
-                  title: `PROBE LV ${entry.level}`,
+                  title: `${entry.lastStand ? 'LAST STAND' : 'PROBE'} LV ${entry.level}`,
                   faction: this.town.faction,
                   backTo: 'town',
                 });
@@ -1404,6 +1546,14 @@ export class TownScene extends Scene {
         `${r.probesBreached} through`,
       r.probesBreached > 0 ? COLORS.alarm : COLORS.inkDim,
     );
+    // The last stand (M25 Phase 4c): the enemy at the capital's gates.
+    if (r.lastStandsHeld > 0 || r.sacks > 0) {
+      line(
+        `Last stands at the capital: ${r.lastStandsHeld} held` +
+          (r.sacks > 0 ? ` · SACKED ${r.sacks === 1 ? 'once' : `${r.sacks} times`}, last on day ${r.sackedDay}` : ''),
+        r.sacks > 0 ? COLORS.alarm : COLORS.inkDim,
+      );
+    }
 
     // ---- the long game -----------------------------------------------------
     this.recordSection(ov, 'THE LONG GAME');
@@ -1762,6 +1912,13 @@ export class TownScene extends Scene {
     // An offer can lapse with the game open — thirty minutes is easily a
     // session. `tick()` above has already moved lastSeen to now, so this
     // sweep resolves the lapsed offer and nothing else.
+    // And a last stand whose window shuts with the game open is the garrison's (M25 Phase 4c).
+    const stand = this.town.frontline.lastStand;
+    if (stand && now >= stand.expiresAt && !this.demoMode) {
+      const result = resolveLapsedLastStand(this.town, now);
+      if (result) this.setBanner(`NO ORDERS CAME — ${TownScene.lastStandLine(this.town, result)}`, 16);
+      saveTown(this.town);
+    }
     const inbound = this.town.pendingDefense;
     if (inbound && now >= inbound.expiresAt && !this.demoMode) {
       const landed = runOfflineProbes(this.town, now);
@@ -2516,6 +2673,20 @@ export class TownScene extends Scene {
     const town = this.town;
     const rows: PanelRow[] = [];
 
+    // The last stand above even the offer: it is the capital (M25 Phase 4c).
+    const stand = town.frontline.lastStand;
+    if (stand) {
+      rows.push(
+        { id: 'hstand', label: 'THE CAPITAL', heading: true },
+        {
+          id: 'laststand',
+          label: `⚠ LAST STAND — LEVEL ${stand.level}`,
+          sub: untilLabel(Math.max(0, stand.expiresAt - Date.now())),
+          enabled: !this.demoMode,
+          onTap: () => this.openOverlay(() => this.showLastStandOffer()),
+        },
+      );
+    }
     // The offer goes above everything, because everything else on this tab
     // will still be here in an hour and this will not.
     const pending = town.pendingDefense;
@@ -2959,6 +3130,8 @@ function makeShowcaseTown(now: number): TownState {
     raids: 14,
     probesHeld: 9,
     probesBreached: 2,
+    lastStandsHeld: 0,
+    sacks: 0,
   };
   town.squads = [
     { xp: 132, raids: 11, clears: 7, lost: 19 },

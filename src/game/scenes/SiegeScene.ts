@@ -31,7 +31,12 @@ export type BattleTag =
    * the town it was built from is about to change underneath it — this
    * battle's identity has to survive the fold that wrecks half of it.
    */
-  | { type: 'defense'; level: number; at: number; config: SimConfig };
+  | { type: 'defense'; level: number; at: number; config: SimConfig }
+  /**
+   * The last stand at the capital (M25 Phase 4c), fought in person. Its own
+   * config for the same reason as a live defence's.
+   */
+  | { type: 'laststand'; level: number; at: number; config: SimConfig };
 
 export interface SiegeLaunchData {
   /** Battle built from the town (meta/town). Absent = standalone. */
