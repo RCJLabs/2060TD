@@ -76,6 +76,7 @@ import {
   type RaidResolution,
   type SectorId,
   type SquadPlan,
+  type StoredPlan,
 } from '../../meta/warfare';
 import {
   OBJECTIVES,
@@ -87,7 +88,9 @@ import {
 } from '../../meta/objectives';
 import { researchEffects } from '../../meta/town';
 import { afterAction, lastRaidOn, type AfterAction } from '../../meta/afteraction';
+import { Counterfactual, storedWithChange, type Change } from '../../meta/counterfactual';
 import { buildAfterActionCard } from '../afterActionCard';
+import { buildWhatIfCard } from '../whatIfCard';
 import { drawHeatMap, heatLegend } from '../heatMap';
 import type { AutoPowerRule } from '../../sim/types';
 import {
@@ -193,6 +196,11 @@ export class RaidScene extends Scene {
   /** Per-formation lines for the battle report; null when nothing was fought. */
   private squadReport: string[] | null = null;
   private lastConfig: ReturnType<typeof raidConfig> | null = null;
+  /**
+   * The plan as launched, for a what-if taken into the plan (M29 Phase 3): the
+   * change is made to this, never to a plan a first what-if already changed.
+   */
+  private foughtPlan: StoredPlan[] | null = null;
   /** Per-power fire plan: timing index into FIRE_TIMES + target class. */
   private firePlans: Record<string, { timeIndex: number; target: 'guns' | 'cc' }> = {};
   /** Tunnel siting mode: the selected squad awaits a map click for its mouth. */
@@ -250,6 +258,7 @@ export class RaidScene extends Scene {
     this.result = null;
     this.squadReport = null;
     this.lastConfig = null;
+    this.foughtPlan = null;
     this.siting = false;
     this.hintUntil = 0;
     this.squads = RaidScene.freshPlan();
@@ -770,6 +779,7 @@ export class RaidScene extends Scene {
     // than after the result so a plan that ends in a wipe is still there to
     // iterate on — which is the whole point of keeping it.
     this.town.lastPlan = storePlan(this.squads);
+    this.foughtPlan = this.town.lastPlan;
     // One clock for the whole resolution: the field condition that shapes the
     // battle, prices the loot and pays the standing must be the same one.
     const now = Date.now();
@@ -1174,25 +1184,10 @@ export class RaidScene extends Scene {
     ov.footer(
       'REPORT',
       () => {
-        const config = this.lastConfig;
-        if (!config) return;
+        if (!this.lastConfig) return;
         ov.close();
         this.overlay = null;
-        const catalog = raidCatalogFor(this.town.faction);
-        this.overlay = buildAfterActionCard(this, afterAction(config, catalog), {
-          layout: this.layout,
-          title: this.base.name,
-          faction: this.town.faction,
-          catalog,
-          unit: (kind) => this.trainMeta[kind]?.short ?? kind,
-          chain: config.killChainVersion !== undefined,
-          onMap: () => this.watchReplay(true),
-          onClose: () => {
-            this.overlay?.close();
-            this.overlay = null;
-            this.showResult(res, standingBefore);
-          },
-        });
+        this.showReport(res, standingBefore);
       },
       1,
       3,
@@ -1200,6 +1195,74 @@ export class RaidScene extends Scene {
     // The raid that won the war goes on to say so (Phase 4b).
     if (wonNow) ov.footer('THE WAR IS WON ▸', () => this.showVictory(), 2, 3);
     else ov.footer('RETURN TO BASE', () => this.goHome(), 2, 3);
+  }
+
+  /** The raid just fought, fought again for its report (M29), which closes back onto its result. */
+  private showReport(res: RaidResolution, standingBefore: number): void {
+    const config = this.lastConfig;
+    if (!config) return;
+    const catalog = raidCatalogFor(this.town.faction);
+    // Only a raid whose plan can be proven from its config can be asked a
+    // what-if (Phase 3); proving it fights nothing.
+    const cf = Counterfactual.of(config, catalog, this.trainable);
+    this.overlay = buildAfterActionCard(this, afterAction(config, catalog), {
+      layout: this.layout,
+      title: this.base.name,
+      faction: this.town.faction,
+      catalog,
+      unit: (kind) => this.trainMeta[kind]?.short ?? kind,
+      chain: config.killChainVersion !== undefined,
+      onMap: () => this.watchReplay(true),
+      ...(cf ? { onWhatIf: () => this.showWhatIf(cf, res, standingBefore) } : {}),
+      onClose: () => {
+        this.overlay?.close();
+        this.overlay = null;
+        this.showResult(res, standingBefore);
+      },
+    });
+  }
+
+  /**
+   * The raid just fought with one thing changed (M29 Phase 3). Back goes to
+   * the report; INTO THE PLAN makes that one change to the plan as launched,
+   * so the planner reopens on it.
+   */
+  private showWhatIf(cf: Counterfactual, res: RaidResolution, standingBefore: number): void {
+    this.overlay?.close();
+    const fought = this.foughtPlan;
+    this.overlay = buildWhatIfCard(this, {
+      layout: this.layout,
+      title: this.base.name,
+      faction: this.town.faction,
+      counterfactual: cf,
+      unitName: (kind) => this.trainMeta[kind]?.name ?? kind,
+      objective: res.objective,
+      chain: cf.config.killChainVersion !== undefined,
+      onWatch: (answer, what) => {
+        this.scene.start('replay', {
+          config: answer.config,
+          kind: 'raid',
+          title: `WHAT IF: ${what.toUpperCase()}`,
+          faction: this.town.faction,
+          backTo: 'raid',
+          backData: { town: this.town },
+          whatIf: true,
+        });
+      },
+      ...(fought
+        ? {
+            onPlan: (change: Change) => {
+              this.town.lastPlan = storedWithChange(fought, change);
+              this.saveSoon();
+            },
+          }
+        : {}),
+      onBack: () => {
+        this.overlay?.close();
+        this.overlay = null;
+        this.showReport(res, standingBefore);
+      },
+    });
   }
 
   /**

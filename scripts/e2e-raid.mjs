@@ -1,7 +1,8 @@
 /**
  * E2E of the offense loop: raid planner → assign units → launch → result
- * overlay → report → watch replay → its heat map → the planner, which keeps
- * the last raid on the post. Runs on ?demo=raid (showcase town).
+ * overlay → report → what-if, taken into the plan → watch replay → its heat
+ * map → a what-if's footage → the planner, which keeps the last raid on the
+ * post and reopens the plan with the change. Runs on ?demo=raid (showcase town).
  *
  * REWRITTEN (v1.21) because it was passing without doing anything. It clicked
  * fixed pixel coordinates and its only assertion was "no page errors", so
@@ -309,6 +310,33 @@ try {
   // Where it happened is the heat map's (Phase 2), and the card leads to it.
   check('and it leads to the map', (await find('ON THE MAP')) !== null, '');
   await page.screenshot({ path: 'screenshots/e2e-raid-report.png' });
+
+  // ---- the what-if (M29 Phase 3) --------------------------------------------
+  // The same raid fought again with one thing changed, on its own dice and
+  // over ten more rolls, as soon as a row picks the change.
+  const asked = await tap('WHAT IF', 1200);
+  const firstAnswer = await copy(/As fought:/);
+  check(
+    'the report asks what one change would have done',
+    asked && /With .*:/.test(firstAnswer) && /more rolls of the dice/.test(firstAnswer),
+    firstAnswer.split('\n')[1] ?? 'no answer',
+  );
+  // One more, one fewer, then the entry sector: HAMMER in by the first other.
+  await tap('CHANGE —', 400);
+  await tap('CHANGE —', 400);
+  const moved = await copy(/As fought:/);
+  check(
+    'and every row that moves fights it again',
+    moved !== firstAnswer && /in by N1/.test(moved),
+    moved.split('\n')[1] ?? 'no answer',
+  );
+  await page.screenshot({ path: 'screenshots/e2e-raid-whatif.png' });
+  // INTO THE PLAN makes that one change to the plan the planner reopens with.
+  await tap('INTO THE PLAN', 600);
+  const taken = await buttonState('IN THE PLAN');
+  check('and the change can be taken into the plan', taken !== null && taken.enabled === false, '');
+  await tap('BACK', 800);
+  check('BACK goes back to the report', /WHAT KILLED THEM/.test((await texts()).join('\n')), '');
   await tap('CLOSE', 800);
   check(
     'closing it goes back to the result',
@@ -335,6 +363,7 @@ try {
     again && /WHAT KILLED THEM/.test((await texts()).join('\n')),
     '',
   );
+  check('and asks its what-ifs too', (await find('WHAT IF')) !== null, '');
   // ON THE MAP closes the card onto the end of the footage, and the footage
   // ends on a verdict, set as written across the top of the board.
   const mapped = await tap('ON THE MAP', 1200);
@@ -356,6 +385,23 @@ try {
   );
   await page.screenshot({ path: 'screenshots/e2e-raid-heat.png' });
 
+  // ---- the footage of a what-if (M29 Phase 3) --------------------------------
+  // WATCH IT plays the raid with the change. Its report asks no what-if of its
+  // own: a what-if is one change from the raid as fought, never two.
+  await tap('AFTER ACTION REPORT', 1200);
+  await tap('WHAT IF', 1200);
+  const watching = await tap('WATCH IT', 1500);
+  const changedPlays =
+    watching && (await until(async () => /REPLAY — WHAT IF:/.test((await texts()).join('\n')), 15000));
+  check('WATCH IT plays the raid with the change', changedPlays, await copy(/REPLAY — /));
+  await tap('AFTER ACTION REPORT', 1200);
+  check(
+    'and its report asks no what-if of its own',
+    /WHAT KILLED THEM/.test((await texts()).join('\n')) && (await find('WHAT IF')) === null,
+    '',
+  );
+  await tap('CLOSE', 600);
+
   // ---- and the planner remembers (M29 Phase 2) -----------------------------
   // Back on the post, the last raid on it is drawn over it, and says how many
   // it lost: the same men the footage marked.
@@ -368,6 +414,9 @@ try {
     ghost ? `${ghost.sub}${ghost.active ? '' : ', off'}` : 'no row',
   );
   await page.screenshot({ path: 'screenshots/e2e-raid-planner-heat.png' });
+  // And the plan reopens with the what-if taken into it.
+  await tap('SQUADS', 600);
+  check('and the plan reopens with the change taken into it', (await find('HAMMER N1')) !== null, '');
 
   await browser.close();
   if (errors.length) {
@@ -379,7 +428,7 @@ try {
     console.error(`\n${failures} raid check(s) failed`);
     process.exitCode = 1;
   } else {
-    console.log('\nRAID OK: a real force planned, launched, reported, replayed and mapped.');
+    console.log('\nRAID OK: a real force planned, launched, reported, replayed, mapped and asked what if.');
   }
 } finally {
   // A stray dev server from an interrupted run leaves this pid invalid; a

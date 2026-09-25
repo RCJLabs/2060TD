@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.64.0, in the browser. No install, no account, works on a phone.
+v1.65.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,27 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.64.0: the heat map
+## Current state — v1.65.0: what if
+
+**Every raid can now be fought again with one thing changed.** Open a raid's report and tap
+WHAT IF, then pick the change: one more or one fewer of a unit in a squad, or a squad's entry
+sector, doctrine or start time. The answer appears straight away:
+
+- **The same raid, with the same luck:** what happened beside what would have happened, whether
+  the post fell, when, and how many men were lost.
+- **Ten more rolls of the dice, for both plans:** how often each would have done the job, and
+  how many men it lost on average. A close raid can go either way, so this is how you tell
+  whether you were unlucky or the plan was wrong.
+
+WATCH IT plays the changed raid. After a raid you have just fought, INTO THE PLAN puts that change
+into the plan the planner opens with next time. A what-if is always one change from the raid you
+fought, never several at once.
+
+Also fixed: a raid that sent two squads in at the same second could replay as a slightly
+different battle, with different losses. Replays of such raids now show the battle that was
+fought, old ones included.
+
+## v1.64.0: the heat map
 
 **Every raid now shows where it bled, on the map.** A red cross marks where each man fell, and a
 red shade covers the ground where the enemy's fire hit your force: the darker, the more of it

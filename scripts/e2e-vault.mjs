@@ -266,6 +266,18 @@ try {
   );
   await page.screenshot({ path: `screenshots/e2e-vault-replay${isMobile ? '-phone' : ''}.png` });
 
+  // A pasted battle can be asked what one change would have done (M29 Phase
+  // 3): its plan is proven from the code alone, men, sectors, starts and all.
+  await tap('AFTER ACTION REPORT', 1200);
+  await tap('WHAT IF', 1200);
+  const answer = (await texts()).find((t) => /As fought:/.test(t)) ?? '';
+  check(
+    'a pasted battle can be asked what one change would have done',
+    /With .*:/.test(answer) && /more rolls of the dice/.test(answer),
+    answer.split('\n')[1] ?? 'no answer',
+  );
+  await page.screenshot({ path: `screenshots/e2e-vault-whatif${isMobile ? '-phone' : ''}.png` });
+
   await browser.close();
   if (errors.length) {
     console.error('PAGE ERRORS:');
@@ -276,7 +288,7 @@ try {
     console.error(`VAULT FAILURES: ${failures.join(', ')}`);
     process.exitCode = 1;
   } else {
-    console.log('VAULT OK: a battle filed, copied out as a string, and played back in.');
+    console.log('VAULT OK: a battle filed, copied out as a string, played back in and asked what if.');
   }
 } finally {
   // A cleanup failure must not masquerade as a test result.

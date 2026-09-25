@@ -84,6 +84,29 @@ describe('a replay code is the battle', () => {
     expect(outcome(back.replay.config, RAID_CATALOG)).toBe(outcome(config, RAID_CATALOG));
   });
 
+  it('re-fights a raid whose squads go in on the same second (v1.65)', () => {
+    // Every squad ordered in at T+0: their men arrive tick for tick, so which
+    // spawns first is the squads' order. The code used to put them back by
+    // kind, and the replay was another battle: fought on 36 raids like this
+    // one, all 36 ended on a different tick, and 7 lost different men.
+    const plan: SquadPlan[] = [
+      { units: { ranger: 2, engineer: 1 }, sector: 'W1', doctrine: 'assault', slot: 0, delay: 0 },
+      { units: { engineer: 1, javelin: 1, ranger: 1 }, sector: 'N1', doctrine: 'hunt', slot: 1, delay: 0 },
+      { units: { abrams: 1 }, sector: 'S1', doctrine: 'assault', slot: 2, delay: 0 },
+    ];
+    for (const [tier, variant] of [
+      [1, 0],
+      [2, 1],
+      [3, 2],
+    ] as const) {
+      const config = raidConfig(generateBase(tier, variant), plan, 7, undefined);
+      const back = decodeReplay(encodeReplay({ kind: 'raid', faction: 'usa', title: 'SAME SECOND', won: true, config }));
+      expect(back.ok).toBe(true);
+      if (!back.ok) return;
+      expect(outcome(back.replay.config, RAID_CATALOG), `tier ${tier}`).toBe(outcome(config, RAID_CATALOG));
+    }
+  });
+
   it('re-fights an offline probe, standing orders and all', () => {
     const config = probeFixture();
     const catalog = defenseCatalogFor('usa');

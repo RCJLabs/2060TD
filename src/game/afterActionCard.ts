@@ -6,7 +6,8 @@
  * just fought and a raid watched again, so the two cannot read differently.
  * It is handed the report (`meta/afteraction.ts`) and the names to read it
  * in, and draws nothing that is not in the report. Where it happened is the
- * heat map's (Phase 2), which ON THE MAP opens.
+ * heat map's (Phase 2), which ON THE MAP opens, and what one change would
+ * have done is the what-if card's (Phase 3), which WHAT IF opens.
  */
 import type { FactionId } from '../content/factions';
 import { squadName } from '../content/veterancy';
@@ -43,6 +44,8 @@ export interface AfterActionCardOptions {
   chain: boolean;
   /** Show where it happened (Phase 2): the replay's heat map, at the battle's end. */
   onMap?: () => void;
+  /** Fight it again with one thing changed (Phase 3); absent where the raid's plan cannot be proven. */
+  onWhatIf?: () => void;
   onClose: () => void;
 }
 
@@ -113,11 +116,11 @@ export function buildAfterActionCard(scene: Scene, report: AfterAction, opts: Af
     });
   }
 
-  if (opts.onMap) {
-    ov.footer('ON THE MAP', opts.onMap, 0, 2);
-    ov.footer('CLOSE', opts.onClose, 1, 2);
-  } else {
-    ov.footer('CLOSE', opts.onClose);
-  }
+  const footers: [string, () => void][] = [
+    ...(opts.onMap ? [['ON THE MAP', opts.onMap] as [string, () => void]] : []),
+    ...(opts.onWhatIf ? [['WHAT IF', opts.onWhatIf] as [string, () => void]] : []),
+    ['CLOSE', opts.onClose],
+  ];
+  footers.forEach(([label, onTap], i) => ov.footer(label, onTap, i, footers.length));
   return ov;
 }

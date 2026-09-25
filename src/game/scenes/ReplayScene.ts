@@ -1,8 +1,10 @@
 import { clamp, Scene, type Graphics } from '../stage';
 import { music } from '../music';
-import { defenseCatalogFor, raidCatalogFor, trainMetaFor, type FactionId } from '../../content/factions';
+import { defenseCatalogFor, raidCatalogFor, trainableFor, trainMetaFor, type FactionId } from '../../content/factions';
 import { afterAction, BattleRecorder } from '../../meta/afteraction';
+import { Counterfactual } from '../../meta/counterfactual';
 import { buildAfterActionCard } from '../afterActionCard';
+import { buildWhatIfCard } from '../whatIfCard';
 import type { OverlayApi } from '../dom/overlay';
 import { DT, Engine } from '../../sim/engine';
 import { OBJECTIVES, isObjectiveId, watchObjective } from '../../meta/objectives';
@@ -29,6 +31,11 @@ export interface ReplayData {
   backData?: object;
   /** Open on the battle's end, heat map and all: the report's ON THE MAP (M29). */
   skip?: boolean;
+  /**
+   * The footage of a what-if (M29 Phase 3). Its report offers no what-if of
+   * its own: every what-if is one change from the raid as fought, never two.
+   */
+  whatIf?: boolean;
 }
 
 /**
@@ -193,6 +200,7 @@ export class ReplayScene extends Scene {
     const faction = this.replay.faction ?? 'usa';
     const catalog = raidCatalogFor(faction);
     const meta = trainMetaFor(faction);
+    const cf = this.replay.whatIf ? null : Counterfactual.of(this.replay.config, catalog, trainableFor(faction));
     this.overlay = buildAfterActionCard(this, afterAction(this.replay.config, catalog), {
       layout: this.layout,
       title: this.replay.title,
@@ -207,9 +215,42 @@ export class ReplayScene extends Scene {
         this.showHeat = true;
         this.skipToEnd();
       },
+      ...(cf ? { onWhatIf: () => this.showWhatIf(cf) } : {}),
       onClose: () => {
         this.overlay?.close();
         this.overlay = null;
+      },
+    });
+  }
+
+  /** This raid with one thing changed (M29 Phase 3); its footage plays here, and BACK is the report. */
+  private showWhatIf(cf: Counterfactual): void {
+    this.overlay?.close();
+    const faction = this.replay.faction ?? 'usa';
+    const meta = trainMetaFor(faction);
+    const objective = this.replay.config.objective;
+    this.overlay = buildWhatIfCard(this, {
+      layout: this.layout,
+      title: this.replay.title,
+      faction,
+      counterfactual: cf,
+      unitName: (kind) => meta[kind]?.name ?? kind,
+      objective: isObjectiveId(objective) ? objective : 'post',
+      chain: this.replay.config.killChainVersion !== undefined,
+      onWatch: (answer, what) => {
+        // From the start, whatever this footage was opened on.
+        this.scene.start('replay', {
+          ...this.replay,
+          config: answer.config,
+          title: `WHAT IF: ${what.toUpperCase()}`,
+          skip: false,
+          whatIf: true,
+        });
+      },
+      onBack: () => {
+        this.overlay?.close();
+        this.overlay = null;
+        this.showReport();
       },
     });
   }

@@ -1399,3 +1399,22 @@ here with the change and its date.
   man fell. It shows the killing ground even on a raid that lost nobody. The last
   raid on a post is found in the vault by its ground and fought again, so the
   planner's map, like the report, adds nothing to the save.
+- 2026-09-25 — **A what-if is one change, fought on the raid's dice and ten more,
+  and free (M29 Phase 3, v1.65.0).** Settled with the commander after measuring:
+  one more unit rarely decides a raid (it flipped the result 2 times in 360
+  tries), a different entry sector or doctrine more often (16 in 504, 5 in 144),
+  so a what-if can change any one thing: a unit added or removed, or one squad's
+  sector, doctrine or start. 7 of 45 raids were coin flips across seeds, so the
+  answer is the changed raid on the raid's own dice beside what happened, and
+  both plans over ten more rolls; a duel's dice are fixed, so a duel's is its
+  one roll. It is free, and never two changes: each is measured from the raid
+  as fought, its footage offers no what-if, and taking one into the plan
+  replaces any taken before. The plan is read off the config and proven by
+  rebuilding the wave it came from, rather than stored.
+- 2026-09-25 — **A replay code puts same-tick men back in squad order (v1.65.0).**
+  The engine spawns men who arrive on the same tick in list order, which in a
+  raid is the squads'; the code's decoder restored them by kind, so a raid with
+  two squads on the same start replayed as a different battle (36 of 36 tried).
+  The wire format is unchanged and the fix is in the decoder alone: a wave with
+  no squads (probes, last stands) decodes exactly as before, and an old code of
+  such a raid now plays the battle that was fought rather than another one.

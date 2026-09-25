@@ -5515,6 +5515,14 @@ and a COUNTERFACTUAL re-sim — "the same raid with one more breacher" — which
 deterministic engine can do for free. This is the cheapest way to make the
 planning half feel like skill, because it teaches.
 
+**Done (v1.65.0).** A raid's result has a report: what killed the force, what
+each squad did, when the chain fell (v1.63.0). The board shows where it bled:
+the replay's heat map, and the last raid on a post drawn over it in the
+planner (v1.64.0). And any one change can be fought again beside the raid as
+fought, on its own dice and over ten more rolls (v1.65.0). On the way, a bug
+older than the milestone: a raid with two squads sent on the same second did
+not replay as the battle it was.
+
 - [x] **Phase 1 — surface what already exists.** `res.losses` carries per-kind
       death attribution and nothing shows it.
 
@@ -5704,8 +5712,106 @@ planning half feel like skill, because it teaches.
       draws it from the start, every man the footage saw fall is marked, and
       back at the planner the post carries the raid just fought. Its check
       on the footage's verdict now gets there by ON THE MAP.
-- [ ] **Phase 3 — the counterfactual.** Re-run with one substitution, diff the
+- [x] **Phase 3 — the counterfactual.** Re-run with one substitution, diff the
       outcome, show both.
+
+      **The plan, from the survey.** *(Written against v1.64.0.)* A raid is its
+      config, and a config is a list of men with arrival ticks, not the plan
+      that wrote it. The save keeps the last plan for exactly that reason:
+      inferring a plan from a config is how a restored plan stops being the
+      one that was written. But a raid's wave is built from its plan by one
+      function (`raidWave`), so an inferred plan can be *proven*: rebuilt
+      into a wave and compared with the one fought. Every squad's men,
+      sector or gallery, doctrine, delay and rank come back exactly, and a
+      battle whose plan does not rebuild its wave gets no what-if at all.
+
+      Measured before designing, on 45 raids (three plans, fifteen posts,
+      twenty seeds each):
+      - *A re-fight costs about 2 ms*, so a what-if can be fought on the tap.
+      - *Most raids are decided before the dice*: 38 of the 45 came out the
+        same on all twenty seeds. The other seven were coin flips, and those
+        are the raids a what-if is for, so one roll alone can mislead.
+      - *One more man rarely decides a raid.* Over ten seeds, one more unit
+        moved the odds by 30 points in 3-10% of tries and flipped the result
+        2 times in 360. A different entry sector flipped it 16 times in 504,
+        a different doctrine 5 in 144, one man fewer 2 in 117, a different
+        start 1 in 216.
+
+      Settled with the commander:
+      - **Any one thing.** Add or remove one unit, or give one squad another
+        entry sector, doctrine or start. Never two: every what-if is the raid
+        as fought with a single change, so it teaches what mattered without
+        becoming a sandbox for testing whole plans. It is free.
+      - **The raid's own dice, and ten more rolls.** The changed raid is fought
+        on the raid's own seed, beside what happened, and both plans are
+        fought on ten more seeds: "as fought, taken 2 of 10; with the change,
+        7 of 10". A duel's dice are fixed by design, so a duel's what-if is
+        the one roll there is.
+
+      The build:
+      - **In the war layer** (`meta/counterfactual.ts`): `planOf(config)`, the
+        plan a config was fought with, or null; one change made to a plan;
+        the config with its wave rebuilt from the changed plan and nothing
+        else touched; and the what-if itself, the two battles compared on
+        this raid's dice and over ten rolls: done or not (the post taken, or
+        the objective met), the time, men lost of men sent, and how far the
+        chain got. Tests: plans round-trip for every kind of squad, a change
+        does one thing, a raid with no change is the same battle, the what-if
+        agrees with `resolveRaid` on both configs, the rolls are the same
+        every time.
+      - **In the report**, WHAT IF beside ON THE MAP opens a card: the squad,
+        the kind of change and the change itself, each a row that cycles,
+        and the answer under them, fought as soon as a row moves. WATCH IT
+        plays the changed raid, heat map and all. On the result of the raid
+        just fought, INTO THE PLAN makes that one change to the plan the
+        planner reopens with: the plan as launched with this change, never
+        a second change on top of a first.
+
+      Not in Phase 3: a what-if on the fire plan, and on defence battles.
+
+      **What Phase 3 found.** *(Shipped in v1.65.0.)* It was built as planned,
+      and the survey found a bug older than the milestone first:
+      - *A raid with two squads sent on the same second did not replay as
+        itself.* The engine spawns men who arrive on the same tick in list
+        order, and in a raid that order is the squads'. A replay code
+        groups men by kind, and its decoder put same-tick men back by kind.
+        So every raid with two squads on the same start (the planner offers
+        it; all three at T+0 is an obvious plan) replayed as another battle:
+        tried on 36 such raids, all 36 ended on a different tick and 7 lost
+        different men. It had been so since starts became a choice (v1.15),
+        and it reached everything built on a stored battle: the vault's
+        footage and its report, the planner's last raid on a post, and the
+        what-if itself. The decoder now puts same-tick men back in squad
+        order. Probes and last stands carry no squads and decode exactly as
+        they did: all 120 probes and 20 last stands tried replay to the same
+        state as before. A test holds the case, and fails on the old decoder.
+      - *The plan is proven, not inferred.* `planOf` rebuilt every plan
+        tried, galleries, ranks and starts included, from the config as
+        fought and from a code out of the vault; move one man by a tick, or
+        leave a gallery unaccounted for, and there is no what-if.
+      - *The answer, as planned.* The plan as fought is fought on its ten
+        rolls once a card, then each change is eleven fights, a few dozen
+        milliseconds on a tap. A duel's what-if is its one roll, and says so.
+      - *Never two changes.* The footage of a what-if (WATCH IT) offers no
+        what-if of its own, and INTO THE PLAN makes its change to the plan
+        as launched, so taking a second replaces the first.
+
+      *The gate.* 825 unit tests, 12 of them new: the plan round-tripping
+      and refused when it cannot be proven, a change doing one thing, a
+      squad emptied staying home, the choices, the what-if against
+      `resolveRaid` on both configs, only the wave changing, the rolls the
+      same every time, a duel with none, the plan taken without stacking,
+      and the same-second replay. No file in `src/sim` changed. The raid
+      harness has eight new checks: the report asks what if, every row
+      that moves fights it again, INTO THE PLAN, BACK to the report, the
+      footage's report asks too, WATCH IT plays the changed raid, whose
+      report asks nothing, and the planner reopens with the change. The
+      vault harness asks a pasted battle what if.
+
+      *Left as found.* The vault harness's phone pass (`VIEWPORT=
+      phone-portrait`, not part of the gate) stops at the planner's muster,
+      on v1.64.0 as well; the what-if card was checked on a phone by pasting
+      a code instead.
 
 ## M30 — "Render": stop paying 1.48 MB for a Graphics list
 

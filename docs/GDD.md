@@ -1172,6 +1172,23 @@ shows the killing ground even on a raid that lost nobody. It is on in two places
 It began as the time men were held at the wire. Raids hardly spend any (none in two raids of
 three, measured), so the shade is where they were hit.
 
+**What if** *(v1.65)*. The report's WHAT IF fights the raid again with one thing changed: one
+more or one fewer of a unit in a squad, or one squad's entry sector, doctrine or start. Three
+rows pick the change, and the answer is fought as soon as one moves:
+
+- **On the raid's own dice**, beside what happened: did it take the post (or do what it came
+  for), when, and how many of how many were lost; a repulse says where the chain stalled.
+- **Over ten more rolls**, both plans: how often each did the job and the men it lost on
+  average, because a close raid can come out either way on one roll. A duel's dice are fixed,
+  so a duel's what-if is its one roll.
+
+WATCH IT plays the changed raid, heat map and all. On the raid just fought, INTO THE PLAN makes
+the change to the plan the planner reopens with. A what-if is free, and always one change from
+the raid as fought, never two: its footage offers no what-if of its own, and a second change
+taken into the plan replaces the first. The plan is read off the battle's config and proven by
+rebuilding the config from it, so any raid in the vault can be asked, and one whose plan does
+not rebuild exactly is not offered.
+
 ### 5.7 Offline probes
 
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).

@@ -631,7 +631,17 @@ export function decodeReplay(raw: string): ReplayDecode {
           });
         }
       }
-      entries.sort((a, b) => a.atTick - b.atTick || a.kind.localeCompare(b.kind));
+      // Men who arrive on the same tick spawn in list order, and in a raid that
+      // order is the squads': `raidWave` writes a whole squad before the next,
+      // so two squads ordered in at the same second meet tick for tick, the
+      // earlier slot first. The wire groups men by kind and forgets it, and
+      // until v1.65 this put them back by kind, which re-fought any raid with
+      // two squads on the same second as a different battle. Squad first, then
+      // kind: a wave with no squads (a probe, a last stand) comes back exactly
+      // as it always has.
+      entries.sort(
+        (a, b) => a.atTick - b.atTick || (a.squad ?? -1) - (b.squad ?? -1) || a.kind.localeCompare(b.kind),
+      );
       waves.push({ entries });
     }
     config.siege = {
