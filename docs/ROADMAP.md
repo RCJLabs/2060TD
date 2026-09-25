@@ -5464,6 +5464,23 @@ problem.
       burning wrecks with their own bars, for the second or three the
       assault takes to finish them off.
 
+      **v1.62.1, from that browser pass.** Three things it turned up:
+      - *The deploy tab offered what the battle would refuse.* A field
+        defence the town had not unlocked (a limit of 0) read as buyable,
+        and a tap on the board did nothing. The engine answers how many
+        more of a kind its limits allow (`buildRoom`), both placing checks
+        use it, and the row reads LOCKED or NONE LEFT.
+      - *That showed the campaign's first two missions could deploy only
+        the anti-air team.* Mission 2 is the one that teaches spending CP,
+        and the MG and the foxhole it needs were its reward. The commander
+        chose to move each field unlock a mission earlier, in all five
+        campaigns: the MG and the foxhole with mission 1, the claymore and
+        the HESCO with mission 2. A save grants every cleared mission's
+        requisition on load, so a war part-way through gets them.
+      - *A hulk's fall buried it.* `structureDestroyed` says when the
+        emplacement burns on, and that fall gets a smaller word above it and
+        a shorter burst, so the wreck is visible for most of its life.
+
 ## M27 — "The Other Commander": asynchronous PvP for real
 
 Share codes are a boast with no consequences. Make them a system: matchmaking by

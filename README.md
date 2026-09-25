@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.62.0, in the browser. No install, no account, works on a phone.
+v1.62.1, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,20 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.62.0: five nations, five different games
+## Current state — v1.62.1: field guns one mission sooner, and fixes
+
+- **The machine gun and the foxhole come one mission sooner**, with mission 1's reward, so mission 2
+  ("learn to spend Command Points") has something to spend them on. Claymores and HESCOs move up
+  with them, to mission 2's reward. A campaign already under way gets whatever its cleared missions
+  now give the next time it loads.
+- **The battle's deploy list tells the truth.** A field defence you haven't unlocked yet reads
+  LOCKED, and one you've used up reads NONE LEFT, instead of looking buyable and doing nothing when
+  you tap the board.
+- **Russia's burning hulks are easier to see.** When an emplacement falls and burns on, its
+  explosion word is smaller, sits above it and clears sooner, so the wreck stays visible for the
+  second or three it lasts under fire.
+
+## v1.62.0: five nations, five different games
 
 **Each nation's signature rule is switched on,** with what you need to see it and use it:
 

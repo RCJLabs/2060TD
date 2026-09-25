@@ -103,6 +103,30 @@ describe('M2 engine: town layouts, levels, charges, limits, salvage', () => {
     expect(e.grid.walls.size).toBe(2);
   });
 
+  it('says how many more each limit leaves, and that a locked kind leaves none', () => {
+    const e = makeSandbox(42, {
+      siege: { ...MINI_SIEGE, startingSupplies: 1000 },
+      buildLimits: { structures: { m2nest: 2, foxhole: 0, hesco: 0 }, walls: 3 },
+    });
+    expect(e.buildRoom('m2nest')).toBe(2);
+    expect(e.buildRoom('foxhole')).toBe(0); // a 0 entry: not unlocked
+    expect(e.buildRoom('hesco')).toBe(0); // a wall kind's own entry
+    expect(e.buildRoom('wall')).toBe(3); // the town's allowance of segments
+    expect(e.buildRoom('depmg')).toBeNull(); // nothing limits it
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: e.grid.idx(5, 5), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'placeWall', cell: e.grid.idx(3, 3), kind: 'wall' });
+    e.run(1);
+    expect(e.buildRoom('m2nest')).toBe(1);
+    expect(e.buildRoom('wall')).toBe(2);
+    // Placing checks the same count the screen reads.
+    expect(e.canPlaceStructure('m2nest', e.grid.idx(7, 7))).toBe(true);
+    e.enqueue({ tick: e.tick, type: 'placeStructure', cell: e.grid.idx(7, 7), kind: 'm2nest' });
+    e.run(1);
+    expect(e.buildRoom('m2nest')).toBe(0);
+    expect(e.canPlaceStructure('m2nest', e.grid.idx(9, 9))).toBe(false);
+    expect(makeSandbox(42, { siege: MINI_SIEGE }).buildRoom('m2nest')).toBeNull();
+  });
+
   it('tunnel entries spawn attackers inside the map, with blocked-mouth fallback', () => {
     const tunnelSiege: SiegeDef = {
       ...MINI_SIEGE,

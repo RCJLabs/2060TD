@@ -1370,3 +1370,13 @@ here with the change and its date.
   battle, by the rule that placed them, which moved Russia's CC3 from 18 to 16.
   The tutorial's CP lesson waits for a field gun's price where the USA's kit
   makes it more than twenty.
+- 2026-09-25 — **Each field defence unlocks a mission earlier (v1.62.1).** In every
+  campaign the first two missions could deploy only the anti-air team, and the
+  second is the one that teaches spending CP: the MG and the foxhole it needs were
+  its reward, and the claymore and the HESCO the third's. It went unseen because
+  the battle offered the locked kinds as buyable and quietly refused them, until
+  the deploy tab learned to say LOCKED. The commander chose to move each a
+  mission earlier over letting a mission lend its own reward for the fight: the
+  MG and the foxhole come with mission 1, the claymore and the HESCO with
+  mission 2. A save grants every cleared mission's requisition on load, so a war
+  part-way through gets what its missions give now.

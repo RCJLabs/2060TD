@@ -206,8 +206,12 @@ export class BattleRenderer {
           break;
         }
         case 'structureDestroyed':
-          this.effects.push({ kind: 'structBoom', x: event.at.x, y: event.at.y, age: 0, life: 0.9 });
-          this.shout('structBoom', event.at.x, event.at.y, 1, 1.25);
+          // A fall that leaves a hulk (M26) is marked briefly, with a smaller
+          // word above it: under a real assault a hulk lasts a second or three,
+          // and the full-size boom sat on it for most of that.
+          this.effects.push({ kind: 'structBoom', x: event.at.x, y: event.at.y, age: 0, life: event.hulk ? 0.45 : 0.9 });
+          if (event.hulk) this.shout('structBoom', event.at.x, event.at.y - 0.9, 0.6, 0.75);
+          else this.shout('structBoom', event.at.x, event.at.y, 1, 1.25);
           this.barrelDirs.delete(event.id);
           audio.sfx('structureDown');
           break;

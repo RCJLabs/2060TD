@@ -340,6 +340,15 @@ export function deserialize(json: string): TownState | null {
     if (town.unlocked.includes('cc2') && !town.unlocked.includes('generator')) {
       town.unlocked.push('generator');
     }
+    // Every cleared mission has given its requisition, as the campaign gives
+    // it now. The order moved in v1.62.1: the MG and the foxhole come a
+    // mission earlier, so the mission that teaches spending CP has something
+    // to spend it on, and a war part-way through gets them on this load.
+    const cleared = Array.isArray(town.campaign.completed) ? town.campaign.completed : [];
+    for (const mission of campaignFor(town.faction)) {
+      if (!cleared.includes(mission.id)) continue;
+      for (const key of mission.unlocks) if (!town.unlocked.includes(key)) town.unlocked.push(key);
+    }
     normalizeLadder(town);
     return town;
   } catch {

@@ -467,13 +467,14 @@ export class SiegeScene extends Scene {
     return held;
   }
 
-  /** The cheapest field gun on the deploy tab, at this battle's price. */
+  /** The cheapest field gun on the deploy tab that this battle lets the town place, at its price. */
   private cheapestGun(): number {
     const e = this.engine;
     let best = Infinity;
     for (const kind of COMBAT_TOOL_KEYS) {
       const cpCost = e.catalog.structures[kind]?.cpCost;
-      if (cpCost !== undefined) best = Math.min(best, e.fieldPrice(cpCost));
+      const room = e.buildRoom(kind);
+      if (cpCost !== undefined && (room === null || room > 0)) best = Math.min(best, e.fieldPrice(cpCost));
     }
     return Number.isFinite(best) ? best : 0;
   }
@@ -559,13 +560,19 @@ export class SiegeScene extends Scene {
     const cpPriced = cpCost === undefined ? undefined : isWall ? e.cpPrice(cpCost) : e.fieldPrice(cpCost);
     const cost = cpPriced !== undefined ? `${cpPriced} CP` : `${supplyCost ?? 0} SUP`;
     const affordable = cpPriced !== undefined ? e.cp >= cpPriced : e.supplies >= (supplyCost ?? 0);
+    // What this battle's limits leave: none of a kind the town has not
+    // unlocked, and the town's count for its post. A row that cannot be used
+    // says why, rather than taking a tap the battle will refuse.
+    const room = e.buildRoom(kind);
+    const spent = room !== null && room <= 0;
+    const locked = spent && e.config.buildLimits?.structures?.[kind] === 0;
     const armed =
       this.tool !== null && 'kind' in this.tool && this.tool.kind === kind && this.tool.type !== 'power';
     return {
       id: kind,
       label: `${def.name.toUpperCase()} [${key}]`,
-      sub: cost,
-      enabled: affordable,
+      sub: locked ? 'LOCKED' : spent ? 'NONE LEFT' : cost,
+      enabled: affordable && !spent,
       active: armed,
       onTap: () => this.setTool(isWall ? { type: 'wall', kind } : { type: 'structure', kind }),
     };

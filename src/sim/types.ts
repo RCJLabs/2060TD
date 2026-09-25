@@ -600,7 +600,8 @@ export type SimEvent =
   | { type: 'strafePulse'; x0: number; x1: number; y: number }
   | { type: 'wallDestroyed'; cell: CellIndex }
   | { type: 'gateToggled'; cell: CellIndex; open: boolean }
-  | { type: 'structureDestroyed'; id: number; kind: string; at: Vec2 }
+  /** `hulk`: it burns on where it fell (M26, Overbuilt) rather than going. */
+  | { type: 'structureDestroyed'; id: number; kind: string; at: Vec2; hulk?: true }
   /** A field defence that lived through its wave paid back its share (M26, Rapid Response). */
   | { type: 'refund'; id: number; at: Vec2; cp: number }
   /** A garrison order landed a reserve on the board (v1.20). */

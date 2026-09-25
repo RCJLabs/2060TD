@@ -8,6 +8,7 @@ import {
   scaleWaves,
 } from '../src/content/campaign';
 import { M1_CATALOG } from '../src/content/catalog';
+import { campaignFor, FACTION_IDS } from '../src/content/factions';
 import { TOWN_META } from '../src/content/buildings';
 import { deserialize, serialize } from '../src/meta/save';
 import { onBoard } from '../src/sim/board';
@@ -166,6 +167,33 @@ describe('campaign progression', () => {
     expect(town.campaign.next).toBe(0);
     expect(town.defeats).toBe(1);
     expect(isUnlocked(town, 'storageBunker')).toBe(false);
+  });
+
+  it('the mission that teaches spending CP has field guns to spend it on, in every campaign (v1.62.1)', () => {
+    const usable = (town: ReturnType<typeof newTown>, index: number): string[] => {
+      const limits = missionConfig(town, campaignFor(town.faction)[index]!, 1).buildLimits!.structures!;
+      return ['depmg', 'foxhole', 'claymore', 'hesco'].filter((k) => limits[k] !== 0);
+    };
+    for (const faction of FACTION_IDS) {
+      const town = newTown(T0, faction);
+      const missions = campaignFor(faction);
+      expect(usable(town, 0), faction).toEqual([]);
+      applyMissionResult(town, missions[0]!, outcomeOf(true), T0);
+      expect(usable(town, 1), faction).toEqual(['depmg', 'foxhole']);
+      applyMissionResult(town, missions[1]!, outcomeOf(true), T0);
+      expect(usable(town, 2), faction).toEqual(['depmg', 'foxhole', 'claymore', 'hesco']);
+    }
+  });
+
+  it('a war cleared past a mission under the old order gets what that mission gives now, on load', () => {
+    const town = newTown(T0, 'russia');
+    town.campaign.completed = [campaignFor('russia')[0]!.id];
+    town.campaign.next = 1;
+    town.unlocked = town.unlocked.filter((k) => k !== 'depmg' && k !== 'foxhole');
+    town.unlocked.push('storageBunker');
+    const back = deserialize(serialize(town))!;
+    expect(back.unlocked).toEqual(expect.arrayContaining(['storageBunker', 'depmg', 'foxhole']));
+    expect(back.unlocked).not.toContain('claymore');
   });
 
   it('replaying a cleared mission never re-grants or re-advances', () => {

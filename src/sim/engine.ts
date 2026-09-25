@@ -2363,14 +2363,16 @@ export class Engine {
         this.dropStructure(structure);
         continue;
       }
+      const hulk = this.hulkRule !== null && this.canHulk(structure);
       events.push({
         type: 'structureDestroyed',
         id: structure.id,
         kind: structure.profile.kind,
         at: { ...structure.center },
+        ...(hulk ? { hulk: true as const } : {}),
       });
       this.stats.structuresLost++;
-      if (this.hulkRule && this.canHulk(structure)) {
+      if (hulk && this.hulkRule) {
         // Overbuilt (M26): it burns on where it stood, a fraction of what it
         // was, and the path through it stays shut until it is gone.
         const hp = structure.profile.maxHp * this.hulkRule.strength;
@@ -2446,24 +2448,50 @@ export class Engine {
   canPlaceWall(kind: string, cell: CellIndex): boolean {
     const def = this.catalog.walls[kind];
     if (!def) return false;
-    // Town wall allowance gates Supplies walls only; HESCOs are battle-layer.
-    if (def.supplyCost !== undefined && this.config.buildLimits?.walls !== undefined) {
-      let supplyWalls = 0;
-      for (const wall of this.grid.walls.values()) {
-        if (this.catalog.walls[wall.kind]?.supplyCost !== undefined) supplyWalls++;
-      }
-      if (supplyWalls >= this.config.buildLimits.walls) return false;
-    }
-    // Per-kind limits also cover wall kinds (a 0 entry = not yet unlocked).
-    const kindLimit = this.config.buildLimits?.structures?.[kind];
-    if (kindLimit !== undefined) {
-      let count = 0;
-      for (const wall of this.grid.walls.values()) {
-        if (wall.kind === kind) count++;
-      }
-      if (count >= kindLimit) return false;
-    }
+    const room = this.buildRoom(kind);
+    if (room !== null && room <= 0) return false;
     return this.affords(def) && this.isBuildable(cell);
+  }
+
+  /**
+   * How many more of `kind` this battle's limits allow, or null where nothing
+   * limits it: the town's count for its command post, none of a kind it has
+   * not unlocked (a 0 entry), and for a Supplies wall the town's allowance of
+   * segments. Placing checks it, and the battle screen reads it to say LOCKED
+   * rather than offer a row that cannot be used.
+   */
+  buildRoom(kind: string): number | null {
+    const limits = this.config.buildLimits;
+    if (!limits) return null;
+    const wall = this.catalog.walls[kind];
+    if (wall) {
+      let room: number | null = null;
+      // Town wall allowance gates Supplies walls only; HESCOs are battle-layer.
+      if (wall.supplyCost !== undefined && limits.walls !== undefined) {
+        let supplyWalls = 0;
+        for (const w of this.grid.walls.values()) {
+          if (this.catalog.walls[w.kind]?.supplyCost !== undefined) supplyWalls++;
+        }
+        room = limits.walls - supplyWalls;
+      }
+      // Per-kind limits also cover wall kinds (a 0 entry = not yet unlocked).
+      const kindLimit = limits.structures?.[kind];
+      if (kindLimit !== undefined) {
+        let count = 0;
+        for (const w of this.grid.walls.values()) {
+          if (w.kind === kind) count++;
+        }
+        room = Math.min(room ?? Infinity, kindLimit - count);
+      }
+      return room;
+    }
+    const limit = limits.structures?.[kind];
+    if (limit === undefined) return null;
+    let count = 0;
+    for (const s of this.structures) {
+      if (s.profile.kind === kind) count++;
+    }
+    return limit - count;
   }
 
   canPlaceStructure(kind: string, cell: CellIndex): boolean {
@@ -2474,14 +2502,8 @@ export class Engine {
         ? this.canBuildField && this.cp >= this.fieldPrice(profile.cpCost)
         : this.affords(profile);
     if (!affordable) return false;
-    const limit = this.config.buildLimits?.structures?.[kind];
-    if (limit !== undefined) {
-      let count = 0;
-      for (const s of this.structures) {
-        if (s.profile.kind === kind) count++;
-      }
-      if (count >= limit) return false;
-    }
+    const room = this.buildRoom(kind);
+    if (room !== null && room <= 0) return false;
     const cells = this.footprintCells(cell, profile.footprint);
     return cells !== null && cells.every((c) => this.isBuildable(c));
   }

@@ -164,7 +164,8 @@ describe('Overbuilt (Russia): a destroyed emplacement burns on as a hulk', () =>
     const version = e.grid.version;
     nest.hp = 0;
     const events = e.step();
-    expect(events).toContainEqual(expect.objectContaining({ type: 'structureDestroyed', id: nest.id }));
+    // Says so, for the board to mark the fall without burying the hulk.
+    expect(events).toContainEqual(expect.objectContaining({ type: 'structureDestroyed', id: nest.id, hulk: true }));
     expect(e.structureAt(idx(20, 12))).toBe(nest);
     expect(nest.hulk).toBeDefined();
     expect(nest.hp).toBeCloseTo(nest.profile.maxHp * HULK.strength, 9);
@@ -227,14 +228,17 @@ describe('Overbuilt (Russia): a destroyed emplacement burns on as a hulk', () =>
     field.enqueue({ tick: field.tick, type: 'placeStructure', cell: idx(10, 5), kind: 'foxhole' });
     field.run(1);
     field.structureAt(idx(10, 5))!.hp = 0;
-    field.step();
+    const fell = field.step().find((ev) => ev.type === 'structureDestroyed');
     expect(field.structureAt(idx(10, 5))).toBeUndefined();
+    expect(fell).toBeDefined();
+    expect(fell).not.toHaveProperty('hulk');
 
     const plain = sandbox(null);
     plain.structureAt(idx(20, 12))!.hp = 0;
-    plain.step();
+    const gone = plain.step().find((ev) => ev.type === 'structureDestroyed');
     expect(plain.structureAt(idx(20, 12))).toBeUndefined();
     expect(plain.stats.hulks).toBeUndefined();
+    expect(gone).not.toHaveProperty('hulk');
   });
 
   it('collapses when the wave is beaten, so nothing burning is repaired or carried', () => {
