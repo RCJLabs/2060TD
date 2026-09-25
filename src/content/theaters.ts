@@ -218,3 +218,24 @@ export const STRIKE_ORDER: readonly number[] = [0, 1, 2];
 export const SUPPLY_PER_RUNG = 5;
 /** How long a wholly unfed front holds before the enemy retakes a sector; half fed, twice as long. */
 export const HUNGER_MS = DAY_MS;
+
+// ---- the last stand (M25 Phase 4c) ------------------------------------------------
+
+/**
+ * The assault that marches on a commander's capital, by faction and the level
+ * of the town's command post: the lowest level at which that faction's
+ * reference town of that size, its permanent defences left to themselves,
+ * holds the whole assault within fifteen points of half the time, or failing
+ * that the level it holds nearest half (`npm run balance -- --laststand`). So
+ * what the commander does decides it. By faction, because each fights a
+ * different enemy's assault: Russia's CC3 town holds three quarters of level
+ * 18, where the KPA's holds none of level 12. A CC1 town's band is one level
+ * wide, the same for all five.
+ */
+export const LAST_STAND_LEVEL: Readonly<Record<FactionId, Readonly<Record<number, number>>>> = {
+  usa: { 1: 3, 2: 8, 3: 12 },
+  china: { 1: 3, 2: 7, 3: 11 },
+  russia: { 1: 3, 2: 9, 3: 18 },
+  nk: { 1: 3, 2: 7, 3: 10 },
+  un: { 1: 3, 2: 7, 3: 11 },
+};

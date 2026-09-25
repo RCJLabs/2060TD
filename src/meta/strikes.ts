@@ -14,7 +14,8 @@
  * road first, and only when every road is cut does it take what is left of the
  * town. When all three of that town's sectors are lost, the front falls back to
  * it. At the first rung there is nothing behind the front but the base, and the
- * base is never taken.
+ * base is never taken: in a war whose front has been deeper, the enemy marches
+ * on it instead, and the commander makes a last stand (`laststand.ts`).
  *
  * Every function takes an explicit `now`, and charging is idempotent at it, as
  * the decay's is: `tick()` charges the clock on every load and every frame.
@@ -26,6 +27,7 @@ import {
   STRIKES_PER_QUIET,
 } from '../content/theaters';
 import type { FrontlineState, LostSector, TownState } from './town';
+import { canMarch, marchOnCapital } from './laststand';
 
 /** A strike that landed: which sector the enemy retook, and when. */
 export interface EnemyStrike {
@@ -94,8 +96,11 @@ export function landStrike(
   const lost = [...lostSectors(fl), { tier: rear, slot, at }];
   if (STRIKE_ORDER.every((s) => lost.some((l) => l.tier === rear && l.slot === s))) {
     // The whole town behind the front is the enemy's again: the front falls
-    // back to it, and its pushes start again from none. A front at the enemy's
-    // capital loses the roads it had taken into it (M25 Phase 4b).
+    // back to it, and its pushes start again from none, and at the enemy's
+    // capital the roads it had taken into it (M25 Phase 4b). How deep it had
+    // gone is remembered: a war pushed back to the first town from further up
+    // can be marched on (M25 Phase 4c).
+    fl.deepest = Math.max(fl.deepest ?? fl.tier, fl.tier);
     fl.tier = rear;
     fl.wins = 0;
     delete fl.roads;
@@ -127,6 +132,9 @@ export function chargeStrikes(town: TownState, now: number): EnemyStrike[] {
     if (at > now) break;
     const strike = landStrike(fl, at);
     if (strike) struck.push(strike);
+    // Nothing left behind the front to take, in a war that has been deeper:
+    // the enemy marches on the capital (M25 Phase 4c).
+    else if (canMarch(town)) marchOnCapital(town, at, now);
   }
   fl.pressedAt = now;
   return struck;
@@ -156,7 +164,9 @@ export interface EnemyClock {
 export function enemyClock(town: TownState, now: number): EnemyClock {
   const fl = town.frontline;
   const quiet = Math.max(0, now - fl.activeAt);
-  if (fl.tier <= 1) return { quiet, next: null };
+  // Nothing behind the first town to take, unless the war has been deeper
+  // and the enemy can march on the capital instead (M25 Phase 4c).
+  if (fl.tier <= 1 && (fl.deepest ?? fl.tier) <= 1) return { quiet, next: null };
   const next = strikeTimes(fl).find((at) => at > now && at > (fl.pressedAt ?? now));
   return { quiet, next: next ?? null };
 }

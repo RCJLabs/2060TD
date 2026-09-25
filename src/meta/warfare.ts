@@ -65,6 +65,7 @@ import { creditContracts } from './contracts';
 import { chargeStrikes, retakeSector } from './strikes';
 import { canFeedNext } from './supply';
 import { atCapital, winAtCapital } from './capital';
+import { resolveLapsedLastStand } from './laststand';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -869,6 +870,8 @@ export function applyRaidResult(
     }
     // Every second cleared post triggers a counterattack on your base.
     if (frontline.totalWins % 2 === 0) frontline.pendingCounterattack = true;
+    // A front back at its deepest needs no reminder of it (M25 Phase 4c).
+    if (frontline.deepest !== undefined && frontline.tier >= frontline.deepest) delete frontline.deepest;
   }
   // The board moves either way (M7): a rung pays standing at today's rate, a
   // failed raid costs it. Both count as playing, so the decay grace resets.
@@ -1242,6 +1245,9 @@ export function declineLiveDefense(town: TownState, now: number): DefenseLogEntr
 
 export function runOfflineProbes(town: TownState, now: number): DefenseLogEntry[] {
   const ran: DefenseLogEntry[] = [];
+  // A march on the capital whose window shut while nobody answered is the
+  // garrison's to fight (M25 Phase 4c), before the probes: it came first.
+  if (resolveLapsedLastStand(town, now)) ran.push(town.defenseLog[0]!);
   // An offer the player walked away from is still an attack. It lands, at the
   // full cost of a probe nobody was there for.
   const pending = town.pendingDefense;

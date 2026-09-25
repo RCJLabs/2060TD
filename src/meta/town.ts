@@ -22,6 +22,7 @@ import {
   CHARGE_CAP,
   CHARGE_PRICES,
   DEFEAT_LOSS_FRACTION,
+  SACK_LOSS_FRACTION,
   OFFLINE_CAP_HOURS,
   STARTING_FUEL,
   STARTING_SUPPLIES,
@@ -193,6 +194,31 @@ export interface FrontlineState {
   roads?: number[];
   /** When the citadel fell and the war was won (epoch ms). Absent until it is. */
   wonAt?: number;
+  /**
+   * The deepest rung the front has reached, kept once it has fallen back from
+   * it (M25 Phase 4c); absent while the front stands at its deepest. A war
+   * whose front was never past the first town cannot be marched on: there is
+   * no retreat to have been pushed back along.
+   */
+  deepest?: number;
+  /** The enemy marching on the capital, waiting on the commander's answer (M25 Phase 4c). */
+  lastStand?: LastStand;
+}
+
+/**
+ * The last stand (M25 Phase 4c): the enemy has pushed the front back to the
+ * first town and marches on the capital. Offered like a live defence, and
+ * answered the same two ways.
+ */
+export interface LastStand {
+  /** When the march was sounded: the quiet spell's strike that found nothing left to take. */
+  at: number;
+  /** The assault's level, by the town's command post (`LAST_STAND_LEVEL`). */
+  level: number;
+  /** The battle's seed: defending in person fights this exact assault. */
+  seed: number;
+  /** Past this, the garrison fights it, on the next load or the next frame. */
+  expiresAt: number;
 }
 
 /** A sector behind the front that the enemy holds again (M25 Phase 2). */
@@ -232,6 +258,12 @@ export interface WarLog {
   probesHeld: number;
   /** Offline probes that reached the command post. */
   probesBreached: number;
+  /** Last stands at the capital that held (M25 Phase 4c). */
+  lastStandsHeld: number;
+  /** Last stands lost: the times the capital was sacked. */
+  sacks: number;
+  /** When it was last sacked (epoch ms), for the record. */
+  sackedAt?: number;
 }
 
 export const newWarLog = (now: number): WarLog => ({
@@ -239,6 +271,8 @@ export const newWarLog = (now: number): WarLog => ({
   raids: 0,
   probesHeld: 0,
   probesBreached: 0,
+  lastStandsHeld: 0,
+  sacks: 0,
 });
 
 /**
@@ -252,11 +286,16 @@ export function normalizeWarLog(raw: unknown, fallback: number): WarLog {
   const log = raw as Partial<WarLog>;
   const num = (value: unknown, or: number): number =>
     typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.round(value)) : or;
+  const sackedAt = log.sackedAt;
   return {
     startedAt: num(log.startedAt, fallback),
     raids: num(log.raids, 0),
     probesHeld: num(log.probesHeld, 0),
     probesBreached: num(log.probesBreached, 0),
+    // The last stand arrived in M25 Phase 4c: an older war has fought none.
+    lastStandsHeld: num(log.lastStandsHeld, 0),
+    sacks: num(log.sacks, 0),
+    ...(typeof sackedAt === 'number' && Number.isFinite(sackedAt) ? { sackedAt } : {}),
   };
 }
 
@@ -292,6 +331,8 @@ export interface DefenseLogEntry {
    * waves, so the same level means two different battles.
    */
   live?: boolean;
+  /** A last stand at the capital (M25 Phase 4c), not a probe: the whole assault, and a sack if it fell. */
+  lastStand?: boolean;
   /** Full battle config — every offline probe is replayable. */
   config: SimConfig;
 }
@@ -1696,6 +1737,21 @@ export function defenseConfig(town: TownState, level: number, seed: number): Sim
 }
 
 /**
+ * The assault that marches on the capital (M25 Phase 4c): the whole assault
+ * at its level, the town's own siege economy behind the defence, as a live
+ * defence is. The garrison fights the same battle under the standing orders
+ * when the commander leaves it to them.
+ */
+export function lastStandConfig(town: TownState, level: number, seed: number): SimConfig {
+  const def = buildAssault(level, enemyRosterFor(town.faction));
+  return battleConfig(town, seed, {
+    ...def,
+    name: `LAST STAND — LEVEL ${level}`,
+    startingSupplies: Math.floor(town.supplies),
+  });
+}
+
+/**
  * What holding the line in person pays.
  *
  * Half a skirmish's loot at the same level, and derived from it rather than
@@ -1896,6 +1952,40 @@ export function applyDefenseResult(
     town.victories++;
   } else {
     applyDefeat(town);
+  }
+  clampToCaps(town, before);
+  return {
+    suppliesLost: Math.max(0, Math.floor(before.held.supplies - town.supplies)),
+    fuelLost: Math.max(0, Math.floor(before.held.fuel - town.fuel)),
+  };
+}
+
+/**
+ * Fold a LAST STAND at the capital (M25 Phase 4c) into the town, whoever
+ * fought it: the fold wrecks every building that fell, as any played siege's
+ * does. Held, the enemy is thrown back and the bounty is paid. Lost, the
+ * capital is sacked, and a larger share of the stockpile goes than a defeat
+ * takes. The standing and the record are the caller's (`laststand.ts`).
+ *
+ * Returns what the sack took, for the defense log: nothing, when it held.
+ */
+export function applyLastStandResult(
+  town: TownState,
+  outcome: SiegeOutcome,
+  bounty: { supplies: number; fuel: number },
+  now: number,
+): { suppliesLost: number; fuelLost: number } {
+  const before = beforeBattle(town);
+  foldBattle(town, outcome, now);
+  if (outcome.victory) {
+    town.supplies += bounty.supplies;
+    town.fuel += bounty.fuel;
+    town.victories++;
+  } else {
+    town.supplies = Math.floor(town.supplies * (1 - SACK_LOSS_FRACTION));
+    town.fuel = Math.floor(town.fuel * (1 - SACK_LOSS_FRACTION));
+    town.intel = Math.floor(town.intel * (1 - SACK_LOSS_FRACTION));
+    town.defeats++;
   }
   clampToCaps(town, before);
   return {

@@ -142,6 +142,13 @@ export const PROBE_BREACHED = -30;
 /** A counterattack fought in person. */
 export const COUNTER_HELD = 35;
 export const COUNTER_LOST = -40;
+/**
+ * The last stand at the capital (M25 Phase 4c), fought in person or by the
+ * garrison: holding it throws the enemy back from the gates, and losing it is
+ * a sack, which the board reads as what it is.
+ */
+export const LAST_STAND_HELD = 50;
+export const LAST_STAND_LOST = -100;
 
 export function clearStanding(tier: number): number {
   return CLEAR_BASE + CLEAR_PER_TIER * Math.max(1, tier);

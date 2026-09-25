@@ -168,7 +168,15 @@ describe('the war log', () => {
     town.log = { startedAt: 'yesterday', raids: -5, probesHeld: 2.6 } as never;
     town.lastSeen = T0;
     const back = deserialize(serialize(town))!;
-    expect(back.log).toEqual({ startedAt: T0, raids: 0, probesHeld: 3, probesBreached: 0 });
+    // The last stand's two counters arrived in M25 Phase 4c, at zero.
+    expect(back.log).toEqual({
+      startedAt: T0,
+      raids: 0,
+      probesHeld: 3,
+      probesBreached: 0,
+      lastStandsHeld: 0,
+      sacks: 0,
+    });
   });
 
   it('creates the counters on demand for a town that never had them', () => {

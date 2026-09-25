@@ -5,6 +5,7 @@ import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { normalizeStrikes } from './strikes';
 import { normalizeSupply } from './supply';
 import { normalizeCapital } from './capital';
+import { normalizeLastStand } from './laststand';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
@@ -204,6 +205,8 @@ function normalizeLadder(town: TownState): void {
   normalizeSupply(fl);
   // And the enemy's capital, its roads and a war won, in Phase 4b.
   normalizeCapital(town);
+  // And the last stand at your own, and how deep the war has gone, in Phase 4c.
+  normalizeLastStand(fl);
 }
 
 /**

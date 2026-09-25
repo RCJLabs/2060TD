@@ -54,6 +54,11 @@ export interface ServiceRecord {
   assaultLevel: number;
   probesHeld: number;
   probesBreached: number;
+  /** Last stands at the capital held, and lost: the times it was sacked (M25 Phase 4c). */
+  lastStandsHeld: number;
+  sacks: number;
+  /** The day of the war the capital was last sacked, or null. */
+  sackedDay: number | null;
   // the long game
   missions: number;
   research: number;
@@ -109,6 +114,9 @@ export function serviceRecord(town: TownState, now: number): ServiceRecord {
     assaultLevel: town.assaultLevel,
     probesHeld: log.probesHeld,
     probesBreached: log.probesBreached,
+    lastStandsHeld: log.lastStandsHeld,
+    sacks: log.sacks,
+    sackedDay: log.sackedAt === undefined ? null : warDay(town, log.sackedAt),
     missions: town.campaign.completed.length,
     research: town.research.completed.length,
   };

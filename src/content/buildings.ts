@@ -423,3 +423,9 @@ export const WRECK_REPAIR_FRACTION = 0.3;
 
 /** Stored resources lost when the Command Center falls. */
 export const DEFEAT_LOSS_FRACTION = 0.15;
+/**
+ * Stored resources lost when the capital is sacked (M25 Phase 4c): a last
+ * stand lost, the whole assault through to the post. More than a defeat's
+ * share, because this is the enemy at the gates rather than a raid on them.
+ */
+export const SACK_LOSS_FRACTION = 0.4;
