@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeResolution, withDepots } from './helpers';
 import { M1_CATALOG } from '../src/content/catalog';
-import { FACTION_IDS, trainMetaFor, type FactionId } from '../src/content/factions';
+import { FACTION_IDS, type FactionId } from '../src/content/factions';
 import {
   MANDATES,
   OVERBUILT_HULK,
@@ -19,7 +19,7 @@ import {
   researchEffects,
   siegeConfig,
   surge,
-  tick,
+  trainingCost,
   unlockAll,
   type SiegeOutcome,
   type TownState,
@@ -313,78 +313,73 @@ describe('the rules ride every town battle, once the game fights them', () => {
   });
 });
 
-describe('Production Surge (China): training runs at double speed after a battle fought', () => {
+describe('Production Surge (China): training costs half after a battle fought', () => {
   beforeEach(() => setSignaturesLive(true));
   afterEach(() => setSignaturesLive(false));
 
   const MIN = 60_000;
   const WINDOW = PRODUCTION_SURGE.minutes * MIN;
 
-  /** A China town with a barracks standing, and what one militia takes to train. */
-  function lines(faction: FactionId = 'china'): { town: TownState; barracks: number; work: number } {
+  /** A town with a barracks standing, and the infantry it trains. */
+  function lines(faction: FactionId = 'china'): { town: TownState; barracks: number; kind: string } {
     const town = withDepots(unlockAll(newTown(T0, faction)), 2);
     town.supplies = 5000;
     town.fuel = 1000;
     town.structures.push({ id: 9500, kind: 'barracks', cell: 3, level: 3, wrecked: false });
-    const kind = faction === 'china' ? 'militia' : 'ranger';
-    const work = trainMetaFor(faction)[kind]!.seconds * researchEffects(town).trainTime * 1000;
-    return { town, barracks: 9500, work };
+    return { town, barracks: 9500, kind: faction === 'china' ? 'rifle' : 'ranger' };
   }
-  const head = (town: TownState): number => town.structures.find((s) => s.id === 9500)!.trainEndsAt!;
 
-  it('a battle fought: the unit on the bench finishes in half the time, for half an hour', () => {
-    const { town, barracks, work } = lines();
-    expect(queueTrain(town, barracks, 'militia', T0)).toBe(true);
-    expect(head(town)).toBe(T0 + work);
+  it('for half an hour after a battle fought, every unit the lines take on costs half', () => {
+    const { town, barracks, kind } = lines();
+    const full = trainingCost(town, barracks, kind, T0);
     surge(town, T0);
     expect(town.surgeUntil).toBe(T0 + WINDOW);
-    expect(head(town)).toBe(T0 + work / 2);
-    tick(town, T0 + work / 2);
-    expect(town.army['militia']).toBe(1);
+    const half = trainingCost(town, barracks, kind, T0 + WINDOW - 1);
+    expect(half.supplies).toBe(Math.round(full.supplies * PRODUCTION_SURGE.price));
+    expect(half.fuel).toBe(Math.round(full.fuel * PRODUCTION_SURGE.price));
+    expect(trainingCost(town, barracks, kind, T0 + WINDOW)).toEqual(full);
   });
 
-  it('a unit mid-course finishes on what is left of it, at double speed', () => {
-    const { town, barracks, work } = lines();
-    queueTrain(town, barracks, 'militia', T0);
-    surge(town, T0 + work / 2);
-    expect(head(town)).toBe(T0 + work / 2 + work / 4);
-  });
-
-  it('a window that shuts mid-course leaves the rest at the ordinary rate', () => {
-    const { town, barracks, work } = lines();
-    // The battle was fought earlier: its window shuts a quarter of the way in.
-    surge(town, T0 + work / 4 - WINDOW);
-    queueTrain(town, barracks, 'militia', T0);
-    expect(head(town)).toBe(T0 + (3 * work) / 4);
-  });
-
-  it('the next in the line is timed under the surge too', () => {
-    const { town, barracks, work } = lines();
+  it('queued inside the window, a unit is charged the half', () => {
+    const { town, barracks, kind } = lines();
     surge(town, T0);
-    queueTrain(town, barracks, 'militia', T0);
-    queueTrain(town, barracks, 'militia', T0);
-    tick(town, T0 + work / 2);
-    expect(town.army['militia']).toBe(1);
-    expect(head(town)).toBe(T0 + work);
+    const before = town.supplies;
+    expect(queueTrain(town, barracks, kind, T0 + MIN)).toBe(true);
+    expect(before - town.supplies).toBe(trainingCost(town, barracks, kind, T0 + MIN).supplies);
+    expect(before - town.supplies).toBeLessThan(trainingCost(town, barracks, kind, T0 + WINDOW).supplies);
+  });
+
+  it('buys price, not time: the lines run at their own speed', () => {
+    const plain = lines();
+    const surged = lines();
+    surge(surged.town, T0);
+    queueTrain(plain.town, plain.barracks, plain.kind, T0);
+    queueTrain(surged.town, surged.barracks, surged.kind, T0);
+    const head = (t: TownState): number | undefined => t.structures.find((s) => s.id === 9500)!.trainEndsAt;
+    expect(head(surged.town)).toBe(head(plain.town));
   });
 
   it('a second battle inside the window extends it rather than stacking', () => {
-    const { town, barracks, work } = lines();
+    const { town, barracks, kind } = lines();
+    const full = trainingCost(town, barracks, kind, T0);
     surge(town, T0);
     surge(town, T0 + 10 * MIN);
     expect(town.surgeUntil).toBe(T0 + 10 * MIN + WINDOW);
-    queueTrain(town, barracks, 'militia', T0 + 10 * MIN);
-    expect(head(town)).toBe(T0 + 10 * MIN + work / 2);
+    expect(trainingCost(town, barracks, kind, T0 + 20 * MIN).supplies).toBe(
+      Math.round(full.supplies * PRODUCTION_SURGE.price),
+    );
   });
 
   it('only China’s, and only while the game fights the signatures', () => {
-    const usa = lines('usa').town;
-    surge(usa, T0);
-    expect(usa.surgeUntil).toBeUndefined();
-    setSignaturesLive(false);
-    const { town } = lines();
+    const usa = lines('usa');
+    surge(usa.town, T0);
+    expect(usa.town.surgeUntil).toBeUndefined();
+    const { town, barracks, kind } = lines();
     surge(town, T0);
-    expect(town.surgeUntil).toBeUndefined();
+    setSignaturesLive(false);
+    expect(trainingCost(town, barracks, kind, T0 + MIN)).toEqual(trainingCost(town, barracks, kind, T0 + WINDOW));
+    surge(town, T0 + WINDOW);
+    expect(town.surgeUntil).toBe(T0 + WINDOW);
   });
 
   it('a skirmish and a raid are battles fought; the probes the garrison fights are not', () => {

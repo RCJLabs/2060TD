@@ -6,8 +6,8 @@
  *     faction  signature          where it acts
  *     USA      Rapid Response     a field defence that lives through its wave
  *                                 pays back half its CP (the sim, wave's end)
- *     China    Production Surge   training runs at double speed for half an
- *                                 hour after a battle fought (the town)
+ *     China    Production Surge   training costs half for half an hour
+ *                                 after a battle fought (the town)
  *     Russia   Overbuilt          a fallen emplacement burns on as a hulk
  *                                 (the sim, at a structure's death)
  *     UN       Mandate            one doctrine buff picked for each defence
@@ -33,8 +33,14 @@ export const RAPID_RESPONSE_REFUND = 0.5;
 /** Overbuilt (Russia): how long a fallen emplacement burns on, and at what fraction of itself. */
 export const OVERBUILT_HULK = { seconds: 15, strength: 0.25 } as const;
 
-/** Production Surge (China): minutes of faster training after a battle fought, and how much faster. */
-export const PRODUCTION_SURGE = { minutes: 30, speed: 2 } as const;
+/**
+ * Production Surge (China): for how long after a battle fought training is
+ * cheaper, and what it costs then. A price and not a speed: a unit trains in
+ * eight to sixty seconds, so a raid's losses refill in under a minute either
+ * way, and what limits a refill is what it costs (Phase 1 measured double
+ * speed and found the week at war unchanged).
+ */
+export const PRODUCTION_SURGE = { minutes: 30, price: 0.5 } as const;
 
 /** The UN's three mandates, one picked for each defence. */
 export type MandateId = 'works' | 'deployment' | 'shield';

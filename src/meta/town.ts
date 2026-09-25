@@ -460,9 +460,9 @@ export interface TownState {
    */
   gridVersion?: number;
   /**
-   * Production Surge (M26, China): training runs faster until this moment,
+   * Production Surge (M26, China): training costs half until this moment,
    * half an hour past the last battle the commander fought. Absent on every
-   * town that has not fought one since, and on every town not China's.
+   * town that has not fought one, and on every town not China's.
    */
   surgeUntil?: number;
   /**
@@ -1060,12 +1060,15 @@ export function trainingCost(
   town: TownState,
   structureId: number,
   kind: string,
+  /** When it is bought: China's surge halves the price inside its window (M26). */
+  now: number = town.lastSeen,
 ): { supplies: number; fuel: number } {
   const meta = trainMetaFor(town.faction)[kind];
   if (!meta) return { supplies: 0, fuel: 0 };
   const s = town.structures.find((x) => x.id === structureId);
   const off = s ? trainingDiscount(town, s) : 0;
-  return { supplies: Math.round(meta.supplies * (1 - off)), fuel: Math.round(meta.fuel * (1 - off)) };
+  const pay = (1 - off) * (surging(town, now) ? PRODUCTION_SURGE.price : 1);
+  return { supplies: Math.round(meta.supplies * pay), fuel: Math.round(meta.fuel * pay) };
 }
 
 export function buildSpeedFactor(town: TownState): number {
@@ -1206,7 +1209,7 @@ export function tick(town: TownState, now: number): LadderSettlement {
       if (next !== undefined) {
         const seconds =
           (trainMetaFor(town.faction)[next]?.seconds ?? 30) * researchEffects(town).trainTime;
-        s.trainEndsAt = trainingEnd(town, s.trainEndsAt, seconds * 1000);
+        s.trainEndsAt = s.trainEndsAt + seconds * 1000;
       } else {
         delete s.trainEndsAt;
       }
@@ -1286,14 +1289,19 @@ export function armySize(town: TownState): number {
 
 export type TrainError = 'unknown' | 'facility' | 'busy' | 'queue' | 'cost' | 'manpower' | null;
 
-export function canTrain(town: TownState, structureId: number, kind: string): TrainError {
+export function canTrain(
+  town: TownState,
+  structureId: number,
+  kind: string,
+  now: number = town.lastSeen,
+): TrainError {
   const meta = trainMetaFor(town.faction)[kind];
   if (!meta) return 'unknown';
   const s = town.structures.find((x) => x.id === structureId);
   if (!s || s.kind !== meta.facility) return 'facility';
   if (s.wrecked || (s.buildEndsAt !== undefined && s.upgradingTo === undefined)) return 'busy';
   if ((s.trainQueue?.length ?? 0) >= 5) return 'queue';
-  const cost = trainingCost(town, structureId, kind);
+  const cost = trainingCost(town, structureId, kind, now);
   if (town.supplies < cost.supplies || town.fuel < cost.fuel) return 'cost';
   if (armyManpower(town) + queuedManpower(town) + meta.manpower > manpowerCapOf(town)) {
     return 'manpower';
@@ -1302,66 +1310,45 @@ export function canTrain(town: TownState, structureId: number, kind: string): Tr
 }
 
 export function queueTrain(town: TownState, structureId: number, kind: string, now: number): boolean {
-  if (canTrain(town, structureId, kind) !== null) return false;
+  if (canTrain(town, structureId, kind, now) !== null) return false;
   const meta = trainMetaFor(town.faction)[kind]!;
   const s = town.structures.find((x) => x.id === structureId)!;
-  const cost = trainingCost(town, structureId, kind);
+  const cost = trainingCost(town, structureId, kind, now);
   town.supplies -= cost.supplies;
   town.fuel -= cost.fuel;
   s.trainQueue = s.trainQueue ?? [];
   s.trainQueue.push(kind);
   creditContracts(town, 'trained', 1, now);
   if (s.trainQueue.length === 1) {
-    s.trainEndsAt = trainingEnd(town, now, meta.seconds * researchEffects(town).trainTime * 1000);
+    s.trainEndsAt = now + meta.seconds * researchEffects(town).trainTime * 1000;
   }
   return true;
 }
 
 // ---- Production Surge (M26, China) ---------------------------------------------------
 
-/** How much faster the lines run while the surge does: 1 for a town without one. */
-const surgeSpeed = (town: TownState): number => (town.surgeUntil === undefined ? 1 : PRODUCTION_SURGE.speed);
-
 /**
- * When `work` ms of training begun at `start` is done: at the surge's speed
- * until it ends, and at the ordinary rate after. Without a surge this is
- * `start + work`, the sum every line has always kept.
+ * Is the surge on at `now`: a China town, the game fighting the signatures,
+ * and inside the half hour after the last battle the commander fought.
  */
-function trainingEnd(town: TownState, start: number, work: number): number {
-  const until = town.surgeUntil;
-  if (until === undefined || start >= until) return start + work;
-  const speed = surgeSpeed(town);
-  const fast = (until - start) * speed;
-  return work <= fast ? start + work / speed : until + (work - fast);
-}
-
-/** The work left at `now` on a course due at `end`, timed under the surge running to `until`. */
-function trainingLeft(now: number, end: number, until: number | undefined, speed: number): number {
-  if (end <= now) return 0;
-  if (until === undefined || now >= until) return end - now;
-  if (end <= until) return (end - now) * speed;
-  return (until - now) * speed + (end - until);
+export function surging(town: TownState, now: number = town.lastSeen): boolean {
+  return (
+    town.faction === 'china' && signaturesLive() && town.surgeUntil !== undefined && now < town.surgeUntil
+  );
 }
 
 /**
- * A battle the commander fought at `now` (M26, China's Production Surge):
- * every training line runs at double speed for the next half hour. A course
- * already under way is re-timed from what is left of it, so the surge speeds
- * the unit on the bench as much as the one queued behind it. A second battle
- * inside the window extends it rather than stacking. Nothing for a town that
- * is not China's, nor while the game does not fight the signatures.
+ * A battle the commander fought at `now` (M26, China's Production Surge): for
+ * the next half hour every unit the lines take on costs half. What limits a
+ * refill in this economy is its price, not its time (a unit trains in eight to
+ * sixty seconds), so the surge buys price: fight, refill cheaply, fight again.
+ * A second battle inside the window extends it rather than stacking. Nothing
+ * for a town that is not China's, nor while the game does not fight the
+ * signatures.
  */
 export function surge(town: TownState, now: number): void {
   if (town.faction !== 'china' || !signaturesLive()) return;
-  const until = now + PRODUCTION_SURGE.minutes * 60_000;
-  const old = town.surgeUntil;
-  if (old !== undefined && old >= until) return;
-  const oldSpeed = surgeSpeed(town);
-  town.surgeUntil = until;
-  for (const s of town.structures) {
-    if (s.trainEndsAt === undefined || !s.trainQueue?.length) continue;
-    s.trainEndsAt = trainingEnd(town, now, trainingLeft(now, s.trainEndsAt, old, oldSpeed));
-  }
+  town.surgeUntil = Math.max(town.surgeUntil ?? now, now + PRODUCTION_SURGE.minutes * 60_000);
 }
 
 // ---- research -----------------------------------------------------------------------

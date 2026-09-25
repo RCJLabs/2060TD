@@ -4820,8 +4820,8 @@ a board rule of its own. The KPA already points the way — it is the only facti
 whose carry is 13% instead of 100%, because tunnels changed the shape of the
 problem.
 
-- [ ] **Phase 1 — one mechanic per faction, prototyped in the harness** before a
-      line of UI exists for it.
+- [x] **Phase 1 — one mechanic per faction, prototyped in the harness** before a
+      line of UI exists for it. *(Shipped in v1.59.0, every rule dormant.)*
 
       **The plan, before the build.** The commander chose four of the five
       mechanics before this plan was written. Each is the signature that
@@ -4875,12 +4875,12 @@ problem.
 
       UN, Mandate. Before each defence, the commander picks one of three
       mandates for that battle:
-      - Defensive works: walls a third sturdier.
-      - Rapid deployment: field defences, HESCOs and fire missions a
-        quarter cheaper in CP.
-      - Humanitarian shield: a post a third harder to take. Its bar is a
-        third longer, so the breach and the charge each take a third more.
-        The burn runs on a clock and does not change.
+      - Defensive works: walls 30% sturdier.
+      - Rapid deployment: field defences, HESCOs and fire missions 25%
+        cheaper in CP.
+      - Humanitarian shield: a post 30% harder to take. Its bar is 30%
+        longer, so the breach and the charge each take 30% more. The burn
+        runs on a clock and does not change.
 
       The town keeps a standing mandate. The garrison fights under it when
       the commander is away, and a live defence offers it first. The UN's
@@ -4918,6 +4918,100 @@ problem.
       yet. A hulk drawn as a live gun, or a refund the player cannot see, is
       a rule nobody can play. Each rule is switched on together with its UI
       in Phase 3, once its numbers have held parity.
+
+      **What Phase 1 found.** The four rules are built and tested, and each
+      was measured on and off. Two new readings do the measuring:
+      `npm run balance -- --signatures [seeds] [faction]` for the three
+      defence rules, and `--surge` for China. The defence rules are read as
+      LEVELS HELD: the sum of a base's hold rate over every rung of the
+      ladder. A base that holds rungs 1-7 always and rung 8 half the time
+      holds 7.5 levels, and a rule's worth is the levels it adds.
+
+      Each reference base was read four ways, 20 seeds a rung, scanning up
+      the ladder until two rungs in a row are lost every time:
+      - with nobody acting;
+      - under HOLDFAST;
+      - under two commanders written for this reading, who spend every CP
+        on field defences as it comes in: one on the post's approach,
+        behind the fight (POST), and one around the latest breach (WIRE).
+
+      The spenders exist because HOLDFAST acts only three times a battle,
+      at the breach, so CP is never what it runs short of. Against HOLDFAST,
+      neither a refund nor a cheaper field defence could show.
+
+      What each rule adds, in levels held at CC1 / CC2 / CC3:
+
+      | | nobody acting | HOLDFAST | POST | WIRE |
+      |---|---|---|---|---|
+      | USA, Rapid Response | 0 / 0 / 0 | 0 / 0 / 0 | +0.40 / +1.20 / +0.15 | 0 / −0.05 / +0.20 |
+      | Russia, Overbuilt | +0.05 / +0.40 / +1.00 | 0 / +0.25 / +1.30 | +0.10 / 0 / +0.50 | +0.05 / +0.25 / +1.75 |
+      | UN, defensive works | 0 / −0.05 / +0.60 | 0 / −0.25 / −0.50 | 0 / 0 / +0.65 | 0 / +0.15 / +0.45 |
+      | UN, rapid deployment | 0 / 0 / 0 | 0 / 0 / 0 | +0.30 / +0.30 / −0.80 | 0 / +0.40 / −2.95 |
+      | UN, humanitarian shield | 0 / +0.50 / +0.30 | 0 / +0.20 / +0.30 | 0 / −0.05 / −0.05 | 0 / 0 / +1.70 |
+      | UN, best of the three per battle | 0 / +0.50 / +0.95 | 0 / +0.50 / +1.30 | +0.35 / +0.45 / +1.35 | 0 / +1.90 / +4.15 |
+
+      Overbuilt works wherever there is a line to hold. About three
+      emplacements a battle burn on as hulks, and it is worth a level or
+      more at CC3. Rapid Response pays only a commander who deploys behind
+      the fight: 202 CP back a battle on the approach, 33 at the breach, and
+      nothing for the standing orders as written. The mandates each work
+      where they should: the walls where the maze holds the fight, the post
+      where the enemy reaches it. Picking the right mandate for each attack
+      is worth up to four levels. Rapid deployment only pays when someone
+      spends CP, and at CC3 it makes the breach spender worse, because it
+      places more.
+
+      That last result is not the UN's; it belongs to the field defences
+      themselves. Spent on the approach, field defences carry a CC1 base
+      from about 2 levels to 6 for every faction. But the same spending
+      takes a CC3 base below what it holds with nobody acting: the USA's
+      drops from 15.9 levels to 10.7, and the UN's from 11.0 to 4.9. A
+      mature maze is made worse by being filled in. For Phase 3, this is a
+      fact about the battle layer, not about any one rule.
+
+      China's surge was built first as the plan had it, double speed, and
+      measured almost inert. A Chinese unit trains in 8 to 60 seconds, so a
+      raid's losses refill in a median 50 seconds, or 30 with the surge. A
+      week at war with three raids a session came out identical either way:
+      27 raids a day, rung 9. Nothing in this economy waits on training
+      time. What limits a refill is its price, and China spends about 27k
+      supplies a day on it at that pace. The commander chose to keep the
+      trigger and the window and change what the surge buys: for half an
+      hour after a battle the commander fights, training costs half.
+      Measured that way:
+
+      | the week at war, a session every 2 h | training, supplies a day | the war's net, supplies / fuel a day |
+      |---|---|---|
+      | one raid a session | 7,307 → 3,562 | 4,653 / −1,650 → 8,383 / −670 |
+      | three raids a session | 27k → 13k | 12k / 284 → 25k / 3,932 |
+      | raids and skirmishes | 7,307 → 3,562 | 1,811 / −3,006 → 4,649 / −2,065 |
+
+      The instrument's commander raids on a fixed cadence, so the cheaper
+      refill shows as surplus rather than as more raids. Turning that
+      surplus into a different turn is Phase 2's question.
+
+      *The parity the raid table never saw.* The raid parity table reads
+      8.0 points today, and none of the four rules touches a raid. The
+      defence side has never had a parity reading, and it is not close. With
+      nobody acting, the CC3 bases hold:
+      - Russia 17.70 levels;
+      - the USA 15.90;
+      - the UN 10.95;
+      - China 10.75;
+      - the KPA 9.95.
+
+      That is 7.75 levels between the best and the worst, and it is 2.40
+      at CC2 and 0.75 at CC1. The largest defence rule goes to the faction
+      already on top, so the CC3 spread becomes 8.75 levels with each
+      faction's own rule on. Phase 3 has two parities to hold, and the
+      defence one starts wide.
+
+      *The gate.* 779 unit tests, 25 of them new: the refund, the hulk's
+      lifecycle, the post's HP, the rules block in replay codes, the rules
+      attached at `battleConfig`, the mandate on top of research, the surge's
+      price and window, and the save. Every rule stays off in the game
+      (`signaturesLive`), so no battle a player fights has changed. The 24
+      e2e harnesses passed unchanged.
 - [ ] **Phase 2 — measure the right thing.** Not parity in odds, which is already
       won, but DIVERGENCE in how a turn is spent.
 

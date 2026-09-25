@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.58.0, in the browser. No install, no account, works on a phone.
+v1.59.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,33 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.58.0: the last stand
+## Current state — v1.59.0: five nations, five signatures (built, not yet in play)
+
+**Each nation is getting one rule of its own**, the signature its design always promised and the
+game never had. Today the five kits are one kit under five sets of names. From M26 on they're
+meant to play differently:
+
+- **United States, Rapid Response.** A field defence that survives the wave you placed it in
+  pays back half its CP at the end of that wave.
+- **China, Production Surge.** For half an hour after any battle you fight, training costs half.
+- **Russia, Overbuilt.** A destroyed emplacement burns on as a hulk for up to fifteen seconds:
+  a quarter of its strength, still firing, still in the way.
+- **UN Coalition, Mandate.** Before each defence you pick one of three: walls 30% sturdier,
+  field defences and fire missions 25% cheaper, or a command post 30% harder to take.
+- **KPA, the tunnel.** Unchanged: its best raid already goes under the maze.
+
+**None of it is switched on yet.** This release builds and measures the rules. They'll go live
+once each has its own art and controls (a hulk you can see burning, the CP coming back, the
+mandate in the defence offer) and once they've been re-tuned so no nation comes out ahead.
+**No battle you fight has changed**, and neither has your save.
+
+**What the measuring found.** Overbuilt is worth a level or more of the assault ladder at a CC3
+base. Rapid Response only pays a commander who places field defences behind the fight. Picking
+the right mandate for each attack is worth up to four levels. China's surge was first built as
+double-speed training, and it did almost nothing, because a unit trains in under a minute. What
+actually limits a refill is its price, so the surge now halves the price instead.
+
+## v1.58.0: the last stand
 
 **Neglect the war long enough and the enemy comes for your capital.** If the enemy has pushed
 your front all the way back to the first town, after it had been further out, and the front goes

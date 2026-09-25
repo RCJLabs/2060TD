@@ -1307,3 +1307,22 @@ here with the change and its date.
   different enemy's assault: Russia's CC3 town holds three quarters of level 18,
   and the KPA's none of level 12. It takes long neglect to get there: from the
   sixth rung, eight quiet spells with nothing retaken, and a strike more.
+- 2026-09-25 — **Each faction gets one rule of its own, built dormant and
+  measured before any is played (M26 Phase 1, v1.59.0).** The commander chose
+  four signatures from GDD §4: the USA's Rapid Response, China's Production
+  Surge, Russia's Overbuilt and the UN's Mandate. The KPA keeps its tunnel.
+  The two that act in the sim ride the battle's config with their numbers
+  (`SimConfig.signature`): a refund's share, and a hulk's seconds and
+  strength. So does the UN's humanitarian shield, as a defender mod, the
+  post's HP. A replay re-fights under the rule it was fought under after a
+  re-tune moves them, and replay codes append a block for all three. The
+  Mandate folds into the mods research already sets. None is switched on in
+  the game until it has its UI and has held parity: `battleConfig` attaches
+  them only while `signaturesLive()` is on, and only the instruments and the
+  tests turn it on. One rule changed on measurement. Production Surge was
+  built as the GDD wrote it, double training speed after a battle, and it
+  did almost nothing, since a unit trains in 8 to 60 seconds and a raid's
+  losses refill in under a minute either way. The commander chose to keep
+  the trigger and the half-hour window and change what the surge buys: the
+  price. For half an hour after a battle the commander fights, training
+  costs half.

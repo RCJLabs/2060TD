@@ -76,6 +76,7 @@ import type { SimConfig } from '../sim/types';
 import { advanceBooked, RESOURCES, zero, type Accruals, type Amounts } from './economy';
 import { CITADEL_BUDGET, deepBudget, DOCTRINE_SUPPORT, planAtBudget, RAID_PLANS } from './plans';
 import { referenceBases } from './referenceBases';
+import { setSignaturesLive } from '../content/signatures';
 import { bandOf, laidOutTown } from './yard';
 
 const MIN = 60_000;
@@ -648,6 +649,52 @@ export function reachTable(faction: FactionId = 'usa', days = 70): string {
       `${name.padEnd(10)} | ${tiers.map((t) => on(run.reachedOn[t]).padStart(6)).join(' | ')} | ` +
         `${on(run.wonOn).padStart(6)} | ${pad(run.tier, 4)}`,
     );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * M26 Phase 1: China's Production Surge, off and on.
+ *
+ * The surge halves the price of training for half an hour after a battle the
+ * commander fought. Built first as double speed, it was measured inert: a raid's
+ * losses retrain in a median 50 seconds, 30 surged, and a week of three raids
+ * a session came out identical either way, because nothing in this economy
+ * waits on training time. What limits a refill is what it costs, so this reads
+ * the week at war where the price shows: what training costs a day, what the
+ * war nets, and whether the cheaper refill buys more raids or a deeper rung.
+ */
+export function surgeTable(): string {
+  const faction: FactionId = 'china';
+  const week = (live: boolean, policy: WarPolicy, raidsPerSession: number): WarRun => {
+    setSignaturesLive(live);
+    try {
+      return playWarWeek(warTown(faction), policy, 2, 7, 10, { raidsPerSession });
+    } finally {
+      setSignaturesLive(false);
+    }
+  };
+  const lines = [
+    'PRODUCTION SURGE — China, the week at war (a session every 2 h), training at half price for 30 min after a battle fought',
+    'WHO                     | SURGE | TRAINING S/DAY | THE WAR, NET S/F/I | RAIDS/DAY | CLEARED/DAY | RUNG',
+  ];
+  const cases: [string, WarPolicy, number][] = [
+    ['raids', 'raids', 1],
+    ['raids, 3 a session', 'raids', 3],
+    ['raids+skirmish', 'raids+skirmish', 1],
+  ];
+  for (const [who, policy, per] of cases) {
+    for (const live of [false, true]) {
+      const run = week(live, policy, per);
+      const perDay = (n: number): string => (n / run.days).toFixed(1);
+      const training = run.books.actions['training']?.supplies ?? 0;
+      const net = warNet(run.books);
+      lines.push(
+        `${pad(live ? '' : who, 23)} | ${pad(live ? 'on' : 'off', 5)} | ${pad(k(training / run.days), 14)} | ` +
+          `${pad(`${k(net.supplies / run.days)}/${k(net.fuel / run.days)}/${k(net.intel / run.days)}`, 18)} | ` +
+          `${pad(perDay(run.raids), 9)} | ${pad(perDay(run.cleared), 11)} | ${pad(run.peakTier, 4)}`,
+      );
+    }
   }
   return lines.join('\n');
 }

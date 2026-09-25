@@ -63,10 +63,11 @@ import { effectsOf, TECHS, type TechBranch } from '../content/research';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
+import { DEFAULT_MANDATE, MANDATE_IDS, MANDATES, signatureFor } from '../content/signatures';
 import { LAST_STAND_LEVEL } from '../content/theaters';
 import { economyTable } from './economy';
 import { yardTable } from './yard';
-import { frontTable, reachTable, supplyTable, warTable } from './war';
+import { frontTable, reachTable, supplyTable, surgeTable, warTable } from './war';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
 import { CITADEL_BUDGET, deepBudget, DOCTRINE_SUPPORT, planAtBudget, planManpower, RAID_PLANS } from './plans';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
@@ -96,6 +97,7 @@ import type {
   DefenderMods,
   LayoutStructure,
   SiegeDef,
+  Signature,
   SimConfig,
   StandingOrders,
   StandingOrderTarget,
@@ -655,6 +657,9 @@ interface WaveTrace {
   wallsLost: number;
   /** Stocked fire missions spent: real ordnance, bought with fuel. */
   strikes: number;
+  /** CP the field defences paid back, and emplacements that burned on (M26). */
+  refunded: number;
+  hulks: number;
 }
 
 /**
@@ -693,6 +698,8 @@ function siegeTraceOn(
   policy: SiegePolicy,
   chainVersion: number,
   attackerHp = 1,
+  /** A faction rule and a doctrine buff to fight under (M26). */
+  extra: { signature?: Signature; mods?: DefenderMods } = {},
 ): WaveTrace {
   const catalog = defenseCatalogFor(faction);
   // The table's own battle, so a trace is of a row the snapshot publishes.
@@ -700,6 +707,7 @@ function siegeTraceOn(
     orders: policy ?? undefined,
     chainVersion,
     ...(FIGHT === 'probe' ? { siege: probeAssault(level, enemyRosterFor(faction)) } : {}),
+    ...extra,
   });
   if (attackerHp !== 1) config.mods = { ...config.mods, attacker: { hp: attackerHp } };
   const engine = layDefense(config, catalog);
@@ -741,6 +749,8 @@ function siegeTraceOn(
       (sum, [kind, stocked]) => sum + stocked - (engine.powerChargesLeft(kind) ?? stocked),
       0,
     ),
+    refunded: engine.stats.cpRefunded ?? 0,
+    hulks: engine.stats.hulks ?? 0,
   };
 }
 
@@ -1730,6 +1740,11 @@ function defenseConfigFor(
     siege?: SiegeDef;
     /** Its tunnel mouths, physical, reserved as `missionConfig` reserves them. */
     tunnels?: readonly { col: number; row: number }[];
+    /**
+     * A faction rule to fight under (M26). None by default, as the game fights
+     * none yet: when `battleConfig` starts attaching them, this has to follow.
+     */
+    signature?: Signature;
   } = {},
 ): SimConfig {
   const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT, ladder = LADDER } = opts;
@@ -1773,6 +1788,7 @@ function defenseConfigFor(
     ...(orders ? { standingOrders: orders } : {}),
     ...(mods ? { mods: { defender: mods } } : {}),
     ...(reserved.length > 0 ? { reservedCells: reserved } : {}),
+    ...(opts.signature ? { signature: opts.signature } : {}),
   };
 }
 
@@ -2933,6 +2949,189 @@ function citadelTable(faction: FactionId, pool = 24, seeds = 12): string {
     `   on fresh seeds: ${confirmed.join(' · ')}`,
     `   ${faction}: { layout: ${pick.layout}, towers: ${pick.towers} },`,
   ].join('\n');
+}
+
+/**
+ * A commander who spends every CP on field defences as it comes in (M26): a
+ * gun and a foxhole whenever one can be afforded, with no budget of actions,
+ * every wave. Not a preset and never shipped: HOLDFAST acts three times a
+ * battle, so CP is never what it runs short of, and a refund or a cheaper
+ * field defence could not show against it. These are the closest the harness
+ * has to a player who deploys early and often, in the two places one does:
+ * on the post's approach, behind the fight (POST), and around the latest
+ * breach, in it (WIRE).
+ */
+const spender = (target: StandingOrderTarget): StandingOrders => ({
+  id: 'probe',
+  perWave: true,
+  rules: [
+    { cpAtLeast: 25, action: 'deploy', kind: 'depmg', target, minHostiles: 1, cooldownTicks: 60 },
+    { cpAtLeast: 20, action: 'deploy', kind: 'foxhole', target, minHostiles: 1, cooldownTicks: 60 },
+  ],
+});
+
+/** One way to fight a defence for the signatures table (M26): a faction rule, a doctrine buff, or neither. */
+interface RuleVariant {
+  label: string;
+  signature?: Signature;
+  mods?: DefenderMods;
+}
+
+/**
+ * Hold rate at every rung of the ladder for one (faction, base, orders, rule),
+ * seed by seed, scanned up from the first rung until two in a row are lost
+ * every time: a row whose band runs past fourteen (Russia's CC3 holds to
+ * eighteen) is measured to its end rather than cut at a round number.
+ */
+function holdScan(
+  faction: FactionId,
+  base: ReferenceBase,
+  policy: SiegePolicy,
+  variant: RuleVariant,
+  seeds: number,
+): { held: boolean[][]; refunded: number; hulks: number; battles: number } {
+  const held: boolean[][] = [];
+  let refunded = 0;
+  let hulks = 0;
+  let battles = 0;
+  for (let level = 1, lost = 0; level <= 30 && lost < 2; level++) {
+    const row: boolean[] = [];
+    for (let i = 0; i < seeds; i++) {
+      const r = siegeTraceOn(faction, base, level, seedOf(level, base.ccLevel, i), policy, CHAIN_CURRENT, 1, {
+        ...(variant.signature ? { signature: variant.signature } : {}),
+        ...(variant.mods ? { mods: variant.mods } : {}),
+      });
+      row.push(r.held);
+      refunded += r.refunded;
+      hulks += r.hulks;
+      battles++;
+    }
+    held.push(row);
+    lost = row.some(Boolean) ? 0 : lost + 1;
+  }
+  return { held, refunded, hulks, battles };
+}
+
+/** Levels held: the sum of the hold rates up the ladder, so a rung held half the time is half a level. */
+const levelsHeld = (held: boolean[][]): number =>
+  held.reduce((sum, row) => sum + row.filter(Boolean).length / row.length, 0);
+
+/**
+ * M26 Phase 1: each faction's signature in defence, measured on and off.
+ *
+ * A defence is read as LEVELS HELD: the sum of its hold rate over every rung
+ * of the ladder, so a base that holds rungs 1-7 always and rung 8 half the
+ * time holds 7.5 levels, and a rule's worth is the levels it adds. Each
+ * reference base is read twice, the permanent layer alone and under HOLDFAST
+ * orders with the usual magazine, since the refund and the cheaper field
+ * defences only act when somebody spends CP. The UN's row is each mandate
+ * alone and the best of the three picked battle by battle, the ceiling of a
+ * commander who reads every attack before it comes.
+ */
+function signatureTable(seeds = 20, only?: FactionId): string {
+  const policies: [string, SiegePolicy][] = [
+    ['alone', null],
+    ['HOLDFAST', STANDING_ORDERS.holdfast],
+    ['POST', spender('ccApproach')],
+    ['WIRE', spender('breach')],
+  ];
+  const bases = referenceBases();
+  const variantsFor = (faction: FactionId): RuleVariant[] => {
+    const none: RuleVariant = { label: 'no rule' };
+    if (faction === 'un') {
+      return [none, ...MANDATE_IDS.map((id) => ({ label: MANDATES[id].name.toLowerCase(), mods: { ...MANDATES[id].mods } }))];
+    }
+    const signature = signatureFor(faction);
+    if (!signature) return [none];
+    return [none, { label: signature.refund !== undefined ? 'rapid response' : 'overbuilt', signature }];
+  };
+  const fmt = (n: number): string => n.toFixed(2).padStart(5);
+  const lines = [
+    `SIGNATURES IN DEFENCE — levels held (hold% summed up the ladder), ${seeds} seeds a rung, the reference bases`,
+    'alone: nobody acts. HOLDFAST: the preset. POST and WIRE: every CP spent on field defences as it comes,',
+    'on the post\'s approach and around the latest breach.',
+    `FACTION | ORDERS   | RULE                 | ${bases.map((b) => pad(b.name, 17)).join(' | ')} | PER BATTLE`,
+    `--------+----------+----------------------+${bases.map(() => '-------------------').join('+')}+-----------`,
+  ];
+  // Levels held with no rule and with the faction's own, for the spread.
+  const spread: Record<string, { off: number[]; on: number[]; best: number[] }> = {};
+  for (const faction of FACTION_IDS.filter((f) => only === undefined || f === only)) {
+    for (const [orders, policy] of policies) {
+      const variants = variantsFor(faction);
+      const scans = variants.map((v) => bases.map((b) => holdScan(faction, b, policy, v, seeds)));
+      const baseline = scans[0]!.map((sc) => levelsHeld(sc.held));
+      const key = orders;
+      const row = (spread[key] ??= { off: [], on: [], best: [] });
+      variants.forEach((v, k) => {
+        const levels = scans[k]!.map((sc) => levelsHeld(sc.held));
+        const battles = scans[k]!.reduce((n, sc) => n + sc.battles, 0);
+        const refunded = scans[k]!.reduce((n, sc) => n + sc.refunded, 0);
+        const hulks = scans[k]!.reduce((n, sc) => n + sc.hulks, 0);
+        const cells = levels.map((l, b) =>
+          k === 0 ? pad(fmt(l), 17) : pad(`${fmt(l)} (${l - baseline[b]! >= 0 ? '+' : ''}${(l - baseline[b]!).toFixed(2)})`, 17),
+        );
+        const per = v.signature?.refund !== undefined
+          ? `${(refunded / battles).toFixed(1)} CP back`
+          : v.signature?.hulk
+            ? `${(hulks / battles).toFixed(2)} hulks`
+            : '';
+        lines.push(
+          `${pad(k === 0 ? faction.toUpperCase() : '', 7)} | ${pad(k === 0 ? orders : '', 8)} | ${pad(v.label, 20)} | ` +
+            `${cells.join(' | ')} | ${per}`,
+        );
+      });
+      // The faction's own rule on: the UN's standing mandate, which the garrison fights under.
+      const own = variants.length > 1 ? (faction === 'un' ? 1 + MANDATE_IDS.indexOf(DEFAULT_MANDATE) : 1) : 0;
+      const ownLevels = scans[own]!.map((sc) => levelsHeld(sc.held));
+      let best = ownLevels;
+      if (faction === 'un') {
+        // The best of the three, battle by battle: held if any mandate held it.
+        best = bases.map((_, b) => {
+          const mandates = scans.slice(1).map((sc) => sc[b]!.held);
+          const rungs = Math.max(...mandates.map((h) => h.length));
+          const merged: boolean[][] = [];
+          for (let l = 0; l < rungs; l++) {
+            merged.push(Array.from({ length: seeds }, (_, i) => mandates.some((h) => h[l]?.[i] === true)));
+          }
+          return levelsHeld(merged);
+        });
+        lines.push(
+          `${pad('', 7)} | ${pad('', 8)} | ${pad('best of the three', 20)} | ` +
+            `${best.map((l, b) => pad(`${fmt(l)} (+${(l - baseline[b]!).toFixed(2)})`, 17)).join(' | ')} |`,
+        );
+      }
+      bases.forEach((_, b) => {
+        row.off[b] = Math.max(row.off[b] ?? -Infinity, baseline[b]!);
+        row.on[b] = Math.max(row.on[b] ?? -Infinity, ownLevels[b]!);
+        row.best[b] = Math.max(row.best[b] ?? -Infinity, best[b]!);
+      });
+      (spread[`${key}:min`] ??= { off: [], on: [], best: [] });
+      const low = spread[`${key}:min`]!;
+      bases.forEach((_, b) => {
+        low.off[b] = Math.min(low.off[b] ?? Infinity, baseline[b]!);
+        low.on[b] = Math.min(low.on[b] ?? Infinity, ownLevels[b]!);
+        low.best[b] = Math.min(low.best[b] ?? Infinity, best[b]!);
+      });
+    }
+  }
+  lines.push('');
+  lines.push('THE SPREAD — levels held, best faction minus worst, each base');
+  lines.push(`ORDERS   | RULES                          | ${bases.map((b) => pad(b.name, 11)).join(' | ')}`);
+  for (const [orders] of policies) {
+    const hi = spread[orders]!;
+    const lo = spread[`${orders}:min`]!;
+    const rows: [string, 'off' | 'on' | 'best'][] = [
+      ['none', 'off'],
+      ['each its own, the UN standing', 'on'],
+      ['each its own, the UN best of 3', 'best'],
+    ];
+    for (const [label, k] of rows) {
+      lines.push(
+        `${pad(orders, 8)} | ${pad(label, 30)} | ${bases.map((_, b) => pad((hi[k][b]! - lo[k][b]!).toFixed(2), 11)).join(' | ')}`,
+      );
+    }
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -5783,6 +5982,19 @@ function main(): void {
     const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
     for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${reachTable(faction)}\n`);
     console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--surge')) {
+    console.log(surgeTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--signatures')) {
+    // `--signatures 20 usa` reads one faction; all five otherwise.
+    const arg = process.argv[process.argv.indexOf('--signatures') + 1];
+    const only = FACTION_IDS.find((id) => process.argv.includes(id));
+    console.log(signatureTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20, only));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
   if (process.argv.includes('--laststand')) {
