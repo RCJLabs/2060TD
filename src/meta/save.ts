@@ -6,6 +6,7 @@ import { normalizeStrikes } from './strikes';
 import { normalizeSupply } from './supply';
 import { normalizeCapital } from './capital';
 import { normalizeLastStand } from './laststand';
+import { isMandateId } from '../content/signatures';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
@@ -318,6 +319,13 @@ export function deserialize(json: string): TownState | null {
     const pending = normalizePendingDefense(town.pendingDefense);
     if (pending) town.pendingDefense = pending;
     else delete town.pendingDefense;
+    // The signatures' two fields arrived with M26: a surge is kept only as a
+    // time, a mandate only as one of the three.
+    const surgeUntil: unknown = town.surgeUntil;
+    if (surgeUntil !== undefined && !(typeof surgeUntil === 'number' && Number.isFinite(surgeUntil))) {
+      delete town.surgeUntil;
+    }
+    if (town.mandate !== undefined && !isMandateId(town.mandate)) delete town.mandate;
     // The coach ledger arrived in v1.5; an older file has simply read nothing.
     town.seen = Array.isArray(town.seen)
       ? town.seen.filter((k: unknown): k is string => typeof k === 'string').slice(-20)

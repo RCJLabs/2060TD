@@ -36,6 +36,7 @@ import {
   applyLastStandResult,
   lastStandConfig,
   outcomeFromEngine,
+  surge,
   townCc,
   warLog,
   type DefenseLogEntry,
@@ -134,6 +135,8 @@ export function applyLastStand(
   delete town.frontline.lastStand;
   const bounty = lastStandBounty(stand.level);
   const cost = applyLastStandResult(town, outcome, bounty, now);
+  // The commander's battle surges the lines (M26); the garrison's does not.
+  if (live) surge(town, now);
   const log = warLog(town);
   if (outcome.victory) {
     log.lastStandsHeld++;

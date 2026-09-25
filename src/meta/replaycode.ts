@@ -11,6 +11,7 @@ import type {
   Doctrine,
   LayoutStructure,
   LayoutWall,
+  Signature,
   SimConfig,
   WaveDef,
   WaveEntry,
@@ -49,6 +50,9 @@ import {
 
 /** Bumped only when the byte layout changes; old codes are then refused. */
 const FORMAT = 1;
+
+/** The faction rules a code may name (M26): the refund, the hulk, the post's HP. */
+const SIGNATURE_BITS = 1 | 2 | 4;
 
 /** The coarsest board a code may name: a cell of eight physical units. */
 const MAX_CELL_SIZE = 8;
@@ -322,7 +326,13 @@ export function encodeReplay(replay: Replay): string {
   if (!Number.isInteger(cellSize) || cellSize < 1 || cellSize > MAX_CELL_SIZE) {
     throw new Error(`replay codes carry a whole cell size from 1 to ${MAX_CELL_SIZE}, not ${cellSize}`);
   }
-  const needChain = chainVersion > CHAIN_NONE || cellSize > 1;
+  // The faction rules (M26). None is every code before them, and every raid.
+  const refund = c.signature?.refund ?? 0;
+  const hulk = c.signature?.hulk;
+  const postHp = c.mods?.defender?.postHp ?? 1;
+  const signatureFlags = (refund > 0 ? 1 : 0) | (hulk ? 2 : 0) | (postHp !== 1 ? 4 : 0);
+  const needCellSize = cellSize > 1 || signatureFlags !== 0;
+  const needChain = chainVersion > CHAIN_NONE || needCellSize;
   const needEdge = edgeIndex > 0 || needChain;
   const needObjective = objectiveIndex > 0 || needEdge;
   const needCombat = combatVersion > COMBAT_NONE || needObjective;
@@ -369,10 +379,25 @@ export function encodeReplay(replay: Replay): string {
   // sponge re-fights the sponge forever, even once a staged model ships.
   if (needChain) writeVarint(body, chainVersion);
 
-  // The cell size (M34), last. A battle on the 10x15 board is fought in
-  // physical units two to a cell, and without this a code would re-fight it
-  // at today's scale: every range, speed and radius doubled against its board.
-  if (cellSize > 1) writeVarint(body, cellSize);
+  // The cell size (M34). A battle on the 10x15 board is fought in physical
+  // units two to a cell, and without this a code would re-fight it at
+  // today's scale: every range, speed and radius doubled against its board.
+  if (needCellSize) writeVarint(body, cellSize);
+
+  // The faction rules (M26), last: a bit for each rule the battle was fought
+  // under, then its numbers. A replay is a record, so it carries the numbers
+  // it was fought with, and a re-tune never re-fights an archived battle
+  // under different ones. A bit a reader does not know is a rule it cannot
+  // fight, and the code is refused rather than re-fought without it.
+  if (signatureFlags !== 0) {
+    body.push(signatureFlags);
+    if (refund > 0) putMilli(body, refund, 0);
+    if (hulk) {
+      putMilli(body, hulk.seconds, 0);
+      putMilli(body, hulk.strength, 0);
+    }
+    if (postHp !== 1) putMilli(body, postHp);
+  }
 
   // Header, dictionary, then the body — the reader needs the names first.
   const head: number[] = [FORMAT, REPLAY_KINDS.indexOf(replay.kind)];
@@ -731,6 +756,31 @@ export function decodeReplay(raw: string): ReplayDecode {
     if (size === null) return bad('truncated');
     if (size < 1 || size > MAX_CELL_SIZE) return bad('content');
     if (size > 1) config.cellSize = size;
+  }
+
+  // The faction rules, if this code was written after M26 and the battle was
+  // fought under one. Older codes end here, and so does every raid.
+  if (cur.at < body.length) {
+    const flags = body[cur.at++]!;
+    if ((flags & ~SIGNATURE_BITS) !== 0) return bad('version');
+    const signature: Signature = {};
+    if (flags & 1) {
+      const refund = getMilli(cur);
+      if (refund === null) return bad('truncated');
+      signature.refund = refund;
+    }
+    if (flags & 2) {
+      const seconds = getMilli(cur);
+      const strength = getMilli(cur);
+      if (seconds === null || strength === null) return bad('truncated');
+      signature.hulk = { seconds, strength };
+    }
+    if (flags & 4) {
+      const postHp = getMilli(cur);
+      if (postHp === null) return bad('truncated');
+      config.mods = { ...config.mods, defender: { ...config.mods?.defender, postHp } };
+    }
+    if (flags & 3) config.signature = signature;
   }
 
   if (orders !== '' && isStandingOrdersId(orders)) {

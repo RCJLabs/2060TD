@@ -157,6 +157,15 @@ export interface Structure {
   /** Still under construction: an obstacle, but fires nothing. */
   inert: boolean;
   weaponCooldown: number;
+  /** The CP a field defence cost, and the wave it went down in (M26, Rapid Response). */
+  cpPaid?: number;
+  placedWave?: number;
+  /**
+   * A fallen emplacement burning on (M26, Overbuilt): the HP it loses a tick
+   * as it burns down. It fires at the hulk's strength, blocks, is shot at,
+   * and is gone at zero; it was counted destroyed when it fell.
+   */
+  hulk?: { burn: number };
 }
 
 export interface Projectile {
@@ -313,6 +322,9 @@ export class Engine {
   private readonly defCpMult: number;
   private readonly atkHpMult: number;
   private readonly atkDamageMult: number;
+  /** The defender's faction rules (M26), resolved once: none when absent. */
+  private readonly refundShare: number;
+  private readonly hulkRule: { ticks: number; strength: number } | null;
   /** Pre-planned fire missions, sorted by time then kind (deterministic). */
   private readonly autoRules: AutoPowerRule[];
   private autoRuleCursor = 0;
@@ -399,6 +411,12 @@ export class Engine {
     this.defCpMult = config.mods?.defender?.cpCost ?? 1;
     this.atkHpMult = config.mods?.attacker?.hp ?? 1;
     this.atkDamageMult = config.mods?.attacker?.damage ?? 1;
+    this.refundShare = config.signature?.refund ?? 0;
+    const hulk = config.signature?.hulk;
+    this.hulkRule =
+      hulk && hulk.seconds > 0 && hulk.strength > 0
+        ? { ticks: Math.max(1, Math.round(hulk.seconds * TICKS_PER_SECOND)), strength: hulk.strength }
+        : null;
     this.autoRules = [...(config.autoPowers ?? [])].sort(
       (a, b) => a.atSeconds - b.atSeconds || (a.kind < b.kind ? -1 : 1),
     );
@@ -416,6 +434,13 @@ export class Engine {
 
     const cc = this.createStructure(config.ccOrigin, 'cc', config.ccLevel ?? 1, 1, false, true);
     if (!cc) throw new Error('invalid Command Center placement or missing cc profile');
+    // A tougher post (M26) is a longer bar, on this battle's own copy of the
+    // profile: the catalog's is shared by every engine.
+    const postHp = config.mods?.defender?.postHp ?? 1;
+    if (postHp !== 1) {
+      cc.profile = { ...cc.profile, maxHp: cc.profile.maxHp * postHp };
+      cc.hp = cc.profile.maxHp;
+    }
     this.cc = cc;
     for (const cell of cc.cells) this.grid.addBlocker(cell);
 
@@ -596,6 +621,7 @@ export class Engine {
         this.attackers.length === 0 &&
         this.projectiles.length === 0;
       if (waveDone) {
+        this.endWaveRules(siege.cpCap);
         this.supplies += siege.suppliesPerWave;
         if (this.waveIndex >= this.waves.length - 1) {
           // Unspent CP converts to salvaged Supplies — hoarding was a choice.
@@ -613,6 +639,33 @@ export class Engine {
     } else if (this.phase === 'prep') {
       this.prepTicksLeft--;
       if (this.prepTicksLeft <= 0) this.startWave(this.waveIndex + 1, events);
+    }
+  }
+
+  /**
+   * The faction rules that act when a wave is beaten (M26). Rapid Response:
+   * every field defence placed in this wave and still standing pays back its
+   * share, once, since the next wave is not the one it went down in. Overbuilt:
+   * whatever is still burning collapses, so a hulk is never repaired between
+   * waves or counted among the survivors.
+   */
+  private endWaveRules(cpCap: number): void {
+    if (this.refundShare > 0) {
+      let back = 0;
+      for (const s of this.structures) {
+        if (s.hp <= 0 || s.cpPaid === undefined || s.placedWave !== this.waveIndex) continue;
+        back += s.cpPaid * this.refundShare;
+      }
+      if (back > 0) {
+        this.cp = Math.min(cpCap, this.cp + back);
+        this.stats.cpRefunded = (this.stats.cpRefunded ?? 0) + back;
+      }
+    }
+    if (this.hulkRule) {
+      for (let i = this.structures.length - 1; i >= 0; i--) {
+        const s = this.structures[i]!;
+        if (s.hulk) this.dropStructure(s);
+      }
     }
   }
 
@@ -784,7 +837,12 @@ export class Engine {
         if (!this.canPlaceStructure(cmd.kind, cmd.cell)) return false;
         const structure = this.createStructure(cmd.cell, cmd.kind, cmd.level ?? 1, 1, false);
         if (!structure) return false;
-        this.pay(this.catalog.structures[cmd.kind]!);
+        const def = this.catalog.structures[cmd.kind]!;
+        if (def.cpCost !== undefined && this.phase === 'combat') {
+          structure.cpPaid = this.cpPrice(def.cpCost);
+          structure.placedWave = this.waveIndex;
+        }
+        this.pay(def);
         return true;
       }
       case 'removeStructure': {
@@ -818,7 +876,7 @@ export class Engine {
         const cost = this.repairAllCost();
         if (cost <= 0 || this.supplies < cost) return false;
         for (const wall of this.grid.walls.values()) wall.hp = wall.maxHp;
-        for (const s of this.structures) s.hp = s.profile.maxHp;
+        for (const s of this.structures) if (!s.hulk) s.hp = s.profile.maxHp;
         this.supplies -= cost;
         this.stats.suppliesSpent += cost;
         return true;
@@ -1329,6 +1387,8 @@ export class Engine {
     for (const structure of this.structures) {
       if (structure.hp <= 0 || structure.inert) continue;
       const { profile } = structure;
+      // A hulk fires at its strength (M26); everything else at full.
+      const mult = structure.hulk ? this.defWeaponMult * this.hulkRule!.strength : this.defWeaponMult;
 
       if (profile.trigger) {
         const t = profile.trigger;
@@ -1381,14 +1441,14 @@ export class Engine {
           to: aim,
           firedTick: this.tick,
           impactTick: this.tick + Math.round(weapon.flightSeconds * TICKS_PER_SECOND),
-          damage: weapon.damage * this.defWeaponMult,
+          damage: weapon.damage * mult,
           damageType: weapon.damageType,
           splashRadius: weapon.splashRadius ?? 0,
         });
       } else {
         this.damageAttacker(
           target,
-          weapon.damage * this.defWeaponMult,
+          weapon.damage * mult,
           weapon.damageType,
           true,
           this.rollShot(),
@@ -1486,7 +1546,7 @@ export class Engine {
       if (!aura || source.hp <= 0 || source.inert) continue;
       const r2 = aura.radius * aura.radius;
       for (const target of this.structures) {
-        if (target.id === source.id || target.hp <= 0 || target.inert) continue;
+        if (target.id === source.id || target.hp <= 0 || target.inert || target.hulk) continue;
         if (target.hp >= target.profile.maxHp) continue;
         const dx = target.center.x - source.center.x;
         const dy = target.center.y - source.center.y;
@@ -2232,11 +2292,18 @@ export class Engine {
   private processStructureDeaths(events: SimEvent[]): void {
     for (let i = this.structures.length - 1; i >= 0; i--) {
       const structure = this.structures[i]!;
+      // A hulk burns down whether or not anyone is shooting at it.
+      if (structure.hulk) structure.hp -= structure.hulk.burn;
       if (structure.hp > 0) continue;
       if (structure.profile.kind === 'cc') {
         this.cc.hp = 0;
         this.phase = 'defeat';
         events.push({ type: 'defeat' });
+        continue;
+      }
+      // Burnt out, or finished off: it was counted when it fell.
+      if (structure.hulk) {
+        this.dropStructure(structure);
         continue;
       }
       events.push({
@@ -2246,8 +2313,26 @@ export class Engine {
         at: { ...structure.center },
       });
       this.stats.structuresLost++;
+      if (this.hulkRule && this.canHulk(structure)) {
+        // Overbuilt (M26): it burns on where it stood, a fraction of what it
+        // was, and the path through it stays shut until it is gone.
+        const hp = structure.profile.maxHp * this.hulkRule.strength;
+        structure.hp = hp;
+        structure.hulk = { burn: hp / this.hulkRule.ticks };
+        this.stats.hulks = (this.stats.hulks ?? 0) + 1;
+        continue;
+      }
       this.dropStructure(structure);
     }
+  }
+
+  /**
+   * What can burn on as a hulk: an emplacement, the town's own permanent gun.
+   * Not a field defence, which is a crate and a crew; not a mine or a store,
+   * which have no gun; not a scaffold, which never had a crew in it.
+   */
+  private canHulk(s: Structure): boolean {
+    return s.profile.weapon !== undefined && s.profile.cpCost === undefined && !s.inert && s.profile.kind !== 'cc';
   }
 
   private dropStructure(structure: Structure): void {
@@ -2364,7 +2449,7 @@ export class Engine {
     if (!this.siege) return 0;
     let missing = 0;
     for (const wall of this.grid.walls.values()) missing += wall.maxHp - wall.hp;
-    for (const s of this.structures) missing += s.profile.maxHp - s.hp;
+    for (const s of this.structures) if (!s.hulk) missing += s.profile.maxHp - s.hp;
     return Math.ceil(missing * this.siege.repairCostPerHp);
   }
 
@@ -2406,7 +2491,7 @@ export class Engine {
     }
     for (const st of this.structures) {
       parts.push(
-        `S${st.id}:${st.profile.kind}L${st.level}${st.inert ? 'i' : ''}@${st.origin}:${st.hp.toFixed(6)}:${st.weaponCooldown.toFixed(6)}`,
+        `S${st.id}:${st.profile.kind}L${st.level}${st.inert ? 'i' : ''}${st.hulk ? 'h' : ''}@${st.origin}:${st.hp.toFixed(6)}:${st.weaponCooldown.toFixed(6)}`,
       );
     }
     for (const a of this.attackers) {

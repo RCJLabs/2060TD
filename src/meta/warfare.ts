@@ -54,6 +54,7 @@ import {
   probeConfig,
   productionPerHour,
   researchEffects,
+  surge,
   warLog,
   type DefenseLogEntry,
   type PendingDefense,
@@ -681,7 +682,7 @@ export function resolveRaid(
 
   const remaining = new Map<string, number>();
   for (const s of engine.structures) {
-    if (s.hp > 0) remaining.set(s.profile.kind, (remaining.get(s.profile.kind) ?? 0) + 1);
+    if (s.hp > 0 && !s.hulk) remaining.set(s.profile.kind, (remaining.get(s.profile.kind) ?? 0) + 1);
   }
   const destroyed: Record<string, number> = {};
   let destroyedTotal = 0;
@@ -775,6 +776,8 @@ export function applyRaidResult(
   for (const [kind, lost] of Object.entries(resolution.losses)) {
     town.army[kind] = Math.max(0, (town.army[kind] ?? 0) - lost);
   }
+  // A raid is a battle the commander fought: China's lines surge (M26).
+  surge(town, now);
   // Veterancy (v1.9): the formations that went out get their record updated
   // before anything else, because the record is written in the same men the
   // loss line just deducted. A duel counts as tier 1 — it is still a fight.
@@ -999,8 +1002,9 @@ export const ORDERS_UPKEEP_SUPPLIES = 15;
  * bought with CP, which expires with the battle as a played siege treats it.
  */
 function ownStructures(engine: Engine): number {
-  return engine.structures.filter((s) => s.profile.kind !== 'cc' && s.hp > 0 && s.profile.cpCost === undefined)
-    .length;
+  return engine.structures.filter(
+    (s) => s.profile.kind !== 'cc' && s.hp > 0 && !s.hulk && s.profile.cpCost === undefined,
+  ).length;
 }
 
 /**

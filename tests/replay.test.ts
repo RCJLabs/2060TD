@@ -140,6 +140,41 @@ describe('a replay code is the battle', () => {
     expect(outcome(unscaled, catalog)).not.toBe(outcome(config, catalog));
   });
 
+  it('carries the faction rules a battle was fought under, and re-fights under them (M26)', () => {
+    const config: SimConfig = {
+      ...probeFixture(),
+      signature: { refund: 0.5, hulk: { seconds: 15, strength: 0.25 } },
+    };
+    config.mods = { ...config.mods, defender: { ...config.mods?.defender, postHp: 1.3 } };
+    const catalog = defenseCatalogFor('usa');
+    const code = encodeReplay({ kind: 'probe', faction: 'usa', title: 'P', won: false, config });
+    const back = decodeReplay(code);
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.signature).toEqual(config.signature);
+    expect(back.replay.config.mods?.defender?.postHp).toBe(1.3);
+    expect(outcome(back.replay.config, catalog)).toBe(outcome(config, catalog));
+    // And the block is what makes it that battle.
+    const plain: SimConfig = { ...config, mods: {} };
+    delete plain.signature;
+    expect(outcome(plain, catalog)).not.toBe(outcome(config, catalog));
+  });
+
+  it('writes no rules block for a battle fought under none', () => {
+    const config = probeFixture();
+    const code = encodeReplay({ kind: 'probe', faction: 'usa', title: 'P', won: false, config });
+    const empty = encodeReplay({
+      kind: 'probe',
+      faction: 'usa',
+      title: 'P',
+      won: false,
+      config: { ...config, signature: {} },
+    });
+    expect(empty).toBe(code);
+    const back = decodeReplay(code);
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.signature).toBeUndefined();
+  });
+
   it('writes no cell-size block for a battle at a cell of one', () => {
     // A battle recorded before M34 names no cell size; one that names a cell
     // of one is the same battle, and must be the same code.

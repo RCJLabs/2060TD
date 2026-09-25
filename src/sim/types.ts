@@ -265,6 +265,34 @@ export interface DefenderMods {
   wallHp?: number;
   /** CP prices (field defenses, HESCOs, powers). */
   cpCost?: number;
+  /**
+   * The command post's HP (M26: the UN's humanitarian shield). Under the kill
+   * chain the bar is a demolition job, so a longer bar is a longer breach and
+   * charge; the burn is a clock and does not move.
+   */
+  postHp?: number;
+}
+
+/**
+ * The defending side's faction rules (M26), with their numbers.
+ *
+ * A replay is a record, so the numbers ride the config rather than living in
+ * the sim: a battle fought under a refund of a half re-fights under a half
+ * after a re-tune makes it a third. Absent is every battle fought before M26,
+ * and every raid, whose defender is a base and not a faction.
+ */
+export interface Signature {
+  /**
+   * Rapid Response (USA): the share of its CP price a field defence pays back
+   * at the end of the wave it was placed in, if it is still standing.
+   */
+  refund?: number;
+  /**
+   * Overbuilt (Russia): a destroyed emplacement burns on as a hulk with
+   * `strength` of its HP, burning to nothing over `seconds`, firing at
+   * `strength` of its damage and still in the way.
+   */
+  hulk?: { seconds: number; strength: number };
 }
 
 /** Research-driven multipliers for the attacking side (raid armies). */
@@ -525,6 +553,8 @@ export interface SimConfig {
    * Town-layout injection ignores this — pre-existing walls stand.
    */
   reservedCells?: CellIndex[];
+  /** The defending side's faction rules (M26). Absent means none. */
+  signature?: Signature;
 }
 
 export type Phase = 'sandbox' | 'setup' | 'combat' | 'prep' | 'victory' | 'defeat';
@@ -575,4 +605,8 @@ export interface SimStats {
   salvage: number;
   /** What landed the killing blow on the CC (attacker kind, or 'fire support'). */
   ccKillerKind?: string;
+  /** CP paid back by field defences that lived through their wave (M26, Rapid Response). */
+  cpRefunded?: number;
+  /** Emplacements that burned on as hulks after they fell (M26, Overbuilt). */
+  hulks?: number;
 }

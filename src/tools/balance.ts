@@ -733,7 +733,7 @@ function siegeTraceOn(
     banked: engine.cp,
     kills: engine.stats.kills,
     stages: engine.chainStagesCleared,
-    gunsLeft: engine.structures.filter((st) => st.hp > 0 && st.profile.weapon).length,
+    gunsLeft: engine.structures.filter((st) => st.hp > 0 && !st.hulk && st.profile.weapon).length,
     structuresLost: engine.stats.structuresLost,
     ownLost: standing - ownStructures(engine),
     wallsLost: engine.stats.wallsLost,
@@ -746,8 +746,9 @@ function siegeTraceOn(
 
 /** The town's own buildings standing: not the post, not a field work bought with CP. */
 function ownStructures(engine: Engine): number {
-  return engine.structures.filter((st) => st.profile.kind !== 'cc' && st.hp > 0 && st.profile.cpCost === undefined)
-    .length;
+  return engine.structures.filter(
+    (st) => st.profile.kind !== 'cc' && st.hp > 0 && !st.hulk && st.profile.cpCost === undefined,
+  ).length;
 }
 
 /** A cell of the contested band, with its bare verdict seed by seed. */

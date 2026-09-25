@@ -4822,9 +4822,144 @@ problem.
 
 - [ ] **Phase 1 — one mechanic per faction, prototyped in the harness** before a
       line of UI exists for it.
+
+      **The plan, before the build.** The commander chose four of the five
+      mechanics before this plan was written. Each is the signature that
+      GDD §4 gave its faction and that was never built: the USA's Rapid
+      Response, China's Production Surge, Russia's Overbuilt and the UN's
+      Mandate. The KPA keeps the one it already has, the tunnel.
+
+      *What the survey found.* The five kits are one kit dressed five ways.
+      Every town builds the same eight structure kinds under its own names:
+      a machine-gun nest, an autocannon, a MANPADS team, an AA site, a
+      mortar, a deployable gun, a foxhole and a claymore. Every town calls
+      the same two fire missions, a gun run and a barrage. The rosters
+      differ only in price and role. Of the four signatures, only the tunnel
+      is a mechanic. Russia's Overbuilt is just fifteen per cent added to
+      the price of its buildings (`OVERBUILT_COST`), and Rapid Response,
+      Production Surge and the Mandate do not exist at all. The week at war
+      shows what this does to a turn. Raiding and skirmishing every two
+      hours, all five factions spend the day on the same things in about
+      the same proportions. Per day, repairs cost 14-23k supplies, raids
+      earn 9-18k and training costs 3-7k. Research costs 8,902 for all five,
+      because there is one research graph.
+
+      *The four rules.*
+
+      USA, Rapid Response. A field defence that survives the wave it was
+      placed in pays back half its CP, once, at the end of that wave. This
+      covers the foxhole, the gun, the mine and the Stinger team, whether
+      the commander placed it or the standing orders did. The refunded CP
+      can be spent in the next wave. So the US defence is the one that
+      deploys early and often, and places field works where they will
+      survive. This is a sim rule, applied at the end of a wave.
+
+      China, Production Surge. For thirty minutes after any battle the
+      commander fights, every training line runs at double speed. That
+      means a raid, a skirmish, a defence stood, a counterattack, a last
+      stand or a mission. A unit already in training when the surge starts
+      finishes sooner, and a unit queued during the surge takes half the
+      time. The Chinese turn is the one that fights, refills and fights
+      again. This is a town rule, and nothing changes in battle.
+
+      Russia, Overbuilt. An emplacement that is destroyed burns on as a hulk
+      for up to fifteen seconds. The hulk has a quarter of the emplacement's
+      HP, which burns down to nothing over those fifteen seconds. It fires
+      at a quarter of the emplacement's damage, still blocks the path, and
+      still covers the post. The attackers can shoot or demolish it sooner.
+      Either way, it counts as destroyed from the moment it first fell, and
+      it is a wreck in the town afterwards. The Russian defence is the one
+      whose line cannot be broken in one place all at once. This is a sim
+      rule, applied when a structure dies. The fifteen per cent extra
+      Russia pays for its concrete stays.
+
+      UN, Mandate. Before each defence, the commander picks one of three
+      mandates for that battle:
+      - Defensive works: walls a third sturdier.
+      - Rapid deployment: field defences, HESCOs and fire missions a
+        quarter cheaper in CP.
+      - Humanitarian shield: a post a third harder to take. Its bar is a
+        third longer, so the breach and the charge each take a third more.
+        The burn runs on a clock and does not change.
+
+      The town keeps a standing mandate. The garrison fights under it when
+      the commander is away, and a live defence offers it first. The UN's
+      defence is the one that reads the attack before it comes. The first
+      two mandates use the same multipliers research already sets, so they
+      reach the sim through the mods every town battle carries. Only the
+      post's multiplier is new.
+
+      KPA, the tunnel. Unchanged. The KPA is already the one faction whose
+      turn differs, because its best raid goes under the maze. The parity
+      table already reads the KPA through a tunnel.
+
+      *How they are keyed.* A replay is a record of a battle, so it has to
+      re-fight under the rule it was fought under, even after a re-tune. The
+      three sim rules therefore ride the config with their numbers, just as
+      the standing orders ride as an id and the chain as a version.
+      `SimConfig.rules` carries the refund's share, the hulk's seconds and
+      strength, and the post's HP multiplier, and it is absent from every
+      battle fought before. The rules are attached from the town's faction
+      at `battleConfig`, the one seam every town battle comes through. The
+      replay code appends them as a block at the end, as it did for
+      terrain, the watch, the rolls, the chain and the cell size. The surge
+      is town state: a time stored on the save.
+
+      *What Phase 1 builds, and what it does not.* Phase 1 builds the four
+      rules with their tests, and measures each one on and off in the
+      harness:
+      - the refund and the hulks on the defence tables across the contested
+        band;
+      - each mandate alone, and the best of the three picked per battle;
+      - the surge's effect on how long a raid's losses take to retrain, and
+        on how many raids a session then fits.
+
+      None of the rules is switched on in the game, because none has any UI
+      yet. A hulk drawn as a live gun, or a refund the player cannot see, is
+      a rule nobody can play. Each rule is switched on together with its UI
+      in Phase 3, once its numbers have held parity.
 - [ ] **Phase 2 — measure the right thing.** Not parity in odds, which is already
       won, but DIVERGENCE in how a turn is spent.
+
+      *The plan.* A turn is what a commander does with a session, and the
+      week at war already plays sessions. Phase 2 reads the shape of each
+      faction's turn from those sessions, compared as shares:
+      - battles fought per session, by kind;
+      - supplies spent, by use;
+      - CP spent in a defence, by verb.
+
+      A faction's divergence is the distance between its shares and the
+      mean of the other four's. Today every faction but the KPA sits close
+      to that mean. The bar is that each faction's rule moves its own turn
+      along its own axis:
+      - US defences spend more CP on field works;
+      - China fits more raids into a session;
+      - Russia's unchanged defence holds higher, so its commander climbs the
+        skirmish ladder further;
+      - the UN's turn follows the attacks it meets.
+
+      The stronger test is a matrix of commanders. Each faction plays each
+      faction's line for a week, and a real asymmetry is one where every
+      faction does best on its own line and pays for playing another's.
+      Phase 2 settles its instrument after reading Phase 1's numbers.
 - [ ] **Phase 3 — re-tune to hold 4.2 while the playstyles separate.**
+
+      *The plan.* There are two parities to hold, and a third place to
+      check:
+      - The raid table. It measured 8.0 points in the last snapshot, and
+        none of the four rules touches a raid.
+      - The defence side, which three of the four rules move: the DEFENSE
+        tables, the contested band, the last stand's level and the probes.
+      - The campaign's missions, which are fought through the same seam.
+
+      Tuning uses each rule's own numbers first: the refund's share, the
+      hulk's strength and seconds, the mandates' sizes and the surge's
+      minutes. Faction stats are adjusted only if those are not enough.
+      Then each rule gets its UI and is switched on:
+      - a hulk that is drawn as burning;
+      - the CP a surviving field defence returns, shown on the board;
+      - the mandate chosen in the defence offer and set in the WAR tab;
+      - the surge's clock on the training lines.
 
 ## M27 — "The Other Commander": asynchronous PvP for real
 

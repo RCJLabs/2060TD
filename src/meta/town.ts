@@ -41,6 +41,14 @@ import { MAP_CELL_SIZE } from '../content/bases';
 import { effectsOf, techPrereqs, TECH_BY_ID, type ResearchEffects } from '../content/research';
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
+import {
+  DEFAULT_MANDATE,
+  MANDATES,
+  PRODUCTION_SURGE,
+  signatureFor,
+  signaturesLive,
+  type MandateId,
+} from '../content/signatures';
 import { newSquadRecords, type SquadRecord } from '../content/veterancy';
 import type { VaultEntry } from './vault';
 // Type-only, so no runtime edge is added back to warfare.ts (which imports
@@ -451,6 +459,17 @@ export interface TownState {
    * `regrid.ts` for what carrying it across involves.
    */
   gridVersion?: number;
+  /**
+   * Production Surge (M26, China): training runs faster until this moment,
+   * half an hour past the last battle the commander fought. Absent on every
+   * town that has not fought one since, and on every town not China's.
+   */
+  surgeUntil?: number;
+  /**
+   * The standing mandate (M26, the UN): the doctrine buff the garrison fights
+   * under, and the one a live defence offers first. Absent means the default.
+   */
+  mandate?: MandateId;
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -1187,7 +1206,7 @@ export function tick(town: TownState, now: number): LadderSettlement {
       if (next !== undefined) {
         const seconds =
           (trainMetaFor(town.faction)[next]?.seconds ?? 30) * researchEffects(town).trainTime;
-        s.trainEndsAt = s.trainEndsAt + seconds * 1000;
+        s.trainEndsAt = trainingEnd(town, s.trainEndsAt, seconds * 1000);
       } else {
         delete s.trainEndsAt;
       }
@@ -1293,9 +1312,56 @@ export function queueTrain(town: TownState, structureId: number, kind: string, n
   s.trainQueue.push(kind);
   creditContracts(town, 'trained', 1, now);
   if (s.trainQueue.length === 1) {
-    s.trainEndsAt = now + meta.seconds * researchEffects(town).trainTime * 1000;
+    s.trainEndsAt = trainingEnd(town, now, meta.seconds * researchEffects(town).trainTime * 1000);
   }
   return true;
+}
+
+// ---- Production Surge (M26, China) ---------------------------------------------------
+
+/** How much faster the lines run while the surge does: 1 for a town without one. */
+const surgeSpeed = (town: TownState): number => (town.surgeUntil === undefined ? 1 : PRODUCTION_SURGE.speed);
+
+/**
+ * When `work` ms of training begun at `start` is done: at the surge's speed
+ * until it ends, and at the ordinary rate after. Without a surge this is
+ * `start + work`, the sum every line has always kept.
+ */
+function trainingEnd(town: TownState, start: number, work: number): number {
+  const until = town.surgeUntil;
+  if (until === undefined || start >= until) return start + work;
+  const speed = surgeSpeed(town);
+  const fast = (until - start) * speed;
+  return work <= fast ? start + work / speed : until + (work - fast);
+}
+
+/** The work left at `now` on a course due at `end`, timed under the surge running to `until`. */
+function trainingLeft(now: number, end: number, until: number | undefined, speed: number): number {
+  if (end <= now) return 0;
+  if (until === undefined || now >= until) return end - now;
+  if (end <= until) return (end - now) * speed;
+  return (until - now) * speed + (end - until);
+}
+
+/**
+ * A battle the commander fought at `now` (M26, China's Production Surge):
+ * every training line runs at double speed for the next half hour. A course
+ * already under way is re-timed from what is left of it, so the surge speeds
+ * the unit on the bench as much as the one queued behind it. A second battle
+ * inside the window extends it rather than stacking. Nothing for a town that
+ * is not China's, nor while the game does not fight the signatures.
+ */
+export function surge(town: TownState, now: number): void {
+  if (town.faction !== 'china' || !signaturesLive()) return;
+  const until = now + PRODUCTION_SURGE.minutes * 60_000;
+  const old = town.surgeUntil;
+  if (old !== undefined && old >= until) return;
+  const oldSpeed = surgeSpeed(town);
+  town.surgeUntil = until;
+  for (const s of town.structures) {
+    if (s.trainEndsAt === undefined || !s.trainQueue?.length) continue;
+    s.trainEndsAt = trainingEnd(town, now, trainingLeft(now, s.trainEndsAt, old, oldSpeed));
+  }
 }
 
 // ---- research -----------------------------------------------------------------------
@@ -1627,10 +1693,23 @@ function battleConfig(
   reservedCells?: CellIndex[],
 ): SimConfig {
   const fx = researchEffects(town);
+  // The faction's signature (M26), when the game fights them: the sim's rule
+  // with its numbers, and the UN's mandate on top of what research set.
+  const live = signaturesLive();
+  const signature = live ? signatureFor(town.faction) : undefined;
+  const mandate = live && town.faction === 'un' ? MANDATES[town.mandate ?? DEFAULT_MANDATE].mods : {};
+  // Rounded to the thousandth a replay code keeps, so a product of two
+  // multipliers re-fights as exactly the number it was fought with.
+  const milli = (v: number): number => Math.round(v * 1000) / 1000;
+  const wallHp = mandate.wallHp !== undefined ? milli(fx.wallHp * mandate.wallHp) : fx.wallHp;
+  const cpCost = mandate.cpCost !== undefined ? milli(fx.cpCost * mandate.cpCost) : fx.cpCost;
+  const postHp = mandate.postHp ?? 1;
   const defender =
-    fx.wallHp !== 1 || fx.weaponDamage !== 1 || fx.cpCost !== 1
-      ? { wallHp: fx.wallHp, weaponDamage: fx.weaponDamage, cpCost: fx.cpCost }
-      : undefined;
+    wallHp !== 1 || fx.weaponDamage !== 1 || cpCost !== 1
+      ? { wallHp, weaponDamage: fx.weaponDamage, cpCost, ...(postHp !== 1 ? { postHp } : {}) }
+      : postHp !== 1
+        ? { postHp }
+        : undefined;
   return {
     width: TOWN_GRID.width,
     height: TOWN_GRID.height,
@@ -1663,6 +1742,7 @@ function battleConfig(
     killChainVersion: CHAIN_CURRENT,
     ...(defender ? { mods: { defender } } : {}),
     ...(reservedCells && reservedCells.length > 0 ? { reservedCells } : {}),
+    ...(signature ? { signature } : {}),
   };
 }
 
@@ -1811,6 +1891,7 @@ export function outcomeFromEngine(engine: Engine): SiegeOutcome {
       (s) =>
         s.profile.kind !== 'cc' &&
         s.hp > 0 &&
+        !s.hulk && // a hulk fell, and burned on (M26)
         s.profile.cpCost === undefined, // field defenses expire with the battle
     )
     .map((s) => ({ cell: s.origin, kind: s.profile.kind, level: s.level }));
@@ -1908,6 +1989,7 @@ function clampToCaps(town: TownState, before: { cap: Stores; held: Stores }): vo
 export function applySiegeResult(town: TownState, outcome: SiegeOutcome, now: number): void {
   const before = beforeBattle(town);
   foldBattle(town, outcome, now);
+  surge(town, now);
   if (outcome.victory) {
     const loot = assaultLoot(town.assaultLevel);
     town.supplies += loot.supplies;
@@ -1946,6 +2028,8 @@ export function applyDefenseResult(
 ): { suppliesLost: number; fuelLost: number } {
   const before = beforeBattle(town);
   foldBattle(town, outcome, now);
+  // Only ever fought in person: the garrison's answer is the probe's.
+  surge(town, now);
   if (outcome.victory) {
     town.supplies += bounty.supplies;
     town.fuel += bounty.fuel;
@@ -1998,6 +2082,7 @@ export function applyLastStandResult(
 export function applyCounterResult(town: TownState, outcome: SiegeOutcome, now: number): void {
   const before = beforeBattle(town);
   foldBattle(town, outcome, now);
+  surge(town, now);
   if (outcome.victory) {
     town.supplies += 120 + 60 * town.frontline.tier;
     town.victories++;
@@ -2031,6 +2116,7 @@ export function applyMissionResult(
 ): MissionResult {
   const before = beforeBattle(town);
   foldBattle(town, outcome, now);
+  surge(town, now);
 
   if (!outcome.victory) {
     applyDefeat(town);
