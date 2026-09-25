@@ -3,7 +3,7 @@
  * fights the same raid: the balance harness's raid tables, and the economy
  * instrument's week at war (M24 Phase 4).
  */
-import type { FactionId } from '../content/factions';
+import { trainableFor, type FactionId } from '../content/factions';
 import type { RaidSupport, SquadPlan } from '../meta/warfare';
 
 /**
@@ -92,3 +92,82 @@ export const DOCTRINE_SUPPORT: RaidSupport = {
     { kind: 'arty', atSeconds: 40, target: 'cc' },
   ],
 };
+
+/** The manpower a plan fields, by each unit's own cost. */
+export function planManpower(faction: FactionId, plans: SquadPlan[] = RAID_PLANS[faction]): number {
+  const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
+  return plans.reduce(
+    (total, squad) =>
+      total +
+      Object.entries(squad.units).reduce((s, [kind, n]) => s + (meta[kind] ?? 0) * n, 0),
+    0,
+  );
+}
+
+/**
+ * The reference composition, resized to a manpower budget.
+ *
+ * Built by DEALING units out of the reference in its own order, one at a time,
+ * until the next one would break the budget. Every plan in `RAID_PLANS` is
+ * mostly counts of ONE, so the obvious resize — scale each count and round —
+ * cannot express anything between "one Abrams" and "two": `round(1 * k)` is 1
+ * for every k from 0.5 to 1.5, and a budget sweep built that way reported
+ * eleven of twenty-five rungs at exactly the same number because they were all
+ * fighting the identical force.
+ *
+ * Dealing round-robin keeps the proportions — the reference's own order is the
+ * cycle — while letting the force grow one man at a time.
+ */
+export function planAtBudget(
+  faction: FactionId,
+  budget: number,
+  shape: SquadPlan[] = RAID_PLANS[faction],
+): SquadPlan[] {
+  const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
+  const base = shape;
+  /** Every unit the reference fields, in its order: (squad index, kind). */
+  const slots: { squad: number; kind: string }[] = [];
+  base.forEach((squad, i) => {
+    for (const [kind, n] of Object.entries(squad.units)) {
+      for (let k = 0; k < n; k++) slots.push({ squad: i, kind });
+    }
+  });
+  if (slots.length === 0) return base;
+
+  const counts = base.map(() => ({}) as Record<string, number>);
+  let spent = 0;
+  let took = 0;
+  // Several laps, so a budget larger than the reference is a bigger raid of
+  // the same shape rather than a truncated one.
+  for (let lap = 0; lap < 8 && spent < budget; lap++) {
+    for (const slot of slots) {
+      const cost = meta[slot.kind] ?? 0;
+      if (spent + cost > budget) continue;
+      counts[slot.squad]![slot.kind] = (counts[slot.squad]![slot.kind] ?? 0) + 1;
+      spent += cost;
+      took++;
+    }
+  }
+  // A budget under the cheapest unit still sends somebody: a raid of nobody
+  // is not a measurement of the rung.
+  if (took === 0) {
+    const cheapest = slots.reduce((a, b) => ((meta[a.kind] ?? 99) <= (meta[b.kind] ?? 99) ? a : b));
+    counts[cheapest.squad]![cheapest.kind] = 1;
+  }
+  return base
+    .map((squad, i) => ({ ...squad, units: counts[i]! }))
+    .filter((squad) => Object.keys(squad.units).length > 0)
+    .map((squad, at) => ({ ...squad, slot: at }));
+}
+
+/** Men a rung past the fifth that the deep rows are tuned for (M25 Phase 4a). */
+export const DEEP_STEP = 4;
+
+/**
+ * The force a rung is tuned for: the reference's own manpower to the fifth
+ * rung, and four men more for every rung past it. `--deeplayouts` selects the
+ * deep rows against it, and the war instrument's growing commander raids with
+ * it.
+ */
+export const deepBudget = (faction: FactionId, tier: number): number =>
+  planManpower(faction) + DEEP_STEP * Math.max(0, tier - 5);

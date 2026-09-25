@@ -1258,3 +1258,21 @@ here with the change and its date.
   line takes a tenth of production while the front is young and a fifth or
   more at the eighth rung, and no built town the instrument plays ever went
   short. The price per rung was the plan's and the measurement kept it.
+- 2026-09-24 — **The deep rungs are chosen for a growing army, and a town the
+  depots cannot feed holds (M25 Phase 4a, v1.56.0).** Past rung 5 the deal was
+  rung 5's pairs with the layouts moved on, which nobody chose and which measured
+  as a climb that spiked past what a built town fields. Rungs 6 to 13 are chosen
+  now by the search that chose 1 to 5, against the reference shape resized to
+  four men a rung more than its own, because the reference force is what rung 5
+  is tuned for and cannot be what the stronghold is. A commander who grows the
+  army at that rate keeps rung 5's odds to the stronghold, and one who does not
+  stops near the ninth rung. Rungs 1 to 5 do not move. Measured, no deep rung
+  asks more than 60 of the 66 men a built town fields, and a grown army reaches
+  the stronghold in twelve to fifteen days of daily play. The second rule came
+  out of that measurement rather than the plan: hunger was too slow to end the
+  road, since three raids a day take a town a day and a starving front loses a
+  sector a day, and the grown commanders ran on to the thirtieth rung. So the
+  third push takes the front's town only if the depots could feed the line with
+  it in. If not, the win pays and counts, and the pushes hold at two until they
+  can. The depths Phase 3 put on the depots are a ceiling now, and a town with
+  no depots at all cannot take the first town.

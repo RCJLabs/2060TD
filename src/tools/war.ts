@@ -38,6 +38,7 @@ import {
   chargeCapOf,
   counterattackConfig,
   fitTerrainSeed,
+  manpowerCapOf,
   outcomeFromEngine,
   placeWall,
   queueTrain,
@@ -65,12 +66,13 @@ import {
   slotOf,
   squadVet,
   postAt,
+  type SquadPlan,
 } from '../meta/warfare';
 import { raidTargetKeys } from '../meta/theater';
 import { Engine } from '../sim/engine';
 import type { SimConfig } from '../sim/types';
 import { advanceBooked, RESOURCES, zero, type Accruals, type Amounts } from './economy';
-import { DOCTRINE_SUPPORT, RAID_PLANS } from './plans';
+import { deepBudget, DOCTRINE_SUPPORT, planAtBudget, RAID_PLANS } from './plans';
 import { referenceBases } from './referenceBases';
 import { bandOf, laidOutTown } from './yard';
 
@@ -102,6 +104,12 @@ export interface WarOptions {
   strikes?: boolean;
   /** The rung the front starts at, every town behind it held (M25 Phase 3). The week at war starts at the first. */
   startTier?: number;
+  /**
+   * The force grows with the front (M25 Phase 4a): the reference shape resized
+   * to `deepBudget` for the rung, four men a rung past the fifth, up to what
+   * the town can field. The week at war fights the reference force throughout.
+   */
+  grow?: boolean;
 }
 
 export interface WarBooks extends Accruals {
@@ -131,6 +139,8 @@ export interface WarRun {
   tier: number;
   /** The highest rung it held. */
   peakTier: number;
+  /** The day each rung was first reached, by rung (M25 Phase 4a); undefined for a rung never reached. */
+  reachedOn: (number | undefined)[];
   assaultLevel: number;
   /** Sectors the enemy retook, how many the commander took back, and times the front fell back (M25 Phase 2). */
   lost: number;
@@ -277,6 +287,7 @@ export function playWarWeek(
     skirmishesHeld: 0,
     tier: 0,
     peakTier: town.frontline.tier,
+    reachedOn: [],
     assaultLevel: 0,
     lost: 0,
     retaken: 0,
@@ -287,8 +298,13 @@ export function playWarWeek(
   };
   const wire = town.walls.map((w) => ({ ...w }));
   const booksFrom = town.lastSeen;
-  const plan = RAID_PLANS[faction];
-  const wanted = planDeployment(plan);
+  /** The force the commander raids with at a rung, and the army it keeps for it. */
+  const forceAt = (tier: number): { plan: SquadPlan[]; wanted: Record<string, number> } => {
+    const plan = opts.grow
+      ? planAtBudget(faction, Math.min(deepBudget(faction, tier), manpowerCapOf(town)))
+      : RAID_PLANS[faction];
+    return { plan, wanted: planDeployment(plan) };
+  };
   const begin = LADDER_EPOCH + 7 * HOUR;
   let variant = 0;
   let lostSkirmishOn = -1;
@@ -326,7 +342,7 @@ export function playWarWeek(
   /** The force made whole again, as far as the facilities and the stores go. */
   const retrain = (at: number): void => {
     act('training', () => {
-      for (const [kind, n] of Object.entries(wanted)) {
+      for (const [kind, n] of Object.entries(forceAt(town.frontline.tier).wanted)) {
         let queued = 0;
         for (const s of town.structures) queued += (s.trainQueue ?? []).filter((k) => k === kind).length;
         for (let short = n - (town.army[kind] ?? 0) - queued; short > 0; short--) {
@@ -380,12 +396,22 @@ export function playWarWeek(
       // one waits out the first one's retraining, minute by minute.
       let clock = at;
       for (let r = 0; r < raidsPerSession && policy !== 'peace'; r++) {
-        if (r > 0) {
-          for (let m = 1; m <= RAID_TURNAROUND_MIN; m++) advance(clock + m * MIN);
+        // A commander growing the army keeps its training queues full: five a
+        // facility, re-queued as each finishes, and before the first raid of
+        // a session too when the yard is short. The week at war's commander
+        // queues once a raid, and its tables were read that way.
+        const yardFull = (): boolean =>
+          Object.entries(forceAt(town.frontline.tier).wanted).every(([kind, n]) => (town.army[kind] ?? 0) >= n);
+        if (r > 0 || (opts.grow && !yardFull())) {
+          for (let m = 1; m <= RAID_TURNAROUND_MIN; m++) {
+            if (opts.grow) retrain(clock + (m - 1) * MIN);
+            advance(clock + m * MIN);
+          }
           clock += RAID_TURNAROUND_MIN * MIN;
           // A counterattack the last raid earned is fought before the next one goes.
           counterattack(clock);
         }
+        const { plan, wanted } = forceAt(town.frontline.tier);
         const ready = Object.entries(wanted).every(([kind, n]) => (town.army[kind] ?? 0) >= n);
         if (!ready) break;
         const when = clock;
@@ -410,6 +436,7 @@ export function playWarWeek(
         run.raids++;
         if (res.cleared) run.cleared++;
         if (res.cleared && retaking) run.retaken++;
+        for (let t = run.peakTier + 1; t <= town.frontline.tier; t++) run.reachedOn[t] = (when - begin) / DAY;
         run.peakTier = Math.max(run.peakTier, town.frontline.tier);
         if (r + 1 < raidsPerSession) retrain(when);
       }
@@ -571,6 +598,40 @@ export function supplyTable(faction: FactionId = 'usa'): string {
         );
       }
     }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * M25 Phase 4a: whether the capital can be reached. The town of the week at
+ * war raids daily for ten weeks, up to three raids a session at the easiest
+ * open post, answering the enemy's strikes by pushing: with the reference force
+ * throughout, and with a force that grows four men a rung past the fifth, as
+ * the deep rungs are tuned for. The day it first reaches each of the deep
+ * rungs, and the stronghold.
+ */
+export function reachTable(faction: FactionId = 'usa', days = 70): string {
+  const start = warTown(faction);
+  const tiers = [5, 7, 9, 11, 13];
+  const lines = [
+    `THE ROAD TO THE CAPITAL — ${faction.toUpperCase()}: the town of the week at war, daily for ${days} days`,
+    `FORCE      | ${tiers.map((t) => `T${t}`.padStart(6)).join(' | ')} | RUNG`,
+  ];
+  for (const [name, grow] of [
+    ['reference', false],
+    ['growing', true],
+  ] as const) {
+    const run = playWarWeek(start, 'raids', 24, days, 10, {
+      raidsPerSession: 3,
+      front: 'easiest',
+      retake: 'push',
+      grow,
+    });
+    const day = (t: number): string => {
+      const d = run.reachedOn[t];
+      return d === undefined ? '—' : `day ${Math.round(d)}`;
+    };
+    lines.push(`${name.padEnd(10)} | ${tiers.map((t) => day(t).padStart(6)).join(' | ')} | ${pad(run.tier, 4)}`);
   }
   return lines.join('\n');
 }

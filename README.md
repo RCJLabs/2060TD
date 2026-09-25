@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.55.0, in the browser. No install, no account, works on a phone.
+v1.56.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,31 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.55.0: the supply line
+## Current state — v1.56.0: the road to the stronghold
+
+**The climb to the enemy's stronghold is tuned.** Until now only the first five rungs of the
+Front Line were tuned, and every rung past the fifth reused rung 5's posts on different ground,
+so the climb spiked and dipped: the USA's 9th rung needed more men than its 13th, and the UN's
+needed more than a fully built town can field. Rungs 6 to 13 now each have their own three posts,
+picked by measurement the way the first five were: a heavy one, a middle one, and one you can
+take today, tuned for an army that grows by about four men a rung. Grow your army as you climb
+and every rung plays about like rung 5. The stronghold takes 53 to 60 of the 66 men a fully built
+CC3 town can field. Rungs 1 to 5 haven't changed.
+
+**Your depots decide how far you go.** You now take the front's town only if your supply depots
+could feed the line with it. If they couldn't, your third win still pays loot and standing like
+any other, but the front stays at two pushes until your depots make more. The theater map warns
+you in red: `THE DEPOTS CANNOT FEED TILLAMOOK: TAKING IT WOULD PUT THE LINE AT 315 AN HOUR, AND
+THEY MAKE 240.` Built out, CC1 can push the front to the 6th rung, CC2 to the 9th, and CC3 to the
+stronghold at the 13th. Taking the stronghold needs 1,365 supplies an hour, which takes the whole
+economy: with the yard and the research, a CC3 town goes on to the 16th rung. A front can still
+go hungry if your production drops, say when a depot is wrecked.
+
+**Measured.** Raiding three times a day with an army that grows as it climbs, every faction
+reaches the enemy's stronghold in 12 to 15 days and stops at the 16th rung. An army kept at the
+size rung 5 needed stalls around the 9th.
+
+## v1.55.0: the supply line
 
 **Holding ground costs supplies.** Every town you hold behind the front is fed from what your
 supply depots make, and the further it is from home, the more it takes: 5 supplies an hour per

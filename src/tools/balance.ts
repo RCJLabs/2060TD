@@ -24,6 +24,7 @@ import {
   TARGETS_PER_TIER,
   archetypeFor,
   dealPairFor,
+  DEAL_TABLE,
   BASE_SPAWN_EDGE,
   BASE_SPAWN_LANE,
   MAP_CELL_SIZE,
@@ -62,9 +63,9 @@ import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
 import { economyTable } from './economy';
 import { yardTable } from './yard';
-import { frontTable, supplyTable, warTable } from './war';
+import { frontTable, reachTable, supplyTable, warTable } from './war';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
-import { DOCTRINE_SUPPORT, RAID_PLANS } from './plans';
+import { deepBudget, DOCTRINE_SUPPORT, planAtBudget, planManpower, RAID_PLANS } from './plans';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
 import { scaleFootprint } from '../sim/scale';
@@ -231,15 +232,6 @@ function tunnelPlanFor(
   return best;
 }
 
-function planManpower(faction: FactionId, plans: SquadPlan[] = RAID_PLANS[faction]): number {
-  const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
-  return plans.reduce(
-    (total, squad) =>
-      total +
-      Object.entries(squad.units).reduce((s, [kind, n]) => s + (meta[kind] ?? 0) * n, 0),
-    0,
-  );
-}
 
 /**
  * Manpower sent and manpower home, from one resolution.
@@ -300,61 +292,6 @@ function manpowerFlow(faction: FactionId, res: RaidResolution): { sent: number; 
 const RUNG_BUDGETS = [4, 6, 8, 11, 14, 18, 22, 25, 28, 31, 34, 38, 42, 48] as const;
 const RUNG_SEEDS = 12;
 
-/**
- * The reference composition, resized to a manpower budget.
- *
- * Built by DEALING units out of the reference in its own order, one at a time,
- * until the next one would break the budget. Every plan in `RAID_PLANS` is
- * mostly counts of ONE, so the obvious resize — scale each count and round —
- * cannot express anything between "one Abrams" and "two": `round(1 * k)` is 1
- * for every k from 0.5 to 1.5, and a budget sweep built that way reported
- * eleven of twenty-five rungs at exactly the same number because they were all
- * fighting the identical force.
- *
- * Dealing round-robin keeps the proportions — the reference's own order is the
- * cycle — while letting the force grow one man at a time.
- */
-function planAtBudget(
-  faction: FactionId,
-  budget: number,
-  shape: SquadPlan[] = RAID_PLANS[faction],
-): SquadPlan[] {
-  const meta = Object.fromEntries(trainableFor(faction).map((t) => [t.kind, t.manpower]));
-  const base = shape;
-  /** Every unit the reference fields, in its order: (squad index, kind). */
-  const slots: { squad: number; kind: string }[] = [];
-  base.forEach((squad, i) => {
-    for (const [kind, n] of Object.entries(squad.units)) {
-      for (let k = 0; k < n; k++) slots.push({ squad: i, kind });
-    }
-  });
-  if (slots.length === 0) return base;
-
-  const counts = base.map(() => ({}) as Record<string, number>);
-  let spent = 0;
-  let took = 0;
-  // Several laps, so a budget larger than the reference is a bigger raid of
-  // the same shape rather than a truncated one.
-  for (let lap = 0; lap < 8 && spent < budget; lap++) {
-    for (const slot of slots) {
-      const cost = meta[slot.kind] ?? 0;
-      if (spent + cost > budget) continue;
-      counts[slot.squad]![slot.kind] = (counts[slot.squad]![slot.kind] ?? 0) + 1;
-      spent += cost;
-      took++;
-    }
-  }
-  // A budget under the cheapest unit still sends somebody: a raid of nobody
-  // is not a measurement of the rung.
-  if (took === 0) {
-    const cheapest = slots.reduce((a, b) => ((meta[a.kind] ?? 99) <= (meta[b.kind] ?? 99) ? a : b));
-    counts[cheapest.squad]![cheapest.kind] = 1;
-  }
-  return base
-    .map((squad, i) => ({ ...squad, units: counts[i]! }))
-    .filter((squad) => Object.keys(squad.units).length > 0)
-    .map((squad, at) => ({ ...squad, slot: at }));
-}
 
 /** Clear rate of a budgeted force against a whole rung's dealt pool. */
 function rungClear(
@@ -2819,13 +2756,97 @@ function graphTable(faction: FactionId): string {
  * the enemy's stronghold at the thirteenth, against the most a built CC3 town
  * can field (66). The endgame has to be climbable before it can mean anything.
  */
-function deepTable(faction: FactionId, tiers: readonly number[] = [1, 3, 5, 7, 9, 10, 11, 13]): string {
+function deepTable(faction: FactionId, tiers: readonly number[] = [5, 6, 7, 8, 9, 10, 11, 12, 13]): string {
   const budgets = [...RUNG_BUDGETS, 54, 60, 66] as const;
   const cells = tiers.map((tier) => {
-    const need = budgetToClear(faction, tier, RAID_PLANS[faction], budgets, 6, true);
+    const need = budgetToClear(faction, tier, RAID_PLANS[faction], budgets, 12, true);
     return `T${tier} ${need === null ? '>66' : need}`;
   });
   return `${faction.toUpperCase().padEnd(7)} reference ${planManpower(faction)} MP · to clear half: ${cells.join('  ')}`;
+}
+
+/**
+ * M25 Phase 4a: the deep rungs' rows, chosen the way `--layouts` chose rungs 1
+ * to 5, against a force that grows with the rung.
+ *
+ * Rungs 1 to 5 were selected at each faction's reference force, which is what
+ * rung 5 is tuned for, and past it the deal was rung 5's pairs with the
+ * layouts moved on: nobody chose them, and `--deep` measured the result as a
+ * climb that spikes and dips. Here each rung's force is the reference shape
+ * resized to a budget four men a rung larger than the reference's own, so the
+ * middle post clears 55% for a commander who grows the army at that rate, and
+ * the heavy and light posts 15 points either side, as rung 5's do. The same
+ * exhaustive search over distinct-shape triples, the same nudge toward shapes
+ * the faction has not met, seeded with the shapes rungs 1 to 5 already deal.
+ */
+const DEEP_TIERS = [6, 7, 8, 9, 10, 11, 12, 13] as const;
+
+function deepLayouts(
+  faction: FactionId,
+  tiers: readonly number[] = DEEP_TIERS,
+  LAYOUT_POOL = 12,
+): string {
+  const SELECT_SEEDS = 12;
+  const WANT = 55;
+  const SPREAD = 15;
+  const COVERAGE_NUDGE = 6;
+  const seen = new Set<string>((DEAL_TABLE[faction] ?? []).flat().map((pair) => pair[0]));
+  const rows: string[] = [];
+  for (const tier of tiers) {
+    const budget = deepBudget(faction, tier);
+    const force = planAtBudget(faction, budget);
+    const clearOf = (shape: ArchetypeId, layout: number): number => {
+      const base = generateBase(tier, layout, baseKitFor(faction), shape);
+      const squads = (faction === 'nk' ? tunnelPlanFor(faction, base, tier, force) : force).map((sq, at) => ({
+        ...sq,
+        slot: at,
+      }));
+      let cleared = 0;
+      for (let i = 0; i < SELECT_SEEDS; i++) {
+        const config = raidConfig(base, squads, seedOf(tier, layout, i), trainableFor(faction));
+        if (resolveRaid(config, squads, tier, raidCatalogFor(faction)).cleared) cleared++;
+      }
+      return (cleared / SELECT_SEEDS) * 100;
+    };
+    const wants = [WANT - SPREAD, WANT, WANT + SPREAD];
+    const measured: { shape: ArchetypeId; layout: number; clear: number }[] = [];
+    for (const arch of ARCHETYPES) {
+      for (let layout = 0; layout < LAYOUT_POOL; layout++) {
+        measured.push({ shape: arch.id, layout, clear: clearOf(arch.id, layout) });
+      }
+    }
+    const shapes = [...new Set(measured.map((m) => m.shape))];
+    const bestFor = (shape: string, target: number) =>
+      measured
+        .filter((m) => m.shape === shape)
+        .sort((a, b) => Math.abs(a.clear - target) - Math.abs(b.clear - target))[0]!;
+    const cost = (m: { shape: ArchetypeId; clear: number }, target: number) =>
+      (m.clear - target) ** 2 + (seen.has(m.shape) ? COVERAGE_NUDGE ** 2 : 0);
+    let picks: { shape: ArchetypeId; layout: number; clear: number }[] = [];
+    let bestCost = Infinity;
+    for (const a of shapes) {
+      const pa = bestFor(a, wants[0]!);
+      for (const b of shapes) {
+        if (b === a) continue;
+        const pb = bestFor(b, wants[1]!);
+        for (const c of shapes) {
+          if (c === a || c === b) continue;
+          const pc = bestFor(c, wants[2]!);
+          const total = cost(pa, wants[0]!) + cost(pb, wants[1]!) + cost(pc, wants[2]!);
+          if (total < bestCost) {
+            bestCost = total;
+            picks = [pa, pb, pc];
+          }
+        }
+      }
+    }
+    for (const p of picks) seen.add(p.shape);
+    rows.push(
+      `    [${picks.map((p) => `['${p.shape}', ${p.layout}]`).join(', ')}], // T${tier} ` +
+        `${picks.map((p) => Math.round(p.clear)).join('/')} at ${planManpower(faction, force)} MP`,
+    );
+  }
+  return `  ${faction}:\n${rows.join('\n')}`;
 }
 
 function archetypeTable(faction: FactionId): string {
@@ -5609,6 +5630,25 @@ function main(): void {
   if (process.argv.includes('--shapes')) {
     console.log(archetypeTable('usa'));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--reach')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${reachTable(faction)}\n`);
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--deeplayouts')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    // `--tiers 6,9` and `--pool 36` re-select a few rungs from a wider layout pool.
+    const arg = (flag: string): string | undefined => {
+      const at = process.argv.indexOf(flag);
+      return at >= 0 ? process.argv[at + 1] : undefined;
+    };
+    const tiers = arg('--tiers')?.split(',').map(Number) ?? DEEP_TIERS;
+    const pool = Number(arg('--pool') ?? 12);
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(deepLayouts(faction, tiers, pool));
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
   if (process.argv.includes('--deep')) {

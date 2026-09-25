@@ -4414,6 +4414,7 @@ north", and it is where an endgame can live.
       without its yard runs out of supply: reaching the capital asks for the
       whole economy.
 - [ ] **Phase 4 — the endgame.** The front reaches their capital, or yours.
+      *(4a shipped in v1.56.0.)*
 
       **The plan, before the build.** Three phases made the Front Line a road
       with a far end, and nothing happens at the far end yet. The stronghold
@@ -4500,6 +4501,126 @@ north", and it is where an endgame can live.
 
       *What M28 gets.* A won war is a state with a date, which is what a
       prestige reset needs to start from.
+
+      **The record, 4a (v1.56.0).** The deep rungs are tuned as planned, and
+      the bar is met. Measuring it found one rule the plan did not have: a
+      town the depots cannot feed holds.
+
+      *Where it lives.* The deal table has thirteen rows a faction now, one
+      for each rung to the stronghold. `--deeplayouts` chose rungs 6 to 13
+      with the search that chose 1 to 5, against each faction's reference
+      shape resized to `deepBudget`: the reference's own 25 to 27 men, and
+      four more for each rung past the fifth. Rungs 1 to 5 are untouched,
+      and the rear keeps rung 13's shapes with the layouts moving on. The
+      rule is `canFeedNext` in `meta/supply.ts`, which the raid result asks
+      before a third push takes a town. `--deep` runs twelve seeds a post
+      now, not six, and `--reach` plays the war instrument's town daily for
+      ten weeks with each force. Five new tests: four for the deal, one for
+      the rule.
+
+      *The measurement.* THE DEEP LADDER, rerun on the new rows: the
+      manpower a force of each faction's reference shape needs to take a
+      rung half the time, and the budget the rows were chosen at:
+
+      | | T5 | T6 | T7 | T8 | T9 | T10 | T11 | T12 | T13 |
+      |---|---|---|---|---|---|---|---|---|---|
+      | USA | 28 | 31 | 34 | 36 | 42 | 47 | 47 | 53 | 53 |
+      | China | 28 | 31 | 34 | 42 | 48 | 48 | 48 | 54 | 60 |
+      | Russia | 27 | 31 | 38 | 48 | 48 | 48 | 54 | 59 | 59 |
+      | KPA | 28 | 28 | 34 | 38 | 42 | 54 | 54 | 54 | 54 |
+      | UN | 28 | 34 | 34 | 42 | 54 | 60 | 54 | 60 | 60 |
+      | budget | 26 | 30 | 34 | 38 | 42 | 46 | 50 | 54 | 58 |
+
+      Every faction climbs, and no rung asks more than 60 of the 66 men a
+      built town fields. The survey's spikes are gone: the USA's ninth rung
+      asked 64 men and asks 42, and the UN's asked more than a town can
+      field and asks 54. Demand runs at the budget or a step of the grid
+      above it, because a row picked as the best fit of many flatters itself
+      on the seeds it was picked on, and at the top the grid steps six men
+      at a time. The UN runs furthest ahead of its budget, a step or two from
+      the ninth rung, and dips once, at the eleventh. The T5 column reads a
+      step higher than the survey's for the USA and the KPA only because
+      twelve seeds a post are not six: rungs 1 to 5 deal exactly what they
+      did.
+
+      THE ROAD TO THE CAPITAL (`npm run balance -- --reach`): the town of the
+      week at war, raiding daily for ten weeks, up to three raids a session
+      at the easiest open post, and pushing to answer strikes. The day it
+      first reached a rung, and the rung it ended on, with the force grown
+      four men a rung and with the reference force throughout:
+
+      | | grown: T9 | T11 | T13 | ended | reference: T9 | ended |
+      |---|---|---|---|---|---|---|
+      | USA | day 8 | day 10 | day 12 | 16 | day 31 | 9 |
+      | China | day 8 | day 10 | day 12 | 16 | day 16 | 9 |
+      | Russia | day 8 | day 10 | day 12 | 16 | day 13 | 9 |
+      | KPA | day 11 | day 13 | day 15 | 16 | day 55 | 10 |
+      | UN | day 8 | day 10 | day 12 | 16 | day 13 | 9 |
+
+      An army grown four men a rung reaches the stronghold in twelve to
+      fifteen days. One kept at the reference force stops at the ninth or
+      tenth rung, China's too, which reached the stronghold in six weeks on
+      rung 5's pairs.
+
+      *One rule the plan did not have.* The first grown run did not stop at
+      the stronghold. The commanders went on to the 27th to 34th rung in ten
+      weeks, and hunger never caught them: three raids a day take a town a
+      day, and a front wholly unfed loses a sector a day. The plan put the
+      end of the enemy's rear where the supply line runs out (4b), so that
+      rule came forward. The third push at the front takes its town only if
+      the depots could feed the line with it in. If they could not, the win
+      pays like any win and counts on the record and the board, and the
+      pushes hold at two until the depots make more. The depths Phase 3
+      measured are where a front stops now, not where it starts to starve,
+      and every grown commander stops at the sixteenth rung, where a built
+      CC3 town with its yard runs out. Hunger is left for a town whose
+      production falls, a wrecked depot or a save from before. The map says
+      so in red while the front is at the ceiling: THE DEPOTS CANNOT FEED
+      CANNON BEACH: TAKING IT WOULD PUT THE LINE AT 420 AN HOUR, AND THEY
+      MAKE 330. IT HOLDS UNTIL THEY MAKE MORE. The raid report says the town
+      holds and why. Read at 412 px portrait and 1440 px, and a raid played
+      in the browser held as the unit test does: REEDSPORT HOLDS · the
+      depots cannot feed the line with it: 15 an hour, and they make 0. A
+      town with no depots at all cannot take the first town.
+
+      *Two things about the instrument.* The grown commander keeps its
+      training queues full, re-queuing each minute between raids, because a
+      facility queues five at a time and a growing force outran a commander
+      who queues once a raid: the KPA stalled at the ninth rung on it. The
+      week at war's commander still queues once a raid, and its tables were
+      read that way. And the UN's rows at rungs 6 and 8 to 12 were chosen
+      from a pool of 36 layouts rather than 12, because the twelve held no
+      UN post near the targets: its sixth rung was picked at 0/8/33 and is
+      33/50/58 now, and its demand there fell from 42 men to 34. Russia's
+      heavy posts at rungs 8 and 12 sit low, 8% and 17% at their budgets,
+      the nearest a triple of distinct shapes came.
+
+      *The other tables.* THE ENEMY STRIKES BACK, rerun, fights the
+      reference force throughout, which the deep rungs no longer promise to
+      carry. A commander who raids daily ends four weeks at the seventh to
+      ninth rung, where the Phase 2 table ranged from the sixth to the
+      eleventh, and what the strikes cost reads as it did: nothing daily but
+      a sector or two for the UN, up to two rungs a month every other day,
+      and a front pushed at a three-day rhythm falls back to the third rung.
+      THE SUPPLY LINE's commanders get a rung or two deeper in a week, so
+      the line takes a little more: 13-17% of production from the first rung
+      at two-hourly sessions, and 27-32% from the eighth, where a full store
+      then loses 34-45%. No front went short in either. The week at war's
+      USA, at two-hourly sessions, clears 24 raids of 63 and reaches the
+      ninth rung, where it cleared 17 and reached the sixth.
+
+      *The gate.* 718 unit tests, five of them new, and two older ones that
+      take a town now give it the depots to feed it. The 24 e2e harnesses
+      passed unchanged, on the first batch.
+
+      *What it hands on.* 4b: the stronghold becomes the enemy's capital,
+      three roads and a citadel. A grown army gets there in twelve to
+      fifteen days, and the citadel is to be tuned for about 62 of the 66
+      men a built town fields. The rule already ends the enemy's rear at the
+      sixteenth rung, as the plan meant to, but it also puts taking the
+      stronghold at 1,365 supplies an hour, which a CC3 town without its
+      yard does not make. 4b decides whether the citadel's fall waits on the
+      depots too, or wins the war and leaves the front where it stands.
 
 ## M26 — "Asymmetry": factions become different games
 
@@ -5748,6 +5869,12 @@ the sink M24 left: a tenth of production while the front is young and a fifth or
 more at the eighth rung, and a full store at war loses 24-47% there instead of
 44-75%. A front its town cannot feed loses ground until it can. Phase 4, the
 endgame, is what is left.*
+
+*M25 Phase 4a (v1.56.0) tuned the climb to the stronghold. Rungs 6 to 13 are
+chosen for an army that grows four men a rung: one that does reaches the
+stronghold in twelve to fifteen days of daily raiding, and one that does not
+stops near the ninth rung. A town the depots cannot feed holds, so the road ends
+where the supply line does. 4b, the capital and a war won, is next.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

@@ -136,11 +136,12 @@ pushed: tier 1 is the first town past the base, and the stronghold is tier 13.
 Each town is three sectors, one per lane, and each lane always holds the same band of the
 tier's deal: the heavy fight, the middle one, or the one a commander can take today. So the
 Oregon Coast's heavy post is always on Highway 101. A sector's post is exactly the post the
-ladder deals, and any three wins at the front take its town, repeats allowed. The map is read
-off the tier and its wins and is not stored: towns behind the front are held, the front is
-contested with its three pushes marked, and the rest is enemy ground. THEATER in the WAR tab
-(or G) draws it, and choosing a front post there opens the raid planner on it. The towns are
-places on a road: taking one is taking its three posts, under the guardrails above.
+ladder deals, and any three wins at the front take its town, repeats allowed, if the depots
+can feed it (see the supply line, below). The map is read off the tier and its wins and is not
+stored: towns behind the front are held, the front is contested with its three pushes marked,
+and the rest is enemy ground. THEATER in the WAR tab (or G) draws it, and choosing a front post
+there opens the raid planner on it. The towns are places on a road: taking one is taking its
+three posts, under the guardrails above.
 
 **The enemy strikes back** *(v1.54)*. Held ground is stored now, because the enemy takes some
 of it back. When the front has been quiet for 36 hours (no raid, no counterattack, no defence
@@ -184,6 +185,14 @@ a town can hold:
   way a quiet front's is: wholly unfed, a sector a day; half fed, one every two days. Each loss
   lightens the line, so an overextended front shrinks to what its town can feed, and a front fed
   again forgets its hunger.
+- **A town the depots cannot feed holds** *(v1.56)*. The third push at the front takes its
+  town only if the depots could feed the line with it in. If they could not, the win pays and
+  counts like any other, and the front holds at two pushes until the depots make more; the map
+  says so in red while the front is at that ceiling. So the table above is where a front stops,
+  not where it starts to starve, and hunger is for a town whose production falls, a wrecked
+  depot, say. Holding the first town takes 15 an hour, so a town with no depots cannot take
+  it, and taking the stronghold would put the line at 1,365, beyond a CC3 town without its
+  yard.
 - **It is the economy's sink.** On a full store most of what the line takes would have been
   lost. Measured, it takes a tenth of production while the front is young and a fifth or more at
   the eighth rung, where a full store at war then loses 24-47% of what the town makes instead of
@@ -246,6 +255,17 @@ ladder and faction parity stop competing: both are satisfied by construction. Th
 regenerated from measurement by `npm run balance -- --layouts`, never hand-written, and the three
 pairs at a rung are chosen as a **triple** rather than one slot at a time, because filling slots in
 turn spends the pair a later slot needed. Faction parity across the ladder went 15.0 → 4.2 points.
+
+**The deep rungs are chosen too** *(v1.56)*. Until v1.56 the table stopped at rung 5, and every
+rung past it dealt rung 5's pairs with the layouts moved on: nobody chose them, and the climb to
+the stronghold spiked past what a built town can field. Rungs 6 to 13 are selected now by the same
+search (`npm run balance -- --deeplayouts`), against a force that grows with the rung, since the
+reference force is what rung 5 is tuned for and cannot be what the stronghold is: each faction's
+reference shape resized to four men a rung more than its own, the middle post at 55% and the other
+two fifteen points either side, as at rung 5. A commander who grows the army at that rate meets rung
+5's odds all the way up, and one who does not stops near the ninth rung. The stronghold asks 53 to 60
+of the 66 men a built town fields. Past it, the enemy's rear keeps the stronghold's shapes, with the
+layouts moving on.
 
 None of this changes what a player is told: you still see three shapes and still pay Intel to learn
 the layout. The generator stays deterministic in `(tier, variant)` — the deal is a lookup, not a
