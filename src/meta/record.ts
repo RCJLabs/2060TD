@@ -30,6 +30,8 @@ export interface ServiceRecord {
   army: string;
   /** Whole days since the war started (day one reads as 1, not 0). */
   day: number;
+  /** The day of the war the citadel fell and it was won (M25 Phase 4b), or null. */
+  wonDay: number | null;
   // the board
   tier: number;
   standing: number;
@@ -68,6 +70,12 @@ export function warDay(town: TownState, now: number): number {
   return Math.max(1, Math.floor((now - warLog(town).startedAt) / DAY_MS) + 1);
 }
 
+/** The day of the war it was won on, or null while it goes on unwon (M25 Phase 4b). */
+export function wonDay(town: TownState): number | null {
+  const at = town.frontline.wonAt;
+  return at === undefined ? null : warDay(town, at);
+}
+
 export function serviceRecord(town: TownState, now: number): ServiceRecord {
   const log = warLog(town);
   const fl = town.frontline;
@@ -78,6 +86,7 @@ export function serviceRecord(town: TownState, now: number): ServiceRecord {
     army: flavorFor(town.faction).faction,
     // A war that started this minute is on its first day, not its zeroth.
     day: warDay(town, now),
+    wonDay: wonDay(town),
     tier: fl.tier,
     standing: fl.standing,
     peak: fl.peak,
@@ -144,6 +153,8 @@ export interface WarSummary {
   battlesWon: number;
   /** Epoch ms this war was last played. */
   lastSeen: number;
+  /** The day of the war it was won on, or null. */
+  wonDay: number | null;
 }
 
 /**
@@ -165,6 +176,7 @@ export function allWars(): WarSummary[] {
       league: leagueAt(town.frontline.standing),
       battlesWon: town.victories,
       lastSeen: town.lastSeen,
+      wonDay: wonDay(town),
     });
   }
   return wars;

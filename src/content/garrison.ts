@@ -133,6 +133,7 @@ const POSTURE: Record<ArchetypeId, GarrisonId> = {
   star: 'redoubt',
   keep: 'redoubt',
   bunker: 'redoubt',
+  citadel: 'redoubt',
 };
 
 /**

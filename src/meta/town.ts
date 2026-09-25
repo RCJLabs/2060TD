@@ -185,6 +185,14 @@ export interface FrontlineState {
   hunger?: number;
   /** The hunger has been charged through this instant (epoch ms); absent in a file from before Phase 3. */
   fedAt?: number;
+  /**
+   * The enemy's capital (M25 Phase 4b): the lanes, by slot, whose road into
+   * the stronghold has fallen. Only while the front is at the stronghold, and
+   * `wins` counts them there.
+   */
+  roads?: number[];
+  /** When the citadel fell and the war was won (epoch ms). Absent until it is. */
+  wonAt?: number;
 }
 
 /** A sector behind the front that the enemy holds again (M25 Phase 2). */

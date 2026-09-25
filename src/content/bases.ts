@@ -32,6 +32,11 @@ export const MAP_H = 15;
  */
 export const MAP_CELL_SIZE = 2;
 export const TARGETS_PER_TIER = 3;
+/**
+ * The citadel's slot at the enemy's capital (M25 Phase 4b): a fourth target,
+ * after the three the rung deals, in no lane.
+ */
+export const CITADEL_SLOT = TARGETS_PER_TIER;
 
 /**
  * Which edge a generated base is attacked from, and the lane the attackers
@@ -246,7 +251,8 @@ export type ArchetypeId =
   | 'depot'
   | 'strongpoints'
   | 'keep'
-  | 'bunker';
+  | 'bunker'
+  | 'citadel';
 
 /** What a wall plan is handed, and what it hands back through towerSpots. */
 export interface PlanContext {
@@ -285,6 +291,12 @@ export interface Archetype {
   economy: number;
   /** Extra structure levels: a bunker complex is built up, a camp is not. */
   levelBonus: number;
+  /**
+   * The share of the gun line standing at the full level, when the shape sets
+   * it rather than the rung's creep (`upgradeShareFor`): a citadel's guns are
+   * all dug in.
+   */
+  upgradeShare?: number;
   walls: (ctx: PlanContext) => void;
   /** Override where the economy sits. Absent = the default ring. */
   economySpots?: (ctx: PlanContext) => [number, number][];
@@ -406,8 +418,33 @@ export const ARCHETYPES: Archetype[] = [
   },
 ];
 
+/**
+ * The enemy's headquarters (M25 Phase 4b): the fourth target at its capital,
+ * in range once the capital's three roads have fallen, and dealt nowhere else.
+ * So it is not one of `ARCHETYPES`, which the deal and its searches draw from.
+ *
+ * Two rings, the inner gate at the back, so a raid walks in through the outer
+ * gate and all the way round the post under the guns between them. Every gun
+ * is dug in at the full level, where a rung's guns creep up a third at a time,
+ * and the richest stores on the board sit inside. Measured, per faction, to
+ * need nearly the whole army a built town fields (`CITADEL_LAYOUT`).
+ */
+export const CITADEL: Archetype = {
+  id: 'citadel',
+  name: 'CITADEL',
+  short: 'HQ',
+  tag: 'TWO RINGS, EVERY GUN DUG IN',
+  fromTier: Number.POSITIVE_INFINITY,
+  towers: 1.2,
+  economy: 1.5,
+  levelBonus: 0,
+  upgradeShare: 1,
+  walls: planCitadel,
+  economySpots: citadelStores,
+};
+
 export const ARCHETYPE_BY_ID: Record<ArchetypeId, Archetype> = Object.fromEntries(
-  ARCHETYPES.map((a) => [a.id, a]),
+  [...ARCHETYPES, CITADEL].map((a) => [a.id, a]),
 ) as Record<ArchetypeId, Archetype>;
 
 /**
@@ -607,6 +644,33 @@ export const DEAL_TABLE: Record<string, readonly (readonly DealPair[])[]> = {
     [['corridor', 7], ['bunker', 3], ['camp', 9]], // T13 42/58/75 at 57 MP
   ],
 };
+
+/**
+ * Each faction's citadel (M25 Phase 4b): which of its layouts, and its guns
+ * against the tier baseline. Chosen by `npm run balance -- --citadel`, so
+ * that the reference shape at 62 men, nearly the whole army a built town
+ * fields, takes it about half the time.
+ *
+ * The guns are the faction's as well as the layout, because five armies do
+ * not take one fortress alike. At a single strength the USA's and China's
+ * forces took nearly every layout every time and the UN's, which rides in
+ * armour, took none at any size of army, and no choice of layout alone could
+ * put all five near half. They are fighting five different enemies' HQs.
+ */
+export const CITADEL_DEAL: Record<string, { layout: number; towers: number }> = {
+  usa: { layout: 9, towers: 1 },
+  china: { layout: 18, towers: 1.4 },
+  russia: { layout: 23, towers: 1 },
+  nk: { layout: 1, towers: 1 },
+  un: { layout: 16, towers: 0.6 },
+};
+
+/** The enemy's headquarters at `tier`: the faction's citadel, in the citadel's slot. */
+export function generateCitadel(tier: number, kit: BaseKit, faction?: string): GeneratedBase {
+  const deal = CITADEL_DEAL[faction ?? ''] ?? { layout: 0, towers: CITADEL.towers };
+  const base = generateBase(tier, deal.layout, kit, { ...CITADEL, towers: deal.towers }, faction);
+  return { ...base, variant: CITADEL_SLOT };
+}
 
 /**
  * What a rung deals in slot `slot`, or undefined for a faction or rung the
@@ -964,6 +1028,65 @@ function planKeep(c: PlanContext): void {
 }
 
 /**
+ * The citadel's two rings (M25 Phase 4b). The keep's, with the gates set
+ * rather than rolled: the inner gate always at the back, and the outer one in
+ * a flank or the face, so the way to the post is in through the outer ring and
+ * round the post to the far side. The guns stand where the keep's do.
+ */
+function planCitadel(c: PlanContext): void {
+  const { rng, ccU, ccV, putWall, towerSpots } = c;
+  const outerV = ringFit(ccV, 4);
+  const outerU = outerV + 1;
+  // Sides 0 and 1 are the flanks, 2 the face toward the attack, 3 the back.
+  const outerGate = ri(rng, 0, 2);
+  const innerGate = 3;
+  const ring = (ru: number, rv: number, gate: number): void => {
+    for (let i = -ru; i <= ru; i++) {
+      if (!(gate === 0 && i === 0)) putWall(ccU + i, ccV - rv);
+      if (!(gate === 1 && i === 0)) putWall(ccU + i, ccV + rv);
+    }
+    for (let i = -rv; i <= rv; i++) {
+      if (!(gate === 2 && i === 0)) putWall(ccU - ru, ccV + i);
+      if (!(gate === 3 && i === 0)) putWall(ccU + ru, ccV + i);
+    }
+  };
+  ring(1, 1, innerGate);
+  ring(outerU, outerV, outerGate);
+  // The walk round the inner ring is kept clear, as the keep's is.
+  for (let du = -2; du <= 2; du++) {
+    for (let dv = -2; dv <= 2; dv++) {
+      if (Math.max(Math.abs(du), Math.abs(dv)) === 2) c.keepClear(ccU + du, ccV + dv);
+    }
+  }
+  const band = outerU - 1;
+  const out = outerU + 1;
+  towerSpots.push(
+    [ccU - band, ccV - 2], [ccU - band, ccV + 2], [ccU + band, ccV - 2], [ccU + band, ccV + 2],
+    [ccU - band, ccV], [ccU + band, ccV],
+    [ccU - out, ccV - 2], [ccU + out, ccV + 2], [ccU - out, ccV + 2], [ccU + out, ccV - 2],
+  );
+}
+
+/**
+ * Where the citadel keeps its stores: the band behind the post first, then
+ * the ground behind the outer ring, then the band in front. The default ring
+ * of spots sits inside the two rings, where there is room for the guns and
+ * little else, and a citadel with the richest stores on the board has to
+ * have somewhere to put them.
+ */
+function citadelStores(c: PlanContext): [number, number][] {
+  const { ccU, ccV } = c;
+  const band = ringFit(ccV, 4);
+  const behind = band + 2;
+  return [
+    [ccU + band, ccV - 1], [ccU + band, ccV + 1], [ccU + band, ccV - 2], [ccU + band, ccV + 2],
+    [ccU + behind, ccV - 2], [ccU + behind, ccV + 2], [ccU + behind, ccV],
+    [ccU + behind + 1, ccV - 1], [ccU + behind + 1, ccV + 1],
+    [ccU - band, ccV - 1], [ccU - band, ccV + 1],
+  ];
+}
+
+/**
  * One thick arc of wall on the likely approach and nothing anywhere else. The
  * maze is not the problem here; the guns are, and they are laid out in depth
  * so a force that walks straight in is engaged the whole way.
@@ -986,13 +1109,14 @@ function planBunker(c: PlanContext): void {
 /**
  * `force` overrides which shape is built without touching the seed — the
  * balance harness needs to compare all eight archetypes at the SAME tier, and
- * only three of them are ever offered at one.
+ * only three of them are ever offered at one. It can be a whole shape rather
+ * than an id: each faction's citadel is the citadel at its own strength.
  */
 export function generateBase(
   tier: number,
   variant: number,
   kit: BaseKit = CHINA_BASE_KIT,
-  force?: ArchetypeId,
+  force?: ArchetypeId | Archetype,
   faction?: string,
 ): GeneratedBase {
   // The deal names a SHAPE and a LAYOUT (v1.31). Before, both came from
@@ -1010,7 +1134,9 @@ export function generateBase(
   // shapes lands in which slot changes. Passing it is what makes a rung offer
   // a KPA commander a graded choice rather than the USA's graded choice.
   const arch = force
-    ? ARCHETYPE_BY_ID[force]
+    ? typeof force === 'string'
+      ? ARCHETYPE_BY_ID[force]
+      : force
     : dealt
       ? (ARCHETYPE_BY_ID[dealt[0]] ?? archetypeFor(tier, variant, faction))
       : archetypeFor(tier, variant, faction);
@@ -1206,7 +1332,7 @@ export function generateBase(
   // positions before its outlying ones, and a raider can read which is which
   // off the board. Floor, so the first rung of a band gets strictly fewer than
   // a third rather than rounding straight back up to all of them.
-  const upgraded = Math.floor(towerCount * upgradeShareFor(tier));
+  const upgraded = Math.floor(towerCount * (arch.upgradeShare ?? upgradeShareFor(tier)));
   const gunLevel = (i: number): number => Math.max(1, i < upgraded ? level : level - 1);
   let placed = 0;
   let mounts = 0;

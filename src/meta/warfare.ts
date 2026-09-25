@@ -1,7 +1,9 @@
 import {
   BASE_SPAWN_EDGE,
   BASE_SPAWN_LANE,
+  CITADEL_SLOT,
   generateBase,
+  generateCitadel,
   lootFor,
   MAP_CELL_SIZE,
   MAP_H,
@@ -19,6 +21,7 @@ import {
   type SquadRecord,
 } from '../content/veterancy';
 import { baseKitFor, defenseCatalogFor } from '../content/factions';
+import { columnName, strongholdTier, theaterFor } from '../content/theaters';
 import { GARRISON_GUN_TRADE, garrisonEconomy, garrisonFor } from '../content/garrison';
 import { TRAINABLE, type TrainMeta } from '../content/usaUnits';
 import { Engine } from '../sim/engine';
@@ -61,6 +64,7 @@ import { recordBattle } from './vault';
 import { creditContracts } from './contracts';
 import { chargeStrikes, retakeSector } from './strikes';
 import { canFeedNext } from './supply';
+import { atCapital, winAtCapital } from './capital';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -840,7 +844,11 @@ export function applyRaidResult(
   if (resolution.cleared) {
     frontline.totalWins++;
     town.victories++;
-    if (base.tier === frontline.tier) {
+    if (base.tier === frontline.tier && atCapital(town)) {
+      // The enemy's capital is not taken by any three wins: its roads, each
+      // once, and then its citadel, whose fall wins the war (M25 Phase 4b).
+      winAtCapital(town, base.variant, now);
+    } else if (base.tier === frontline.tier) {
       frontline.wins++;
       if (frontline.wins >= 3) {
         // The front's town is taken only if the depots can feed the line with
@@ -959,11 +967,19 @@ export function targetFor(town: TownState, variant: number): GeneratedBase {
  * base it was when that town was the front.
  */
 export function postAt(town: TownState, tier: number, variant: number): GeneratedBase {
+  // The citadel is the capital's fourth target, in no lane (M25 Phase 4b).
+  if (variant === CITADEL_SLOT) return citadelAt(town, tier);
   // The faction decides the DEAL (v1.21): which of the eight shapes lands in
   // which of the rung's three slots. Every other path that generates a ladder
   // base has to pass it too, or it is looking at a different front line from
   // the one the player is.
   return generateBase(tier, variant, baseKitFor(town.faction), undefined, town.faction);
+}
+
+/** The enemy's headquarters at its capital, named for the stronghold it holds (M25 Phase 4b). */
+export function citadelAt(town: TownState, tier = strongholdTier(theaterFor(town.faction))): GeneratedBase {
+  const base = generateCitadel(tier, baseKitFor(town.faction), town.faction);
+  return { ...base, name: `THE CITADEL · ${columnName(theaterFor(town.faction), tier)}` };
 }
 
 // ---- offline probe raids -----------------------------------------------------------------

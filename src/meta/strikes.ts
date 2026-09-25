@@ -94,9 +94,11 @@ export function landStrike(
   const lost = [...lostSectors(fl), { tier: rear, slot, at }];
   if (STRIKE_ORDER.every((s) => lost.some((l) => l.tier === rear && l.slot === s))) {
     // The whole town behind the front is the enemy's again: the front falls
-    // back to it, and its pushes start again from none.
+    // back to it, and its pushes start again from none. A front at the enemy's
+    // capital loses the roads it had taken into it (M25 Phase 4b).
     fl.tier = rear;
     fl.wins = 0;
+    delete fl.roads;
     setLost(fl, lost.filter((l) => l.tier < rear));
     return { at, tier: rear, slot, fellBack: true, cause };
   }

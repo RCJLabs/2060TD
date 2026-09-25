@@ -4,6 +4,7 @@ import { LEAGUES, seasonAt } from '../content/leagues';
 import { normalizeHistory, PLACEMENT_CAP } from './ladder';
 import { normalizeStrikes } from './strikes';
 import { normalizeSupply } from './supply';
+import { normalizeCapital } from './capital';
 import { isStandingOrdersId } from '../content/standingOrders';
 import { normalizeSquads } from '../content/veterancy';
 import { normalizeVault } from './vault';
@@ -201,6 +202,8 @@ function normalizeLadder(town: TownState): void {
   normalizeStrikes(fl);
   // And its supply line's hunger in Phase 3.
   normalizeSupply(fl);
+  // And the enemy's capital, its roads and a war won, in Phase 4b.
+  normalizeCapital(town);
 }
 
 /**
