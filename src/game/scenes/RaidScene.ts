@@ -36,6 +36,7 @@ import {
   canTrain,
   trainingCost,
   manpowerCapOf,
+  productionPerHour,
   newTown,
   place,
   queueTrain,
@@ -108,6 +109,7 @@ import { createOverlay, type OverlayApi } from '../dom/overlay';
 import { buildTheaterMap, type RaidTarget } from '../theaterMap';
 import { frontLabel, raidTargetKeys } from '../../meta/theater';
 import { cutAt } from '../../meta/strikes';
+import { lineAfterTaking } from '../../meta/supply';
 import { columnName, laneFor, theaterFor } from '../../content/theaters';
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
@@ -170,8 +172,8 @@ export class RaidScene extends Scene {
   private demoMode = false;
   /** The sector the raid goes for: a front post, or ground to retake (M25). */
   private target: RaidTarget = { tier: 1, slot: 0 };
-  /** Where the last raid went out from, for its report: the rung, and whether it went to retake ground. */
-  private sortie: { tier: number; retake: boolean } | null = null;
+  /** Where the last raid went out from, for its report: the rung, its pushes, and whether it went to retake ground. */
+  private sortie: { tier: number; wins: number; retake: boolean } | null = null;
   private base!: GeneratedBase;
   private squads: SquadPlan[] = [];
   private selectedSquad = 0;
@@ -772,6 +774,7 @@ export class RaidScene extends Scene {
     const standingBefore = this.town.frontline.standing;
     this.sortie = {
       tier: this.town.frontline.tier,
+      wins: this.town.frontline.wins,
       retake: !this.challenge && this.base.tier < this.town.frontline.tier,
     };
     const xpBefore = squadRoster(this.town).map((r) => r.xp);
@@ -994,7 +997,7 @@ export class RaidScene extends Scene {
     const mission = OBJECTIVES[res.objective];
     const theater = theaterFor(this.town.faction);
     const fl = this.town.frontline;
-    const sortie = this.sortie ?? { tier: fl.tier, retake: false };
+    const sortie = this.sortie ?? { tier: fl.tier, wins: fl.wins, retake: false };
     // What the win did to the map (M25): a third push takes the front's town,
     // and a retake gives a lane its road back unless it is cut further up.
     let mapLine: string;
@@ -1007,6 +1010,11 @@ export class RaidScene extends Scene {
     } else if (fl.tier > sortie.tier) {
       mapLine =
         `${columnName(theater, sortie.tier)} TAKEN · the front moves to ${columnName(theater, fl.tier)}`;
+    } else if (!this.challenge && fl.tier === sortie.tier && sortie.wins === 2 && fl.wins === 2) {
+      // The third push held (Phase 4a): the depots could not feed the line with the town in it.
+      mapLine =
+        `${columnName(theater, fl.tier)} HOLDS · the depots cannot feed the line with it: ` +
+        `${lineAfterTaking(fl)} an hour, and they make ${productionPerHour(this.town).supplies}`;
     } else {
       mapLine = `Front Line: ${fl.wins}/3 to take ${columnName(theater, fl.tier)}`;
     }

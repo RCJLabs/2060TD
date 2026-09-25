@@ -17,7 +17,7 @@
  */
 import { ARCHETYPE_BY_ID } from '../content/bases';
 import { flavorFor } from '../content/factions';
-import { QUIET_MS } from '../content/theaters';
+import { columnName, QUIET_MS, theaterFor } from '../content/theaters';
 import { createOverlay, type OverlayApi } from './dom/overlay';
 import { drawFactionMark } from './glyphs';
 import type { Ink } from './ink';
@@ -25,7 +25,7 @@ import type { Layout } from './layout';
 import { COLORS } from './palette';
 import type { Scene } from './stage';
 import { enemyClock } from '../meta/strikes';
-import { lineShares, nextHungerAt, supplyLine } from '../meta/supply';
+import { lineAfterTaking, lineShares, nextHungerAt, supplyLine } from '../meta/supply';
 import { retakes, sectorOf, theaterView, type Sector, type TheaterRow } from '../meta/theater';
 import { productionPerHour, type TownState } from '../meta/town';
 import { isScouted } from '../meta/warfare';
@@ -84,10 +84,22 @@ export function clockLine(town: TownState, now: number): { text: string; urgent:
  */
 export function supplyText(town: TownState, now: number): { text: string; urgent: boolean } | null {
   const need = supplyLine(town.frontline);
-  if (need <= 0) return null;
   const made = productionPerHour(town).supplies;
   const next = nextHungerAt(town, now, made);
   if (next === null) {
+    // Fed, but at the ceiling (Phase 4a): the front's town would take the
+    // line past what the depots make, and it holds until they make more.
+    const after = lineAfterTaking(town.frontline);
+    if (after > made) {
+      const front = columnName(theaterFor(town.faction), town.frontline.tier);
+      return {
+        text:
+          `THE DEPOTS CANNOT FEED ${front}: TAKING IT WOULD PUT THE LINE AT ${after} AN HOUR, ` +
+          `AND THEY MAKE ${made}. IT HOLDS UNTIL THEY MAKE MORE`,
+        urgent: true,
+      };
+    }
+    if (need <= 0) return null;
     return { text: `SUPPLY LINE ${need} AN HOUR OF THE ${made} THE DEPOTS MAKE`, urgent: false };
   }
   const enemy = flavorFor(town.faction).enemy;
@@ -277,12 +289,12 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
   });
 
   ov.paragraph(
-    'Any three wins at the front take its town. When the front is quiet for 36 hours, the ' +
-      'enemy strikes back at the town behind it, cutting a road to the front, and again a day ' +
-      'later. A cut road’s front post cannot be raided until the ground is retaken, and if the ' +
-      'whole town behind the front falls, the front falls back to it. Every town held takes ' +
-      'supplies an hour from what the depots make, more the further it is from home, and a ' +
-      'front they cannot feed loses ground until they can.',
+    'Any three wins at the front take its town, if the depots make enough to hold it. When the ' +
+      'front is quiet for 36 hours, the enemy strikes back at the town behind it, cutting a road ' +
+      'to the front, and again a day later. A cut road’s front post cannot be raided until the ' +
+      'ground is retaken, and if the whole town behind the front falls, the front falls back to ' +
+      'it. Every town held takes supplies an hour from what the depots make, more the further it ' +
+      'is from home, and a front they cannot feed loses ground until they can.',
     font.tiny,
     COLORS.inkDim,
     { gapAfter: gap },
