@@ -1375,6 +1375,10 @@ export class TownScene extends Scene {
       `Tier ${r.tier} on the Front Line · best band held: ${r.bestLeague.label}`,
       COLORS.inkDim,
     );
+    // The war won (M25 Phase 4b): the day the enemy's citadel fell.
+    if (r.wonDay !== null) {
+      line(`THE WAR WAS WON ON DAY ${r.wonDay}: the citadel fell, and the war goes on`, COLORS.olive);
+    }
 
     // ---- what it has taken -------------------------------------------------
     this.recordSection(ov, 'THE OFFENSE');
@@ -1423,7 +1427,7 @@ export class TownScene extends Scene {
       for (const war of others) {
         line(
           `${war.slot} · ${war.army} — tier ${war.tier}, ${war.league.label}, ` +
-            `${war.battlesWon} won`,
+            `${war.battlesWon} won${war.wonDay !== null ? ` · WAR WON ON DAY ${war.wonDay}` : ''}`,
           COLORS.inkDim,
         );
       }
@@ -2595,7 +2599,7 @@ export class TownScene extends Scene {
     rows.push({
       id: 'record',
       label: 'SERVICE RECORD',
-      sub: `DAY ${warDay(town, Date.now())}`,
+      sub: town.frontline.wonAt !== undefined ? `DAY ${warDay(town, Date.now())} · WON` : `DAY ${warDay(town, Date.now())}`,
       onTap: () => this.openOverlay(() => this.showRecord()),
     });
     const vault = vaultOf(town);

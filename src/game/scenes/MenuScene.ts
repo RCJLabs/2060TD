@@ -3,6 +3,7 @@ import { music } from '../music';
 import { campaignFor, FACTION_IDS, flavorFor } from '../../content/factions';
 import { drawFactionMark } from '../glyphs';
 import { leagueOf } from '../../meta/ladder';
+import { wonDay } from '../../meta/record';
 import {
   activeSlot,
   clearSlot,
@@ -221,7 +222,10 @@ export class MenuScene extends Scene {
           align: 'left',
           // The short band form: a slot row already carries a faction name,
           // and PLA EXPEDITIONARY FORCE plus IRREGULARS does not fit a phone.
-          sub: this.eraseMode ? 'ERASE' : `T${town.frontline.tier} · ${leagueOf(town).short}`,
+          // A war won says so, with the day (M25 Phase 4b).
+          sub: this.eraseMode
+            ? 'ERASE'
+            : `${wonDay(town) !== null ? `WON DAY ${wonDay(town)} · ` : ''}T${town.frontline.tier} · ${leagueOf(town).short}`,
           // Whose war this is, before the name is read. Five armies are told
           // apart by shape here for the same reason they are on the board:
           // the page has one colour and it is not spent on identity.

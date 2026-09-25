@@ -10,23 +10,26 @@
  * Under the map are the three front posts and any ground to retake, each with
  * a button that opens the raid planner on it. Since Phase 3 each held town
  * says what it takes an hour to hold, and the line says whether the depots
- * feed it.
+ * feed it. Since Phase 4b the stronghold's roads are marked as they fall, and
+ * the citadel is drawn past it, a row of its own in no lane.
  *
  * Ink draws no text, so the names are the overlay's own text laid over the
  * band at the rows it drew.
  */
-import { ARCHETYPE_BY_ID } from '../content/bases';
+import { ARCHETYPE_BY_ID, CITADEL_SLOT } from '../content/bases';
 import { flavorFor } from '../content/factions';
-import { columnName, QUIET_MS, theaterFor } from '../content/theaters';
+import { columnName, laneFor, QUIET_MS, strongholdTier, theaterFor } from '../content/theaters';
 import { createOverlay, type OverlayApi } from './dom/overlay';
 import { drawFactionMark } from './glyphs';
 import type { Ink } from './ink';
 import type { Layout } from './layout';
 import { COLORS } from './palette';
 import type { Scene } from './stage';
+import { roadsTaken } from '../meta/capital';
+import { wonDay } from '../meta/record';
 import { enemyClock } from '../meta/strikes';
 import { lineAfterTaking, lineShares, nextHungerAt, supplyLine } from '../meta/supply';
-import { retakes, sectorOf, theaterView, type Sector, type TheaterRow } from '../meta/theater';
+import { retakes, sectorAt, sectorOf, theaterView, type Sector, type TheaterRow } from '../meta/theater';
 import { productionPerHour, type TownState } from '../meta/town';
 import { isScouted } from '../meta/warfare';
 
@@ -111,6 +114,46 @@ export function supplyText(town: TownState, now: number): { text: string; urgent
   };
 }
 
+/** The front as a raid left it, for the report on a win at the enemy's capital. */
+export interface CapitalSortie {
+  tier: number;
+  roads: readonly number[];
+  won: boolean;
+}
+
+/**
+ * What a won raid at the enemy's capital did (M25 Phase 4b), as the report's
+ * map line: a road falling, a road already taken, or the citadel. Null when
+ * the raid did not go out from the capital, or the front fell back from it
+ * while the raid was planned.
+ */
+export function capitalReport(town: TownState, before: CapitalSortie, slot: number): string | null {
+  const t = theaterFor(town.faction);
+  const capital = strongholdTier(t);
+  const fl = town.frontline;
+  if (before.tier !== capital || fl.tier < capital) return null;
+  const name = t.stronghold;
+  if (slot === CITADEL_SLOT) {
+    const head =
+      !before.won && fl.wonAt !== undefined
+        ? `THE CITADEL AT ${name} FALLS · THE WAR IS WON`
+        : `THE CITADEL AT ${name} FALLS AGAIN`;
+    if (fl.tier > capital) return `${head} · the front moves into ${columnName(t, fl.tier)}`;
+    return (
+      `${head} · ${name} HOLDS: the depots cannot feed the line with it, ` +
+      `${lineAfterTaking(fl)} an hour, and they make ${productionPerHour(town).supplies}`
+    );
+  }
+  const lane = laneFor(t, slot).name;
+  if (before.roads.includes(slot)) {
+    return `${lane} INTO ${name} WAS TAKEN ALREADY · the win pays, and the capital wants its other roads`;
+  }
+  const roads = roadsTaken(fl).length;
+  return roads >= 3
+    ? `${lane} INTO ${name} TAKEN · all three roads have fallen, and THE CITADEL IS IN RANGE`
+    : `${lane} INTO ${name} TAKEN · ${roads} of 3 roads`;
+}
+
 /** The THEATER row's note: a front short of supply, what is lost behind it, or a strike about to land. */
 export function theaterNote(town: TownState, now: number): string {
   if (nextHungerAt(town, now, productionPerHour(town).supplies) !== null) return 'SHORT · [G]';
@@ -125,10 +168,18 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
   const { layout, town } = opts;
   const view = theaterView(town);
   const t = view.theater;
-  const front = view.rows.find((r) => r.state === 'front')!;
+  const front = view.rows.find((r) => r.state === 'front' && !r.citadel)!;
+  const capital = strongholdTier(t);
+  const atCapital = front.tier === capital;
   const ov = createOverlay(scene, layout, {
     title: t.name,
-    subtitle: `THE FRONT: ${front.name} (T${front.tier}) · ${view.pushes} OF 3 PUSHES TO TAKE IT`,
+    subtitle:
+      `THE FRONT: ${front.name} (T${front.tier}) · ` +
+      (!atCapital
+        ? `${view.pushes} OF 3 PUSHES TO TAKE IT`
+        : view.citadelInRange
+          ? 'ALL THREE ROADS TAKEN · THE CITADEL IS IN RANGE'
+          : `${view.pushes} OF 3 ROADS TAKEN`),
   });
   const { font, gap } = layout;
 
@@ -162,8 +213,13 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
         const y0 = rowY(i, r.y) + rowH - pad;
         const y1 = rowY(i + 1, r.y) + pad;
         for (let j = 0; j < 3; j++) {
-          const held =
-            (row.state === 'held' || row.state === 'front') && !lostAt(row, j) && !lostAt(below, j);
+          // Into the citadel, a road is held once it has fallen; out of it,
+          // once the front has gone on into the rear (Phase 4b).
+          const held = row.citadel
+            ? below.state === 'held' || view.roads[t.lanes[j]!.slot] === true
+            : below.citadel
+              ? row.state === 'held' || row.state === 'front'
+              : (row.state === 'held' || row.state === 'front') && !lostAt(row, j) && !lostAt(below, j);
           g.lineStyle(held ? 2 : 1, held ? COLORS.ink : COLORS.disabled, 1);
           g.lineBetween(laneMid(j), y0, laneMid(j), y1);
         }
@@ -172,7 +228,7 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
       rows.forEach((row, i) => drawRow(g, row, rowY(i, r.y), r.x + r.w));
 
       // The line the war has been pushed to: the front row's near edge.
-      const at = rows.findIndex((row) => row.state === 'front');
+      const at = rows.findIndex((row) => row.state === 'front' && !row.citadel);
       const y = rowY(at, r.y) + rowH;
       g.lineStyle(3, COLORS.signal, 1);
       g.lineBetween(lanesX, y, r.x + r.w, y);
@@ -191,6 +247,19 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
   );
 
   function drawRow(g: Ink, row: TheaterRow, y: number, right: number): void {
+    if (row.citadel) {
+      // The enemy's headquarters, in no lane: one walled box across all three.
+      const x = lanesX + pad;
+      const w = right - lanesX - pad * 2;
+      const h = rowH - pad * 2;
+      g.fillStyle(row.state === 'held' ? COLORS.olive : COLORS.bgPanel, 1);
+      g.fillRect(x, y + pad, w, h);
+      g.lineStyle(row.state === 'front' ? 3 : row.state === 'held' ? 1.5 : 1, row.state === 'enemy' ? COLORS.inkDim : COLORS.ink, 1);
+      g.strokeRect(x, y + pad, w, h);
+      g.lineStyle(1, COLORS.ink, 1);
+      g.strokeRect(x + 3, y + pad + 3, w - 6, h - 6);
+      return;
+    }
     if (row.state === 'home') {
       // The base is one place, across all three lanes: the faction's mark.
       g.lineStyle(2, COLORS.ink, 1);
@@ -218,8 +287,9 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
         g.lineStyle(1.5, COLORS.ink, 1);
         g.strokeRect(x, y + pad, w, h);
       } else if (row.state === 'front') {
-        // A front post whose road is cut is out of reach: drawn faint.
-        g.fillStyle(COLORS.bgPanel, 1);
+        // A front post whose road is cut is out of reach: drawn faint. A road
+        // into the enemy's capital that has fallen is held ground (Phase 4b).
+        g.fillStyle(row.stronghold && view.roads[t.lanes[j]!.slot] ? COLORS.olive : COLORS.bgPanel, 1);
         g.fillRect(x, y + pad, w, h);
         g.lineStyle(cut ? 1.5 : 3, cut ? COLORS.disabled : COLORS.ink, 1);
         g.strokeRect(x, y + pad, w, h);
@@ -274,19 +344,33 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
       );
     }
   });
-  // Each front sector names its post, or says that its road is cut.
-  const frontAt = rows.findIndex((row) => row.state === 'front');
+  // Each front sector names its post, or says that its road is cut, or at
+  // the enemy's capital that its road has fallen.
+  const frontAt = rows.findIndex((row) => row.state === 'front' && !row.citadel);
   t.lanes.forEach((lane, j) => {
     const cut = view.cut[lane.slot] === true;
+    const taken = view.roads[lane.slot] === true;
     const base = sectorOf(town, lane.slot).base;
     ov.centered(
       { x: rect.x + labelW + laneW * j, y: rowY(frontAt, rect.y) + middle, w: laneW, h: rowH },
-      cut ? 'CUT' : (ARCHETYPE_BY_ID[base.archetype]?.short ?? base.archetype),
+      cut ? 'CUT' : taken ? 'TAKEN' : (ARCHETYPE_BY_ID[base.archetype]?.short ?? base.archetype),
       font.tiny,
       cut ? COLORS.signal : COLORS.ink,
       { fontStyle: 'bold' },
     );
   });
+  // And the citadel says whether it can be raided yet.
+  const citadelAt = rows.findIndex((row) => row.citadel === true);
+  if (citadelAt >= 0) {
+    const row = rows[citadelAt]!;
+    ov.centered(
+      { x: rect.x + labelW, y: rowY(citadelAt, rect.y) + middle, w: laneW * 3, h: rowH },
+      row.state === 'held' ? 'FALLEN' : row.state === 'front' ? 'IN RANGE' : 'TAKE ALL THREE ROADS FIRST',
+      font.tiny,
+      row.state === 'front' ? COLORS.signal : row.state === 'held' ? COLORS.ink : COLORS.inkDim,
+      { fontStyle: 'bold' },
+    );
+  }
 
   ov.paragraph(
     'Any three wins at the front take its town, if the depots make enough to hold it. When the ' +
@@ -294,11 +378,18 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
       'to the front, and again a day later. A cut road’s front post cannot be raided until the ' +
       'ground is retaken, and if the whole town behind the front falls, the front falls back to ' +
       'it. Every town held takes supplies an hour from what the depots make, more the further it ' +
-      'is from home, and a front they cannot feed loses ground until they can.',
+      'is from home, and a front they cannot feed loses ground until they can.' +
+      (view.rows.some((r) => r.stronghold)
+        ? ` The ${flavorFor(town.faction).enemy}’s stronghold is not taken by any three wins: each of ` +
+          'its three roads has to fall once, and then its citadel, whose fall wins the war.'
+        : ''),
     font.tiny,
     COLORS.inkDim,
     { gapAfter: gap },
   );
+  if (view.wonAt !== undefined) {
+    ov.paragraph(`THE WAR WAS WON ON DAY ${wonDay(town)}`, font.tiny, COLORS.ink, { gapAfter: gap });
+  }
   const supply = supplyText(town, opts.now);
   const clock = clockLine(town, opts.now);
   if (supply) {
@@ -313,17 +404,33 @@ export function buildTheaterMap(scene: Scene, opts: TheaterMapOpts): OverlayApi 
   const scoutedTag = (s: Sector): string => (isScouted(town, s.tier, s.lane.slot) ? ' · SCOUTED' : '');
   const shapeOf = (s: Sector): string => ARCHETYPE_BY_ID[s.base.archetype]?.short ?? s.base.archetype;
 
+  // At the enemy's capital, its citadel first: what the roads are for (Phase 4b).
+  if (atCapital) {
+    const citadel = sectorAt(town, capital, CITADEL_SLOT);
+    const button = ov.flowButton(
+      `THE CITADEL — ${citadel.town}`,
+      () => opts.onRaid?.({ tier: capital, slot: CITADEL_SLOT }),
+      {
+        align: 'left',
+        sub: view.citadelInRange
+          ? `${ARCHETYPE_BY_ID.citadel.tag}${isScouted(town, capital, CITADEL_SLOT) ? ' · SCOUTED' : ''}`
+          : `${roadsTaken(town.frontline).length} OF 3 ROADS`,
+      },
+    );
+    if (!opts.onRaid || !view.citadelInRange) button.setEnabled(false);
+  }
   // The three front posts, left to right as the map draws their lanes.
   t.lanes.forEach((lane) => {
     const sector = sectorOf(town, lane.slot);
     const open = sector.cutAt === null;
+    const taken = view.roads[lane.slot] === true;
     const button = ov.flowButton(
       `${lane.name} — ${sector.town}`,
       () => opts.onRaid?.({ tier: sector.tier, slot: lane.slot }),
       {
         align: 'left',
         sub: open
-          ? `${sector.band} · ${shapeOf(sector)}${scoutedTag(sector)}`
+          ? `${sector.band} · ${shapeOf(sector)}${scoutedTag(sector)}${taken ? ' · TAKEN' : ''}`
           : `CUT AT ${sector.cutAt}`,
       },
     );

@@ -4,6 +4,7 @@ import {
   ARCHETYPE_BY_ID,
   BASE_SPAWN_EDGE,
   BASE_SPAWN_LANE,
+  CITADEL_SLOT,
   MAP_CELL_SIZE,
   MAP_H,
   MAP_W,
@@ -106,11 +107,13 @@ import { buildAttackerSpec } from '../spec';
 import { createButton, type FreeButton } from '../dom/button';
 import { createLabel, type SceneLabel } from '../dom/label';
 import { createOverlay, type OverlayApi } from '../dom/overlay';
-import { buildTheaterMap, type RaidTarget } from '../theaterMap';
+import { buildTheaterMap, capitalReport, type RaidTarget } from '../theaterMap';
 import { frontLabel, raidTargetKeys } from '../../meta/theater';
 import { cutAt } from '../../meta/strikes';
 import { lineAfterTaking } from '../../meta/supply';
-import { columnName, laneFor, theaterFor } from '../../content/theaters';
+import { atCapital, citadelInRange, isWon, roadsTaken, WAR_WON_PAYOUT } from '../../meta/capital';
+import { wonDay } from '../../meta/record';
+import { columnName, laneFor, strongholdTier, theaterFor } from '../../content/theaters';
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
 
@@ -172,8 +175,12 @@ export class RaidScene extends Scene {
   private demoMode = false;
   /** The sector the raid goes for: a front post, or ground to retake (M25). */
   private target: RaidTarget = { tier: 1, slot: 0 };
-  /** Where the last raid went out from, for its report: the rung, its pushes, and whether it went to retake ground. */
-  private sortie: { tier: number; wins: number; retake: boolean } | null = null;
+  /**
+   * Where the last raid went out from, for its report: the rung, its pushes,
+   * whether it went to retake ground, and at the enemy's capital the roads
+   * taken and whether the war was won yet (M25 Phase 4b).
+   */
+  private sortie: { tier: number; wins: number; retake: boolean; roads: number[]; won: boolean } | null = null;
   private base!: GeneratedBase;
   private squads: SquadPlan[] = [];
   private selectedSquad = 0;
@@ -474,15 +481,17 @@ export class RaidScene extends Scene {
     return this.targets()[0] ?? { tier: this.town.frontline.tier, slot: 0 };
   }
 
-  /** "TARGET 2/4 · THE BEACHES", or "TARGET 4/4 · RETAKE HIGHWAY 101 AT NEWPORT". */
+  /** "TARGET 2/4 · THE BEACHES", "TARGET 4/4 · RETAKE HIGHWAY 101 AT NEWPORT", or "TARGET 1/4 · THE CITADEL". */
   private targetLabel(): string {
     const t = theaterFor(this.town.faction);
     const lane = laneFor(t, this.target.slot);
     const at = this.targetIndex();
     const what =
-      this.target.tier < this.town.frontline.tier
-        ? `RETAKE ${lane.name} AT ${columnName(t, this.target.tier)}`
-        : lane.name;
+      this.target.slot === CITADEL_SLOT
+        ? 'THE CITADEL'
+        : this.target.tier < this.town.frontline.tier
+          ? `RETAKE ${lane.name} AT ${columnName(t, this.target.tier)}`
+          : lane.name;
     return `TARGET ${at >= 0 ? at + 1 : '—'}/${this.targets().length} · ${what}`;
   }
 
@@ -776,6 +785,8 @@ export class RaidScene extends Scene {
       tier: this.town.frontline.tier,
       wins: this.town.frontline.wins,
       retake: !this.challenge && this.base.tier < this.town.frontline.tier,
+      roads: [...roadsTaken(this.town.frontline)],
+      won: isWon(this.town.frontline),
     };
     const xpBefore = squadRoster(this.town).map((r) => r.xp);
     const resolution = resolveRaid(
@@ -997,11 +1008,16 @@ export class RaidScene extends Scene {
     const mission = OBJECTIVES[res.objective];
     const theater = theaterFor(this.town.faction);
     const fl = this.town.frontline;
-    const sortie = this.sortie ?? { tier: fl.tier, wins: fl.wins, retake: false };
+    const sortie = this.sortie ?? { tier: fl.tier, wins: fl.wins, retake: false, roads: [], won: isWon(fl) };
     // What the win did to the map (M25): a third push takes the front's town,
-    // and a retake gives a lane its road back unless it is cut further up.
+    // and a retake gives a lane its road back unless it is cut further up. At
+    // the enemy's capital a road falls, or the citadel (Phase 4b).
+    const atTheCapital = this.challenge ? null : capitalReport(this.town, sortie, this.base.variant);
+    const wonNow = !this.challenge && !sortie.won && isWon(fl);
     let mapLine: string;
-    if (sortie.retake) {
+    if (atTheCapital !== null) {
+      mapLine = atTheCapital;
+    } else if (sortie.retake) {
       const lane = laneFor(theater, this.base.variant);
       const still = cutAt(fl, lane.slot);
       mapLine =
@@ -1097,7 +1113,55 @@ export class RaidScene extends Scene {
       0,
       2,
     );
-    ov.footer('RETURN TO BASE', () => this.goHome(), 1, 2);
+    // The raid that won the war goes on to say so (Phase 4b).
+    if (wonNow) ov.footer('THE WAR IS WON ▸', () => this.showVictory(), 1, 2);
+    else ov.footer('RETURN TO BASE', () => this.goHome(), 1, 2);
+  }
+
+  /**
+   * The war is won (M25 Phase 4b): the citadel has fallen for the first time.
+   * What it paid, and that the war goes on, into the enemy's rear or holding
+   * at its capital until the depots can feed it.
+   */
+  private showVictory(): void {
+    this.overlay?.close();
+    const t = theaterFor(this.town.faction);
+    const flavor = flavorFor(this.town.faction);
+    const fl = this.town.frontline;
+    const day = wonDay(this.town) ?? 1;
+    const ov = createOverlay(this, this.layout, {
+      title: 'THE WAR IS WON',
+      subtitle: `${flavor.faction} · DAY ${day}`,
+      scrim: 0.9,
+    });
+    this.overlay = ov;
+    const { font, gap } = this.layout;
+    const pay = WAR_WON_PAYOUT;
+    const moved = fl.tier > strongholdTier(t);
+    // Ink, not the settled tone the raid report is set in: this is the page's news.
+    ov.paragraph(`THE CITADEL AT ${t.stronghold} HAS FALLEN`, font.title, COLORS.ink, {
+      center: true,
+      gapAfter: gap,
+    });
+    ov.paragraph(
+      `The ${flavor.enemy} headquarters is broken, and the war is won on day ${day}.\n` +
+        `War won: +${pay.supplies} SUP  +${pay.fuel} FUEL  +${pay.intel} INTEL`,
+      font.body,
+      COLORS.ink,
+      { center: true, gapAfter: gap },
+    );
+    ov.paragraph(
+      (moved
+        ? `The war goes on. The front moves into the ${flavor.enemy}’s rear, and the ladder goes on ` +
+          'for loot and standing as far as the depots can feed it.'
+        : `The war goes on. The depots cannot feed ${t.stronghold} yet: the front holds there until ` +
+          `they make ${lineAfterTaking(fl)} an hour, and the citadel’s next fall takes it.`) +
+        ' The service record and the war menu mark the war won.',
+      font.body,
+      COLORS.inkDim,
+      { center: true },
+    );
+    ov.footer('RETURN TO BASE', () => this.goHome());
   }
 
   // ---- panel rows ---------------------------------------------------------
@@ -1132,7 +1196,13 @@ export class RaidScene extends Scene {
         return [
           {
             id: 'h',
-            label: `${flavorFor(town.faction).enemy} POSTS AT ${frontLabel(town)} · CLEARED ${town.frontline.wins}/3`,
+            label:
+              `${flavorFor(town.faction).enemy} POSTS AT ${frontLabel(town)} · ` +
+              (!atCapital(town)
+                ? `CLEARED ${town.frontline.wins}/3`
+                : citadelInRange(town)
+                  ? 'THE CITADEL IS IN RANGE'
+                  : `ROADS ${town.frontline.wins}/3`),
             heading: true,
           },
           // The ground (M25): the front and its three posts, lane by lane.
