@@ -5221,6 +5221,169 @@ problem.
       - the mandate chosen in the defence offer and set in the WAR tab;
       - the surge's clock on the training lines.
 
+      **The plan, before the build.** Phase 2 handed on two problems, and
+      the commander settled both before this plan was written.
+
+      *The USA gets a kit, not a refund.* The five field kits are one kit:
+      the same four kinds at 12 to 26 CP with nearly the same numbers. So
+      no rule that works through field defences can fit one faction more
+      than another; the fit has to come from something only that faction
+      has. The new rule sweep (`npm run balance -- --rule`) put a number on
+      both halves of the question:
+      - The refund cannot be tuned into mattering. Even refunding the full
+        price, it adds +0.20 / −0.10 levels to the USA's CC2 / CC3 bases,
+        which is inside the noise.
+      - Fewer, bigger field defences at the same CP value can matter a
+        great deal. At 1.5 times the HP, the damage and the price, the
+        USA's bases gain +3.7 / +4.2 levels. At 2.5 times they gain about
+        nine.
+
+      So Rapid Response becomes "few, expensive, excellent", as GDD §4 has
+      the USA. The USA's field defences are its own: each one has more HP
+      and damage, and costs more than that makes it worth, so that the kit
+      holds parity. The refund stays, rewarding the commander for keeping
+      them alive. Like the other sim rules, the kit rides the config with
+      its numbers (`Signature.elite`: a scale on HP and damage, and a scale
+      on price). That keeps it dormant with the others until they switch
+      on, and a replay re-fights with the kit it was fought with. Only the
+      USA has the kit, so it fits the USA by construction.
+
+      *Parity is held, not closed.* The defence side was never at parity,
+      and closing it is a milestone of its own. Phase 3 holds it: switching
+      the rules on must never widen the gap between the best and the worst
+      faction. The gap is read on the defence tables with nobody acting,
+      under HOLDFAST and spending on the approach, at every command-post
+      size, with half a level allowed for noise.
+
+      Holding it has a consequence the rules' own sizes cannot meet by
+      themselves. Where a faction already leads, any gain from its rule
+      widens the gap, however small the rule:
+      - Russia leads at CC3 with nobody acting (17.70 levels), under
+        HOLDFAST (18.85) and when spending on the approach (22.35), and it
+        leads at CC2 with nobody acting. The hulk adds up to +1.30 levels
+        there.
+      - The UN leads at CC1 and CC2 when spending on the approach (19.90
+        levels at CC2, 5.65 clear of the USA). Rapid deployment adds +1.85
+        there.
+
+      A hulk small enough to add nothing is a rule nobody would notice. So
+      a leader's rule carries its own offset, riding its signature in the
+      same way: Russia's emplacements are trimmed by exactly as much as
+      the hulks give back (`DefenderMods.emplacementHp`). The concrete goes
+      into the burning. The UN's rapid deployment is sized down to what its
+      lead leaves room for. Every mandate is held as a standing choice.
+      Picking the right one for each attack, fought three ways and the best
+      kept, is the skill above it, and is reported rather than held: that
+      ceiling is what the verb rewards. Raid parity needs no work, because
+      no rule touches a raid, and a re-run of the parity table confirms it.
+
+      *The phase is two steps, each shipped on its own.*
+      - **3a: the rules reshaped and tuned, still dormant.** The elite kit
+        and the emplacement trim join the sim, with the replay block
+        extended, tests first. The tuning is read by THE HOLD, a table of
+        every faction's defence with its whole rule on and off, at every
+        size and under every commander, with the gap each rule leaves and
+        any reading where it widens. THE TURN and THE FIT are read again on
+        the tuned rules. Then comes what the rules touch downstream: the
+        last stand's levels, the probes and the missions.
+      - **3b: the UI, and the rules switched on.** A burning hulk, the CP a
+        field defence returns, the mandate in the WAR tab and in the defence
+        offers, and the surge's clock on the training lines. Then
+        `signaturesLive` goes on, and the harness's defence configs attach
+        the rules as `battleConfig` does.
+
+      **What 3a found.** *(Shipped in v1.61.0, every rule still dormant.)*
+      The USA's kit, Russia's trim and the UN's lighter rapid deployment are
+      in the sim, riding the config. Replay codes carry all three, as bits
+      8, 16 and 32 of the rules block. Two instruments do the tuning: THE
+      HOLD (`npm run balance -- --hold [seeds]`), and the rule sweep
+      (`--rule <rule> <values> <factions> [seeds]`), which reads one rule
+      at several sizes.
+
+      *Tuning each rule.*
+      - **The USA's kit** is 1.3 times the HP and damage at twice the price.
+        At 1.5 times, it took the USA past Russia at CC3 when spending on
+        the approach, the reading Russia leads, and widened the gap. The
+        price barely moves the kit's worth in the harness, because a
+        commander who stops at six a wave rarely runs short of CP. What the
+        price does is make a survivor worth keeping: with half back, a field
+        defence that lives through its wave has cost what the standard one
+        does.
+      - **Russia's trim** is 0.875. Untrimmed, the hulk adds up to 2.00
+        levels where Russia leads. Trimmed, it adds between −0.45 and +0.15
+        on every reading, inside the noise. Russia defends as well as it
+        did, and differently.
+      - **The UN's rapid deployment could not be sized down, and is lighter
+        instead.** A cut in price alone added 1.30 to 1.75 levels to the
+        UN's CC2 base spending CP, the reading it already leads by five and
+        a half, at any size from 5% off to 25% (40 seeds). So the mandate
+        now costs 25% less and leaves its field defences 20% lighter. That
+        is neutral where the UN leads, and a mistake at CC3, where it costs
+        nearly a level: a choice rather than a buff.
+      - **The default mandate is now the humanitarian shield.** It is the
+        one mandate that measured a little better almost everywhere and
+        worse nowhere. Defensive works ranges from nearly a level better to
+        nearly three worse, so it is a choice for a commander who knows
+        their maze.
+
+      *THE HOLD, at 20 seeds*: the gap between the best and the worst
+      faction, each reading's rules off → on (the widest any standing
+      mandate leaves):
+
+      | | CC1 | CC2 | CC3 |
+      |---|---|---|---|
+      | nobody acting | 0.75 → 0.60 | 2.40 → 1.95 | 7.75 → 7.55 |
+      | HOLDFAST | 0.75 → 0.55 | 2.80 → 2.75 | 7.50 → 7.65 |
+      | spending on the approach | 2.60 → 3.00 | 10.20 → 10.35 | 6.10 → 5.80 |
+
+      Held: no gap widens by more than half a level, the noise at 20 seeds.
+      The closest is CC1 spending CP (+0.40), where rapid deployment adds a
+      little to a reading the UN leads. With nobody acting, Russia's trim
+      narrows the gap at every size. The UN's best mandate per attack
+      reaches 23.10 levels at CC2 and 23.00 at CC3, three levels above any
+      standing choice. That is the ceiling of a commander who reads every
+      attack, and it is reported, not held.
+
+      *THE FIT, on the whole rules*: the levels each adds to each faction's
+      CC2 / CC3 base, all spending on the approach:
+
+      | | Rapid Response | Overbuilt | Mandate, best of three |
+      |---|---|---|---|
+      | USA | **+2.50 / +1.05** | −0.20 / −0.40 | +3.15 / +2.10 |
+      | China | +0.15 / +2.55 | −0.25 / +0.35 | +1.65 / +2.70 |
+      | Russia | −1.20 / +2.70 | **+0.15 / −0.75** | +1.60 / +1.85 |
+      | KPA | 0.00 / +1.45 | +0.05 / +0.20 | +0.65 / +1.65 |
+      | UN | −0.20 / +2.05 | −1.00 / −0.10 | **+3.20 / +2.20** |
+
+      Rapid Response now fits the USA first of the five, 3.55 levels over
+      both bases, and the Mandate fits the UN first, 5.40. Overbuilt is a
+      wash for everyone, and that is how it was built: the trim that holds
+      parity cancels what the hulk adds. It changes how Russia defends, not
+      how well.
+
+      *THE TURN, on the tuned rules:*
+      - The USA's defences spend 623 CP instead of 328 and get 126 back,
+        and its skirmish ladder climbs to level 36 instead of 32.
+      - China's training falls 17 points of its spending.
+      - Russia ends the week at the same level, 39, as without its rule.
+      - The UN climbs to 38 instead of 31.
+
+      The five turns' divergence from the others is still small, from 0.02
+      to 0.09. The rules separate what the factions' defences can do more
+      than how their turns are spent. China's surge is the one rule that
+      moves a turn's spending.
+
+      *What 3b inherits.* The rules are tuned and held. What they touch
+      downstream is read when they switch on, since until then no battle a
+      player fights has them: the last stand's levels, which the permanent
+      layer sets, the probes, which the garrison fights, and the campaign's
+      missions.
+
+      *The gate.* 786 unit tests, seven of them new: the kit's HP, damage,
+      price and refund, the trim and a trimmed hulk, the lighter field
+      defences, and the three new bits in replay codes. The 24 e2e
+      harnesses passed unchanged.
+
 ## M27 — "The Other Commander": asynchronous PvP for real
 
 Share codes are a boast with no consequences. Make them a system: matchmaking by

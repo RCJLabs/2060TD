@@ -1341,3 +1341,18 @@ here with the change and its date.
   reached, the churn reset the stall clock, and a quarter of its battles never
   ended. And a commander measured on tempo re-queues its training as slots free
   up, because a queue that is filled once leaves six-vehicle forces short.
+- 2026-09-25 — **The USA's signature is a field kit, and a leader's rule carries
+  its own offset (M26 Phase 3a, v1.61.0).** Rapid Response's refund measured
+  inside the noise even at the full price back, and the five field kits are one
+  kit, so no field-defence rule could fit the USA more than anyone else. The
+  commander chose a kit of the USA's own instead: every field defence has 1.3
+  times the HP and damage at twice the CP, and keeps the refund. The commander
+  also chose to hold the defence side's parity rather than close it: switching
+  the rules on must not widen the gap between the best and worst faction on any
+  reading (nobody acting, HOLDFAST, spending on the approach; every CC; half a
+  level for noise). Where a faction already leads, its rule has to pay for
+  itself, and the offset rides the config like the rule. Russia's emplacements
+  are trimmed to 0.875 of their HP, which cancels what the hulks add. The UN's
+  rapid deployment leaves its field defences 20% lighter, because any cut in
+  price alone added more than a level where the UN leads. The UN's best mandate
+  per attack is a skill ceiling above the held floor, reported but not held.

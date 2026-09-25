@@ -159,6 +159,22 @@ describe('a replay code is the battle', () => {
     expect(outcome(plain, catalog)).not.toBe(outcome(config, catalog));
   });
 
+  it('carries the USA’s kit and Russia’s trim, and re-fights with them (M26 Phase 3)', () => {
+    const config: SimConfig = {
+      ...probeFixture(),
+      signature: { refund: 0.5, elite: { scale: 1.5, price: 2 } },
+    };
+    config.mods = { ...config.mods, defender: { ...config.mods?.defender, emplacementHp: 0.85, fieldHp: 0.7 } };
+    const catalog = defenseCatalogFor('usa');
+    const code = encodeReplay({ kind: 'probe', faction: 'usa', title: 'P', won: false, config });
+    const back = decodeReplay(code);
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.signature).toEqual(config.signature);
+    expect(back.replay.config.mods?.defender?.emplacementHp).toBe(0.85);
+    expect(back.replay.config.mods?.defender?.fieldHp).toBe(0.7);
+    expect(outcome(back.replay.config, catalog)).toBe(outcome(config, catalog));
+  });
+
   it('writes no rules block for a battle fought under none', () => {
     const config = probeFixture();
     const code = encodeReplay({ kind: 'probe', faction: 'usa', title: 'P', won: false, config });

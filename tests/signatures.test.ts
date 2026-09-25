@@ -5,7 +5,9 @@ import { FACTION_IDS, type FactionId } from '../src/content/factions';
 import {
   MANDATES,
   OVERBUILT_HULK,
+  OVERBUILT_TRIM,
   PRODUCTION_SURGE,
+  RAPID_RESPONSE_KIT,
   RAPID_RESPONSE_REFUND,
   setSignaturesLive,
 } from '../src/content/signatures';
@@ -250,6 +252,89 @@ describe('the post’s HP (the UN’s humanitarian shield)', () => {
   });
 });
 
+describe('Rapid Response’s kit (USA): few, expensive, excellent', () => {
+  const KIT = { scale: 1.5, price: 2 };
+
+  it('a field defence has the scale’s HP and damage, and costs the price’s CP', () => {
+    const plain = siege();
+    const elite = siege({ elite: KIT });
+    for (const e of [plain, elite]) e.enqueue({ tick: e.tick, type: 'placeStructure', cell: idx(31, 23), kind: 'foxhole' });
+    const before = { plain: plain.cp, elite: elite.cp };
+    plain.run(1);
+    elite.run(1);
+    const def = M1_CATALOG.structures['foxhole']!;
+    const a = plain.structureAt(idx(31, 23))!;
+    const b = elite.structureAt(idx(31, 23))!;
+    expect(b.profile.maxHp).toBeCloseTo(a.profile.maxHp * KIT.scale, 9);
+    expect(b.hp).toBeCloseTo(b.profile.maxHp, 9);
+    expect(b.profile.weapon!.damage).toBeCloseTo(a.profile.weapon!.damage * KIT.scale, 9);
+    expect(before.elite - elite.cp).toBeCloseTo(elite.fieldPrice(def.cpCost!), 9);
+    expect(elite.fieldPrice(def.cpCost!)).toBe(Math.ceil(def.cpCost! * KIT.price));
+    // Walls and fire missions keep their own prices.
+    expect(elite.cpPrice(10)).toBe(plain.cpPrice(10));
+  });
+
+  it('the emplacements are the kit’s own: untouched', () => {
+    const elite = siege({ elite: KIT });
+    const nest = elite.structureAt(idx(24, 10))!;
+    expect(nest.profile.maxHp).toBe(M1_CATALOG.structures['m2nest']!.maxHp);
+  });
+
+  it('the refund is half of what the kit cost', () => {
+    const e = siege({ refund: 0.5, elite: KIT });
+    e.enqueue({ tick: e.tick, type: 'placeStructure', cell: idx(31, 23), kind: 'foxhole' });
+    until(e, ['prep']);
+    expect(e.stats.cpRefunded).toBeCloseTo(e.fieldPrice(M1_CATALOG.structures['foxhole']!.cpCost!) * 0.5, 9);
+  });
+});
+
+describe('Overbuilt’s trim (Russia): the concrete goes into the burning', () => {
+  it('trims every armed emplacement, and nothing else', () => {
+    const plain = siege();
+    const trimmed = new Engine(board({ siege: TINY, mods: { defender: { emplacementHp: 0.8 } } }), M1_CATALOG);
+    trimmed.enqueue({ tick: 0, type: 'placeStructure', cell: idx(24, 10), kind: 'm2nest' });
+    trimmed.enqueue({ tick: 0, type: 'startAssault' });
+    trimmed.run(1);
+    const a = plain.structureAt(idx(24, 10))!;
+    const b = trimmed.structureAt(idx(24, 10))!;
+    expect(b.profile.maxHp).toBeCloseTo(a.profile.maxHp * 0.8, 9);
+    expect(b.profile.weapon!.damage).toBe(a.profile.weapon!.damage);
+    expect(trimmed.cc.profile.maxHp).toBe(plain.cc.profile.maxHp);
+    trimmed.enqueue({ tick: trimmed.tick, type: 'placeStructure', cell: idx(31, 23), kind: 'foxhole' });
+    trimmed.run(1);
+    expect(trimmed.structureAt(idx(31, 23))!.profile.maxHp).toBe(M1_CATALOG.structures['foxhole']!.maxHp);
+  });
+
+  it('a trimmed emplacement’s hulk is a share of its trimmed HP', () => {
+    const e = new Engine(board({ signature: { hulk: HULK }, mods: { defender: { emplacementHp: 0.8 } } }), M1_CATALOG);
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(20, 12), kind: 'm2nest' });
+    e.run(1);
+    const nest = e.structureAt(idx(20, 12))!;
+    nest.hp = 0;
+    e.step();
+    expect(nest.hp).toBeCloseTo(M1_CATALOG.structures['m2nest']!.maxHp * 0.8 * HULK.strength, 9);
+  });
+});
+
+describe('rapid deployment’s lighter field defences (the UN)', () => {
+  it('scale the field defences’ HP and nothing else, on top of any kit', () => {
+    const e = new Engine(board({ siege: TINY, mods: { defender: { fieldHp: 0.7 } } }), M1_CATALOG);
+    e.enqueue({ tick: 0, type: 'placeStructure', cell: idx(24, 10), kind: 'm2nest' });
+    e.enqueue({ tick: 0, type: 'startAssault' });
+    e.run(1);
+    e.enqueue({ tick: e.tick, type: 'placeStructure', cell: idx(31, 23), kind: 'foxhole' });
+    e.run(1);
+    const foxhole = e.structureAt(idx(31, 23))!;
+    expect(foxhole.profile.maxHp).toBeCloseTo(M1_CATALOG.structures['foxhole']!.maxHp * 0.7, 9);
+    expect(foxhole.profile.weapon!.damage).toBe(M1_CATALOG.structures['foxhole']!.weapon!.damage);
+    expect(e.structureAt(idx(24, 10))!.profile.maxHp).toBe(M1_CATALOG.structures['m2nest']!.maxHp);
+    const both = new Engine(board({ signature: { elite: { scale: 1.5, price: 2 } }, mods: { defender: { fieldHp: 0.5 } } }), M1_CATALOG);
+    both.enqueue({ tick: 0, type: 'placeStructure', cell: idx(10, 5), kind: 'foxhole' });
+    both.run(1);
+    expect(both.structureAt(idx(10, 5))!.profile.maxHp).toBeCloseTo(M1_CATALOG.structures['foxhole']!.maxHp * 0.75, 9);
+  });
+});
+
 describe('no rule, no change', () => {
   it('an empty signature fights the battle a missing one does', () => {
     const a = siege({});
@@ -278,10 +363,10 @@ describe('the rules ride every town battle, once the game fights them', () => {
     expect(siegeConfig(un, 1).mods?.defender?.postHp).toBeUndefined();
   });
 
-  it('the USA’s refund and Russia’s hulk; nothing of the sim’s for the other three', () => {
+  it('the USA’s kit and refund, Russia’s hulk and trim; nothing of the sim’s for the other three', () => {
     setSignaturesLive(true);
     const expected: Record<FactionId, Signature | undefined> = {
-      usa: { refund: RAPID_RESPONSE_REFUND },
+      usa: { refund: RAPID_RESPONSE_REFUND, elite: { ...RAPID_RESPONSE_KIT } },
       russia: { hulk: { ...OVERBUILT_HULK } },
       china: undefined,
       nk: undefined,
@@ -291,12 +376,16 @@ describe('the rules ride every town battle, once the game fights them', () => {
       const town = withDepots(unlockAll(newTown(T0, faction)), 2);
       expect(siegeConfig(town, 1).signature, faction).toEqual(expected[faction]);
       expect(probeConfig(town, 3, 1).signature, faction).toEqual(expected[faction]);
+      const trim = siegeConfig(town, 1).mods?.defender?.emplacementHp;
+      expect(trim, faction).toBe(faction === 'russia' ? OVERBUILT_TRIM : undefined);
     }
   });
 
   it('the UN’s mandate rides the mods, on top of what research set, the standing one by default', () => {
     setSignaturesLive(true);
     const town = withDepots(unlockAll(newTown(T0, 'un')), 2);
+    expect(siegeConfig(town, 1).mods?.defender).toEqual({ postHp: MANDATES.shield.mods.postHp });
+    town.mandate = 'works';
     expect(siegeConfig(town, 1).mods?.defender).toMatchObject({ wallHp: MANDATES.works.mods.wallHp });
     town.mandate = 'deployment';
     expect(siegeConfig(town, 1).mods?.defender).toMatchObject({ cpCost: MANDATES.deployment.mods.cpCost });

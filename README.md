@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.60.0, in the browser. No install, no account, works on a phone.
+v1.61.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,30 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.60.0: measuring whether the five nations play differently
+## Current state — v1.61.0: the signatures, reshaped and tuned (still switched off)
+
+**Nothing you play has changed yet.** This release reshapes and tunes the five nations' signature
+rules so they can be switched on fairly. The switch, with the art and controls each rule needs, is
+the next release.
+
+- **United States, Rapid Response, reshaped.** A refund on its own turned out too small to matter,
+  so the USA gets its own field kit: "few, expensive, excellent". Every field defence has 30% more
+  HP and damage at twice the CP. Half of that comes back if it survives the wave you placed it in,
+  so one you keep alive has cost what a standard one does.
+- **Russia, Overbuilt.** Destroyed emplacements still burn on as hulks. To keep things fair, since
+  Russia already has the strongest defence, its emplacements are built slightly lighter: the
+  concrete goes into the burning.
+- **UN Coalition, Mandate.** Rapid deployment is now "cheaper and lighter": field defences cost 25%
+  less but have 20% less HP. A UN town that never picks a mandate defends under the humanitarian
+  shield.
+- **China and the KPA** are unchanged: half-price refills after a battle, and the tunnel.
+
+**The rule for tuning: switching the rules on must never widen the gap** between the nation that
+defends best and the one that defends worst. The rules pass that check with and without a
+commander spending CP, at every base size. Picking the right mandate for each attack is a skill
+that can take the UN three levels higher than any fixed choice.
+
+## v1.60.0: measuring whether the five nations play differently
 
 **Nothing you play has changed.** This release builds the measuring tools for M26, whose goal
 is five nations that play differently rather than one game with five price lists.

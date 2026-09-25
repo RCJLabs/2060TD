@@ -46,6 +46,7 @@ import {
   MANDATES,
   PRODUCTION_SURGE,
   signatureFor,
+  signatureModsFor,
   signaturesLive,
   type MandateId,
 } from '../content/signatures';
@@ -1685,17 +1686,24 @@ function battleConfig(
   const live = signaturesLive();
   const signature = live ? signatureFor(town.faction) : undefined;
   const mandate = live && town.faction === 'un' ? MANDATES[town.mandate ?? DEFAULT_MANDATE].mods : {};
+  const kit = live ? signatureModsFor(town.faction) : {};
   // Rounded to the thousandth a replay code keeps, so a product of two
   // multipliers re-fights as exactly the number it was fought with.
   const milli = (v: number): number => Math.round(v * 1000) / 1000;
   const wallHp = mandate.wallHp !== undefined ? milli(fx.wallHp * mandate.wallHp) : fx.wallHp;
   const cpCost = mandate.cpCost !== undefined ? milli(fx.cpCost * mandate.cpCost) : fx.cpCost;
   const postHp = mandate.postHp ?? 1;
+  // The rules' own mods, where a rule has one: the post's HP, the trim.
+  const extra = {
+    ...(postHp !== 1 ? { postHp } : {}),
+    ...(mandate.fieldHp !== undefined ? { fieldHp: mandate.fieldHp } : {}),
+    ...(kit.emplacementHp !== undefined ? { emplacementHp: kit.emplacementHp } : {}),
+  };
   const defender =
     wallHp !== 1 || fx.weaponDamage !== 1 || cpCost !== 1
-      ? { wallHp, weaponDamage: fx.weaponDamage, cpCost, ...(postHp !== 1 ? { postHp } : {}) }
-      : postHp !== 1
-        ? { postHp }
+      ? { wallHp, weaponDamage: fx.weaponDamage, cpCost, ...extra }
+      : Object.keys(extra).length > 0
+        ? extra
         : undefined;
   return {
     width: TOWN_GRID.width,

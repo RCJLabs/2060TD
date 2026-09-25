@@ -325,6 +325,15 @@ export class Engine {
   /** The defender's faction rules (M26), resolved once: none when absent. */
   private readonly refundShare: number;
   private readonly hulkRule: { ticks: number; strength: number } | null;
+  /** The USA's field kit (M26 Phase 3): its field defences' HP and damage, and their price. */
+  private readonly eliteScale: number;
+  private readonly elitePrice: number;
+  /** Russia's emplacements, trimmed by what their hulks give back (M26 Phase 3). */
+  private readonly emplacementHpMult: number;
+  /** The UN's field defences under rapid deployment, lighter as they are cheaper (M26 Phase 3). */
+  private readonly fieldHpMult: number;
+  /** Profiles scaled by the kit rules above, one per kind and level, so every copy is the same object. */
+  private readonly kitProfiles = new Map<string, StructureProfile>();
   /** Pre-planned fire missions, sorted by time then kind (deterministic). */
   private readonly autoRules: AutoPowerRule[];
   private autoRuleCursor = 0;
@@ -412,6 +421,10 @@ export class Engine {
     this.atkHpMult = config.mods?.attacker?.hp ?? 1;
     this.atkDamageMult = config.mods?.attacker?.damage ?? 1;
     this.refundShare = config.signature?.refund ?? 0;
+    this.eliteScale = config.signature?.elite?.scale ?? 1;
+    this.elitePrice = config.signature?.elite?.price ?? 1;
+    this.emplacementHpMult = config.mods?.defender?.emplacementHp ?? 1;
+    this.fieldHpMult = config.mods?.defender?.fieldHp ?? 1;
     const hulk = config.signature?.hulk;
     this.hulkRule =
       hulk && hulk.seconds > 0 && hulk.strength > 0
@@ -496,9 +509,36 @@ export class Engine {
   /** Base profile merged with its per-level overrides (level 2 = levels[0]). */
   resolveProfile(kind: string, level: number): StructureProfile | undefined {
     const base = this.catalog.structures[kind];
-    if (!base || level <= 1 || !base.levels || base.levels.length === 0) return base;
+    if (!base || level <= 1 || !base.levels || base.levels.length === 0) return this.kitProfile(base, level);
     const override = base.levels[Math.min(level - 2, base.levels.length - 1)];
-    return override ? { ...base, ...override } : base;
+    return this.kitProfile(override ? { ...base, ...override } : base, level);
+  }
+
+  /**
+   * A profile as this battle's kit rules have it (M26 Phase 3): a field
+   * defence scaled by the USA's elite kit, and an emplacement trimmed by
+   * Russia's. Untouched, and the very same object, in every battle that names
+   * neither, which is every battle fought before them.
+   */
+  private kitProfile(profile: StructureProfile | undefined, level: number): StructureProfile | undefined {
+    if (!profile || profile.kind === 'cc') return profile;
+    const field = profile.cpCost !== undefined;
+    // The elite kit is more of everything; the trim and the lighter field
+    // defences are only less of what holds them up.
+    const damage = field ? this.eliteScale : 1;
+    const hp = field ? this.eliteScale * this.fieldHpMult : profile.weapon !== undefined ? this.emplacementHpMult : 1;
+    if (hp === 1 && damage === 1) return profile;
+    const key = `${profile.kind}:${level}`;
+    const known = this.kitProfiles.get(key);
+    if (known) return known;
+    const scaled: StructureProfile = {
+      ...profile,
+      maxHp: profile.maxHp * hp,
+      ...(profile.weapon && damage !== 1 ? { weapon: { ...profile.weapon, damage: profile.weapon.damage * damage } } : {}),
+      ...(profile.trigger && damage !== 1 ? { trigger: { ...profile.trigger, damage: profile.trigger.damage * damage } } : {}),
+    };
+    this.kitProfiles.set(key, scaled);
+    return scaled;
   }
 
   private footprintCells(origin: CellIndex, footprint: 1 | 2): CellIndex[] | null {
@@ -789,6 +829,15 @@ export class Engine {
     return Math.ceil(cpCost * this.defCpMult);
   }
 
+  /**
+   * What a field defence costs in this battle: its CP price, scaled for the
+   * USA's elite kit (M26 Phase 3). A wall's or a fire mission's price is
+   * `cpPrice`; the kit is the field defences'.
+   */
+  fieldPrice(cpCost: number): number {
+    return Math.ceil(cpCost * this.elitePrice * this.defCpMult);
+  }
+
   /** Checks phase gate + price for an item priced in Supplies or CP. */
   private affords(cost: { supplyCost?: number; cpCost?: number }): boolean {
     if (this.phase === 'sandbox') return true;
@@ -838,11 +887,17 @@ export class Engine {
         const structure = this.createStructure(cmd.cell, cmd.kind, cmd.level ?? 1, 1, false);
         if (!structure) return false;
         const def = this.catalog.structures[cmd.kind]!;
-        if (def.cpCost !== undefined && this.phase === 'combat') {
-          structure.cpPaid = this.cpPrice(def.cpCost);
-          structure.placedWave = this.waveIndex;
+        if (def.cpCost !== undefined && this.phase !== 'sandbox') {
+          const price = this.fieldPrice(def.cpCost);
+          this.cp -= price;
+          this.stats.cpSpent += price;
+          if (this.phase === 'combat') {
+            structure.cpPaid = price;
+            structure.placedWave = this.waveIndex;
+          }
+        } else {
+          this.pay(def);
         }
-        this.pay(def);
         return true;
       }
       case 'removeStructure': {
@@ -2412,7 +2467,11 @@ export class Engine {
   canPlaceStructure(kind: string, cell: CellIndex): boolean {
     const profile = this.catalog.structures[kind];
     if (!profile || profile.kind === 'cc') return false;
-    if (!this.affords(profile)) return false;
+    const affordable =
+      profile.cpCost !== undefined && this.phase !== 'sandbox'
+        ? this.canBuildField && this.cp >= this.fieldPrice(profile.cpCost)
+        : this.affords(profile);
+    if (!affordable) return false;
     const limit = this.config.buildLimits?.structures?.[kind];
     if (limit !== undefined) {
       let count = 0;

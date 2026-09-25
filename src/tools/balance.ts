@@ -69,6 +69,7 @@ import {
   OVERBUILT_HULK,
   RAPID_RESPONSE_REFUND,
   signatureFor,
+  signatureModsFor,
 } from '../content/signatures';
 import { LAST_STAND_LEVEL } from '../content/theaters';
 import { economyTable } from './economy';
@@ -654,16 +655,17 @@ function siegeTraceOn(
   policy: SiegePolicy,
   chainVersion: number,
   attackerHp = 1,
-  /** A faction rule and a doctrine buff to fight under (M26). */
-  extra: { signature?: Signature; mods?: DefenderMods } = {},
+  /** A faction rule and a doctrine buff to fight under, and a kit to fight with (M26). */
+  extra: { signature?: Signature; mods?: DefenderMods; catalog?: Catalog } = {},
 ): WaveTrace {
-  const catalog = defenseCatalogFor(faction);
+  const catalog = extra.catalog ?? defenseCatalogFor(faction);
   // The table's own battle, so a trace is of a row the snapshot publishes.
   const config = defenseConfigFor(faction, base, level, seed, {
     orders: policy ?? undefined,
     chainVersion,
     ...(FIGHT === 'probe' ? { siege: probeAssault(level, enemyRosterFor(faction)) } : {}),
-    ...extra,
+    ...(extra.signature ? { signature: extra.signature } : {}),
+    ...(extra.mods ? { mods: extra.mods } : {}),
   });
   if (attackerHp !== 1) config.mods = { ...config.mods, attacker: { hp: attackerHp } };
   const engine = layDefense(config, catalog);
@@ -2908,11 +2910,12 @@ function citadelTable(faction: FactionId, pool = 24, seeds = 12): string {
 }
 
 
-/** One way to fight a defence for the signatures table (M26): a faction rule, a doctrine buff, or neither. */
+/** One way to fight a defence for the signatures table (M26): a faction rule, a doctrine buff, or neither, and the kit. */
 interface RuleVariant {
   label: string;
   signature?: Signature;
   mods?: DefenderMods;
+  catalog?: Catalog;
 }
 
 /**
@@ -2939,6 +2942,7 @@ function holdScan(
       const r = siegeTraceOn(faction, base, level, seedOf(level, base.ccLevel, i), policy, CHAIN_CURRENT, 1, {
         ...(variant.signature ? { signature: variant.signature } : {}),
         ...(variant.mods ? { mods: variant.mods } : {}),
+        ...(variant.catalog ? { catalog: variant.catalog } : {}),
       });
       row.push(r.held);
       refunded += r.refunded;
@@ -3090,9 +3094,20 @@ function signatureTable(seeds = 20, only?: FactionId): string {
  */
 function fitTable(seeds = 20): string {
   const bases = referenceBases().filter((b) => b.ccLevel >= 2);
+  // Each owner's whole rule, as the game attaches it: the USA's kit and
+  // refund, Russia's hulk and its trim.
+  const whole = (owner: FactionId): RuleVariant => {
+    const signature = signatureFor(owner);
+    const mods = signatureModsFor(owner);
+    return {
+      label: owner,
+      ...(signature ? { signature } : {}),
+      ...(Object.keys(mods).length > 0 ? { mods } : {}),
+    };
+  };
   const rules: { name: string; owner: FactionId; variants: RuleVariant[] }[] = [
-    { name: 'RAPID RESPONSE', owner: 'usa', variants: [{ label: 'refund', signature: { refund: RAPID_RESPONSE_REFUND } }] },
-    { name: 'OVERBUILT', owner: 'russia', variants: [{ label: 'hulk', signature: { hulk: { ...OVERBUILT_HULK } } }] },
+    { name: 'RAPID RESPONSE', owner: 'usa', variants: [whole('usa')] },
+    { name: 'OVERBUILT', owner: 'russia', variants: [whole('russia')] },
     {
       name: 'MANDATE, BEST OF 3',
       owner: 'un',
@@ -3143,6 +3158,188 @@ function fitTable(seeds = 20): string {
         `owner ${rule.owner.toUpperCase()} ${own.toFixed(2)}, ${level > 0 ? 'tied ' : ''}${PLACES[above]} of five`,
     );
   }
+  return lines.join('\n');
+}
+
+/**
+ * A faction's kit with its field defences made "few, expensive, excellent"
+ * (M26 Phase 3): each one `scale` times the HP, the damage and the CP price,
+ * so a CP buys the same firepower in fewer, harder emplacements.
+ */
+function eliteFieldKit(faction: FactionId, scale: number): Catalog {
+  const base = defenseCatalogFor(faction);
+  const structures = Object.fromEntries(
+    Object.entries(base.structures).map(([kind, s]) => {
+      if (s.cpCost === undefined) return [kind, s];
+      return [
+        kind,
+        {
+          ...s,
+          maxHp: s.maxHp * scale,
+          cpCost: Math.round(s.cpCost * scale),
+          ...(s.weapon ? { weapon: { ...s.weapon, damage: s.weapon.damage * scale } } : {}),
+          ...(s.trigger ? { trigger: { ...s.trigger, damage: s.trigger.damage * scale } } : {}),
+        },
+      ];
+    }),
+  );
+  return { ...base, structures };
+}
+
+/**
+ * M26 Phase 3: one rule's size, swept, on the factions named, read as levels
+ * held by the MID and LATE bases under the commander's line (POST) and with
+ * nobody acting. The tuning instrument: `--rule refund 0.25,0.5,1 usa,china`.
+ */
+function ruleSweepTable(rule: string, values: string[], factions: FactionId[], seeds = 10): string {
+  const variantAt = (faction: FactionId, raw: string): RuleVariant => {
+    const v = Number(raw);
+    switch (rule) {
+      case 'kit': {
+        // "scale:price", the USA's kit as it rides the config, with the refund.
+        const [scale, price] = raw.split(':').map(Number);
+        return {
+          label: `kit ${raw}`,
+          signature: { refund: RAPID_RESPONSE_REFUND, elite: { scale: scale!, price: price ?? scale! } },
+        };
+      }
+      case 'overbuilt':
+        return { label: `trim ${v}`, signature: { hulk: { ...OVERBUILT_HULK } }, mods: { emplacementHp: v } };
+      case 'light': {
+        // "cp:hp", the UN's rapid deployment: cheaper field defences, lighter.
+        const [cpCost, fieldHp] = raw.split(':').map(Number);
+        return { label: `light ${raw}`, mods: { cpCost: cpCost!, fieldHp: fieldHp ?? 1 } };
+      }
+      case 'refund':
+        return { label: `refund ${v}`, signature: { refund: v } };
+      case 'hulk':
+        return { label: `hulk x${v}`, signature: { hulk: { seconds: OVERBUILT_HULK.seconds, strength: v } } };
+      case 'hulk-seconds':
+        return { label: `hulk ${v}s`, signature: { hulk: { seconds: v, strength: OVERBUILT_HULK.strength } } };
+      case 'works':
+        return { label: `walls x${v}`, mods: { wallHp: v } };
+      case 'deployment':
+        return { label: `CP x${v}`, mods: { cpCost: v } };
+      case 'shield':
+        return { label: `post x${v}`, mods: { postHp: v } };
+      case 'elite':
+        return { label: `elite x${v}`, catalog: eliteFieldKit(faction, v) };
+      case 'elite+refund':
+        return { label: `elite x${v} + refund`, catalog: eliteFieldKit(faction, v), signature: { refund: RAPID_RESPONSE_REFUND } };
+      default:
+        throw new Error(
+          `no rule "${rule}": refund, hulk, hulk-seconds, works, deployment, shield, elite, elite+refund, kit, overbuilt, light`,
+        );
+    }
+  };
+  const bases = referenceBases().filter((b) => b.ccLevel >= 2);
+  const policies: [string, SiegePolicy][] = [
+    ['alone', null],
+    ['HOLDFAST', STANDING_ORDERS.holdfast],
+    ['POST', spender('ccApproach')],
+  ];
+  const lines = [
+    `RULE SWEEP — ${rule} on ${factions.map((f) => f.toUpperCase()).join(', ')}: levels held, ${bases.map((b) => b.name).join(' / ')}, ${seeds} seeds a rung`,
+    `FACTION | ORDERS   | ${['none', ...values].map((v) => pad(v, 15)).join(' | ')}`,
+  ];
+  for (const faction of factions) {
+    for (const [orders, policy] of policies) {
+      const scan = (v: RuleVariant): number[] => bases.map((b) => levelsHeld(holdScan(faction, b, policy, v, seeds).held));
+      const none = scan({ label: 'none' });
+      const cells = [none.map((l) => l.toFixed(2)).join(' / ')];
+      for (const v of values) {
+        const got = scan(variantAt(faction, v));
+        cells.push(got.map((l, b) => `${l - none[b]! >= 0 ? '+' : ''}${(l - none[b]!).toFixed(2)}`).join(' / '));
+      }
+      lines.push(`${pad(faction.toUpperCase(), 7)} | ${pad(orders, 8)} | ${cells.map((c) => pad(c, 15)).join(' | ')}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * THE HOLD (M26 Phase 3): whether switching the rules on widens the gap.
+ *
+ * Parity is held, not closed: the defence side was never at parity, and the
+ * bar is only that the rules leave the gap between the best and the worst
+ * faction no wider than they found it. Every faction's defence is read with
+ * its whole rule off and on, on each reference base, with nobody acting,
+ * under HOLDFAST and spending on the approach. The UN's mandates are each
+ * held as a standing choice, and the best of the three per attack is shown as
+ * the ceiling it is, not held. A reading whose gap the rules widen by more
+ * than half a level is flagged: at 20 seeds a rung, the difference between
+ * two readings of the same base spreads about a third of a level either way,
+ * more on a base whose battles run long, so a quarter would flag the noise.
+ */
+function holdTable(seeds = 20): string {
+  const TOLERANCE = 0.5;
+  const policies: [string, SiegePolicy][] = [
+    ['alone', null],
+    ['HOLDFAST', STANDING_ORDERS.holdfast],
+    ['POST', spender('ccApproach')],
+  ];
+  const bundle = (faction: FactionId): RuleVariant | null => {
+    const signature = signatureFor(faction);
+    const mods = signatureModsFor(faction);
+    if (!signature && Object.keys(mods).length === 0) return null;
+    return {
+      label: 'rule',
+      ...(signature ? { signature } : {}),
+      ...(Object.keys(mods).length > 0 ? { mods } : {}),
+    };
+  };
+  const fmt = (n: number): string => n.toFixed(2);
+  const lines = [
+    `THE HOLD — levels held, each faction's rule off → on, ${seeds} seeds a rung (UN: works / deploy / shield / best of 3)`,
+    'ORDERS   | BASE        | USA            | CHINA | RUSSIA         | KPA   | UN                              | GAP off → on',
+  ];
+  let widened = 0;
+  for (const [orders, policy] of policies) {
+    for (const base of referenceBases()) {
+      const off: Record<string, number> = {};
+      const on: Record<string, number> = {};
+      const cell: Record<string, string> = {};
+      let unMandates: number[] = [];
+      let unBest = 0;
+      for (const faction of FACTION_IDS) {
+        const plain = holdScan(faction, base, policy, { label: 'none' }, seeds);
+        off[faction] = levelsHeld(plain.held);
+        if (faction === 'un') {
+          const scans = MANDATE_IDS.map((id) => holdScan(faction, base, policy, { label: id, mods: { ...MANDATES[id].mods } }, seeds));
+          unMandates = scans.map((sc) => levelsHeld(sc.held));
+          const rungs = Math.max(...scans.map((sc) => sc.held.length));
+          const merged: boolean[][] = [];
+          for (let l = 0; l < rungs; l++) {
+            merged.push(Array.from({ length: seeds }, (_, i) => scans.some((sc) => sc.held[l]?.[i] === true)));
+          }
+          unBest = levelsHeld(merged);
+          cell[faction] = `${fmt(off[faction]!)} → ${unMandates.map(fmt).join('/')}/${fmt(unBest)}`;
+          continue;
+        }
+        const rule = bundle(faction);
+        on[faction] = rule ? levelsHeld(holdScan(faction, base, policy, rule, seeds).held) : off[faction]!;
+        cell[faction] = rule ? `${fmt(off[faction]!)} → ${fmt(on[faction]!)}` : fmt(off[faction]!);
+      }
+      const gap = (values: number[]): number => Math.max(...values) - Math.min(...values);
+      const others = FACTION_IDS.filter((f) => f !== 'un');
+      const gapOff = gap(FACTION_IDS.map((f) => off[f]!));
+      // Held for every standing mandate: the widest gap any of the three leaves.
+      const gapOn = Math.max(...unMandates.map((u) => gap([...others.map((f) => on[f]!), u])));
+      const flag = gapOn > gapOff + TOLERANCE ? '  WIDENED' : '';
+      if (flag) widened++;
+      lines.push(
+        `${pad(orders, 8)} | ${pad(base.name, 11)} | ${pad(cell['usa']!, 14)} | ${pad(cell['china']!, 5)} | ` +
+          `${pad(cell['russia']!, 14)} | ${pad(cell['nk']!, 5)} | ${pad(cell['un']!, 31)} | ` +
+          `${fmt(gapOff)} → ${fmt(gapOn)}${flag}`,
+      );
+    }
+  }
+  lines.push('');
+  lines.push(
+    widened === 0
+      ? 'HELD: no reading\'s gap widened by more than half a level.'
+      : `${widened} reading${widened === 1 ? '' : 's'} widened.`,
+  );
   return lines.join('\n');
 }
 
@@ -5994,6 +6191,25 @@ function main(): void {
     const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
     for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${reachTable(faction)}\n`);
     console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--hold')) {
+    const arg = process.argv[process.argv.indexOf('--hold') + 1];
+    console.log(holdTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--rule')) {
+    // `--rule refund 0.25,0.5,1 usa,china,un [seeds]`
+    const at = process.argv.indexOf('--rule');
+    const rule = process.argv[at + 1] ?? 'refund';
+    const values = (process.argv[at + 2] ?? '0.5').split(',');
+    const factions = (process.argv[at + 3] ?? FACTION_IDS.join(','))
+      .split(',')
+      .filter((f): f is FactionId => (FACTION_IDS as readonly string[]).includes(f));
+    const seeds = Number(process.argv[at + 4] ?? 10);
+    console.log(ruleSweepTable(rule, values, factions, seeds));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
   if (process.argv.includes('--turn')) {

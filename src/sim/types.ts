@@ -271,6 +271,17 @@ export interface DefenderMods {
    * charge; the burn is a clock and does not move.
    */
   postHp?: number;
+  /**
+   * The HP of the town's own armed emplacements (M26 Phase 3: Russia's, trimmed
+   * by as much as their hulks give back). Field defences, stores and the post
+   * are untouched.
+   */
+  emplacementHp?: number;
+  /**
+   * The HP of field defences (M26 Phase 3: the UN's rapid deployment, cheaper
+   * and lighter). On top of any kit scale.
+   */
+  fieldHp?: number;
 }
 
 /**
@@ -293,6 +304,12 @@ export interface Signature {
    * `strength` of its damage and still in the way.
    */
   hulk?: { seconds: number; strength: number };
+  /**
+   * The USA's field kit (M26 Phase 3), "few, expensive, excellent": every
+   * field defence has `scale` times the HP and damage, and costs `price` times
+   * the CP.
+   */
+  elite?: { scale: number; price: number };
 }
 
 /** Research-driven multipliers for the attacking side (raid armies). */

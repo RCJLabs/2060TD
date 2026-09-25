@@ -51,8 +51,12 @@ import {
 /** Bumped only when the byte layout changes; old codes are then refused. */
 const FORMAT = 1;
 
-/** The faction rules a code may name (M26): the refund, the hulk, the post's HP. */
-const SIGNATURE_BITS = 1 | 2 | 4;
+/**
+ * The faction rules a code may name (M26): the refund, the hulk, the post's
+ * HP, the elite field kit, the emplacements' HP and the field defences' HP
+ * (Phase 3).
+ */
+const SIGNATURE_BITS = 1 | 2 | 4 | 8 | 16 | 32;
 
 /** The coarsest board a code may name: a cell of eight physical units. */
 const MAX_CELL_SIZE = 8;
@@ -330,7 +334,16 @@ export function encodeReplay(replay: Replay): string {
   const refund = c.signature?.refund ?? 0;
   const hulk = c.signature?.hulk;
   const postHp = c.mods?.defender?.postHp ?? 1;
-  const signatureFlags = (refund > 0 ? 1 : 0) | (hulk ? 2 : 0) | (postHp !== 1 ? 4 : 0);
+  const elite = c.signature?.elite;
+  const emplacementHp = c.mods?.defender?.emplacementHp ?? 1;
+  const fieldHp = c.mods?.defender?.fieldHp ?? 1;
+  const signatureFlags =
+    (refund > 0 ? 1 : 0) |
+    (hulk ? 2 : 0) |
+    (postHp !== 1 ? 4 : 0) |
+    (elite ? 8 : 0) |
+    (emplacementHp !== 1 ? 16 : 0) |
+    (fieldHp !== 1 ? 32 : 0);
   const needCellSize = cellSize > 1 || signatureFlags !== 0;
   const needChain = chainVersion > CHAIN_NONE || needCellSize;
   const needEdge = edgeIndex > 0 || needChain;
@@ -397,6 +410,12 @@ export function encodeReplay(replay: Replay): string {
       putMilli(body, hulk.strength, 0);
     }
     if (postHp !== 1) putMilli(body, postHp);
+    if (elite) {
+      putMilli(body, elite.scale);
+      putMilli(body, elite.price);
+    }
+    if (emplacementHp !== 1) putMilli(body, emplacementHp);
+    if (fieldHp !== 1) putMilli(body, fieldHp);
   }
 
   // Header, dictionary, then the body — the reader needs the names first.
@@ -780,7 +799,23 @@ export function decodeReplay(raw: string): ReplayDecode {
       if (postHp === null) return bad('truncated');
       config.mods = { ...config.mods, defender: { ...config.mods?.defender, postHp } };
     }
-    if (flags & 3) config.signature = signature;
+    if (flags & 8) {
+      const scale = getMilli(cur);
+      const price = getMilli(cur);
+      if (scale === null || price === null) return bad('truncated');
+      signature.elite = { scale, price };
+    }
+    if (flags & 16) {
+      const emplacementHp = getMilli(cur);
+      if (emplacementHp === null) return bad('truncated');
+      config.mods = { ...config.mods, defender: { ...config.mods?.defender, emplacementHp } };
+    }
+    if (flags & 32) {
+      const fieldHp = getMilli(cur);
+      if (fieldHp === null) return bad('truncated');
+      config.mods = { ...config.mods, defender: { ...config.mods?.defender, fieldHp } };
+    }
+    if (flags & (1 | 2 | 8)) config.signature = signature;
   }
 
   if (orders !== '' && isStandingOrdersId(orders)) {
