@@ -48,6 +48,7 @@ import type { VaultEntry } from './vault';
 // this module) — the same shape as the VaultEntry import above it.
 import type { StoredPlan } from './warfare';
 import type { GhostLedger } from './ghost';
+import type { CadreState } from './cadre';
 import type { Engine } from '../sim/engine';
 import type { AttackerMods, CellIndex, SimConfig, SimStats, SpawnEdge, WaveDef } from '../sim/types';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
@@ -472,6 +473,12 @@ export interface TownState {
    * first is sent or taken.
    */
   ghosts?: GhostLedger;
+  /**
+   * The squads' officers (M28): how many this war has promoted, and the
+   * fallen. The officers themselves are on the squads' records. Absent until
+   * the first promotion.
+   */
+  cadre?: CadreState;
   /**
    * The standing mandate (M26, the UN): the doctrine buff the garrison fights
    * under, and the one a live defence offers first. Absent means the default.

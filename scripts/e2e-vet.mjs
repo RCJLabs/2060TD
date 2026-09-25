@@ -161,6 +161,12 @@ try {
     }
     throw new Error(`no button matching "${needle}" on ${process.env.VIEWPORT ?? 'desktop'}`);
   };
+  /** The sub of the first button whose label holds `needle`. */
+  const subOf = async (needle) =>
+    page.evaluate(
+      (text) => window.lastline.buttons().find((b) => b.label.toUpperCase().includes(text))?.sub ?? '',
+      needle.toUpperCase(),
+    );
   const rowLike = async (needle) =>
     (await labels()).find((l) => l.toUpperCase().includes(needle.toUpperCase())) ?? '';
   const copyHas = async (needle) =>
@@ -196,6 +202,33 @@ try {
   await page.screenshot({ path: `screenshots/e2e-vet-record${isMobile ? '-phone' : ''}.png` });
   await tap('CLOSE', 700);
   check('and closes again', !(await copyHas('EXPERIENCE LIVES IN THE MEN')), '');
+
+  // ---- the officers (M28) -------------------------------------------------------
+  // HAMMER is still green, so nobody commands it; the showcase gives RONIN,
+  // at LINE, a captain best on HUNT, the doctrine RONIN goes in on.
+  check('a green squad says how an officer is made', await copyHas('NO OFFICER'), '');
+  await tap('RONIN', 700);
+  const officerRow = await rowLike('OFFICER:');
+  check(
+    'a squad at LINE has an officer in its orders, and what they are best at',
+    /OFFICER: CPT [A-Z]\. [A-Z]+ · BEST ON HUNT/.test(officerRow),
+    officerRow,
+  );
+  const onIt = await subOf('OFFICER:');
+  check('on the officer’s own doctrine the squad gets the whole edge', /ON IT \+7%/.test(onIt), onIt);
+  await tap('DOCTRINE:', 500);
+  const offIt = await subOf('OFFICER:');
+  check('and a third of it on other orders', /OFF IT \+2%/.test(offIt), offIt);
+  await tap('DOCTRINE:', 500);
+  await tap('DOCTRINE:', 500);
+  const ronin = await subOf('RONIN');
+  check('the squad row carries the officer’s grade', /\bCPT\b/.test(ronin), ronin);
+  await tap('OFFICER:', 900);
+  check('tapping the officer opens the squad’s file with theirs in it', await copyHas('RAIDS LED'), '');
+  check('which says how an officer is lost', await copyHas('FALLS WITH A SQUAD THAT IS WIPED OUT'), '');
+  await page.screenshot({ path: `screenshots/e2e-vet-officer${isMobile ? '-phone' : ''}.png` });
+  await tap('CLOSE', 700);
+  await tap('HAMMER', 700);
 
   // ---- the panel wraps rather than truncating (v1.13) ----------------------------
   // A squad row carries a name, an entry, a doctrine and a composition, and the

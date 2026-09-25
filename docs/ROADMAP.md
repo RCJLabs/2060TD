@@ -5609,8 +5609,107 @@ distinct, unit upgrade paths, and a prestige reset that carries something forwar
 Veterancy already proved this project can build "pays in survivors, not in wins";
 this extends it into a reason for run #4.
 
-- [ ] **Phase 1 — officers as a save layer**, reaching the sim through the mod
+- [x] **Phase 1 — officers as a save layer**, reaching the sim through the mod
       hooks that already exist.
+
+      **The plan, from the survey.** *(Written against v1.66.0.)* The three
+      standing squads are all a war keeps about its men: a file (raids,
+      posts taken, men lost) and experience that walks out with the men who
+      do not come back, worth a rank of up to +15% health and damage baked
+      into the wave at launch. Measured on the harness force across rungs
+      1-9, five factions, 810 raids:
+      - a squad comes home wiped in 24% of squad-raids: none on the first
+        rung, 30-70% deep in the war, and 12% in raids that also failed;
+      - survival averages 0.47, so experience rarely compounds. Over a
+        45-raid war a squad goes out GREEN 46-71% of the time, VETERAN 3-10%
+        and CADRE almost never, and three squads in ten never reach VETERAN;
+      - a small edge is large: +5% health and damage on the whole force
+        lifts the clear rate from 88% to 92% and survival from 0.47 to 0.52,
+        and +15% gives 96% and 0.58.
+
+      Settled with the commander:
+      - **One officer per squad**, who goes on every raid it does.
+      - **An officer dies with a wiped squad**: when every man in it falls,
+        the moment its rank resets.
+      - **Traits are doctrine edges.** Each officer is best at one doctrine:
+        their squad fights harder when sent in on it, and a little harder
+        otherwise.
+      - **Promoted at LINE.** The first time a squad reaches LINE, one of its
+        men takes command; after a death the squad earns one again.
+
+      The build:
+      - **The officer**, on the squad's record: a name and a doctrine, dealt
+        from when the war began and how many officers it has promoted, so a
+        war deals the same officers however it is replayed; experience, a
+        grade and a file. An officer's experience is the squad's lesson for
+        each raid survived, unscaled by the squad's losses: it lives in one
+        soldier, who came back. Three grades: LIEUTENANT on promotion, then
+        CAPTAIN and MAJOR.
+      - **The edge**, through the squad's rank multiplier, the one per-squad
+        hook the sim has: rank times edge, stamped on the wave at launch, so
+        replays and ghost codes carry it and no battle rule changes. On its
+        doctrine a grade is worth about a rank step (4, 7, 10%) and off it
+        about a third, numbers to be measured before they are fixed.
+      - **Promotion and death**, where a raid is recorded (`applyRaidResult`):
+        a squad at LINE with no officer gets one, and a squad wiped loses its
+        officer to a list of the fallen. Duels count, since their losses are
+        real; ghost raids do not, since nobody's men are touched. A war saved
+        before this with a squad at LINE or better gets its officer on load.
+      - **A what-if** that changes a squad's doctrine, on the raid just
+        fought, gives it the edge its officer would have had.
+      - **The UI**: the squad rows and the orders block name the officer and
+        say whether the squad is on their doctrine; the squad's file shows
+        the officer's; the raid result says who took command, who was
+        promoted and who fell; the service record lists the fallen.
+      - **Measured** on the sequential war the survey used: how many squads
+        have officers, their grades and lives, and what they do to the clear
+        rate, with officers and without.
+      - **Tests**: promotion at LINE and not before, the deal repeatable, an
+        officer outliving a squad's losses and dying with a wipe, grades,
+        the edge on and off doctrine, the edge in the wave and the replay
+        code, ghost raids leaving officers alone, old saves and the save.
+
+      Not in Phase 1: doctrine trees and the research graph (Phase 2), and
+      anything that carries from one war to the next (Phase 3).
+
+      **What Phase 1 found.** *(v1.67.0)* Measured on the survey's
+      sequential war, three 45-raid wars a faction on the harness force, the
+      same seeds with officers and without:
+
+      | clear rate | USA | China | Russia | KPA | UN |
+      |---|---|---|---|---|---|
+      | no officers | 91% | 96% | 91% | 64% | 85% |
+      | officers, squads on their own orders | 94% | 97% | 96% | 68% | 90% |
+      | squads switched to the officer's doctrine | 83% | 90% | 87% | 61% | 84% |
+
+      - **An edge, not a substitute.** Kept on the orders the force was
+        chosen for, officers add one to five points, lead 36-70% of
+        squad-raids, and are on their own doctrine 14-60% of the time. A war
+        promotes 9-22 of them and loses 6-19; the median officer leads one to
+        six raids, longest where squads come home most (Russia, China).
+      - **Following an officer's doctrine loses.** Each side's force has a
+        best doctrine, and it is worth more than any grade's edge: a force
+        switched to its officers' orders clears 6-11 points less. So the
+        doctrine an officer is best at decides which squad goes on which job,
+        not what orders a squad is given, and the planner says so in numbers:
+        ON IT +7%, OFF IT +2%.
+      - **Grades were raised in the build, to CAPTAIN at 120 and MAJOR at
+        360.** Deep raids teach up to 108 a raid, and at the plan's first
+        numbers (60 and 180) MAJOR was 26-69% of officer-led raids. Now
+        LIEUTENANT, CAPTAIN and MAJOR share them 24-73%, 17-25% and 2-53%:
+        a major is an officer kept alive.
+      - **Names carry an initial.** A war promotes up to two dozen officers
+        against twelve surnames a side, so each is dealt with an initial, and
+        no name the record remembers falling is dealt again.
+      - **The multiplier is kept to the thousandth where it is made.** A rank
+        times an edge (1.09 times 1.07) is not a thousandth, and a replay code
+        keeps thousandths: unrounded, a raid and its code would be two
+        battles.
+      - **Nothing in `src/sim` changed.** The edge rides the squad's rank
+        multiplier, so replays, ghost codes and what-ifs carry it; a what-if
+        that changes a squad's doctrine on the raid just fought uses the edge
+        its officer had at launch. Ghost raids leave officers alone, and a war
+        saved with a squad at LINE is dealt its officer on load.
 - [ ] **Phase 2 — doctrine trees** replacing the 3x3 research ladder.
 - [ ] **Phase 3 — prestige and the meta-currency it feeds.**
 

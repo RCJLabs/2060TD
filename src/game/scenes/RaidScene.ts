@@ -127,6 +127,10 @@ import { columnName, laneFor, strongholdTier, theaterFor } from '../../content/t
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
 import { sendGhost, type SendError } from '../../meta/ghost';
+import { edgeAtLaunch, officerOf, type CadreNews } from '../../meta/cadre';
+import { gradeFor, nextGrade, officerEdge, OFFICER_NAMES } from '../../content/officers';
+import type { SquadEdge } from '../../meta/counterfactual';
+import type { Doctrine } from '../../sim/types';
 import { showTextBox, textBoxOpen } from '../textbox';
 
 /** Why a ghost raid could not be sent (M27), as the planner's hint line says it. */
@@ -160,6 +164,22 @@ const RAID_TABS = [
   { id: 'fire', label: 'FIRE' },
 ];
 const DOCTRINE_LABEL: Record<string, string> = { assault: 'ASLT', hunt: 'HUNT', raze: 'RAZE' };
+const DOCTRINE_NAME: Record<Doctrine, string> = { assault: 'ASSAULT', hunt: 'HUNT', raze: 'RAZE' };
+
+/** A multiplier as the percentage it adds. */
+const plusPct = (mult: number): number => Math.round((mult - 1) * 100);
+
+/** What a raid did to the squads' officers (M28), as the result says it. */
+function cadreLines(news: CadreNews, faction: FactionId): string[] {
+  const squad = (slot: number): string => squadName(faction, slot);
+  return [
+    ...news.fell.map((f) => `${gradeFor(f.xp).short} ${f.name} FELL WITH ${squad(f.slot)}`),
+    ...news.graded.map((g) => `${g.officer.name} OF ${squad(g.slot)} MADE ${gradeFor(g.officer.xp).name}`),
+    ...news.promoted.map(
+      (p) => `LT ${p.officer.name} TAKES COMMAND OF ${squad(p.slot)} · BEST ON ${DOCTRINE_NAME[p.officer.doctrine]}`,
+    ),
+  ];
+}
 /** A formation's line in the squad panel: what it has done, in four words. */
 function recordSub(record: SquadRecord | undefined): string {
   if (!record || record.raids === 0) return 'NO RAIDS';
@@ -221,6 +241,11 @@ export class RaidScene extends Scene {
    * change is made to this, never to a plan a first what-if already changed.
    */
   private foughtPlan: StoredPlan[] | null = null;
+  /**
+   * What each squad would have fought at on each doctrine when the raid just
+   * fought went out (M28), for a what-if that changes one's orders.
+   */
+  private foughtEdge: SquadEdge | null = null;
   /** Per-power fire plan: timing index into FIRE_TIMES + target class. */
   private firePlans: Record<string, { timeIndex: number; target: 'guns' | 'cc' }> = {};
   /** Tunnel siting mode: the selected squad awaits a map click for its mouth. */
@@ -279,6 +304,7 @@ export class RaidScene extends Scene {
     this.squadReport = null;
     this.lastConfig = null;
     this.foughtPlan = null;
+    this.foughtEdge = null;
     this.siting = false;
     this.hintUntil = 0;
     this.squads = RaidScene.freshPlan();
@@ -821,7 +847,8 @@ export class RaidScene extends Scene {
     const squads = this.squads
       .map((s, i) => {
         const slot = slotOf(s, i);
-        return { ...s, slot, vet: squadVet(this.town, slot) };
+        // Rank times the officer's edge on the doctrine it goes in on (M28).
+        return { ...s, slot, vet: squadVet(this.town, slot, s.doctrine) };
       })
       .filter((s) => Object.values(s.units).some((n) => n > 0));
     if (this.town.fuel < tunnelFuelCost(squads)) return;
@@ -869,6 +896,7 @@ export class RaidScene extends Scene {
       won: isWon(this.town.frontline),
     };
     const xpBefore = squadRoster(this.town).map((r) => r.xp);
+    this.foughtEdge = edgeAtLaunch(this.town);
     const resolution = resolveRaid(
       config,
       squads,
@@ -877,7 +905,7 @@ export class RaidScene extends Scene {
       raidCatalogFor(this.town.faction),
       this.challenge ? FLAT_PAYOUT : ladderPayout(this.town, now),
     );
-    applyRaidResult(
+    const news = applyRaidResult(
       this.town,
       this.base,
       resolution,
@@ -888,12 +916,16 @@ export class RaidScene extends Scene {
     // The promotion (or the demotion) is the point of the loss line, so work
     // it out here while both sides of the raid are still in hand.
     const after = squadRoster(this.town);
-    this.squadReport = resolution.squads.map((ret) => {
-      const was = rankFor(xpBefore[ret.slot] ?? 0);
-      const isNow = rankFor(after[ret.slot]?.xp ?? 0);
-      const rank = was.id === isNow.id ? isNow.short : `${was.short} → ${isNow.short}`;
-      return `${squadName(this.town.faction, ret.slot)}  ${ret.returned}/${ret.deployed} back  ·  ${rank}`;
-    });
+    this.squadReport = [
+      ...resolution.squads.map((ret) => {
+        const was = rankFor(xpBefore[ret.slot] ?? 0);
+        const isNow = rankFor(after[ret.slot]?.xp ?? 0);
+        const rank = was.id === isNow.id ? isNow.short : `${was.short} → ${isNow.short}`;
+        return `${squadName(this.town.faction, ret.slot)}  ${ret.returned}/${ret.deployed} back  ·  ${rank}`;
+      }),
+      // And who commands them now (M28): the fallen, the promoted, the new.
+      ...cadreLines(news, this.town.faction),
+    ];
     this.saveSoon();
     this.result = resolution;
     this.lastConfig = config;
@@ -1105,6 +1137,23 @@ export class RaidScene extends Scene {
     });
   }
 
+  /**
+   * The selected squad's officer in the orders block (M28): who, what they
+   * are best at, and what they give the squad on the orders it has now.
+   */
+  private officerRow(slot: number, doctrine: Doctrine): PanelRow {
+    const officer = officerOf(this.town, slot);
+    if (!officer) return { id: 'officer', label: 'NO OFFICER — ONE IS PROMOTED AT LINE', heading: true };
+    const on = officer.doctrine === doctrine;
+    return {
+      id: 'officer',
+      label: `OFFICER: ${gradeFor(officer.xp).short} ${officer.name} · BEST ON ${DOCTRINE_NAME[officer.doctrine]}`,
+      sub: `${on ? 'ON IT' : 'OFF IT'} +${plusPct(officerEdge(officer, doctrine))}%`,
+      active: on,
+      onTap: () => this.showRecord(slot),
+    };
+  }
+
   private showRecord(slot: number): void {
     if (this.overlay) return;
     const record = squadRoster(this.town)[slot] ?? { xp: 0, raids: 0, clears: 0, lost: 0 };
@@ -1126,11 +1175,36 @@ export class RaidScene extends Scene {
       COLORS.olive,
       { center: true },
     );
+    // Who commands it (M28), and what that is worth on each set of orders.
+    const officer = record.officer;
+    if (officer) {
+      const grade = gradeFor(officer.xp);
+      const next = nextGrade(officer.xp);
+      ov.paragraph(
+        `${grade.name} ${officer.name} — best on ${DOCTRINE_NAME[officer.doctrine]}` +
+          `\nRaids led ${officer.raids}  ·  Did the job ${officer.clears}` +
+          `\nExperience ${officer.xp}` +
+          (next ? `  ·  ${next.at - officer.xp} to ${next.name}` : '  ·  the top grade') +
+          `\nOn ${DOCTRINE_NAME[officer.doctrine]}: +${plusPct(grade.on)}% health and damage; on other orders +${plusPct(grade.off)}%`,
+        font.body,
+        COLORS.ink,
+        { center: true },
+      );
+    } else {
+      ov.paragraph(
+        'No officer. One of the men takes command the first time the squad reaches LINE.',
+        font.body,
+        COLORS.inkDim,
+        { center: true },
+      );
+    }
     ov.paragraph(
       'Experience lives in the men. A formation that comes back whole keeps ' +
         'everything it learned; one that loses half its strength loses half of ' +
         'what it knew, because the half that knew it did not come back. Wipe a ' +
-        'squad out and the name goes on a fresh set of replacements.',
+        'squad out and the name goes on a fresh set of replacements. An officer ' +
+        'keeps every lesson for as long as anyone from the squad comes home, and ' +
+        'falls with a squad that is wiped out.',
       font.tiny,
       COLORS.inkDim,
       { center: true },
@@ -1283,7 +1357,7 @@ export class RaidScene extends Scene {
     const catalog = raidCatalogFor(this.town.faction);
     // Only a raid whose plan can be proven from its config can be asked a
     // what-if (Phase 3); proving it fights nothing.
-    const cf = Counterfactual.of(config, catalog, this.trainable);
+    const cf = Counterfactual.of(config, catalog, this.trainable, this.foughtEdge ?? undefined);
     this.overlay = buildAfterActionCard(this, afterAction(config, catalog), {
       layout: this.layout,
       title: this.base.name,
@@ -1549,10 +1623,11 @@ export class RaidScene extends Scene {
           const entry = sq.tunnel !== undefined ? 'TUN' : sq.sector;
           const delay = delayOf(sq, i) + (sq.tunnel !== undefined ? TUNNEL_DIG_TICKS / 20 : 0);
           const rank = rankFor(roster[slotOf(sq, i)]?.xp ?? 0);
+          const officer = roster[slotOf(sq, i)]?.officer;
           rows.push({
             id: `squad_${i}`,
             label: `${squadName(this.town.faction, slotOf(sq, i))} ${entry} · ${DOCTRINE_LABEL[sq.doctrine]} · ${count ? composition : 'EMPTY'}`,
-            sub: `${rank.short} · T+${delay}s`,
+            sub: `${rank.short}${officer ? ` · ${gradeFor(officer.xp).short}` : ''} · T+${delay}s`,
             active: i === this.selectedSquad,
             onTap: () => {
               this.selectedSquad = i;
@@ -1572,6 +1647,7 @@ export class RaidScene extends Scene {
             sub: recordSub(roster[this.selectedSquad]),
             onTap: () => this.showRecord(this.selectedSquad),
           },
+          this.officerRow(slotOf(squad, this.selectedSquad), squad.doctrine),
           {
             id: 'sector',
             label:
@@ -1819,6 +1895,16 @@ function makeRaidShowcase(now: number, faction: FactionId = 'usa'): TownState {
   }
   town.charges = { a10: 2, arty: 1 };
   town.intel = 120;
+  // The second formation has been out and come back often enough to have an
+  // officer (M28), a captain best on its own doctrine, so the orders block
+  // has one to show; the first is still green, so it shows how one is made.
+  squadRoster(town)[1] = {
+    xp: 64,
+    raids: 5,
+    clears: 4,
+    lost: 3,
+    officer: { name: `J. ${OFFICER_NAMES[faction][5]}`, doctrine: 'hunt', xp: 150, raids: 5, clears: 4, since: now - 86_400_000 },
+  };
   fileShowcaseRaid(town, now);
   town.lastSeen = now;
   return town;

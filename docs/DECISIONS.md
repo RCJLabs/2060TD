@@ -1443,3 +1443,19 @@ here with the change and its date.
   squad of a plan written against a post to the nearer of the two, and a duel's
   what-if offers only those. A ladder post is a generated base and keeps all
   eight sectors.
+- 2026-09-25 — **Officers lead squads, fall with them, and are best at one
+  doctrine (M28 Phase 1, v1.67.0).** Settled with the commander: one officer per
+  standing squad, promoted the first time the squad reaches LINE, falling when
+  the squad is wiped out, and best at one doctrine (the grade's edge on it, a
+  third of it on other orders). Measured first: a squad is wiped in 24% of
+  squad-raids across rungs 1-9, and experience rarely compounds (a squad goes
+  out VETERAN 3-10% of the time), so the officer is the one piece of a squad's
+  experience that survives its losses. The edge multiplies the squad's rank
+  multiplier, the one per-squad number the sim has, so no battle rule changed
+  and every code carries it; it is rounded to the thousandth a replay code
+  keeps where it is made. Measured after: officers add one to five points of
+  clear rate to a force kept on its best orders, and switching squads to their
+  officers' doctrines costs 6-11, so the doctrine decides which squad goes on
+  which job rather than what a squad is ordered. CAPTAIN and MAJOR were raised
+  to 120 and 360 experience after the first numbers made MAJOR a quarter to two
+  thirds of officer-led raids; a major is now an officer kept alive.

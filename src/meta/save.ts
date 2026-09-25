@@ -13,6 +13,7 @@ import { normalizeVault } from './vault';
 import { regridTown } from './regrid';
 import { normalizePlan } from './warfare';
 import { cleanCallsign, normalizeGhosts } from './ghost';
+import { normalizeCadre, promoteDue } from './cadre';
 import { normalizeContracts } from './contracts';
 import {
   gating,
@@ -274,6 +275,12 @@ export function deserialize(json: string): TownState | null {
     town.vault = normalizeVault(town.vault);
     // The roster arrived in v1.9; an older file fields three green squads.
     town.squads = normalizeSquads(town.squads);
+    // Officers arrived with M28. A war saved before them with a squad already
+    // at LINE gets its officer now, dealt as the war would have dealt it.
+    const cadre = normalizeCadre(town.cadre);
+    if (cadre) town.cadre = cadre;
+    else delete town.cadre;
+    promoteDue(town, town.lastSeen);
     // The stored plan arrived in v1.16. Anything unrecognizable is dropped
     // here rather than at the planner, so what reaches the scene is a plan.
     town.lastPlan = normalizePlan(town.lastPlan);

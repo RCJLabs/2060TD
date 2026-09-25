@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.66.0, in the browser. No install, no account, works on a phone.
+v1.67.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,28 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.66.0: ghost raids
+## Current state — v1.67.0: officers
+
+**Your squads now have officers.** The first time one of your three squads reaches LINE rank,
+one of its soldiers takes command: a named officer who is best at one doctrine (ASSAULT, HUNT or
+RAZE).
+
+- **What an officer is worth:** sent in on the officer's doctrine, the squad fights with +4%
+  health and damage as a lieutenant, +7% as a captain and +10% as a major. On other orders it
+  gets a third of that. The planner's SQUADS tab shows it on the OFFICER row: ON IT +7%, or
+  OFF IT +2%.
+- **They keep what they learn:** a squad's rank drops with every soldier it loses, but its
+  officer keeps every raid's experience for as long as anyone from the squad comes home, and
+  rises from lieutenant to captain to major.
+- **They can die:** if a squad is wiped out, its officer dies with it. The squad earns a new
+  one the next time it reaches LINE, and the service record lists the fallen by name.
+
+It is a small edge on purpose. Measured over whole wars, officers add one to five points to how
+often raids take the post. Switching a squad's doctrine to match its officer usually loses more
+than it gains, so use each officer's doctrine to decide which squad does which job. Wars saved
+before this version get officers on load for any squad already at LINE.
+
+## v1.66.0: ghost raids
 
 **Raid a friend's base, and have them fight it.** Each war now has a callsign (WAR tab, CALLSIGN),
 and SHARE MY BASE hands out your base under it. Then:

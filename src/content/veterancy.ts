@@ -1,4 +1,5 @@
 import type { FactionId } from './factions';
+import { OFFICER_XP_CAP, type Officer } from './officers';
 
 /**
  * Veterancy (v1.9): the three raid slots stop being scratch space and become
@@ -105,9 +106,12 @@ export interface RaidReturn {
 export function earnXp(xp: number, raid: RaidReturn): number {
   if (raid.deployed <= 0) return Math.round(xp);
   const survival = Math.max(0, Math.min(1, raid.returned / raid.deployed));
-  const gained = Math.max(1, raid.tier) * XP_PER_TIER * (raid.cleared ? XP_CLEAR_BONUS : 1);
-  return Math.max(0, Math.min(XP_CAP, Math.round((xp + gained) * survival)));
+  return Math.max(0, Math.min(XP_CAP, Math.round((xp + lessonOf(raid.tier, raid.cleared)) * survival)));
 }
+
+/** What one raid teaches whoever comes back from it, before any of them is lost. */
+export const lessonOf = (tier: number, cleared: boolean): number =>
+  Math.max(1, tier) * XP_PER_TIER * (cleared ? XP_CLEAR_BONUS : 1);
 
 // ---- names ------------------------------------------------------------------------
 
@@ -144,6 +148,11 @@ export interface SquadRecord {
   clears: number;
   /** Men it has lost, all-time. This number never goes down. */
   lost: number;
+  /**
+   * Who commands it (M28): promoted from the ranks the first time the squad
+   * reached LINE, and lost with it when every man falls. Absent until then.
+   */
+  officer?: Officer;
 }
 
 export const newSquadRecord = (): SquadRecord => ({ xp: 0, raids: 0, clears: 0, lost: 0 });
@@ -151,7 +160,11 @@ export const newSquadRecord = (): SquadRecord => ({ xp: 0, raids: 0, clears: 0, 
 export const newSquadRecords = (): SquadRecord[] =>
   Array.from({ length: SQUAD_SLOTS }, newSquadRecord);
 
-/** Fold one raid into a formation's record. Pure: returns the new record. */
+/**
+ * Fold one raid into a formation's record. Pure: returns the new record. The
+ * officer rides along untouched: who commands a squad is the cadre's business
+ * (meta/cadre.ts), not the arithmetic of its men.
+ */
 export function recordRaid(record: SquadRecord, raid: RaidReturn): SquadRecord {
   if (raid.deployed <= 0) return record;
   return {
@@ -159,6 +172,27 @@ export function recordRaid(record: SquadRecord, raid: RaidReturn): SquadRecord {
     raids: record.raids + 1,
     clears: record.clears + (raid.cleared ? 1 : 0),
     lost: record.lost + Math.max(0, raid.deployed - raid.returned),
+    ...(record.officer ? { officer: record.officer } : {}),
+  };
+}
+
+const DOCTRINE_NAMES = ['assault', 'hunt', 'raze'];
+
+/** An officer read back off disk, or undefined if nothing of him can be trusted. */
+export function normalizeOfficer(raw: unknown): Officer | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Partial<Officer>;
+  if (typeof o.name !== 'string' || o.name.length === 0 || o.name.length > 24) return undefined;
+  if (!DOCTRINE_NAMES.includes(o.doctrine as string)) return undefined;
+  const num = (value: unknown, cap: number): number =>
+    typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(cap, Math.round(value))) : 0;
+  return {
+    name: o.name,
+    doctrine: o.doctrine!,
+    xp: num(o.xp, OFFICER_XP_CAP),
+    raids: num(o.raids, 1e6),
+    clears: num(o.clears, 1e6),
+    since: num(o.since, Number.MAX_SAFE_INTEGER),
   };
 }
 
@@ -176,11 +210,13 @@ export function normalizeSquads(raw: unknown): SquadRecord[] {
   return Array.from({ length: SQUAD_SLOTS }, (_, i) => {
     const entry = list[i] as Partial<SquadRecord> | undefined;
     if (!entry || typeof entry !== 'object') return newSquadRecord();
+    const officer = normalizeOfficer(entry.officer);
     return {
       xp: num(entry.xp, XP_CAP),
       raids: num(entry.raids, 1e6),
       clears: num(entry.clears, 1e6),
       lost: num(entry.lost, 1e9),
+      ...(officer ? { officer } : {}),
     };
   });
 }

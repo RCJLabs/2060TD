@@ -196,8 +196,10 @@ describe('normalizing a roster off disk', () => {
     const back = deserialize(serialize(town))!;
     expect(back.squads).toHaveLength(SQUAD_SLOTS);
     expect(back.squads![0]).toEqual(newSquadRecord());
-    expect(back.squads![1]).toEqual({ xp: 150, raids: 9, clears: 4, lost: 11 });
+    expect(back.squads![1]).toMatchObject({ xp: 150, raids: 9, clears: 4, lost: 11 });
     expect(rankFor(back.squads![1]!.xp).id).toBe('veteran');
+    // A squad saved at LINE or better before officers is dealt one on load (M28).
+    expect(back.squads![1]!.officer).toBeDefined();
   });
 
   it('reads three green squads out of a file written before veterancy', () => {
@@ -330,8 +332,8 @@ describe('veterancy in the town', () => {
   it('starts every war with three green formations', () => {
     const town = armed();
     expect(squadRoster(town)).toHaveLength(SQUAD_SLOTS);
-    expect(squadVet(town, 0)).toBe(1);
-    expect(squadVet(town, 2)).toBe(1);
+    expect(squadVet(town, 0, 'assault')).toBe(1);
+    expect(squadVet(town, 2, 'assault')).toBe(1);
   });
 
   it('writes the record of the raid onto the formations that fought it', () => {
@@ -360,8 +362,8 @@ describe('veterancy in the town', () => {
       roster[1] = recordRaid(roster[1]!, { deployed: 8, returned: 8, tier: 3, cleared: true });
     }
     expect(rankFor(roster[1]!.xp).id).not.toBe('green');
-    expect(squadVet(town, 1)).toBeGreaterThan(1);
-    expect(squadVet(town, 0)).toBe(1); // rank is per formation, not per army
+    expect(squadVet(town, 1, 'assault')).toBeGreaterThan(1);
+    expect(squadVet(town, 0, 'assault')).toBe(1); // rank is per formation, not per army
   });
 
   it('counts a duel as a tier-1 fight, not a free one', () => {

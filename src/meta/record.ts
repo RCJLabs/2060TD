@@ -1,6 +1,7 @@
 import { DAY_MS, leagueAt, type League } from '../content/leagues';
 import { flavorFor, type FactionId } from '../content/factions';
 import { rankFor, squadName, type Rank, type SquadRecord } from '../content/veterancy';
+import type { FallenOfficer } from '../content/officers';
 import { leagueOf, standingSeries } from './ladder';
 import { readSlot, SLOT_COUNT } from './save';
 import { warLog, type SeasonRecord, type TownState } from './town';
@@ -48,6 +49,8 @@ export interface ServiceRecord {
   duelsWon: number;
   menLost: number;
   formations: FormationLine[];
+  /** The officers the war has lost (M28), newest first. */
+  fallen: FallenOfficer[];
   // the defense
   battlesWon: number;
   battlesLost: number;
@@ -103,6 +106,8 @@ export function serviceRecord(town: TownState, now: number): ServiceRecord {
     postsTaken: fl.totalWins,
     duelsWon: town.duels?.length ?? 0,
     menLost: squads.reduce((total, s) => total + s.lost, 0),
+    // The officers the war has lost (M28), newest first.
+    fallen: town.cadre?.fallen ?? [],
     formations: squads.map((record, slot) => ({
       slot,
       name: squadName(town.faction, slot),

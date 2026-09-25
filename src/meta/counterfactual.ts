@@ -227,6 +227,9 @@ export interface WhatIf {
   config: SimConfig;
 }
 
+/** What a squad fights at on a doctrine: its rank times its officer's edge (M28). */
+export type SquadEdge = (slot: number, doctrine: Doctrine) => number;
+
 /**
  * A raid, ready to be asked what-ifs: its proven plan, and what the plan as
  * fought did on the raid's dice and over the rolls, fought once and kept.
@@ -241,14 +244,25 @@ export class Counterfactual {
     private readonly catalog: Catalog,
     readonly trainable: readonly TrainMeta[],
     plan: SquadPlan[],
+    private readonly edge?: SquadEdge,
   ) {
     this.plan = plan;
   }
 
-  /** The raid in `config`, or null if its plan cannot be proven (see `planOf`). */
-  static of(config: SimConfig, catalog: Catalog, trainable: readonly TrainMeta[]): Counterfactual | null {
+  /**
+   * The raid in `config`, or null if its plan cannot be proven (see `planOf`).
+   * `edge`, when the squads' ranks and officers at launch are known, is what
+   * each squad would have fought at on other orders (M28): a what-if that
+   * changes a squad's doctrine gives it the edge its officer would have had.
+   */
+  static of(
+    config: SimConfig,
+    catalog: Catalog,
+    trainable: readonly TrainMeta[],
+    edge?: SquadEdge,
+  ): Counterfactual | null {
     const plan = planOf(config, trainable);
-    return plan ? new Counterfactual(config, catalog, trainable, plan) : null;
+    return plan ? new Counterfactual(config, catalog, trainable, plan, edge) : null;
   }
 
   /** The seeds the rolls are fought on: drawn from the raid's own, so every look is the same. */
@@ -279,7 +293,14 @@ export class Counterfactual {
   }
 
   whatIf(change: Change): WhatIf {
-    const config = refought(this.config, withChange(this.plan, change), this.trainable);
+    const plan = withChange(this.plan, change);
+    if (change.kind === 'doctrine' && this.edge) {
+      const squad = plan.find((s) => s.slot === change.slot);
+      const vet = this.edge(change.slot, change.doctrine);
+      if (squad && vet !== 1) squad.vet = vet;
+      else if (squad) delete squad.vet;
+    }
+    const config = refought(this.config, plan, this.trainable);
     this.foughtOutcome ??= outcomeOf(this.config, this.catalog);
     if (!this.fixedDice) this.foughtRolls ??= this.rolls(this.config);
     return {

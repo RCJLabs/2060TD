@@ -380,7 +380,8 @@ export function sendGhost(
         doctrine: squad.doctrine,
         slot,
         delay: Math.max(0, Math.min(60, Math.round(delay))),
-        vet: milli(squadVet(town, slot)),
+        // The rank and the officer's edge on these orders (M28), as a raid stamps them.
+        vet: milli(squadVet(town, slot, squad.doctrine)),
       }),
     );
   if (plan.length === 0) return { ok: false, error: 'empty' };

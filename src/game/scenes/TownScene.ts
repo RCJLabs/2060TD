@@ -38,6 +38,8 @@ import {
   type TakenGhost,
 } from '../../meta/ghost';
 import { planUnitCount } from '../../meta/warfare';
+import { gradeFor } from '../../content/officers';
+import { squadName } from '../../content/veterancy';
 import { TICKS_PER_SECOND } from '../../sim/engine';
 import type { ReplayData } from './ReplayScene';
 import { contractsAt, contractsEndAt } from '../../content/contracts';
@@ -1610,11 +1612,24 @@ export class TownScene extends Scene {
     );
     line(`Men lost ${r.menLost}`, r.menLost > 0 ? COLORS.alarm : COLORS.inkDim);
     for (const f of r.formations) {
+      const officer = f.record.officer;
       line(
         `${f.name.padEnd(9)} ${f.rank.short.padEnd(4)} ` +
-          `${f.record.raids}R · ${f.record.clears}C · ${f.record.lost} lost`,
+          `${f.record.raids}R · ${f.record.clears}C · ${f.record.lost} lost` +
+          (officer ? ` · ${gradeFor(officer.xp).short} ${officer.name}` : ''),
         COLORS.inkDim,
       );
+    }
+    // The officers the war has lost (M28), by name, newest first.
+    if (r.fallen.length > 0) {
+      this.recordSection(ov, 'THE FALLEN');
+      for (const f of r.fallen) {
+        line(
+          `${gradeFor(f.xp).short} ${f.name} · ${squadName(this.town.faction, f.slot)} · ` +
+            `${f.raids} raid${f.raids === 1 ? '' : 's'} · day ${warDay(this.town, f.fell)} at ${f.where}`,
+          COLORS.inkDim,
+        );
+      }
     }
 
     // ---- what it has cost --------------------------------------------------

@@ -13,13 +13,7 @@ import {
 import type { Condition } from '../content/conditions';
 import { STORES_LOOT_BONUS } from '../content/leagues';
 import { RAID_CATALOG } from '../content/catalog';
-import {
-  newSquadRecords,
-  rankMult,
-  recordRaid,
-  SQUAD_SLOTS,
-  type SquadRecord,
-} from '../content/veterancy';
+import { recordRaid, SQUAD_SLOTS } from '../content/veterancy';
 import { baseKitFor, defenseCatalogFor } from '../content/factions';
 import { columnName, strongholdTier, theaterFor } from '../content/theaters';
 import { GARRISON_GUN_TRADE, garrisonEconomy, garrisonFor } from '../content/garrison';
@@ -68,6 +62,11 @@ import { chargeStrikes, retakeSector } from './strikes';
 import { canFeedNext } from './supply';
 import { atCapital, winAtCapital } from './capital';
 import { resolveLapsedLastStand } from './laststand';
+import { noNews, officersAfterRaid, promoteDue, squadRoster, type CadreNews } from './cadre';
+
+// The roster and its multiplier moved to the cadre (M28), which owns the
+// officers they now include; every caller already imported them from here.
+export { squadRoster, squadVet } from './cadre';
 
 /**
  * The offense layer (M4): raid planning, hands-off resolution, loot, Front
@@ -802,23 +801,6 @@ export function resolveRaid(
   };
 }
 
-/**
- * The town's three standing formations, created on demand. Every caller wants
- * SQUAD_SLOTS records back, so a file that predates veterancy gets them here
- * rather than making each reader check.
- */
-export function squadRoster(town: TownState): SquadRecord[] {
-  if (!Array.isArray(town.squads) || town.squads.length !== SQUAD_SLOTS) {
-    town.squads = newSquadRecords();
-  }
-  return town.squads;
-}
-
-/** The multiplier a formation's units fight at right now. */
-export function squadVet(town: TownState, slot: number): number {
-  return rankMult(squadRoster(town)[slot]?.xp ?? 0);
-}
-
 /** Fold a resolved raid into the town: losses, loot, Front Line progress. */
 export function applyRaidResult(
   town: TownState,
@@ -831,7 +813,7 @@ export function applyRaidResult(
    * once: losses are real every time, but a friend's base is not a mine.
    */
   challenge?: { fingerprint: string },
-): void {
+): CadreNews {
   for (const [kind, lost] of Object.entries(resolution.losses)) {
     town.army[kind] = Math.max(0, (town.army[kind] ?? 0) - lost);
   }
@@ -852,6 +834,13 @@ export function applyRaidResult(
   }
   const roster = squadRoster(town);
   const foughtTier = Math.max(1, base.tier);
+  // The officers first (M28): one whose squad came back without a man falls
+  // with it, and one who came back banks the raid, before the men's record is
+  // written over by what the survivors kept.
+  const news: CadreNews = {
+    ...noNews(),
+    ...officersAfterRaid(town, resolution.squads, foughtTier, resolution.objectiveMet, base.name, now),
+  };
   for (const ret of resolution.squads) {
     const record = roster[ret.slot];
     if (!record) continue;
@@ -865,6 +854,8 @@ export function applyRaidResult(
       cleared: resolution.objectiveMet,
     });
   }
+  // A squad that reached LINE with nobody in command gets somebody.
+  news.promoted = promoteDue(town, now);
   // Ordnance fired in support is gone from the shared stock.
   for (const [kind, used] of Object.entries(resolution.powersUsed)) {
     town.charges[kind] = Math.max(0, (town.charges[kind] ?? 0) - used);
@@ -897,7 +888,7 @@ export function applyRaidResult(
     };
     fileRaid(town, base, resolution, config, now, 'duel');
     town.lastSeen = now;
-    return;
+    return news;
   }
 
   const frontline = town.frontline;
@@ -962,6 +953,7 @@ export function applyRaidResult(
   };
   fileRaid(town, base, resolution, config, now, 'raid');
   town.lastSeen = now;
+  return news;
 }
 
 /** File a resolved raid in the vault with the line the config cannot know. */

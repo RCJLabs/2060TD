@@ -509,7 +509,7 @@ export function playWarWeek(
         const dug = opts.tunnel && canTunnel(faction) ? tunnelPlanFor(faction, base, base.tier, plan) : plan;
         const squads = dug.map((s, i) => {
           const slot = slotOf(s, i);
-          return { ...s, slot, vet: squadVet(town, slot) };
+          return { ...s, slot, vet: squadVet(town, slot, s.doctrine) };
         });
         const fx = researchEffects(town);
         const config = raidConfig(base, squads, seedAt(when, 2 + r * 5), trainableFor(faction), {

@@ -1189,6 +1189,32 @@ taken into the plan replaces the first. The plan is read off the battle's config
 rebuilding the config from it, so any raid in the vault can be asked, and one whose plan does
 not rebuild exactly is not offered.
 
+### 5.6c Officers *(v1.67, M28)*
+
+Experience that lives in the men bleeds away with them: a squad comes home wiped in about a
+quarter of raids, loses half or more in most, and goes out VETERAN a few times a war. An
+**officer** is the one soldier whose experience stays.
+
+- **Promoted at LINE.** The first time a squad reaches LINE, one of its men takes command:
+  a name and a doctrine, dealt by the war's own calendar, so the same war deals the same
+  officers. A squad whose officer falls earns another the same way.
+- **Falls with a wiped squad.** An officer keeps every lesson (the squad's, `tier × 6`, ×1.5
+  for a job done) for as long as anyone from the squad comes home, whatever it lost, and falls
+  with a squad that comes home with nobody: the moment its rank resets too. Duels count,
+  since their losses are real; ghost raids do not. The service record keeps the fallen by name.
+- **Best at one doctrine.** Three grades: LIEUTENANT on promotion, CAPTAIN at 120 experience,
+  MAJOR at 360. On the officer's own doctrine the squad fights at +4, +7 or +10% health and
+  damage by grade; on other orders +1, +2 or +3%. The edge multiplies the squad's rank, and the
+  product is stamped on the wave at launch like the rank always was, so replays, ghost codes
+  and what-ifs carry it.
+
+The planner's orders block names the officer and says what they give the squad on the orders
+it has: ON IT +7%, OFF IT +2%. It is a small edge on purpose: kept on the orders the force
+was chosen for, officers add one to five points of clear rate; switching every squad to its
+officer's doctrine costs six to eleven, because each side's best doctrine is worth more than a
+grade. So an officer's doctrine decides which squad goes on which job, not what a squad is
+ordered.
+
 ### 5.7 Offline probes
 
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).
