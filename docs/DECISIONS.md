@@ -1326,3 +1326,18 @@ here with the change and its date.
   the trigger and the half-hour window and change what the surge buys: the
   price. For half an hour after a battle the commander fights, training
   costs half.
+- 2026-09-25 — **Divergence is read as the shape of a turn, and the harness's
+  commanders carry a budget (M26 Phase 2, v1.60.0).** Whether the five factions
+  are five games is measured by THE TURN: one commander plays each faction's week
+  at war. It raids up to three times a session with its queues kept full, spends
+  CP in every defence, tunnels as the KPA, and picks the mandate each attack calls
+  for as the UN. The turn is read as three mixes: the battles fought, the supplies
+  spent and the supplies earned. A faction's divergence is the total-variation
+  distance of each mix from the mean of the other four's. THE FIT puts every
+  defence rule on every faction, so a rule that adds as much to others as to its
+  owner reads as a number, not a verb. Two harness rules came out of building
+  them. A commander that spends CP by standing orders stops at six actions a
+  wave: one with no budget kept feeding field guns to gunships that could not be
+  reached, the churn reset the stall clock, and a quarter of its battles never
+  ended. And a commander measured on tempo re-queues its training as slots free
+  up, because a queue that is filled once leaves six-vehicle forces short.

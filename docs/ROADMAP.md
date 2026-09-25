@@ -4931,43 +4931,55 @@ problem.
       the ladder until two rungs in a row are lost every time:
       - with nobody acting;
       - under HOLDFAST;
-      - under two commanders written for this reading, who spend every CP
-        on field defences as it comes in: one on the post's approach,
-        behind the fight (POST), and one around the latest breach (WIRE).
+      - under two commanders written for this reading, who spend CP on
+        field defences as it comes in, up to six a wave: one on the post's
+        approach, behind the fight (POST), and one around the latest breach
+        (WIRE).
 
       The spenders exist because HOLDFAST acts only three times a battle,
       at the breach, so CP is never what it runs short of. Against HOLDFAST,
       neither a refund nor a cheaper field defence could show.
 
+      *Corrected in Phase 2.* This record first reported spenders with no
+      budget of actions, and those readings were wrong. A quarter of their
+      battles never ended. Gunships the town's guns could no longer reach
+      hovered over a post they could not take, the spender fed them a field
+      gun every few seconds, and the churn kept resetting the stall clock
+      that withdraws a spent assault, until the harness's tick cap counted
+      the battle lost. The first reading took that for a finding, that field
+      defences fill in a mature maze and make it worse, and the finding was
+      the harness's. The spenders now stop at six a wave, the table reports
+      any battle that times out, and the figures below are the
+      re-measurement.
+
       What each rule adds, in levels held at CC1 / CC2 / CC3:
 
       | | nobody acting | HOLDFAST | POST | WIRE |
       |---|---|---|---|---|
-      | USA, Rapid Response | 0 / 0 / 0 | 0 / 0 / 0 | +0.40 / +1.20 / +0.15 | 0 / −0.05 / +0.20 |
-      | Russia, Overbuilt | +0.05 / +0.40 / +1.00 | 0 / +0.25 / +1.30 | +0.10 / 0 / +0.50 | +0.05 / +0.25 / +1.75 |
-      | UN, defensive works | 0 / −0.05 / +0.60 | 0 / −0.25 / −0.50 | 0 / 0 / +0.65 | 0 / +0.15 / +0.45 |
-      | UN, rapid deployment | 0 / 0 / 0 | 0 / 0 / 0 | +0.30 / +0.30 / −0.80 | 0 / +0.40 / −2.95 |
-      | UN, humanitarian shield | 0 / +0.50 / +0.30 | 0 / +0.20 / +0.30 | 0 / −0.05 / −0.05 | 0 / 0 / +1.70 |
-      | UN, best of the three per battle | 0 / +0.50 / +0.95 | 0 / +0.50 / +1.30 | +0.35 / +0.45 / +1.35 | 0 / +1.90 / +4.15 |
+      | USA, Rapid Response | 0 / 0 / 0 | 0 / 0 / 0 | 0 / +0.50 / +0.20 | 0 / 0 / 0 |
+      | Russia, Overbuilt | +0.05 / +0.40 / +1.00 | 0 / +0.25 / +1.30 | 0 / +0.40 / +1.25 | +0.05 / +0.35 / +1.95 |
+      | UN, defensive works | 0 / −0.05 / +0.60 | 0 / −0.25 / −0.50 | 0 / −0.70 / −0.25 | 0 / −0.05 / −0.10 |
+      | UN, rapid deployment | 0 / 0 / 0 | 0 / 0 / 0 | +0.15 / +1.85 / +0.15 | 0 / 0 / 0 |
+      | UN, humanitarian shield | 0 / +0.50 / +0.30 | 0 / +0.20 / +0.30 | −0.10 / +0.15 / +0.70 | 0 / +0.05 / +0.65 |
+      | UN, best of the three per battle | 0 / +0.50 / +0.95 | 0 / +0.50 / +1.30 | +0.75 / +3.60 / +2.60 | 0 / +0.30 / +1.65 |
 
       Overbuilt works wherever there is a line to hold. About three
       emplacements a battle burn on as hulks, and it is worth a level or
       more at CC3. Rapid Response pays only a commander who deploys behind
-      the fight: 202 CP back a battle on the approach, 33 at the breach, and
-      nothing for the standing orders as written. The mandates each work
-      where they should: the walls where the maze holds the fight, the post
-      where the enemy reaches it. Picking the right mandate for each attack
-      is worth up to four levels. Rapid deployment only pays when someone
-      spends CP, and at CC3 it makes the breach spender worse, because it
-      places more.
+      the fight: 188 CP back a battle on the approach, 7 at the breach, and
+      nothing for the standing orders as written. Even behind the fight it
+      is worth half a level at CC2 and a fifth of one at CC3. The mandates
+      each work where they should: the walls where the maze holds the fight,
+      the post where the enemy reaches it. Picking the right mandate for
+      each attack is worth up to three and a half levels. Rapid deployment
+      only pays when someone spends CP, and then only on the approach.
 
-      That last result is not the UN's; it belongs to the field defences
-      themselves. Spent on the approach, field defences carry a CC1 base
-      from about 2 levels to 6 for every faction. But the same spending
-      takes a CC3 base below what it holds with nobody acting: the USA's
-      drops from 15.9 levels to 10.7, and the UN's from 11.0 to 4.9. A
-      mature maze is made worse by being filled in. For Phase 3, this is a
-      fact about the battle layer, not about any one rule.
+      And a fact about the battle layer rather than any rule. Spent on the
+      approach, six a wave, field defences are the best line at every size
+      and for every faction. They carry a CC1 base from 2-3 levels to about
+      6 (the UN's to 8.5), and a CC3 base from 10-18 levels to 16-22. The
+      UN's CC2 base, 6.65 levels with nobody acting, holds 19.90, with three
+      of its battles timing out.
 
       China's surge was built first as the plan had it, double speed, and
       measured almost inert. A Chinese unit trains in 8 to 60 seconds, so a
@@ -5012,8 +5024,8 @@ problem.
       price and window, and the save. Every rule stays off in the game
       (`signaturesLive`), so no battle a player fights has changed. The 24
       e2e harnesses passed unchanged.
-- [ ] **Phase 2 — measure the right thing.** Not parity in odds, which is already
-      won, but DIVERGENCE in how a turn is spent.
+- [x] **Phase 2 — measure the right thing.** Not parity in odds, which is already
+      won, but DIVERGENCE in how a turn is spent. *(Shipped in v1.60.0.)*
 
       *The plan.* A turn is what a commander does with a session, and the
       week at war already plays sessions. Phase 2 reads the shape of each
@@ -5036,6 +5048,160 @@ problem.
       faction's line for a week, and a real asymmetry is one where every
       faction does best on its own line and pays for playing another's.
       Phase 2 settles its instrument after reading Phase 1's numbers.
+
+      **The plan, before the build.** Phase 1's numbers settle two things
+      about the instrument.
+
+      *First, the week at war cannot yet play any of the four rules the way
+      a commander would.*
+      - Its defences are fought with nobody acting. No CP is ever spent, so
+        neither a refund nor a cheaper field defence can show.
+      - Nobody picks a mandate.
+      - Its KPA raids walk in, although the KPA's best raid goes under the
+        maze.
+      - It raids once a session, so a cheaper refill can only ever show as
+        surplus.
+
+      So its commander learns four things, each already an option in
+      another instrument:
+      - In every defence it fights (the live defence, the counterattack and
+        the skirmish), it spends CP by its faction's best line at CC3, from
+        Phase 1's table. That is the spender at the breach (WIRE) for four
+        factions, and HOLDFAST for the KPA, whose base the spender makes
+        worse.
+      - The UN picks the mandate each attack calls for. Each defence is
+        fought three ways and the best is kept: the ceiling of a commander
+        who reads the attack before it comes.
+      - The KPA raids through a tunnel wherever the tunnel planner finds
+        one.
+      - It raids up to three times a session, each once the force is whole
+        again.
+
+      It is the same commander for all five. What differs is what each
+      faction's kit and rule make of it, and the line Phase 1 measured as
+      its best.
+
+      *Second, the reading.* THE TURN plays that commander's week for each
+      faction, with the signatures off and on, and reads the shape of the
+      turn as three sets of shares:
+      - the battles it fought, by kind: raids, skirmishes, defences and
+        counterattacks;
+      - the supplies it spent, by use: repairs, wire, training, charges and
+        research;
+      - the supplies it earned, by source: raids, skirmishes and defences.
+
+      A faction's divergence on each set is the total-variation distance
+      between its shares and the mean of the other four factions' shares.
+      It is the part of the faction's turn that would have to move for it
+      to look like theirs, from 0 to 1. The table gives all three and their
+      mean, off and on, and names each faction's largest move. Alongside
+      those, it reports what the turn got for it: the rung, the skirmish
+      level, the CP a defence spent and got back, and the war's net.
+
+      *And THE FIT: the matrix of commanders in the one place it can be
+      played honestly.* The UN's line needs mandates, and the KPA's needs
+      tunnels. No other faction has either, so a full five-by-five matrix
+      of lines would mostly compare factions with nothing. What every
+      faction can be given is every defence rule. THE FIT puts each of the
+      three defence rules on each faction's MID and LATE bases, under that
+      faction's own defence line, and reads the levels each rule adds. A
+      rule that fits its faction adds more to its owner than to anyone
+      else. A rule that adds the same to everyone is a number, not a verb.
+
+      The bar for Phase 2 is the instrument, not a result: THE TURN and THE
+      FIT built, and their first reading recorded with the signatures off
+      and on. Phase 3 re-tunes against them.
+
+      **What Phase 2 found.** Both readings are built: THE TURN
+      (`npm run balance -- --turn`) and THE FIT (`--fit [seeds]`). Before
+      they said anything about the factions, building them found two things
+      wrong with the harness.
+
+      *The harness, first.* One was Phase 1's spender, which had no budget
+      of actions. Its stalemates read as losses, and Phase 1's record above
+      is corrected. The other was the week at war's training queue. Its
+      commander queues a raid's losses once, and a queue holds five. A raid
+      that cost Russia six BTRs, or the UN seven VABs, all trained at one
+      motor pool, or cost the KPA more of its nineteen men than two barracks
+      could queue, left the force short at the next raid. So Russia, the KPA
+      and the UN fought 1.9 battles a session to the USA's and China's 3.6.
+      That looked like a difference in the kits' tempo, and it was the
+      harness. THE TURN's commander keeps its queues full, as a player does,
+      and then all five fight 3.6 to 3.7 battles a session. The week at war
+      itself still queues once a raid, as its tables were read.
+
+      *The commander* is the plan's, except for its CP. With the spender
+      corrected, spending on the post's approach is the best line at CC3 for
+      every faction, so all five spend there, six a wave.
+
+      *THE TURN: the shape*, as shares of the turn, signatures off → on:
+
+      | | battles raid/skirmish/defence/counter | spent repair/wire/train/charges/research | earned raid/skirmish/defence |
+      |---|---|---|---|
+      | USA | 83/9/3/5 → same | 35/0/47/0/18 → same | 77/14/9 → same |
+      | China | 83/9/3/5 → same | 37/0/48/0/16 → 48/0/31/0/21 | 88/6/6 → 94/0/6 |
+      | Russia | 81/10/3/6 → same | 44/0/43/0/13 → 43/0/44/0/13 | 83/10/6 → 88/5/7 |
+      | KPA | 80/9/3/7 → same | 39/0/43/0/19 → same | 84/6/10 → same |
+      | UN | 82/10/3/6 → 80/11/3/6 | 27/0/54/0/19 → 32/0/50/0/17 | 98/2/1 → 95/1/4 |
+
+      Each faction's divergence, the mean of its three distances from the
+      other four:
+      - the USA: 0.05 → 0.07;
+      - China: 0.02 → 0.08;
+      - Russia: 0.05 → 0.02;
+      - the KPA: 0.04 → 0.03;
+      - the UN: 0.09 → 0.07.
+
+      And what the turn got for it, signatures on against off:
+      - China's war nets 16k supplies a day instead of 7k.
+      - Russia's skirmish ladder climbs to level 42 instead of 39.
+      - The UN's climbs to 38 instead of 31, holding 20 skirmishes of 26
+        instead of 15 of 22.
+      - The USA's defences get 61 CP back each, and no battle's result
+        changes.
+
+      So the five turns are nearly the same turn. At most 9% of any
+      faction's turn would have to move to match the other four. The rules
+      change what a turn gets far more than what it is. Only China's changes
+      how a turn is spent: training falls 17 points of the spend. Russia's
+      and the UN's rules take their defences further up the ladder, and
+      leave their turns looking more like everyone else's. Rapid Response,
+      at CC3, changes nothing that the week can see.
+
+      *THE FIT*, the levels each defence rule adds to each faction's CC2 /
+      CC3 base, all spending on the approach (the owner's cell in bold):
+
+      | | Rapid Response | Overbuilt | Mandate, best of three |
+      |---|---|---|---|
+      | USA | **+0.50 / +0.20** | +0.30 / +0.40 | +3.15 / +2.35 |
+      | China | +0.50 / +0.45 | +0.40 / +0.80 | +1.75 / +2.75 |
+      | Russia | 0.00 / +0.55 | **+0.40 / +1.25** | +1.70 / +3.00 |
+      | KPA | +0.05 / −0.25 | +0.05 / +1.15 | +0.70 / +1.75 |
+      | UN | +0.80 / 0.00 | +0.20 / +1.45 | **+3.60 / +2.60** |
+
+      Only the Mandate fits its owner outright, and a pick per battle is
+      worth two to three levels to anyone. Overbuilt adds the same to Russia
+      and the UN, both heavy on emplacements, and least to the USA. Rapid
+      Response adds more to China and the UN than to the USA. As built, it
+      is a number, not the USA's verb.
+
+      *What Phase 2 hands on.* Phase 3 was to re-tune the rules to hold
+      parity while the playstyles separate. The measurement says the
+      playstyles have not separated, and that the parity to hold is wider
+      than the raid table ever showed. Spending on the approach, the line a
+      commander who spends CP actually plays, the five CC2 bases hold from
+      9.70 levels (the KPA) to 19.90 (the UN), and the CC3 bases from 16.25
+      to 22.35, 7.35 apart with each faction's rule on. Three of the four
+      rules change outcomes rather than decisions, and one fits the wrong
+      faction. Phase 3 now has both instruments to re-tune against: the
+      defence tables for parity, and THE TURN and THE FIT for whether the
+      rules make five different games.
+
+      *The gate.* No rule or number in the game changed, so the 779 unit
+      tests are the same ones. The instruments are tools: THE TURN and THE
+      FIT, the week at war's four new options for its commander, the
+      spender's budget, and a timeout count in the defence tables. The 24
+      e2e harnesses passed unchanged.
 - [ ] **Phase 3 — re-tune to hold 4.2 while the playstyles separate.**
 
       *The plan.* There are two parities to hold, and a third place to

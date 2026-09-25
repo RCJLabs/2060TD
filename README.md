@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.59.0, in the browser. No install, no account, works on a phone.
+v1.60.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,30 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.59.0: five nations, five signatures (built, not yet in play)
+## Current state — v1.60.0: measuring whether the five nations play differently
+
+**Nothing you play has changed.** This release builds the measuring tools for M26, whose goal
+is five nations that play differently rather than one game with five price lists.
+
+**The new measure reads how a turn is spent**, not who wins. The same simulated commander plays
+a week of war as each nation: raiding, skirmishing, defending, repairing, training and
+researching. The tool records what each nation's turn is made of: the battles it fought, what it
+spent its supplies on, and where they came from. Then it checks how far each nation's turn sits
+from the other four.
+
+**The answer today: they barely differ.** At most 9% of any nation's turn would have to change to
+match the others. The new signature rules (still switched off in the game) change results more
+than habits. China's half-price refills change how it spends, cutting training from 48% of its
+spending to 31%. Russia's burning hulks and the UN's mandates carry their defences further up the
+ladder without changing what their turns look like. The USA's Rapid Response, as built, helps
+China and the UN about as much as it helps the USA.
+
+**Two measuring mistakes were found and fixed on the way.** One made placing field defences look
+harmful to a mature base, when it's actually the best way to defend at every size. The other made
+Russia, the KPA and the UN look like they could raid only half as often as the others. Both were
+quirks of the simulated commander, not of the game.
+
+## v1.59.0: five nations, five signatures (built, not yet in play)
 
 **Each nation is getting one rule of its own**, the signature its design always promised and the
 game never had. Today the five kits are one kit under five sets of names. From M26 on they're
@@ -42,7 +65,7 @@ mandate in the defence offer) and once they've been re-tuned so no nation comes 
 
 **What the measuring found.** Overbuilt is worth a level or more of the assault ladder at a CC3
 base. Rapid Response only pays a commander who places field defences behind the fight. Picking
-the right mandate for each attack is worth up to four levels. China's surge was first built as
+the right mandate for each attack is worth up to three and a half levels. China's surge was first built as
 double-speed training, and it did almost nothing, because a unit trains in under a minute. What
 actually limits a refill is its price, so the surge now halves the price instead.
 

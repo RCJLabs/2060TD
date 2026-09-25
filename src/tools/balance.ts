@@ -52,7 +52,6 @@ import {
   DOCTRINE_IDS,
   raidConfig,
   resolveRaid,
-  tunnelSiteValid,
   type RaidResolution,
   type RaidSupport,
   type SectorId,
@@ -63,13 +62,31 @@ import { effectsOf, TECHS, type TechBranch } from '../content/research';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
 import { STANDING_ORDERS, standingOrdersFor } from '../content/standingOrders';
-import { DEFAULT_MANDATE, MANDATE_IDS, MANDATES, signatureFor } from '../content/signatures';
+import {
+  DEFAULT_MANDATE,
+  MANDATE_IDS,
+  MANDATES,
+  OVERBUILT_HULK,
+  RAPID_RESPONSE_REFUND,
+  signatureFor,
+} from '../content/signatures';
 import { LAST_STAND_LEVEL } from '../content/theaters';
 import { economyTable } from './economy';
 import { yardTable } from './yard';
-import { frontTable, reachTable, supplyTable, surgeTable, warTable } from './war';
+import { frontTable, reachTable, supplyTable, surgeTable, turnTable, warTable } from './war';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
-import { CITADEL_BUDGET, deepBudget, DOCTRINE_SUPPORT, planAtBudget, planManpower, RAID_PLANS } from './plans';
+import {
+  CITADEL_BUDGET,
+  deepBudget,
+  DEFENCE_LINE,
+  DOCTRINE_SUPPORT,
+  planAtBudget,
+  planManpower,
+  RAID_PLANS,
+  seedOf,
+  spender,
+  tunnelPlanFor,
+} from './plans';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
 import { scaleFootprint } from '../sim/scale';
@@ -128,8 +145,6 @@ const RAID_TIERS = [1, 2, 3, 4, 5];
  */
 const ASSAULT_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-const seedOf = (a: number, b: number, c: number): number =>
-  ((a * 7919 + b * 104729 + c * 2654435761 + 977) & 0x7fffffff) >>> 0;
 
 // ---- raid side: a fixed ~27-manpower expedition per faction ---------------------
 
@@ -177,65 +192,6 @@ const AIR_RAID_PLANS: Record<FactionId, SquadPlan[]> = {
   ],
 };
 
-/** Deterministic gallery head for a base: the first valid site among fixed
- * offsets from the command post, east side first (behind most wall lines).
- *
- * In this board's cells. The 20x30 list, halved away from the post (M34): the
- * same directions at the same distance, just outside the minimum. Its two
- * outer fallbacks halved onto the first two and are gone. */
-function nkTunnelCell(base: GeneratedBase): number | undefined {
-  const ccCol = base.ccOrigin % MAP_W;
-  const ccRow = Math.floor(base.ccOrigin / MAP_W);
-  const candidates: [number, number][] = [
-    [3, 0], [-3, 0], [0, -3], [0, 3], [3, 2], [-3, -2],
-  ];
-  for (const [dc, dr] of candidates) {
-    const cell = (ccRow + dr) * MAP_W + (ccCol + dc);
-    if (tunnelSiteValid(base, cell)) return cell;
-  }
-  return undefined;
-}
-
-/** Which squads go underground: hunt+raze, raze alone, or the whole raid. */
-const TUNNEL_POLICIES: number[][] = [[1, 2], [2], [0, 1, 2]];
-
-/**
- * A tunnel plan the way a player would pick one: scout the base, try the
- * sensible options, commit to what works. Five probe seeds (disjoint from
- * the measurement seeds) score each policy; fixed order + strict improvement
- * keeps the choice deterministic per base.
- */
-function tunnelPlanFor(
-  faction: FactionId,
-  base: GeneratedBase,
-  tier: number,
-  from?: SquadPlan[],
-): SquadPlan[] {
-  // `from` lets a caller ask where a DIFFERENT force should dig — the rung
-  // sweep resizes the plan, and a tunnel policy chosen for the reference
-  // force is not the one a quarter of it would pick.
-  const plans = from ?? RAID_PLANS[faction];
-  const mouth = nkTunnelCell(base);
-  if (mouth === undefined) return plans;
-  const catalog = raidCatalogFor(faction);
-  const trainable = trainableFor(faction);
-  let best = plans;
-  let bestScore = -1;
-  for (const idxs of TUNNEL_POLICIES) {
-    const candidate = plans.map((p, i) => (idxs.includes(i) ? { ...p, tunnel: mouth } : p));
-    let score = 0;
-    for (let i = 0; i < 5; i++) {
-      const config = raidConfig(base, candidate, seedOf(tier, 99, i), trainable, {});
-      const res = resolveRaid(config, candidate, tier, catalog);
-      score += (res.cleared ? 1000 : 0) + Math.round(res.destructionPct * 100);
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      best = candidate;
-    }
-  }
-  return best;
-}
 
 
 /**
@@ -2951,24 +2907,6 @@ function citadelTable(faction: FactionId, pool = 24, seeds = 12): string {
   ].join('\n');
 }
 
-/**
- * A commander who spends every CP on field defences as it comes in (M26): a
- * gun and a foxhole whenever one can be afforded, with no budget of actions,
- * every wave. Not a preset and never shipped: HOLDFAST acts three times a
- * battle, so CP is never what it runs short of, and a refund or a cheaper
- * field defence could not show against it. These are the closest the harness
- * has to a player who deploys early and often, in the two places one does:
- * on the post's approach, behind the fight (POST), and around the latest
- * breach, in it (WIRE).
- */
-const spender = (target: StandingOrderTarget): StandingOrders => ({
-  id: 'probe',
-  perWave: true,
-  rules: [
-    { cpAtLeast: 25, action: 'deploy', kind: 'depmg', target, minHostiles: 1, cooldownTicks: 60 },
-    { cpAtLeast: 20, action: 'deploy', kind: 'foxhole', target, minHostiles: 1, cooldownTicks: 60 },
-  ],
-});
 
 /** One way to fight a defence for the signatures table (M26): a faction rule, a doctrine buff, or neither. */
 interface RuleVariant {
@@ -2989,11 +2927,12 @@ function holdScan(
   policy: SiegePolicy,
   variant: RuleVariant,
   seeds: number,
-): { held: boolean[][]; refunded: number; hulks: number; battles: number } {
+): { held: boolean[][]; refunded: number; hulks: number; battles: number; timedOut: number } {
   const held: boolean[][] = [];
   let refunded = 0;
   let hulks = 0;
   let battles = 0;
+  let timedOut = 0;
   for (let level = 1, lost = 0; level <= 30 && lost < 2; level++) {
     const row: boolean[] = [];
     for (let i = 0; i < seeds; i++) {
@@ -3005,11 +2944,12 @@ function holdScan(
       refunded += r.refunded;
       hulks += r.hulks;
       battles++;
+      if (r.timedOut) timedOut++;
     }
     held.push(row);
     lost = row.some(Boolean) ? 0 : lost + 1;
   }
-  return { held, refunded, hulks, battles };
+  return { held, refunded, hulks, battles, timedOut };
 }
 
 /** Levels held: the sum of the hold rates up the ladder, so a rung held half the time is half a level. */
@@ -3067,14 +3007,17 @@ function signatureTable(seeds = 20, only?: FactionId): string {
         const battles = scans[k]!.reduce((n, sc) => n + sc.battles, 0);
         const refunded = scans[k]!.reduce((n, sc) => n + sc.refunded, 0);
         const hulks = scans[k]!.reduce((n, sc) => n + sc.hulks, 0);
+        const timedOut = scans[k]!.reduce((n, sc) => n + sc.timedOut, 0);
         const cells = levels.map((l, b) =>
           k === 0 ? pad(fmt(l), 17) : pad(`${fmt(l)} (${l - baseline[b]! >= 0 ? '+' : ''}${(l - baseline[b]!).toFixed(2)})`, 17),
         );
-        const per = v.signature?.refund !== undefined
-          ? `${(refunded / battles).toFixed(1)} CP back`
-          : v.signature?.hulk
-            ? `${(hulks / battles).toFixed(2)} hulks`
-            : '';
+        // A battle that never ends is counted lost, so a row with any says so.
+        const per =
+          (v.signature?.refund !== undefined
+            ? `${(refunded / battles).toFixed(1)} CP back`
+            : v.signature?.hulk
+              ? `${(hulks / battles).toFixed(2)} hulks`
+              : '') + (timedOut > 0 ? ` (${timedOut} timed out)` : '');
         lines.push(
           `${pad(k === 0 ? faction.toUpperCase() : '', 7)} | ${pad(k === 0 ? orders : '', 8)} | ${pad(v.label, 20)} | ` +
             `${cells.join(' | ')} | ${per}`,
@@ -3130,6 +3073,75 @@ function signatureTable(seeds = 20, only?: FactionId): string {
         `${pad(orders, 8)} | ${pad(label, 30)} | ${bases.map((_, b) => pad((hi[k][b]! - lo[k][b]!).toFixed(2), 11)).join(' | ')}`,
       );
     }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * THE FIT (M26 Phase 2): every defence rule on every faction.
+ *
+ * The matrix of commanders in the one place it can be played honestly. The
+ * UN's line needs mandates and the KPA's needs tunnels, and no other faction
+ * has either; what every faction can be given is every defence rule. Each one
+ * goes on each faction's MID and LATE bases under that faction's own defence
+ * line (`DEFENCE_LINE`), and the table reads the levels it adds. A rule that
+ * fits its faction adds more to its owner than to anyone else; one that adds
+ * the same to everyone is a number, not a verb.
+ */
+function fitTable(seeds = 20): string {
+  const bases = referenceBases().filter((b) => b.ccLevel >= 2);
+  const rules: { name: string; owner: FactionId; variants: RuleVariant[] }[] = [
+    { name: 'RAPID RESPONSE', owner: 'usa', variants: [{ label: 'refund', signature: { refund: RAPID_RESPONSE_REFUND } }] },
+    { name: 'OVERBUILT', owner: 'russia', variants: [{ label: 'hulk', signature: { hulk: { ...OVERBUILT_HULK } } }] },
+    {
+      name: 'MANDATE, BEST OF 3',
+      owner: 'un',
+      variants: MANDATE_IDS.map((id) => ({ label: id, mods: { ...MANDATES[id].mods } })),
+    },
+  ];
+  const gains: Record<string, Record<FactionId, number[]>> = {};
+  const lines = [
+    `THE FIT — the levels each defence rule adds to each faction's ${bases.map((b) => b.name).join(' / ')} base,`,
+    `under the faction's own defence line, ${seeds} seeds a rung (* the rule's owner)`,
+    `FACTION | LINE     | ${rules.map((r) => pad(r.name, 22)).join(' | ')}`,
+  ];
+  for (const faction of FACTION_IDS) {
+    const line = DEFENCE_LINE[faction];
+    const baseline = bases.map((b) => holdScan(faction, b, line.orders, { label: 'no rule' }, seeds));
+    const cells: string[] = [];
+    for (const rule of rules) {
+      const scans = rule.variants.map((v) => bases.map((b) => holdScan(faction, b, line.orders, v, seeds)));
+      const added = bases.map((_, b) => {
+        // Held if any variant held it: one variant is the rule itself, three are the mandate's pick.
+        const helds = scans.map((sc) => sc[b]!.held);
+        const rungs = Math.max(...helds.map((h) => h.length));
+        const merged: boolean[][] = [];
+        for (let l = 0; l < rungs; l++) {
+          merged.push(Array.from({ length: seeds }, (_, i) => helds.some((h) => h[l]?.[i] === true)));
+        }
+        return levelsHeld(merged) - levelsHeld(baseline[b]!.held);
+      });
+      ((gains[rule.name] ??= {} as Record<FactionId, number[]>)[faction] = added);
+      const mark = rule.owner === faction ? ' *' : '';
+      cells.push(pad(`${added.map((g) => `${g >= 0 ? '+' : ''}${g.toFixed(2)}`).join(' / ')}${mark}`, 22));
+    }
+    lines.push(`${pad(faction.toUpperCase(), 7)} | ${pad(line.name, 8)} | ${cells.join(' | ')}`);
+  }
+  lines.push('');
+  lines.push('WHO EACH RULE FITS — the faction it adds most to, both bases together');
+  for (const rule of rules) {
+    const totals = FACTION_IDS.map((f) => ({ f, total: gains[rule.name]![f]!.reduce((a, b) => a + b, 0) }));
+    totals.sort((a, b) => b.total - a.total);
+    const own = totals.find((t) => t.f === rule.owner)!.total;
+    // Ranked on the rounded figure the table prints, so a tie reads as one.
+    const round = (v: number): number => Math.round(v * 100);
+    const above = totals.filter((t) => round(t.total) > round(own)).length;
+    const level = totals.filter((t) => t.f !== rule.owner && round(t.total) === round(own)).length;
+    const PLACES = ['first', 'second', 'third', 'fourth', 'fifth'];
+    lines.push(
+      `${pad(rule.name, 18)} | best ${totals[0]!.f.toUpperCase()} ${totals[0]!.total.toFixed(2)} | ` +
+        `owner ${rule.owner.toUpperCase()} ${own.toFixed(2)}, ${level > 0 ? 'tied ' : ''}${PLACES[above]} of five`,
+    );
   }
   return lines.join('\n');
 }
@@ -5982,6 +5994,17 @@ function main(): void {
     const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
     for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${reachTable(faction)}\n`);
     console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--turn')) {
+    console.log(turnTable());
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--fit')) {
+    const arg = process.argv[process.argv.indexOf('--fit') + 1];
+    console.log(fitTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
   if (process.argv.includes('--surge')) {

@@ -19,6 +19,7 @@
 import { CHARGE_PRICES } from '../content/buildings';
 import { conditionAt } from '../content/conditions';
 import {
+  canTunnel,
   defenseCatalogFor,
   raidCatalogFor,
   trainableFor,
@@ -72,11 +73,19 @@ import { raidTargetKeys } from '../meta/theater';
 import { atCapital, citadelInRange, roadsTaken } from '../meta/capital';
 import { CITADEL_SLOT } from '../content/bases';
 import { Engine } from '../sim/engine';
-import type { SimConfig } from '../sim/types';
+import type { SimConfig, StandingOrders } from '../sim/types';
 import { advanceBooked, RESOURCES, zero, type Accruals, type Amounts } from './economy';
-import { CITADEL_BUDGET, deepBudget, DOCTRINE_SUPPORT, planAtBudget, RAID_PLANS } from './plans';
+import {
+  CITADEL_BUDGET,
+  deepBudget,
+  DEFENCE_LINE,
+  DOCTRINE_SUPPORT,
+  planAtBudget,
+  RAID_PLANS,
+  tunnelPlanFor,
+} from './plans';
 import { referenceBases } from './referenceBases';
-import { setSignaturesLive } from '../content/signatures';
+import { MANDATE_IDS, setSignaturesLive, type MandateId } from '../content/signatures';
 import { bandOf, laidOutTown } from './yard';
 
 const MIN = 60_000;
@@ -113,6 +122,29 @@ export interface WarOptions {
    * the town can field. The week at war fights the reference force throughout.
    */
   grow?: boolean;
+  /**
+   * CP in a defence (M26 Phase 2): the orders the commander fights every
+   * defence under, the live defence, the counterattack and the skirmish, as
+   * its proxy for spending CP by hand. The week at war fights with nobody
+   * acting.
+   */
+  defenceOrders?: StandingOrders;
+  /**
+   * The UN's mandate (M26 Phase 2): 'best' fights each defence under all
+   * three and keeps the best, a commander who reads every attack before it
+   * comes; the standing one otherwise.
+   */
+  mandate?: 'standing' | 'best';
+  /** The KPA raids through a tunnel wherever the tunnel planner finds one (M26 Phase 2). */
+  tunnel?: boolean;
+  /**
+   * The training queues kept full while the commander waits for the force to
+   * be whole (M26 Phase 2), re-queued minute by minute as a player does. The
+   * week at war queues once a raid, and a queue holds five: a raid that costs
+   * Russia six BTRs, or the UN seven VABs, at one motor pool leaves the force
+   * short at the next raid until the session after.
+   */
+  keepQueues?: boolean;
 }
 
 export interface WarBooks extends Accruals {
@@ -157,6 +189,10 @@ export interface WarRun {
   everyDays: number;
   /** Days into the week the graph was finished, or null if it never was. */
   graph: number | null;
+  /** Defences the commander fought, and the CP they spent and got back (M26 Phase 2). */
+  commanded: number;
+  cpSpent: number;
+  cpRefunded: number;
 }
 
 /**
@@ -244,6 +280,13 @@ function chooseTarget(
   return pick === 'easiest' ? [...back].sort((a, b) => b.slot - a.slot || b.tier - a.tier)[0]! : back[0]!;
 }
 
+/** Which of two outcomes of the same defence a commander would rather have. */
+function betterDefence(a: SiegeOutcome, b: SiegeOutcome): boolean {
+  if (a.victory !== b.victory) return a.victory;
+  if (a.ccHpFraction !== b.ccHpFraction) return a.ccHpFraction > b.ccHpFraction;
+  return a.stats.structuresLost < b.stats.structuresLost;
+}
+
 /**
  * One week, played. Each session: the probes the absence owed, then the time
  * itself; the defence the last probe offers (declined in peace, fought
@@ -309,6 +352,9 @@ export function playWarWeek(
     hungry: 0,
     everyDays,
     graph: null,
+    commanded: 0,
+    cpSpent: 0,
+    cpRefunded: 0,
   };
   const wire = town.walls.map((w) => ({ ...w }));
   const booksFrom = town.lastSeen;
@@ -355,6 +401,31 @@ export function playWarWeek(
     act(name, fn);
     restore(at);
   };
+  /**
+   * A defence the commander fights: under its CP line when it has one, and
+   * for the UN reading every attack, under each mandate in turn with the best
+   * kept (held first, then the post's integrity, then the buildings lost).
+   */
+  const defend = (build: () => SimConfig): { config: SimConfig; outcome: SiegeOutcome } => {
+    const standing = town.mandate;
+    const mandates: (MandateId | undefined)[] =
+      opts.mandate === 'best' && faction === 'un' ? [...MANDATE_IDS] : [standing];
+    let best: { config: SimConfig; outcome: SiegeOutcome } | null = null;
+    for (const id of mandates) {
+      if (id === undefined) delete town.mandate;
+      else town.mandate = id;
+      const built = build();
+      const config = opts.defenceOrders ? { ...built, standingOrders: opts.defenceOrders } : built;
+      const outcome = fight(config, faction);
+      if (best === null || betterDefence(outcome, best.outcome)) best = { config, outcome };
+    }
+    if (standing === undefined) delete town.mandate;
+    else town.mandate = standing;
+    run.commanded++;
+    run.cpSpent += best!.outcome.stats.cpSpent;
+    run.cpRefunded += best!.outcome.stats.cpRefunded ?? 0;
+    return best!;
+  };
   /** The force made whole again, as far as the facilities and the stores go. */
   const retrain = (at: number): void => {
     act('training', () => {
@@ -389,9 +460,8 @@ export function playWarWeek(
             if (entry.held) run.probesHeld++;
           }
         } else {
-          const config = liveDefenseConfig(town)!;
+          const { config, outcome } = defend(() => liveDefenseConfig(town)!);
           const pending = claimLiveDefense(town)!;
-          const outcome = fight(config, faction);
           siege('defences', at, () =>
             applyLiveDefense(town, { level: pending.level, at: pending.at, config }, outcome, at),
           );
@@ -401,7 +471,7 @@ export function playWarWeek(
       }
       const counterattack = (when: number): void => {
         if (!town.frontline.pendingCounterattack) return;
-        const outcome = fight(counterattackConfig(town, seedAt(when, 1)), faction);
+        const { outcome } = defend(() => counterattackConfig(town, seedAt(when, 1)));
         siege('counterattacks', when, () => applyCounterResult(town, outcome, when));
         run.counters++;
         if (outcome.victory) run.countersHeld++;
@@ -418,9 +488,10 @@ export function playWarWeek(
         // queues once a raid, and its tables were read that way.
         const yardFull = (): boolean =>
           Object.entries(forceAt(town.frontline.tier).wanted).every(([kind, n]) => (town.army[kind] ?? 0) >= n);
-        if (r > 0 || (opts.grow && !yardFull())) {
+        const keeping = opts.grow || opts.keepQueues;
+        if (r > 0 || (keeping && !yardFull())) {
           for (let m = 1; m <= RAID_TURNAROUND_MIN; m++) {
-            if (opts.grow) retrain(clock + (m - 1) * MIN);
+            if (keeping) retrain(clock + (m - 1) * MIN);
             advance(clock + m * MIN);
           }
           clock += RAID_TURNAROUND_MIN * MIN;
@@ -435,7 +506,8 @@ export function playWarWeek(
         act('scouting', () => scoutTarget(town, target.tier, target.slot, when));
         const base = postAt(town, target.tier, target.slot);
         const retaking = target.tier < town.frontline.tier;
-        const squads = plan.map((s, i) => {
+        const dug = opts.tunnel && canTunnel(faction) ? tunnelPlanFor(faction, base, base.tier, plan) : plan;
+        const squads = dug.map((s, i) => {
           const slot = slotOf(s, i);
           return { ...s, slot, vet: squadVet(town, slot) };
         });
@@ -461,7 +533,7 @@ export function playWarWeek(
       // the day's skirmishing: a commander tries a level again tomorrow rather
       // than throwing the town at it all evening.
       if (policy === 'raids+skirmish' && lostSkirmishOn !== day) {
-        const outcome = fight(siegeConfig(town, seedAt(at, 3)), faction);
+        const { outcome } = defend(() => siegeConfig(town, seedAt(at, 3)));
         siege('skirmishes', at, () => applySiegeResult(town, outcome, at));
         run.skirmishes++;
         if (outcome.victory) run.skirmishesHeld++;
@@ -695,6 +767,162 @@ export function surgeTable(): string {
           `${pad(perDay(run.raids), 9)} | ${pad(perDay(run.cleared), 11)} | ${pad(run.peakTier, 4)}`,
       );
     }
+  }
+  return lines.join('\n');
+}
+
+// ---- M26 Phase 2: how a turn is spent -----------------------------------------------
+
+/** The shape of a turn: what it fought, what it spent its supplies on, and where they came from. */
+interface TurnShape {
+  battles: Record<string, number>;
+  spent: Record<string, number>;
+  earned: Record<string, number>;
+}
+
+const TURN_BATTLES = ['raids', 'skirmishes', 'defences', 'counters'] as const;
+const TURN_SPENDS = ['repairs', 'wire', 'training', 'charges', 'research'] as const;
+const TURN_SOURCES = ['raids', 'skirmishes', 'defences'] as const;
+const TURN_KEYS: (keyof TurnShape)[] = ['battles', 'spent', 'earned'];
+
+/** Counts to shares of their total, every key kept. */
+function shares(counts: Record<string, number>): Record<string, number> {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, total > 0 ? v / total : 0]));
+}
+
+/** A week's turn, as shares. What the defences earned is the live defences, the counterattacks and the probes together. */
+function shapeOf(run: WarRun): TurnShape {
+  const a = run.books.actions;
+  const net = (name: string): number => a[name]?.supplies ?? 0;
+  return {
+    battles: shares({ raids: run.raids, skirmishes: run.skirmishes, defences: run.defences, counters: run.counters }),
+    spent: shares(Object.fromEntries(TURN_SPENDS.map((k) => [k, Math.max(0, -net(k))]))),
+    earned: shares({
+      raids: Math.max(0, net('raids')),
+      skirmishes: Math.max(0, net('skirmishes')),
+      defences: Math.max(0, net('defences') + net('counterattacks') + net('probes')),
+    }),
+  };
+}
+
+/** Total-variation distance: the share of one mix that would have to move to match the other. */
+function tvDistance(p: Record<string, number>, q: Record<string, number>): number {
+  const keys = new Set([...Object.keys(p), ...Object.keys(q)]);
+  let sum = 0;
+  for (const k of keys) sum += Math.abs((p[k] ?? 0) - (q[k] ?? 0));
+  return sum / 2;
+}
+
+/** How far a faction's turn sits from the mean of the other four's, on one of its three mixes. */
+function divergenceOf(shapes: Record<FactionId, TurnShape>, faction: FactionId, key: keyof TurnShape): number {
+  const others = (Object.keys(shapes) as FactionId[]).filter((f) => f !== faction);
+  const mean: Record<string, number> = {};
+  for (const other of others) {
+    for (const [k, v] of Object.entries(shapes[other][key])) mean[k] = (mean[k] ?? 0) + v / others.length;
+  }
+  return tvDistance(shapes[faction][key], mean);
+}
+
+/**
+ * THE TURN (M26 Phase 2): each faction's week at war, played by one
+ * commander, read as the shape of the turn, with the signatures off and on.
+ *
+ * The commander is the same for all five: up to three raids a session, each
+ * once the force is whole; every defence it fights, the live defence, the
+ * counterattack and the skirmish, under its faction's CP line at CC3
+ * (`DEFENCE_LINE`); the KPA through a tunnel wherever one is found; the UN
+ * under the mandate each attack calls for. What differs is what each
+ * faction's kit and rule make of it.
+ *
+ * A turn is read as three mixes, shares of the battles fought, of the
+ * supplies spent and of the supplies earned, and a faction's divergence on
+ * each is its distance from the mean of the other four: the part of its turn
+ * that would have to move to look like theirs.
+ */
+export function turnTable(days = 7): string {
+  const factions = Object.keys(DEFENCE_LINE) as FactionId[];
+  const play = (faction: FactionId, live: boolean): WarRun => {
+    setSignaturesLive(live);
+    try {
+      return playWarWeek(warTown(faction), 'raids+skirmish', 2, days, 10, {
+        raidsPerSession: 3,
+        keepQueues: true,
+        defenceOrders: DEFENCE_LINE[faction].orders,
+        mandate: 'best',
+        tunnel: true,
+      });
+    } finally {
+      setSignaturesLive(false);
+    }
+  };
+  const runs = { off: {} as Record<FactionId, WarRun>, on: {} as Record<FactionId, WarRun> };
+  for (const faction of factions) {
+    runs.off[faction] = play(faction, false);
+    runs.on[faction] = play(faction, true);
+  }
+  const shapes = {
+    off: Object.fromEntries(factions.map((f) => [f, shapeOf(runs.off[f])])) as Record<FactionId, TurnShape>,
+    on: Object.fromEntries(factions.map((f) => [f, shapeOf(runs.on[f])])) as Record<FactionId, TurnShape>,
+  };
+  const pct = (v: number): string => String(Math.round(v * 100));
+  const mix = (m: Record<string, number>, keys: readonly string[]): string => keys.map((k) => pct(m[k] ?? 0)).join('/');
+  const lines = [
+    `THE TURN — each faction's week at war, one commander, a session every 2 h for ${days} days, signatures off and on`,
+    'The commander: up to three raids a session, its training queues kept full; in every defence, CP spent on field',
+    'defences on the post\'s approach, six a wave; the KPA through a tunnel where one is found; the UN under the',
+    'mandate each attack calls for.',
+    '',
+    'THE SHAPE — shares of the turn, %',
+    `FACTION | SIGS | BATTLES raid/skir/def/ctr | SPENT repair/wire/train/chrg/research | EARNED raid/skir/def`,
+  ];
+  for (const f of factions) {
+    for (const sig of ['off', 'on'] as const) {
+      const sh = shapes[sig][f];
+      lines.push(
+        `${pad(sig === 'off' ? f.toUpperCase() : '', 7)} | ${pad(sig, 4)} | ${pad(mix(sh.battles, TURN_BATTLES), 25)} | ` +
+          `${pad(mix(sh.spent, TURN_SPENDS), 37)} | ${pad(mix(sh.earned, TURN_SOURCES), 19)}`,
+      );
+    }
+  }
+  lines.push('');
+  lines.push('WHAT IT GOT — per day unless marked');
+  lines.push('FACTION | SIGS | BATTLES/SESSION | CP A DEFENCE (BACK) | DEFENCES HELD | SKIRMISHES HELD | LEVEL | RUNG | THE WAR, NET S/F');
+  for (const f of factions) {
+    for (const sig of ['off', 'on'] as const) {
+      const run = runs[sig][f];
+      const sessions = run.sessionsPerDay * run.days;
+      const battles = run.raids + run.skirmishes + run.defences + run.counters;
+      const net = warNet(run.books);
+      lines.push(
+        `${pad(sig === 'off' ? f.toUpperCase() : '', 7)} | ${pad(sig, 4)} | ${pad((battles / sessions).toFixed(2), 15)} | ` +
+          `${pad(`${(run.cpSpent / Math.max(1, run.commanded)).toFixed(0)} (${(run.cpRefunded / Math.max(1, run.commanded)).toFixed(0)})`, 19)} | ` +
+          `${pad(`${run.defencesHeld + run.countersHeld}/${run.defences + run.counters}`, 13)} | ` +
+          `${pad(`${run.skirmishesHeld}/${run.skirmishes}`, 15)} | ${pad(run.assaultLevel, 5)} | ${pad(run.peakTier, 4)} | ` +
+          `${pad(`${k(net.supplies / run.days)}/${k(net.fuel / run.days)}`, 16)}`,
+      );
+    }
+  }
+  lines.push('');
+  lines.push('DIVERGENCE — distance from the mean of the other four (0 the same turn, 1 nothing in common)');
+  lines.push('FACTION | BATTLES off→on | SPENT off→on | EARNED off→on | MEAN off→on | LARGEST MOVE, off→on');
+  for (const f of factions) {
+    const d = (sig: 'off' | 'on', key: keyof TurnShape): number => divergenceOf(shapes[sig], f, key);
+    const mean = (sig: 'off' | 'on'): number => TURN_KEYS.reduce((sum, key) => sum + d(sig, key), 0) / TURN_KEYS.length;
+    const cell = (key: keyof TurnShape): string => `${d('off', key).toFixed(2)} → ${d('on', key).toFixed(2)}`;
+    // The share that moved most when the signatures came on.
+    let move = { label: '—', delta: 0 };
+    for (const key of TURN_KEYS) {
+      for (const [cat, on] of Object.entries(shapes.on[f][key])) {
+        const delta = on - (shapes.off[f][key][cat] ?? 0);
+        if (Math.abs(delta) > Math.abs(move.delta)) move = { label: `${key} ${cat}`, delta };
+      }
+    }
+    lines.push(
+      `${pad(f.toUpperCase(), 7)} | ${pad(cell('battles'), 14)} | ${pad(cell('spent'), 12)} | ${pad(cell('earned'), 13)} | ` +
+        `${pad(`${mean('off').toFixed(2)} → ${mean('on').toFixed(2)}`, 11)} | ` +
+        `${move.label} ${move.delta >= 0 ? '+' : ''}${pct(move.delta)} pts`,
+    );
   }
   return lines.join('\n');
 }
