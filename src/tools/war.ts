@@ -69,10 +69,12 @@ import {
   type SquadPlan,
 } from '../meta/warfare';
 import { raidTargetKeys } from '../meta/theater';
+import { atCapital, citadelInRange, roadsTaken } from '../meta/capital';
+import { CITADEL_SLOT } from '../content/bases';
 import { Engine } from '../sim/engine';
 import type { SimConfig } from '../sim/types';
 import { advanceBooked, RESOURCES, zero, type Accruals, type Amounts } from './economy';
-import { deepBudget, DOCTRINE_SUPPORT, planAtBudget, RAID_PLANS } from './plans';
+import { CITADEL_BUDGET, deepBudget, DOCTRINE_SUPPORT, planAtBudget, RAID_PLANS } from './plans';
 import { referenceBases } from './referenceBases';
 import { bandOf, laidOutTown } from './yard';
 
@@ -141,6 +143,8 @@ export interface WarRun {
   peakTier: number;
   /** The day each rung was first reached, by rung (M25 Phase 4a); undefined for a rung never reached. */
   reachedOn: (number | undefined)[];
+  /** The day the citadel fell and the war was won (M25 Phase 4b), if it did. */
+  wonOn?: number;
   assaultLevel: number;
   /** Sectors the enemy retook, how many the commander took back, and times the front fell back (M25 Phase 2). */
   lost: number;
@@ -213,7 +217,10 @@ const RAID_TURNAROUND_MIN = 15;
 /**
  * What the commander raids next (M25 Phase 2). Pushing cycles the front posts
  * whose roads are open, as the week at war cycled all three, and retakes the
- * loss nearest the front only when no road is open; holding retakes first.
+ * loss nearest the front only when no road is open; holding retakes first. At
+ * the enemy's capital (Phase 4b) it goes for the citadel once it is in range,
+ * and until then only for the roads not yet taken: a second win on one counts
+ * for nothing.
  */
 function chooseTarget(
   town: TownState,
@@ -222,9 +229,15 @@ function chooseTarget(
   turn: number,
 ): { tier: number; slot: number } {
   const keys = raidTargetKeys(town);
-  const front = keys.filter((k) => k.tier === town.frontline.tier);
+  let front = keys.filter((k) => k.tier === town.frontline.tier);
   const back = keys.filter((k) => k.tier < town.frontline.tier);
   if (retake === 'hold' && back.length > 0) return back[0]!;
+  if (atCapital(town)) {
+    const citadel = front.find((k) => k.slot === CITADEL_SLOT);
+    if (citadel) return citadel;
+    const taken = roadsTaken(town.frontline);
+    front = front.filter((k) => !taken.includes(k.slot));
+  }
   if (front.length > 0) return pick === 'easiest' ? front[front.length - 1]! : front[turn % front.length]!;
   // No road reaches the front: the loss that is easiest to take back.
   return pick === 'easiest' ? [...back].sort((a, b) => b.slot - a.slot || b.tier - a.tier)[0]! : back[0]!;
@@ -298,11 +311,13 @@ export function playWarWeek(
   };
   const wire = town.walls.map((w) => ({ ...w }));
   const booksFrom = town.lastSeen;
-  /** The force the commander raids with at a rung, and the army it keeps for it. */
+  /**
+   * The force the commander raids with at a rung, and the army it keeps for
+   * it: growing, the whole army the citadel is tuned for once it is in range.
+   */
   const forceAt = (tier: number): { plan: SquadPlan[]; wanted: Record<string, number> } => {
-    const plan = opts.grow
-      ? planAtBudget(faction, Math.min(deepBudget(faction, tier), manpowerCapOf(town)))
-      : RAID_PLANS[faction];
+    const budget = citadelInRange(town) ? CITADEL_BUDGET : deepBudget(faction, tier);
+    const plan = opts.grow ? planAtBudget(faction, Math.min(budget, manpowerCapOf(town))) : RAID_PLANS[faction];
     return { plan, wanted: planDeployment(plan) };
   };
   const begin = LADDER_EPOCH + 7 * HOUR;
@@ -437,6 +452,7 @@ export function playWarWeek(
         if (res.cleared) run.cleared++;
         if (res.cleared && retaking) run.retaken++;
         for (let t = run.peakTier + 1; t <= town.frontline.tier; t++) run.reachedOn[t] = (when - begin) / DAY;
+        if (run.wonOn === undefined && town.frontline.wonAt !== undefined) run.wonOn = (when - begin) / DAY;
         run.peakTier = Math.max(run.peakTier, town.frontline.tier);
         if (r + 1 < raidsPerSession) retrain(when);
       }
@@ -615,7 +631,7 @@ export function reachTable(faction: FactionId = 'usa', days = 70): string {
   const tiers = [5, 7, 9, 11, 13];
   const lines = [
     `THE ROAD TO THE CAPITAL — ${faction.toUpperCase()}: the town of the week at war, daily for ${days} days`,
-    `FORCE      | ${tiers.map((t) => `T${t}`.padStart(6)).join(' | ')} | RUNG`,
+    `FORCE      | ${tiers.map((t) => `T${t}`.padStart(6)).join(' | ')} |    WON | RUNG`,
   ];
   for (const [name, grow] of [
     ['reference', false],
@@ -627,11 +643,11 @@ export function reachTable(faction: FactionId = 'usa', days = 70): string {
       retake: 'push',
       grow,
     });
-    const day = (t: number): string => {
-      const d = run.reachedOn[t];
-      return d === undefined ? '—' : `day ${Math.round(d)}`;
-    };
-    lines.push(`${name.padEnd(10)} | ${tiers.map((t) => day(t).padStart(6)).join(' | ')} | ${pad(run.tier, 4)}`);
+    const on = (d: number | undefined): string => (d === undefined ? '—' : `day ${Math.round(d)}`);
+    lines.push(
+      `${name.padEnd(10)} | ${tiers.map((t) => on(run.reachedOn[t]).padStart(6)).join(' | ')} | ` +
+        `${on(run.wonOn).padStart(6)} | ${pad(run.tier, 4)}`,
+    );
   }
   return lines.join('\n');
 }

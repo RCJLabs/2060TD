@@ -25,6 +25,8 @@ import {
   archetypeFor,
   dealPairFor,
   DEAL_TABLE,
+  CITADEL,
+  CITADEL_DEAL,
   BASE_SPAWN_EDGE,
   BASE_SPAWN_LANE,
   MAP_CELL_SIZE,
@@ -65,7 +67,7 @@ import { economyTable } from './economy';
 import { yardTable } from './yard';
 import { frontTable, reachTable, supplyTable, warTable } from './war';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
-import { deepBudget, DOCTRINE_SUPPORT, planAtBudget, planManpower, RAID_PLANS } from './plans';
+import { CITADEL_BUDGET, deepBudget, DOCTRINE_SUPPORT, planAtBudget, planManpower, RAID_PLANS } from './plans';
 import { coarsenConfig, onBoard, refineConfig, siegeOnBoard } from '../sim/board';
 import { Engine } from '../sim/engine';
 import { scaleFootprint } from '../sim/scale';
@@ -2780,6 +2782,8 @@ function deepTable(faction: FactionId, tiers: readonly number[] = [5, 6, 7, 8, 9
  * the faction has not met, seeded with the shapes rungs 1 to 5 already deal.
  */
 const DEEP_TIERS = [6, 7, 8, 9, 10, 11, 12, 13] as const;
+/** The capital's rung, where the citadel stands: every faction's theater is twelve towns deep. */
+const CITADEL_TIER = 13;
 
 function deepLayouts(
   faction: FactionId,
@@ -2847,6 +2851,86 @@ function deepLayouts(
     );
   }
   return `  ${faction}:\n${rows.join('\n')}`;
+}
+
+/**
+ * M25 Phase 4b: each faction's citadel, chosen. The enemy's headquarters is
+ * tuned so the whole army can take it: raided by the faction's reference
+ * shape resized to 62 men, of the 66 a built town fields, about half the time.
+ *
+ * Outcomes here are nearly all or nothing per layout: a layout is taken on
+ * every seed or on none, and which depends on how the force meets it. So the
+ * search is over the citadel's guns and its layout together. Every pair
+ * taken a quarter to three quarters of the time at 62 men is a candidate; a
+ * candidate is raided again at 56 and 66 men and on fresh seeds at 62, and
+ * the one nearest half on both seed sets wins, preferring a rate that climbs
+ * with the force and a strength at which the faction's typical layout is
+ * near half too, where a pick is least a fluke of the pool. Then the pick is
+ * raided on a third set of seeds across the top of the army's range, which is
+ * the number to read.
+ */
+const CITADEL_TOWERS = [0.6, 0.8, 1, 1.2, 1.4, 1.6] as const;
+
+function citadelTable(faction: FactionId, pool = 24, seeds = 12): string {
+  const tier = CITADEL_TIER;
+  const kit = baseKitFor(faction);
+  const clearAt = (towers: number, layout: number, budget: number, salt: number, n: number): number => {
+    const base = generateBase(tier, layout, kit, { ...CITADEL, towers }, faction);
+    const force = planAtBudget(faction, budget);
+    const squads = (faction === 'nk' ? tunnelPlanFor(faction, base, tier, force) : force).map((sq, at) => ({
+      ...sq,
+      slot: at,
+    }));
+    let cleared = 0;
+    for (let i = 0; i < n; i++) {
+      const config = raidConfig(base, squads, seedOf(tier, salt + layout, i), trainableFor(faction));
+      if (resolveRaid(config, squads, tier, raidCatalogFor(faction)).cleared) cleared++;
+    }
+    return Math.round((cleared / n) * 100);
+  };
+  const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+  const lines: string[] = [];
+  const all: { towers: number; layout: number; clear: number; median: number }[] = [];
+  for (const towers of CITADEL_TOWERS) {
+    const clears = Array.from({ length: pool }, (_, layout) => clearAt(towers, layout, CITADEL_BUDGET, 200, seeds));
+    const m = median(clears);
+    lines.push(`   towers ${towers.toFixed(1)}: median ${m}% · ${[...clears].sort((a, b) => a - b).join(' ')}`);
+    clears.forEach((clear, layout) => all.push({ towers, layout, clear, median: m }));
+  }
+  const candidates = all
+    .filter((c) => Math.abs(c.clear - 50) <= 25)
+    .map((c) => {
+      const lo = clearAt(c.towers, c.layout, CITADEL_BUDGET - 6, 200, seeds);
+      const hi = clearAt(c.towers, c.layout, CITADEL_BUDGET + 4, 200, seeds);
+      const again = clearAt(c.towers, c.layout, CITADEL_BUDGET, 400, seeds);
+      const clear = (c.clear + again) / 2;
+      const climbs = lo <= clear && clear <= hi;
+      return {
+        ...c,
+        lo,
+        hi,
+        again,
+        score: Math.abs(clear - 50) + (climbs ? 0 : 25) + Math.abs(c.median - 50) / 4,
+      };
+    })
+    .sort((a, b) => a.score - b.score || a.towers - b.towers || a.layout - b.layout);
+  const pick = candidates[0];
+  if (!pick) return [`${faction.toUpperCase()}: no citadel within a quarter of half`, ...lines].join('\n');
+  const confirmed = [54, 58, 62, 66].map((b) => {
+    const fielded = planManpower(faction, planAtBudget(faction, b));
+    return `${fielded} MP ${clearAt(pick.towers, pick.layout, b, 300, 24)}%`;
+  });
+  const shipped = CITADEL_DEAL[faction];
+  const same = shipped?.layout === pick.layout && shipped?.towers === pick.towers;
+  return [
+    `${faction.toUpperCase().padEnd(7)} at ${planManpower(faction, planAtBudget(faction, CITADEL_BUDGET))} MP:`,
+    ...lines,
+    `   pick towers ${pick.towers.toFixed(1)}, layout ${pick.layout}: ` +
+      `${pick.lo}/${pick.clear}+${pick.again}/${pick.hi}% at 56/62/66` +
+      (same ? '' : ` · shipped ${shipped?.towers.toFixed(1)}/${shipped?.layout}`),
+    `   on fresh seeds: ${confirmed.join(' · ')}`,
+    `   ${faction}: { layout: ${pick.layout}, towers: ${pick.towers} },`,
+  ].join('\n');
 }
 
 function archetypeTable(faction: FactionId): string {
@@ -5635,6 +5719,14 @@ function main(): void {
   if (process.argv.includes('--reach')) {
     const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
     for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${reachTable(faction)}\n`);
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--citadel')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    const at = process.argv.indexOf('--pool');
+    const pool = at >= 0 ? Number(process.argv[at + 1]) : 24;
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(citadelTable(faction, pool));
     console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

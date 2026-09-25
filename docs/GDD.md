@@ -93,6 +93,8 @@ your Command Center.
 - **The supply line** *(v1.55)*: the towns you hold behind the front are fed from what your
   depots make, before anything is banked, and a front they cannot feed loses ground. See "The
   Front Line" in section 3.
+- **The capital** *(v1.57)*: the enemy's stronghold falls to its three roads and then its
+  citadel, and the citadel's fall wins the war, which goes on. See "The Front Line" in section 3.
 
 ---
 
@@ -201,6 +203,31 @@ a town can hold:
 The map says what each held town takes an hour and whether the depots feed the line, the status
 strip shows the line's draw beside the supplies rate, and a short front is bannered and marked
 SHORT on the WAR tab.
+
+**The capital, and a war won** *(v1.57)*. The enemy's stronghold is its capital, and it is not
+taken by any three wins. Each of its three roads has to fall once; a second win on a road already
+taken pays like any post and counts for nothing more. With all three taken the **citadel** comes
+into range: the enemy's headquarters, a fourth target in no lane and a shape dealt nowhere else.
+Two rings with the inner gate at the back, so a raid walks in and all the way round the post under
+the guns; every gun dug in at the full level, where a rung's guns creep up a third at a time; and
+the richest stores on the board. Its strength is each faction's, as the deal is, because the five
+armies do not take a fortress alike: each citadel is chosen so that 62 of the 66 men a built town
+fields take it about half the time.
+
+- **The citadel's fall wins the war.** The war is dated, paid like IRON's season placement (4,000
+  supplies, 700 fuel, 400 intel), and marked won on a victory screen, the service record and the
+  war menu. Nothing resets.
+- **The war goes on.** The citadel's fall takes the stronghold as a third push takes a town, if
+  the depots can feed it, and the front moves into the enemy's rear, where any three wins take a
+  town again, until the supply line runs out: the sixteenth rung for a built CC3 town. If the
+  depots cannot feed the stronghold, the war is won all the same and the front holds there with
+  its roads until they can.
+- **A front that falls back from the capital loses its roads**, as any front that falls back
+  loses its pushes. A war won stays won.
+
+The map marks the roads as they fall and draws the citadel past the stronghold; the planner opens
+on it once it is in range. A commander who grows the army four men a rung and raids daily wins in
+thirteen to sixteen days.
 
 ### Base archetypes *(v1.6)*
 

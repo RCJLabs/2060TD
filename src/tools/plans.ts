@@ -160,6 +160,13 @@ export function planAtBudget(
     .map((squad, at) => ({ ...squad, slot: at }));
 }
 
+/**
+ * The force the citadel is tuned for (M25 Phase 4b): 62 men of the 66 a built
+ * town fields. `--citadel` chooses each faction's citadel against it, and the
+ * war instrument's growing commander takes it to the citadel.
+ */
+export const CITADEL_BUDGET = 62;
+
 /** Men a rung past the fifth that the deep rows are tuned for (M25 Phase 4a). */
 export const DEEP_STEP = 4;
 

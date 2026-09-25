@@ -4414,7 +4414,7 @@ north", and it is where an endgame can live.
       without its yard runs out of supply: reaching the capital asks for the
       whole economy.
 - [ ] **Phase 4 — the endgame.** The front reaches their capital, or yours.
-      *(4a shipped in v1.56.0.)*
+      *(4a shipped in v1.56.0, 4b in v1.57.0.)*
 
       **The plan, before the build.** Three phases made the Front Line a road
       with a far end, and nothing happens at the far end yet. The stronghold
@@ -4621,6 +4621,110 @@ north", and it is where an endgame can live.
       stronghold at 1,365 supplies an hour, which a CC3 town without its
       yard does not make. 4b decides whether the citadel's fall waits on the
       depots too, or wins the war and leaves the front where it stands.
+
+      **The record, 4b (v1.57.0).** The capital is built as planned, and the
+      war can be won. The citadel departs from the plan where the
+      measurement made it, and the question 4a handed on is answered: the
+      citadel's fall wins the war whether or not the depots can feed the
+      stronghold.
+
+      *Where it lives.* `meta/capital.ts` holds the rules: the roads, the
+      citadel in range, the war won and what it pays, and the repair of the
+      two new fields off disk. The raid result hands it any win at the front
+      while the front is at the stronghold. The citadel is `CITADEL` in
+      `content/bases.ts`, a shape of its own outside the eight the deal draws
+      from, and the target list puts it first once it is in range.
+      `--citadel` chooses it, and the war instrument's commander takes the
+      roads it has not taken, lightest first, and then the citadel with the
+      whole army. Twenty new tests.
+
+      *The rules, as built.* A road falls once: a second win on it pays like
+      any post and is on the record, and counts for nothing more. At the
+      stronghold its pushes are its roads, so the map's three marks and the
+      planner's count read them. With all three taken the citadel is in
+      range. Its first fall dates the war won and pays 4,000 supplies, 700
+      fuel and 400 intel, IRON's placement. If the depots can feed the
+      stronghold, the front moves on into the enemy's rear. If not, the war
+      is won all the same and the front holds at the stronghold with its
+      roads until they can, when the citadel's next fall takes it, paying
+      and dating nothing twice. A front that falls back from the stronghold
+      loses its roads. A war won stays won, and a front pushed back to the
+      stronghold takes it again by its roads and its citadel.
+
+      *The citadel.* The plan's citadel is two rings and positions dug a
+      level deeper around the largest post on the board and the richest
+      stores. As built, it is the keep's two rings with the inner gate always
+      at the back, so a raid comes in through the outer gate and walks all
+      the way round the post under the guns between the rings. Every gun
+      stands at the full level, where the capital's other posts stand a third
+      of theirs there. It holds eleven stores, where the richest post dealt
+      at the capital holds seven. The post itself is no larger than theirs:
+      levels stop at 3, and every post has reached it by rung 7.
+
+      *The first departure: its strength is the faction's.* Raided at one
+      strength by each faction's reference shape at 62 men, the USA's and
+      China's forces, tank columns that drive at the post, took nearly every
+      layout every time, and the UN's, which rides in armour, took none at
+      any size of army. No choice of layout could put all five near half,
+      and past about 1.2 times the baseline no more guns fit on the board. So
+      `--citadel` searches the guns and the layout together, per faction, and
+      raids every candidate again on fresh seeds. Outcomes are close to all
+      or nothing per layout, so the pick is the one nearest half on both sets
+      of seeds whose rate climbs with the force. Each faction's citadel, and
+      what the reference shape does against it on a third set, the men it
+      actually fields in brackets where they differ:
+
+      | | guns | 54 men | 58 | 62 | 66 |
+      |---|---|---|---|---|---|
+      | USA | 8 | 0% (53) | 21% (56) | 71% (61) | 96% (64) |
+      | China | 11 | 4% | 13% | 50% | 54% |
+      | Russia | 8 | 8% | 42% | 67% | 96% (65) |
+      | KPA | 8 | 21% | 38% | 58% | 75% |
+      | UN | 5 | 25% | 58% (57) | 38% | 92% |
+
+      Every citadel is taken 38-71% of the time by 61 or 62 men, and more
+      often by the whole army, as the plan wanted. The UN's has five guns and
+      China's eleven because the armies differ, and they are fighting five
+      different enemies' headquarters, as the deal has always been the
+      faction's.
+
+      *The second: the war is won when the citadel falls.* Waiting on the
+      depots would have made the war's end a question of the economy rather
+      than the army, and the rule that a town the depots cannot feed holds
+      already keeps the rear shut until they can.
+
+      *Old files.* A file at the stronghold from before holds pushes won
+      under the old rule: they are kept as roads, the lightest lanes first.
+      A file already past the stronghold took it by any three wins: its war
+      is marked won, dated to when it was last played, and paid nothing, as
+      the rule it was taken under paid nothing.
+
+      *What the player sees.* The map marks each road into the stronghold
+      TAKEN as it falls, and draws the citadel as a walled row of its own
+      past the stronghold: TAKE ALL THREE ROADS FIRST, IN RANGE, or FALLEN.
+      The subtitle counts the roads, the rules say how the stronghold is
+      taken once it is in view, and the citadel's button leads the list. The
+      planner opens on the citadel when it is in range. The report says
+      which road fell, or that it had fallen already, or THE CITADEL AT
+      GRAYS HARBOR FALLS · THE WAR IS WON · the front moves into GRAYS
+      HARBOR REAR 1, and the raid that won the war goes on to a victory
+      screen: what the war paid, and that it goes on. The service record
+      gives the day it was won, the war menu's row reads WON DAY 1 · T14,
+      and the WAR tab's record row says WON. Read at 412 px portrait and
+      1440 px, with a citadel raid played in the browser from the map through
+      the victory to the menu.
+
+      *The measurement.* THE ROAD TO THE CAPITAL, rerun with the commander
+      taking the roads and then the citadel: the grown army wins the war on
+      day 13 (China, Russia, the UN), 14 (the USA) or 16 (the KPA), a day
+      or two after reaching the stronghold, and ends at the sixteenth rung
+      as before. The reference force never reaches the stronghold.
+
+      *The gate.* 738 unit tests, twenty of them new, and the 24 e2e
+      harnesses, which passed unchanged on the first batch.
+
+      *What it hands on.* 4c, the last stand at your own capital. And a won
+      war is a state with a date, which is what M28 needs.
 
 ## M26 — "Asymmetry": factions become different games
 
@@ -5875,6 +5979,12 @@ chosen for an army that grows four men a rung: one that does reaches the
 stronghold in twelve to fifteen days of daily raiding, and one that does not
 stops near the ninth rung. A town the depots cannot feed holds, so the road ends
 where the supply line does. 4b, the capital and a war won, is next.*
+
+*M25 Phase 4b (v1.57.0) made the war winnable. The stronghold falls to its three
+roads and then its citadel, whose strength is each faction's, tuned so the whole
+army takes it about half the time; its fall wins the war, dated and paid, and the
+war goes on into the enemy's rear. A grown army wins in thirteen to sixteen days.
+4c, the last stand at your own capital, is what is left of M25.*
 
 **Do M22 before any content overhaul.** M24, M25 and M26 all re-tune on top of the
 combat model. Tuning them against the sponge and then again against the kill chain

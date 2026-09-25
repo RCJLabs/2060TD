@@ -1276,3 +1276,17 @@ here with the change and its date.
   it in. If not, the win pays and counts, and the pushes hold at two until they
   can. The depths Phase 3 put on the depots are a ceiling now, and a town with
   no depots at all cannot take the first town.
+- 2026-09-25 — **The war can be won: the enemy's capital falls to its roads and
+  its citadel (M25 Phase 4b, v1.57.0).** The stronghold is not taken by any three
+  wins. Each of its three roads has to fall once, a second win on one paying and
+  counting for nothing more, and then the citadel is in range: the enemy's
+  headquarters, a shape dealt nowhere else, two rings with every gun dug in at the
+  full level and the richest stores on the board. Its first fall wins the war,
+  dated, and pays IRON's season placement. Nothing resets: the front goes on into
+  the enemy's rear as far as the depots can feed it, and if they cannot feed the
+  stronghold the war is won all the same and the front holds there. Two things the
+  measurement decided. The citadel's strength is the faction's, as the deal is: at
+  one strength the USA's and China's tank columns took nearly every layout and the
+  UN's armour none, so each faction's guns and layout were chosen together, and
+  every citadel is taken 38-71% of the time by 62 men of the 66 a built town
+  fields. And a grown army, raiding daily, wins in thirteen to sixteen days.

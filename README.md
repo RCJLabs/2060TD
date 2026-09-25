@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.56.0, in the browser. No install, no account, works on a phone.
+v1.57.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,31 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.56.0: the road to the stronghold
+## Current state — v1.57.0: the war can be won
+
+**The enemy's stronghold is its capital.** Three wins no longer take it. Each of its three roads
+has to fall once. You can raid a road you've already taken for loot and standing, but it doesn't
+count again. Once all three roads have fallen, the **citadel** comes into range: the enemy's
+headquarters, a fourth target you won't meet anywhere else. It has two rings of wall with the
+inner gate at the back, every gun dug in at full strength, and the richest stores in the game.
+It's tuned so your whole army can take it about half the time: around 62 of the 66 men a fully
+built town can field.
+
+**Take the citadel and the war is won.** A victory screen marks the day, and you're paid like a
+top-band season finish: 4,000 supplies, 700 fuel and 400 intel. The service record and the war
+menu show the war as won (`WON DAY 43`).
+
+**And the war goes on.** Nothing resets. The front moves into the enemy's rear, where any three
+wins take a town again, as far as your depots can feed it. If they can't feed the stronghold
+yet, the war is still won, and the front holds there until they can. If the enemy pushes you back
+out of the stronghold, you lose the roads you'd taken, but a war you've won stays won.
+
+**Where you see it.** The theater map marks each road TAKEN as it falls and draws the citadel as
+its own walled row past the stronghold. Once the citadel is in range, the raid planner opens on
+it. Each faction's citadel is tuned to its own army: raiding daily with an army that grows as it
+climbs, every faction wins the war in 13 to 16 days.
+
+## v1.56.0: the road to the stronghold
 
 **The climb to the enemy's stronghold is tuned.** Until now only the first five rungs of the
 Front Line were tuned, and every rung past the fifth reused rung 5's posts on different ground,
