@@ -61,7 +61,7 @@ const ARMOR_NAMES: Record<ArmorClass, string> = {
 /** The classes a DEFENCE ever shoots at: attackers, never buildings. */
 const TARGET_CLASSES: ArmorClass[] = ['none', 'light', 'heavy', 'air'];
 
-const DAMAGE_NAMES: Record<Weapon['damageType'], string> = {
+export const DAMAGE_NAMES: Record<Weapon['damageType'], string> = {
   smallArms: 'SMALL ARMS',
   kinetic: 'KINETIC',
   explosive: 'EXPLOSIVE',

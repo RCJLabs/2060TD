@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.62.1, in the browser. No install, no account, works on a phone.
+v1.63.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,21 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.62.1: field guns one mission sooner, and fixes
+## Current state — v1.63.0: the after-action report
+
+**Every raid now has a report.** Tap REPORT on the raid result, or AFTER ACTION REPORT while
+watching a raid again, to see:
+
+- **What killed your men:** each enemy emplacement, minefield or strike, how many it killed, and
+  with what (small arms, explosive, shaped charge and so on).
+- **What each squad did:** how many came back, what it lost and to what, and how its time went:
+  on the move, cutting the wire, in the fight, at the post, stuck or pinned down.
+- **How the command post fell,** or where the attack stalled: the second each stage of the
+  assault (breach, suppress, charge, burn) was done.
+
+Nothing about how raids play has changed. The report re-runs the same battle to read it.
+
+## v1.62.1: field guns one mission sooner, and fixes
 
 - **The machine gun and the foxhole come one mission sooner**, with mission 1's reward, so mission 2
   ("learn to spend Command Points") has something to spend them on. Claymores and HESCOs move up

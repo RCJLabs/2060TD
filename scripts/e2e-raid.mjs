@@ -268,6 +268,27 @@ try {
   );
   await page.screenshot({ path: 'screenshots/e2e-raid-result.png' });
 
+  // ---- the after-action report (M29) ----------------------------------------
+  // The raid fought again for what the result leaves out: what killed the
+  // force, what each squad did, when the chain fell. It closes back onto the
+  // result, which is where WATCH REPLAY lives.
+  const reported = await tap('REPORT', 1200);
+  check('the result offers the after-action report', reported, '');
+  const card = (await texts()).join('\n');
+  check(
+    'and the report names what killed them, the squads and the chain',
+    /WHAT KILLED THEM/.test(card) && /THE SQUADS/.test(card) && /THE CHAIN/.test(card),
+    card.replace(/\s+/g, ' ').slice(0, 120),
+  );
+  check('and every squad that went in has a line', /\d+ of \d+ back/.test(card), '');
+  await page.screenshot({ path: 'screenshots/e2e-raid-report.png' });
+  await tap('CLOSE', 800);
+  check(
+    'closing it goes back to the result',
+    /COMMAND POST DESTROYED|RAID REPELLED/i.test(await copy(/COMMAND POST|RAID REPELLED/i)),
+    '',
+  );
+
   // ---- and the footage plays ----------------------------------------------
   const offered = await tap('WATCH REPLAY', 1500);
   check('the report offers the footage', offered, '');
@@ -277,6 +298,14 @@ try {
     offered && (await until(async () => /REPLAY —/i.test((await texts()).join('\n')), 15000));
   check('the replay runs a clock', playing, await copy(/T\+\d+s/i));
   await page.screenshot({ path: 'screenshots/e2e-raid-replay.png' });
+  // The footage carries the same report, fought from the config it is playing.
+  const again = await tap('AFTER ACTION REPORT', 1200);
+  check(
+    'the footage offers the same report',
+    again && /WHAT KILLED THEM/.test((await texts()).join('\n')),
+    '',
+  );
+  await tap('CLOSE', 800);
   // And it ends on a verdict, set as written over the middle of the board.
   await page.keyboard.press('Space'); // skip to the end
   const verdictRe = /COMMAND POST DESTROYED|RAID REPELLED|WITHDRAWN/;

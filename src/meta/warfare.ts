@@ -37,6 +37,7 @@ import type {
   CellIndex,
   Doctrine,
   SimConfig,
+  SimEvent,
   WaveDef,
   WaveEntry,
 } from '../sim/types';
@@ -618,6 +619,41 @@ export const FLAT_PAYOUT: LootPayout = { supplies: 1, fuel: 1 };
  * today's condition, and the battle report has to show the number that
  * actually reaches the depot, not the sticker price.
  */
+/**
+ * Fight a raid's engine to its end: the post taken or held, the clock, or a
+ * lesser objective filled. The one loop every raid goes through, so a report
+ * that fights one again (M29) gets the battle its resolution got; `observe`
+ * sees each tick's events as they happen. Call it before the first step.
+ */
+export function fightRaid(
+  engine: Engine,
+  config: SimConfig,
+  observe?: (events: SimEvent[]) => void,
+): { withdrew: boolean; watch: ReturnType<typeof watchObjective> } {
+  // What the raid came for, and what it takes (v1.24). Read once, from what
+  // the base is actually holding — a quota fixed against the starting count
+  // cannot be moved by the raid that is trying to fill it.
+  const objective = isObjectiveId(config.objective) ? config.objective : 'post';
+  /**
+   * A lesser objective ends the raid the moment it is filled, and that is the
+   * whole trade: you come home with the men you have left instead of feeding
+   * them to a post you were never going to take. Checked between steps rather
+   * than inside the engine, so no `Phase` is added and nothing in the sim has
+   * to know what a mission is.
+   */
+  const watch = watchObjective(objective, (cls) => engine.countStanding(cls));
+  let withdrew = false;
+  while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < RAID_MAX_TICKS) {
+    const events = engine.step();
+    observe?.(events);
+    if (watch.met()) {
+      withdrew = true;
+      break;
+    }
+  }
+  return { withdrew, watch };
+}
+
 export function resolveRaid(
   config: SimConfig,
   squads: SquadPlan[],
@@ -633,27 +669,8 @@ export function resolveRaid(
     initial.set(s.profile.kind, (initial.get(s.profile.kind) ?? 0) + 1);
   }
 
-  // What the raid came for, and what it takes (v1.24). Read once, from what
-  // the base is actually holding — a quota fixed against the starting count
-  // cannot be moved by the raid that is trying to fill it.
   const objective = isObjectiveId(config.objective) ? config.objective : 'post';
-  /**
-   * A lesser objective ends the raid the moment it is filled, and that is the
-   * whole trade: you come home with the men you have left instead of feeding
-   * them to a post you were never going to take. Checked between steps rather
-   * than inside the engine, so no `Phase` is added and nothing in the sim has
-   * to know what a mission is.
-   */
-  const watch = watchObjective(objective, (cls) => engine.countStanding(cls));
-
-  let withdrew = false;
-  while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < RAID_MAX_TICKS) {
-    engine.step();
-    if (watch.met()) {
-      withdrew = true;
-      break;
-    }
-  }
+  const { withdrew, watch } = fightRaid(engine, config);
 
   const survivors: Record<string, number> = {};
   for (const attacker of engine.attackers) {

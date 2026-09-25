@@ -1141,6 +1141,23 @@ than the one promoted or gutted since. Squads carry an explicit slot because the
 drops empty ones from the plan — without it, the third formation would come home as the
 second and inherit a stranger's record.
 
+### 5.6b The after-action report *(v1.63, M29)*
+
+A raid is a plan, so what a player needs after one is what to change. The result gives the
+headline: who came home, what fell, and where a failed assault stalled. REPORT gives the rest,
+on the result and on any raid watched again:
+
+- **What killed them.** Every death names the hit that caused it: the emplacement, mine or fire
+  mission, and its damage type. The report ranks them.
+- **The squads.** Each formation's men sent and back, what it lost and to what, and its battle
+  split by what most of its living men were doing: on the move, cutting the wire, in the fight,
+  at the post, stuck, pinned down.
+- **The chain.** The second each stage fell, and where a failed assault stalled and for how long.
+
+The report is not stored. A raid is its config, so the report is fought again when asked for,
+the same battle tick for tick, and a replay code carries everything it needs. Nothing in it
+changes a battle: the killing blow is kept on the unit that took it and read only when it dies.
+
 ### 5.7 Offline probes
 
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).

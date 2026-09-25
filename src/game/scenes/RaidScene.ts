@@ -85,6 +85,8 @@ import {
   type ObjectiveId,
 } from '../../meta/objectives';
 import { researchEffects } from '../../meta/town';
+import { afterAction } from '../../meta/afteraction';
+import { buildAfterActionCard } from '../afterActionCard';
 import type { AutoPowerRule } from '../../sim/types';
 import {
   ATTACKER_GLYPH_SPAN,
@@ -1113,11 +1115,38 @@ export class RaidScene extends Scene {
         });
       },
       0,
-      2,
+      3,
+    );
+    // What the resolution left out (M29): the raid fought again for the card,
+    // which closes back onto this report.
+    ov.footer(
+      'REPORT',
+      () => {
+        const config = this.lastConfig;
+        if (!config) return;
+        ov.close();
+        this.overlay = null;
+        const catalog = raidCatalogFor(this.town.faction);
+        this.overlay = buildAfterActionCard(this, afterAction(config, catalog), {
+          layout: this.layout,
+          title: this.base.name,
+          faction: this.town.faction,
+          catalog,
+          unit: (kind) => this.trainMeta[kind]?.short ?? kind,
+          chain: config.killChainVersion !== undefined,
+          onClose: () => {
+            this.overlay?.close();
+            this.overlay = null;
+            this.showResult(res, standingBefore);
+          },
+        });
+      },
+      1,
+      3,
     );
     // The raid that won the war goes on to say so (Phase 4b).
-    if (wonNow) ov.footer('THE WAR IS WON ▸', () => this.showVictory(), 1, 2);
-    else ov.footer('RETURN TO BASE', () => this.goHome(), 1, 2);
+    if (wonNow) ov.footer('THE WAR IS WON ▸', () => this.showVictory(), 2, 3);
+    else ov.footer('RETURN TO BASE', () => this.goHome(), 2, 3);
   }
 
   /**

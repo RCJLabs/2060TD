@@ -1380,3 +1380,12 @@ here with the change and its date.
   MG and the foxhole come with mission 1, the claymore and the HESCO with
   mission 2. A save grants every cleared mission's requisition on load, so a war
   part-way through gets what its missions give now.
+- 2026-09-25 — **The after-action report is fought again, not stored (M29 Phase 1,
+  v1.63.0).** What a raid's report needs, the sim knew and threw away: the killing
+  blow on each death, what each squad was doing every tick, and when each stage of
+  the kill chain fell. The killing blow is now kept on the attacker and carried on
+  `attackerDied`; nothing in the battle reads it, and the state hash does not name
+  it, so no battle moved. The rest is watched by fighting the raid again through
+  the one loop `resolveRaid` uses (`fightRaid`). So nothing is added to the save or
+  the resolution, a report costs milliseconds and is made when asked for, and any
+  raid with a replay code can have one.

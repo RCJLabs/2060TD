@@ -1,6 +1,9 @@
 import { clamp, Scene } from '../stage';
 import { music } from '../music';
-import { defenseCatalogFor, raidCatalogFor, type FactionId } from '../../content/factions';
+import { defenseCatalogFor, raidCatalogFor, trainMetaFor, type FactionId } from '../../content/factions';
+import { afterAction } from '../../meta/afteraction';
+import { buildAfterActionCard } from '../afterActionCard';
+import type { OverlayApi } from '../dom/overlay';
 import { DT, Engine } from '../../sim/engine';
 import { OBJECTIVES, isObjectiveId, watchObjective } from '../../meta/objectives';
 import type { SimConfig } from '../../sim/types';
@@ -44,6 +47,8 @@ export class ReplayScene extends Scene {
   private endShown = false;
   /** The verdict, over the middle of the board once the battle is over. */
   private stamp: SceneLabel | null = null;
+  /** The after-action card, while it is open. */
+  private overlay: OverlayApi | null = null;
 
   constructor() {
     super('replay');
@@ -55,6 +60,7 @@ export class ReplayScene extends Scene {
     this.speedMult = 2;
     this.endShown = false;
     this.stamp = null;
+    this.overlay = null;
   }
 
   create(): void {
@@ -108,6 +114,11 @@ export class ReplayScene extends Scene {
     this.board.applyLayout(this.layout, true);
     this.panel.applyLayout(this.layout);
     this.placeStamp();
+    // A card laid out for the old screen is closed rather than left wrong.
+    if (this.overlay) {
+      this.overlay.close();
+      this.overlay = null;
+    }
   }
 
   private placeStamp(): void {
@@ -130,9 +141,32 @@ export class ReplayScene extends Scene {
         },
       },
       { id: 'skip', label: 'SKIP TO END', sub: '[SPACE]', onTap: () => this.skipToEnd() },
+      // A raid's report (M29), fought from the same config this is playing.
+      ...(this.replay.kind === 'raid'
+        ? [{ id: 'report', label: 'AFTER ACTION REPORT', onTap: () => this.showReport() }]
+        : []),
       { id: 'fit', label: 'FIT VIEW', onTap: () => this.board.fit() },
       { id: 'back', label: 'BACK', sub: '[ESC]', onTap: () => this.goBack() },
     ];
+  }
+
+  private showReport(): void {
+    if (this.overlay) return;
+    const faction = this.replay.faction ?? 'usa';
+    const catalog = raidCatalogFor(faction);
+    const meta = trainMetaFor(faction);
+    this.overlay = buildAfterActionCard(this, afterAction(this.replay.config, catalog), {
+      layout: this.layout,
+      title: this.replay.title,
+      faction,
+      catalog,
+      unit: (kind) => meta[kind]?.short ?? kind,
+      chain: this.replay.config.killChainVersion !== undefined,
+      onClose: () => {
+        this.overlay?.close();
+        this.overlay = null;
+      },
+    });
   }
 
   private cycleSpeed(): void {

@@ -5515,8 +5515,96 @@ and a COUNTERFACTUAL re-sim — "the same raid with one more breacher" — which
 deterministic engine can do for free. This is the cheapest way to make the
 planning half feel like skill, because it teaches.
 
-- [ ] **Phase 1 — surface what already exists.** `res.losses` carries per-kind
+- [x] **Phase 1 — surface what already exists.** `res.losses` carries per-kind
       death attribution and nothing shows it.
+
+      **The plan, from the survey.** *(Written against v1.62.1.)* The line
+      above is from the M22 audit and is out of date: the raid report has
+      shown losses by kind since then, and more besides. What it shows today
+      is what the resolution keeps:
+      - losses by kind, each squad's men back of men sent and its rank,
+      - on a repulse, the post's integrity and the kill-chain stage the raid
+        stalled at,
+      - destruction, loot, ordnance spent, reserves the garrison stood up,
+        and one line on how close it was.
+
+      What the sim knows while it runs and throws away is the rest of what
+      this milestone asks for:
+      - *What killed them.* Every point of damage an attacker takes comes
+        down one of four paths: a structure's gun, a mine, a shell, a fire
+        mission. Each knows at impact what fired it and its damage type, and
+        nothing keeps it. `attackerDied` carries an id and a place.
+      - *What each squad was doing.* Every attacker is stamped with its
+        squad and holds a state each tick (moving, cutting the wire,
+        engaging, assaulting, stuck) and may be pinned. The report keeps
+        none of it, so "which squad stalled and for how long" has no answer.
+      - *When the chain fell.* The engine knows each tick how many of the
+        four stages are done. The resolution keeps only the final count.
+
+      So Phase 1 keeps those three and shows them, with no change to how a
+      battle goes:
+      - **The killing blow, in the sim.** An attacker remembers the last hit
+        it took: what landed it (a structure's kind, or a power's) and the
+        damage type. A shell remembers the gun that fired it. `attackerDied`
+        carries both. The state hash names its fields, so no battle and no
+        replay code hashes differently. Tests: each of the four paths.
+      - **The report, in the war layer.** `afterAction(config, catalog)`
+        fights the raid again through the same loop `resolveRaid` uses, with
+        an observer, since a replay code already is the battle. It returns:
+        - what killed the force: each killer with its kills and damage type;
+        - each squad: men sent and back, losses by kind, what killed them,
+          and its battle split by what most of its living men were doing
+          each tick (moving, at the wire, engaging, in the assault, stuck,
+          pinned);
+        - the chain: the second each stage fell, and where it stalled and
+          for how long;
+        - every death, with its second, squad, killer and place, which is
+          the heat map's data (Phase 2).
+        Tested against `resolveRaid`: the same losses and returns, the
+        killers summing to the losses.
+      - **REPORT on the raid result**, beside WATCH REPLAY. A card in three
+        parts: WHAT STOPPED THEM, THE SQUADS, THE CHAIN. It is fought on the
+        tap, a fraction of a second, and nothing is added to the save. A
+        raid watched again from the vault or the replay gets it too, since
+        all it needs is the config.
+
+      Not in Phase 1: the heat map (Phase 2) and the re-run with one change
+      (Phase 3); and defence battles, whose report is a different question.
+
+      **What Phase 1 found.** *(Shipped in v1.63.0.)* It was built as planned:
+      - *The killing blow rides the sim.* An attacker keeps its last hit
+        (`lastHit`), a shell and a fire mission keep their `source`, and
+        `attackerDied` carries `by` and `damageType`. Each of the four paths
+        is tested. Nothing in the battle reads it and the state hash does
+        not name it, and the snapshot regenerated on this build is the
+        v1.62.0 one, row for row: no number moved.
+      - *One loop for every raid.* `fightRaid` runs a raid to its end, and
+        both `resolveRaid` and `afterAction` go through it. The report is
+        tested on three generated raids against `resolveRaid`: the same
+        length, end and men back; every man lost accounted for (the dead,
+        plus any still on the way in when it ended); the killers summing to
+        the dead; each squad's seconds inside the battle; the stages in
+        order; the same report every time. A report takes a few
+        milliseconds to fight.
+      - *One card.* REPORT on the raid result and AFTER ACTION REPORT on a
+        raid's replay open the same card (`afterActionCard.ts`): WHAT KILLED
+        THEM, THE SQUADS, THE CHAIN. The raid harness taps both.
+
+      *What the survey corrected.* The milestone's line says nothing shows
+      `res.losses`, but the result has shown losses by kind since before the
+      audit that wrote it. What was missing is what the plan above keeps.
+
+      *What Phase 2 inherits.* Every death has its second and its place
+      (`Death.at`), which is the heat map's data. Each squad's time is
+      already split by what it was doing, so where a squad was held up can
+      go on the map beside where it died.
+
+      *The gate.* 803 unit tests, 11 of them new: the four paths of the
+      killing blow and the last hit counting, and the report against the
+      resolution on three raids. The 24 e2e harnesses passed on the first
+      run, the raid harness with five new checks: REPORT on the result names
+      the three parts and every squad, closes back onto the result, and the
+      replay offers the same report.
 - [ ] **Phase 2 — a spatial heat map** over the board.
 - [ ] **Phase 3 — the counterfactual.** Re-run with one substitution, diff the
       outcome, show both.

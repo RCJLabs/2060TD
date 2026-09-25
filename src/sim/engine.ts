@@ -125,6 +125,12 @@ export interface Attacker {
    * is short of it. Always 0 on a chain that does not pin.
    */
   pinnedUntil: number;
+  /**
+   * The last hit it took (M29): what landed it, a structure's kind or a
+   * power's, and its damage type. Kept so its death can say what killed it;
+   * nothing in the battle reads it, and the state hash does not name it.
+   */
+  lastHit?: { by: string; type: DamageType };
 }
 
 /**
@@ -177,6 +183,8 @@ export interface Projectile {
   damage: number;
   damageType: DamageType;
   splashRadius: number;
+  /** The kind of the gun that fired it (M29), for the death it causes. */
+  source: string;
 }
 
 type ImpactShape =
@@ -188,6 +196,8 @@ interface PendingImpact {
   shape: ImpactShape;
   damage: number;
   damageType: DamageType;
+  /** The power that called it (M29), for the death it causes. */
+  source: string;
 }
 
 /**
@@ -1288,6 +1298,7 @@ export class Engine {
           },
           damage: def.pulseDamage,
           damageType: def.damageType,
+          source: kind,
         });
       }
     } else {
@@ -1304,6 +1315,7 @@ export class Engine {
           },
           damage: def.shellDamage,
           damageType: def.damageType,
+          source: kind,
         });
       }
     }
@@ -1340,11 +1352,13 @@ export class Engine {
     attacker: Attacker,
     raw: number,
     type: DamageType,
+    by: string,
     direct = true,
     roll = 1,
   ): void {
     const cover = direct ? this.terrain.cover(this.grid.cellAt(attacker.pos)) : 1;
     attacker.hp -= raw * roll * cover * this.catalog.damage[type][attacker.profile.armor];
+    attacker.lastHit = { by, type };
   }
 
   /**
@@ -1425,7 +1439,7 @@ export class Engine {
           if (attacker.hp <= 0 || attacker.profile.air) continue;
           if (inShape(shape, attacker.pos.x, attacker.pos.y)) {
             // A barrage lands where it lands; the canopy does not stop it.
-            this.damageAttacker(attacker, impact.damage, impact.damageType, false);
+            this.damageAttacker(attacker, impact.damage, impact.damageType, impact.source, false);
             this.pin(attacker);
           }
         }
@@ -1466,7 +1480,7 @@ export class Engine {
             const dx = attacker.pos.x - structure.center.x;
             const dy = attacker.pos.y - structure.center.y;
             if (dx * dx + dy * dy <= t.splashRadius * t.splashRadius) {
-              this.damageAttacker(attacker, t.damage * this.defWeaponMult, t.damageType, true, roll);
+              this.damageAttacker(attacker, t.damage * this.defWeaponMult, t.damageType, profile.kind, true, roll);
             }
           }
           events.push({ type: 'aoe', at: { ...structure.center }, radius: t.splashRadius });
@@ -1501,12 +1515,14 @@ export class Engine {
           damage: weapon.damage * mult,
           damageType: weapon.damageType,
           splashRadius: weapon.splashRadius ?? 0,
+          source: profile.kind,
         });
       } else {
         this.damageAttacker(
           target,
           weapon.damage * mult,
           weapon.damageType,
+          profile.kind,
           true,
           this.rollShot(),
         );
@@ -1657,7 +1673,7 @@ export class Engine {
         const dy = attacker.pos.y - shell.to.y;
         if (dx * dx + dy * dy <= shell.splashRadius * shell.splashRadius) {
           // Mortar splash, likewise: no cover against something that lobs.
-          this.damageAttacker(attacker, shell.damage, shell.damageType, false, roll);
+          this.damageAttacker(attacker, shell.damage, shell.damageType, shell.source, false, roll);
         }
       }
       events.push({ type: 'aoe', at: { ...shell.to }, radius: shell.splashRadius });
@@ -1669,7 +1685,12 @@ export class Engine {
     for (let i = this.attackers.length - 1; i >= 0; i--) {
       const attacker = this.attackers[i]!;
       if (attacker.hp > 0) continue;
-      events.push({ type: 'attackerDied', id: attacker.id, at: { ...attacker.pos } });
+      events.push({
+        type: 'attackerDied',
+        id: attacker.id,
+        at: { ...attacker.pos },
+        ...(attacker.lastHit ? { by: attacker.lastHit.by, damageType: attacker.lastHit.type } : {}),
+      });
       this.stats.kills++;
       if (this.siege) {
         this.cp = Math.min(this.siege.cpCap, this.cp + attacker.profile.cpValue);
