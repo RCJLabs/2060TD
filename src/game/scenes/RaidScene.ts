@@ -127,11 +127,32 @@ import { columnName, laneFor, strongholdTier, theaterFor } from '../../content/t
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
 import { sendGhost, type SendError } from '../../meta/ghost';
+import { beginFit, fitError, unitModsOf, type FitError } from '../../meta/armoury';
+import { FIT_HOURS, fitCost, pairFor, specialisationById } from '../../content/specialisations';
 import { edgeAtLaunch, officerOf, type CadreNews } from '../../meta/cadre';
 import { gradeFor, nextGrade, officerEdge, OFFICER_NAMES } from '../../content/officers';
 import type { SquadEdge } from '../../meta/counterfactual';
 import type { Doctrine } from '../../sim/types';
 import { showTextBox, textBoxOpen } from '../textbox';
+
+/** How long a specialisation stays armed for its second tap (M28 Phase 4). */
+const FIT_CONFIRM_MS = 3000;
+
+/**
+ * Why a specialisation cannot be fitted, as its row says it, by the facility
+ * that fits it. A choice the stores cannot cover shows its price instead.
+ */
+const FIT_BLOCKED: Record<TrainMeta['facility'], Partial<Record<NonNullable<FitError>, string>>> = {
+  barracks: { facility: 'NO BARRACKS', busy: 'BARRACKS BUSY' },
+  motorpool: { facility: 'NO MOTOR POOL', busy: 'MOTOR POOL BUSY' },
+  airfield: { facility: 'NO AIRFIELD', busy: 'AIRFIELD BUSY' },
+};
+
+/** A fitting's time left, as the planner counts it down: 1:04:09. */
+function fitClock(ms: number): string {
+  const s = Math.ceil(ms / 1000);
+  return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
 
 /** Why a ghost raid could not be sent (M27), as the planner's hint line says it. */
 const GHOST_REFUSED: Record<SendError, string> = {
@@ -246,6 +267,12 @@ export class RaidScene extends Scene {
    * fought went out (M28), for a what-if that changes one's orders.
    */
   private foughtEdge: SquadEdge | null = null;
+  /**
+   * A specialisation tapped once (M28 Phase 4). The choice is for good, so the
+   * first tap says what it closes, and only a second on the same row, before
+   * this runs out, fits it.
+   */
+  private armedFit: { kind: string; id: string; until: number } | null = null;
   /** Per-power fire plan: timing index into FIRE_TIMES + target class. */
   private firePlans: Record<string, { timeIndex: number; target: 'guns' | 'cc' }> = {};
   /** Tunnel siting mode: the selected squad awaits a map click for its mouth. */
@@ -812,6 +839,69 @@ export class RaidScene extends Scene {
     if (id !== null && queueTrain(this.town, id, kind, Date.now())) this.saveSoon();
   }
 
+  // ---- the armoury (M28 Phase 4) ----------------------------------------------------
+
+  /**
+   * Each unit's specialisations, under the training lines: its pair, with what
+   * each does and costs, or the one it chose, fitting or fitted.
+   */
+  private armouryRows(now: number): PanelRow[] {
+    const town = this.town;
+    const rows: PanelRow[] = [
+      { id: 'armoury', label: 'SPECIALISATIONS — ONE OF TWO FOR EACH UNIT, FOR GOOD', heading: true },
+    ];
+    for (const meta of this.trainable) {
+      const pair = pairFor(meta.kind);
+      if (!pair) continue;
+      const chosen = town.specs?.[meta.kind];
+      const spec = chosen ? specialisationById(chosen.id) : undefined;
+      if (chosen && spec) {
+        const left = chosen.readyAt - now;
+        rows.push({
+          id: `spec_${meta.kind}`,
+          label: `${meta.name.toUpperCase()}: ${spec.name} — ${spec.detail}`,
+          sub: left > 0 ? `FITTING · ${fitClock(left)}` : 'FITTED',
+          heading: true,
+        });
+        continue;
+      }
+      rows.push({ id: `spech_${meta.kind}`, label: meta.name.toUpperCase(), heading: true });
+      const cost = fitCost(meta);
+      const price = `${cost.supplies}S${cost.fuel > 0 ? `+${cost.fuel}F` : ''} ${FIT_HOURS[meta.facility]}H`;
+      for (const option of pair) {
+        const armed = this.armedFit?.id === option.id && this.armedFit.kind === meta.kind && this.armedFit.until > now;
+        const error = fitError(town, meta.kind, option.id, now);
+        rows.push({
+          id: `fit_${option.id}`,
+          label: `${option.name} — ${option.detail}`,
+          sub: armed ? 'AGAIN TO FIT ▸' : ((error && FIT_BLOCKED[meta.facility][error]) ?? price),
+          enabled: error === null && !this.result,
+          active: armed,
+          onTap: () => this.fit(meta, option.id),
+        });
+      }
+    }
+    return rows;
+  }
+
+  private fit(meta: TrainMeta, id: string): void {
+    const now = Date.now();
+    const spec = specialisationById(id);
+    const other = pairFor(meta.kind)?.find((s) => s.id !== id);
+    if (!spec || !other) return;
+    const armed = this.armedFit;
+    if (!armed || armed.kind !== meta.kind || armed.id !== id || armed.until <= now) {
+      this.armedFit = { kind: meta.kind, id, until: now + FIT_CONFIRM_MS };
+      this.hint(`FOR GOOD: ${other.name} CLOSES — TAP AGAIN`);
+      return;
+    }
+    this.armedFit = null;
+    if (!beginFit(this.town, meta.kind, id, now)) return;
+    haptic('commit');
+    this.hint(`FITTING ${spec.name} — READY IN ${FIT_HOURS[meta.facility]}H`);
+    this.saveSoon();
+  }
+
   // ---- launch ------------------------------------------------------------------------
 
   /** The armed fire plan, as sim rules (only powers with stock count). */
@@ -863,6 +953,8 @@ export class RaidScene extends Scene {
     // battle, prices the loot and pays the standing must be the same one.
     const now = Date.now();
     const fx = researchEffects(this.town);
+    // What has finished fitting goes with it (M28 Phase 4), duel or rung alike.
+    const unitMods = unitModsOf(this.town, now);
     // A duel is somebody's snapshot, not the front: no weather, no bonus.
     const condition = this.challenge ? undefined : conditionAt(now);
     const config = raidConfig(this.base, squads, now >>> 0, this.trainable, {
@@ -883,6 +975,7 @@ export class RaidScene extends Scene {
       ...(fx.unitHp !== 1 || fx.unitDamage !== 1
         ? { mods: { hp: fx.unitHp, damage: fx.unitDamage } }
         : {}),
+      ...(unitMods ? { unitMods } : {}),
       autoPowers: this.autoPowerRules(),
       powerCharges: { ...this.town.charges },
       ...(condition ? { condition } : {}),
@@ -1222,6 +1315,14 @@ export class RaidScene extends Scene {
     const ordnanceLine = Object.entries(res.powersUsed)
       .map(([kind, n]) => `${n}× ${kind.toUpperCase()}`)
       .join('  ');
+    // What went out specialised (M28 Phase 4): each kind sent that was fitted.
+    const fittedLine = Object.keys(this.lastConfig?.unitMods ?? {})
+      .filter((kind) => (res.deployed[kind] ?? 0) > 0)
+      .flatMap((kind) => {
+        const spec = specialisationById(this.town.specs?.[kind]?.id ?? '');
+        return spec ? [`${this.trainMeta[kind]?.short ?? kind} ${spec.name}`] : [];
+      })
+      .join('  ');
     // How the roll went (v1.23). A raid is no longer decided by its matchup,
     // so the report has to be able to say whether this one was close — and it
     // is read off different things either way round. Winning, the margin is
@@ -1292,6 +1393,7 @@ export class RaidScene extends Scene {
       `Loot: +${res.loot.supplies} SUP  +${res.loot.fuel} FUEL`,
       lossLine ? `Losses: ${lossLine}` : 'Losses: none',
       ...(this.squadReport ?? []),
+      ...(fittedLine ? [`Fitted: ${fittedLine}`] : []),
       ...(ordnanceLine ? [`Ordnance expended: ${ordnanceLine}`] : []),
       // What being slow bought them (v1.20). Only worth a line when it
       // actually happened — a raid fast enough to beat the reserve should
@@ -1608,6 +1710,7 @@ export class RaidScene extends Scene {
           }
         }
         rows.push({ id: 'q', label: queued.join('  ') || 'Training lines idle.', heading: true });
+        rows.push(...this.armouryRows(now));
         return rows;
       }
       case 'squads': {

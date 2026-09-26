@@ -41,6 +41,8 @@ import {
 } from '../src/meta/warfare';
 import { Engine } from '../src/sim/engine';
 import { CHINA_BASE_KIT, generateBase } from '../src/content/bases';
+import { SPECIALISATIONS } from '../src/content/specialisations';
+import { fromBase64Url } from '../src/meta/codec';
 
 /** M27 Phase 1: a commander's plan, sent as a code and fought on another's town. */
 
@@ -514,6 +516,97 @@ describe('collecting the result (M27)', () => {
       collected: [],
     });
     expect(normalizeGhosts(null)).toBeUndefined();
+  });
+});
+
+describe('a ghost’s specialisations (M28 Phase 4)', () => {
+  const [ARMOUR] = SPECIALISATIONS.line;
+  const [, AUTOLOADER] = SPECIALISATIONS.heavy;
+  /** A commander whose rangers and tanks were fitted before the ghost went out. */
+  const fittedCommander = (): TownState => {
+    const town = commander('usa', 'VIPER 43', ARMY);
+    town.specs = { ranger: { id: ARMOUR!.id, readyAt: T0 }, abrams: { id: AUTOLOADER!.id, readyAt: T0 } };
+    return town;
+  };
+
+  it('ride beside its research, and the defender fights the army as it was fitted', () => {
+    const attacker = fittedCommander();
+    const defender = bareTown('china', 'RED LANTERN');
+    const sent = sendGhost(attacker, targetOf(defender), structuredClone(MANY), T0 + 1_000);
+    expect(sent.ok).toBe(true);
+    if (!sent.ok) return;
+    expect(sent.ghost.unitMods).toEqual({ ranger: ARMOUR!.mods, abrams: AUTOLOADER!.mods });
+    const read = decodeGhost(sent.code);
+    expect(read.ok && read.ghost).toEqual(sent.ghost);
+    expect(ghostLedger(attacker).sent[0]!.unitMods).toEqual(sent.ghost.unitMods);
+    const taken = take(defender, sent.code);
+    expect(taken.config.unitMods).toEqual(sent.ghost.unitMods);
+    const got = collectGhost(attacker, taken.result, T0 + 3_000);
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(got.collected.won).toBe(!taken.held);
+    expect(got.collected.resolution.ticks).toBe(taken.resolution.ticks);
+    expect(got.collected.resolution.losses).toEqual(taken.resolution.losses);
+  });
+
+  it('are a newer code to a build from before them, and a ghost without them is the code it always was', () => {
+    const defender = bareTown('china', 'RED LANTERN');
+    expect(fromBase64Url(send(fittedCommander(), defender, FEW))![1]).toBe(2);
+    const plain = send(commander('usa', 'VIPER 43', ARMY), defender, FEW);
+    expect(fromBase64Url(plain)![1]).toBe(1);
+    expect(decodeGhost(plain).ok && (decodeGhost(plain) as { ok: true; ghost: Ghost }).ghost.unitMods).toBeUndefined();
+    // A fitting still under way is nothing yet.
+    const waiting = commander('usa', 'VIPER 43', ARMY);
+    waiting.specs = { ranger: { id: ARMOUR!.id, readyAt: T0 + DAY } };
+    expect(fromBase64Url(send(waiting, defender, FEW))![1]).toBe(1);
+  });
+
+  it('are the battle sent: a result with them changed or dropped is not', () => {
+    const attacker = fittedCommander();
+    const defender = walledTown('china', 'RED LANTERN');
+    const { result } = take(defender, send(attacker, defender, FEW));
+    const edits: [string, (r: ReturnType<typeof decodeOk>) => void][] = [
+      ['dropped', (r) => delete r.config.unitMods],
+      ['changed', (r) => (r.config.unitMods = { ranger: { damage: 1.25 } })],
+      ['added to', (r) => (r.config.unitMods = { ...r.config.unitMods, javelin: { range: 1.15 } })],
+    ];
+    for (const [name, edit] of edits) {
+      expect(collectGhost(structuredClone(attacker), tampered(result, edit), T0), name).toEqual({
+        ok: false,
+        error: 'tampered',
+      });
+    }
+    // And a ghost sent with none is not a battle fought with some.
+    const plain = commander('usa', 'VIPER 43', ARMY);
+    const other = take(walledTown('china', 'RED LANTERN'), send(plain, defender, FEW)).result;
+    const forged = tampered(other, (r) => (r.config.unitMods = { ranger: ARMOUR!.mods }));
+    expect(collectGhost(plain, forged, T0)).toEqual({ ok: false, error: 'tampered' });
+    expect(collectGhost(attacker, result, T0 + 3_000).ok).toBe(true);
+  });
+
+  it('survive the save while the ghost waits', () => {
+    const attacker = fittedCommander();
+    const code = send(attacker, walledTown('china', 'RED LANTERN'), FEW);
+    const back = deserialize(serialize(attacker))!;
+    expect(back.ghosts).toEqual(attacker.ghosts);
+    expect(back.ghosts!.sent[0]!.unitMods).toEqual({ ranger: ARMOUR!.mods, abrams: AUTOLOADER!.mods });
+    const { result } = take(walledTown('china', 'RED LANTERN'), code);
+    expect(collectGhost(back, result, T0 + 3_000).ok).toBe(true);
+    const sent = structuredClone(attacker.ghosts!.sent[0]!) as unknown as Record<string, unknown>;
+    expect(normalizeGhosts({ sent: [{ ...sent, unitMods: { ranger: { hp: 'lots' } } }] })!.sent).toEqual([]);
+    expect(normalizeGhosts({ sent: [{ ...sent, unitMods: 'none' }] })!.sent).toEqual([]);
+  });
+
+  it('refuses a fitting no army could field', () => {
+    const ghost = (decodeGhost(send(fittedCommander(), bareTown('china', 'RED LANTERN'), FEW)) as {
+      ok: true;
+      ghost: Ghost;
+    }).ghost;
+    const rewrite = (unitMods: Ghost['unitMods']): string => encodeGhost({ ...structuredClone(ghost), unitMods });
+    expect(decodeGhost(rewrite({ ranger: { hp: 5 } }))).toEqual({ ok: false, error: 'content' });
+    expect(decodeGhost(rewrite({ ranger: { speed: 0.2 } }))).toEqual({ ok: false, error: 'content' });
+    expect(decodeGhost(rewrite({ type99: { hp: 1.3 } }))).toEqual({ ok: false, error: 'content' });
+    expect(decodeGhost(rewrite({ ranger: { hp: 1.3, speed: 0.9 } })).ok).toBe(true);
   });
 });
 

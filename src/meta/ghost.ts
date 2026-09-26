@@ -7,14 +7,18 @@ import {
 } from '../content/factions';
 import { GHOST_BREACHED, GHOST_FAILED, GHOST_HELD, GHOST_WON } from '../content/leagues';
 import { SQUAD_SLOTS } from '../content/veterancy';
-import type { Catalog, Doctrine, SimConfig, WaveDef, WaveEntry } from '../sim/types';
+import type { Catalog, Doctrine, SimConfig, UnitMods, WaveDef, WaveEntry } from '../sim/types';
+import { unitModsOf } from './armoury';
 import {
+  canonicalUnitMods,
   checksum,
   fromBase64Url,
   getMilli,
   getString,
+  getUnitMods,
   putMilli,
   putString,
+  putUnitMods,
   readVarint,
   toBase64Url,
   writeVarint,
@@ -146,6 +150,11 @@ export interface Ghost {
   /** Each squad's men, sector, doctrine, start and rank, in slot order. */
   plan: SquadPlan[];
   mods: GhostMods;
+  /**
+   * The army's specialisations (M28 Phase 4), by kind, as a code carries
+   * them. Absent when nothing was fitted when it went out.
+   */
+  unitMods?: Record<string, UnitMods>;
   /** The sender's own base as a share code: what SEND ONE BACK raids. */
   base: string;
 }
@@ -183,15 +192,31 @@ export function ghostWave(ghost: Pick<Ghost, 'from' | 'plan'>): WaveDef {
 const GHOST_MAGIC = 0x9d;
 /** Bumped only when the byte layout changes; old codes are then refused. */
 const GHOST_FORMAT = 1;
+/**
+ * A ghost whose army was fitted (M28 Phase 4): the specialisations go in
+ * beside the research. Written only for a ghost that has them, so a build
+ * from before them refuses one as a newer code, and every other ghost is
+ * the code it always was.
+ */
+const GHOST_FITTED = 2;
+/**
+ * The widest a specialisation's multiplier may read. The table's are well
+ * inside it; a ghost's army is fought on somebody else's town, so a code
+ * that claims more was not written by the game.
+ */
+const FIT_RANGE = [0.5, 2] as const;
 
 export function encodeGhost(ghost: Ghost): string {
-  const body: number[] = [GHOST_MAGIC, GHOST_FORMAT, FACTION_IDS.indexOf(ghost.from.faction)];
+  const unitMods = canonicalUnitMods(ghost.unitMods);
+  const format = unitMods ? GHOST_FITTED : GHOST_FORMAT;
+  const body: number[] = [GHOST_MAGIC, format, FACTION_IDS.indexOf(ghost.from.faction)];
   putString(body, ghost.from.callsign);
   putString(body, ghost.to);
   writeVarint(body, ghost.id >>> 0);
   writeVarint(body, ghost.seed >>> 0);
   putMilli(body, ghost.mods.hp);
   putMilli(body, ghost.mods.damage);
+  if (unitMods) putUnitMods(body, unitMods, (kind) => putString(body, kind));
   body.push(ghost.plan.length);
   for (const squad of ghost.plan) {
     body.push(squad.slot ?? 0, SECTOR_IDS.indexOf(squad.sector), DOCTRINE_IDS.indexOf(squad.doctrine));
@@ -228,23 +253,37 @@ export function decodeGhost(raw: string): GhostDecode {
   if (checksum(body) !== expected) return bad('checksum');
 
   const cur: Cursor = { bytes: body, at: 0 };
-  if (body[cur.at++] !== GHOST_MAGIC || body[cur.at++] !== GHOST_FORMAT) return bad('version');
+  if (body[cur.at++] !== GHOST_MAGIC) return bad('version');
+  const format = body[cur.at++];
+  if (format !== GHOST_FORMAT && format !== GHOST_FITTED) return bad('version');
   const faction = FACTION_IDS[body[cur.at++]!];
   if (!faction) return bad('content');
+  const trainable = new Set(trainableFor(faction).map((t) => t.kind));
   const from = getString(cur);
   const to = getString(cur);
   const id = readVarint(cur);
   const seed = readVarint(cur);
   const hp = getMilli(cur);
   const damage = getMilli(cur);
-  const squadCount = body[cur.at++];
   if (from === null || to === null || id === null || seed === null) return bad('truncated');
-  if (hp === null || damage === null || squadCount === undefined) return bad('truncated');
+  if (hp === null || damage === null) return bad('truncated');
+  let unitMods: Record<string, UnitMods> | undefined;
+  if (format === GHOST_FITTED) {
+    const read = getUnitMods(cur, () => getString(cur));
+    if (typeof read === 'string') return bad(read);
+    // The sender's own units, fitted as a specialisation could fit them.
+    for (const [kind, m] of Object.entries(read)) {
+      if (!trainable.has(kind)) return bad('content');
+      if (Object.values(m).some((v) => v < FIT_RANGE[0] || v > FIT_RANGE[1])) return bad('content');
+    }
+    unitMods = read;
+  }
+  const squadCount = body[cur.at++];
+  if (squadCount === undefined) return bad('truncated');
   // A callsign reads back only as one is written; anything else was not written by the game.
   if (cleanCallsign(from) !== from || cleanCallsign(to) !== to) return bad('content');
   if (squadCount < 1 || squadCount > SQUAD_SLOTS) return bad('content');
 
-  const trainable = new Set(trainableFor(faction).map((t) => t.kind));
   const plan: SquadPlan[] = [];
   let men = 0;
   for (let i = 0; i < squadCount; i++) {
@@ -283,7 +322,16 @@ export function decodeGhost(raw: string): GhostDecode {
 
   return {
     ok: true,
-    ghost: { from: { callsign: from, faction }, to, id, seed, plan, mods: { hp, damage }, base },
+    ghost: {
+      from: { callsign: from, faction },
+      to,
+      id,
+      seed,
+      plan,
+      mods: { hp, damage },
+      ...(unitMods ? { unitMods } : {}),
+      base,
+    },
   };
 }
 
@@ -399,6 +447,8 @@ export function sendGhost(
   let id = (Math.floor(now / 1000) ^ Math.imul(ledger.sent.length + 1, 0x9e3779b1)) >>> 0;
   while (taken(id)) id = (id + 1) >>> 0;
   const fx = researchEffects(town);
+  // What has finished fitting by now goes; a fitting still under way does not.
+  const unitMods = unitModsOf(town, now);
   const code = encodeGhost({
     from: { callsign: from, faction: town.faction },
     to: target.name,
@@ -406,12 +456,22 @@ export function sendGhost(
     seed: now >>> 0,
     plan,
     mods: { hp: milli(fx.unitHp), damage: milli(fx.unitDamage) },
+    ...(unitMods ? { unitMods } : {}),
     base: encodeBase(town, from),
   });
   const read = decodeGhost(code);
   if (!read.ok) throw new Error(`a ghost code did not read back: ${read.error}`);
   const g = read.ghost;
-  ledger.sent.unshift({ from: g.from, to: g.to, id: g.id, seed: g.seed, plan: g.plan, mods: g.mods, at: now });
+  ledger.sent.unshift({
+    from: g.from,
+    to: g.to,
+    id: g.id,
+    seed: g.seed,
+    plan: g.plan,
+    mods: g.mods,
+    ...(g.unitMods ? { unitMods: g.unitMods } : {}),
+    at: now,
+  });
   ledger.sent.length = Math.min(ledger.sent.length, GHOST_SENT_CAP);
   return { ok: true, code, ghost: read.ghost };
 }
@@ -429,6 +489,7 @@ export function ghostCodeOf(town: TownState, sent: SentGhost): string {
     seed: sent.seed,
     plan: sent.plan,
     mods: sent.mods,
+    ...(sent.unitMods ? { unitMods: sent.unitMods } : {}),
     base: encodeBase(town, callsignOf(town)),
   });
 }
@@ -477,7 +538,7 @@ export function takeGhost(
   if (ledger.taken.includes(key)) return { ok: false, error: 'taken' };
 
   const title = `GHOST — ${ghost.from.callsign}`;
-  const config = ghostBattleConfig(town, title, ghostWave(ghost), ghost.mods, ghost.seed);
+  const config = ghostBattleConfig(town, title, ghostWave(ghost), ghost.mods, ghost.seed, ghost.unitMods);
   const resolution = resolveRaid(config, ghost.plan, 1, ghostCatalog(town.faction, ghost.from.faction), FLAT_PAYOUT);
   const held = !resolution.cleared;
   const standing = payToday(ledger, 'taken', now) ? (held ? GHOST_HELD : GHOST_BREACHED) : 0;
@@ -550,11 +611,15 @@ function menOf(wave: WaveDef | undefined): string {
   return JSON.stringify(rows);
 }
 
+/** Whether two armies were fitted alike, as their codes carry it. */
+const sameFit = (a: Record<string, UnitMods> | undefined, b: Record<string, UnitMods> | undefined): boolean =>
+  JSON.stringify(canonicalUnitMods(a) ?? null) === JSON.stringify(canonicalUnitMods(b) ?? null);
+
 /**
  * Is this the battle the ghost was? Its half of it, which is the half the
  * attacker can know: the same men on the same seconds at the same rank, the
- * same research, the same dice, nothing fired at it from a fire plan, and a
- * fight for the post to the end.
+ * same research and specialisations, the same dice, nothing fired at it from
+ * a fire plan, and a fight for the post to the end.
  */
 export function isGhostBattle(config: SimConfig, sent: SentGhost): boolean {
   const waves = config.siege?.waves ?? [];
@@ -566,7 +631,8 @@ export function isGhostBattle(config: SimConfig, sent: SentGhost): boolean {
     config.objective === undefined &&
     config.autoPowers === undefined &&
     (config.mods?.attacker?.hp ?? 1) === sent.mods.hp &&
-    (config.mods?.attacker?.damage ?? 1) === sent.mods.damage
+    (config.mods?.attacker?.damage ?? 1) === sent.mods.damage &&
+    sameFit(config.unitMods, sent.unitMods)
   );
 }
 
@@ -662,6 +728,19 @@ function readPlan(raw: unknown): SquadPlan[] | null {
   return plan;
 }
 
+/**
+ * Specialisations off disk: absent stays absent, and anything that is not
+ * kinds of multipliers is null, which drops the ghost it came with.
+ */
+function readFit(raw: unknown): Record<string, UnitMods> | undefined | null {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  for (const m of Object.values(raw)) {
+    if (!m || typeof m !== 'object' || Object.values(m).some((v) => !isMult(v))) return null;
+  }
+  return canonicalUnitMods(raw as Record<string, UnitMods>);
+}
+
 function readSent(raw: unknown): SentGhost | null {
   const s = (raw ?? {}) as Partial<SentGhost>;
   const from = s.from as Partial<SentGhost['from']> | undefined;
@@ -672,6 +751,8 @@ function readSent(raw: unknown): SentGhost | null {
   if (!mods || !isMult(mods.hp) || !isMult(mods.damage)) return null;
   const plan = readPlan(s.plan);
   if (!plan) return null;
+  const unitMods = readFit(s.unitMods);
+  if (unitMods === null) return null;
   return {
     from: { callsign: from.callsign, faction: from.faction as FactionId },
     to: s.to,
@@ -679,6 +760,7 @@ function readSent(raw: unknown): SentGhost | null {
     seed: s.seed,
     plan,
     mods: { hp: mods.hp, damage: mods.damage },
+    ...(unitMods ? { unitMods } : {}),
     at: s.at,
   };
 }

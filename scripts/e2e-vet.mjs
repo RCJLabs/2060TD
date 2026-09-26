@@ -12,6 +12,13 @@ import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const PORT = 5206;
+/**
+ * The showcase's ground is made from the moment it loads, and a barracks sited
+ * in its river is not built: so on some loads the showcase has no barracks,
+ * and nothing to fit a specialisation at. The clock is pinned to a moment
+ * whose showcase has one, which also makes every raid below the same battle.
+ */
+const AT = Date.UTC(2026, 0, 7, 9);
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
   stdio: 'ignore',
   detached: true,
@@ -173,6 +180,7 @@ try {
     (await texts()).some((t) => t.toUpperCase().includes(needle.toUpperCase()));
 
   mkdirSync('screenshots', { recursive: true });
+  await page.clock.setFixedTime(new Date(AT));
   await page.goto(`http://localhost:${PORT}/?demo=raid`, { waitUntil: 'networkidle' });
   await wait(2500);
 
@@ -299,6 +307,35 @@ try {
   );
   await tap('CLEAR SQUAD', 400);
 
+  // ---- the armoury (M28 Phase 4) -------------------------------------------------
+  // Each unit a choice of two specialisations, for good, paid in supplies and a
+  // fitting at the facility that trains it. The clock is held still, so the
+  // fitting's countdown is a number this can read, and then moved past it.
+  const supplies = async () => {
+    const line = (await texts()).find((t) => /SUP \d+/.test(t)) ?? '';
+    return Number((/SUP (\d+)/.exec(line) ?? [])[1] ?? NaN);
+  };
+  await tap('MUSTER', 700);
+  const offer = await subOf('BODY ARMOUR');
+  check('under the training lines, each unit offers its pair with the price', offer === '600S 2H', offer);
+  check('and says what each side does', /BODY ARMOUR — \+\d+% health, 10% slower/.test(await rowLike('BODY ARMOUR')), await rowLike('BODY ARMOUR'));
+  const before = await supplies();
+  await tap('BODY ARMOUR', 700);
+  check('the first tap only says what the choice closes', await copyHas('FOR GOOD: ASSAULT KIT CLOSES'), '');
+  check('and asks for a second', /AGAIN TO FIT/.test(await subOf('BODY ARMOUR')), await subOf('BODY ARMOUR'));
+  check('nothing is spent on the first tap', (await supplies()) === before, `${before} -> ${await supplies()}`);
+  await tap('BODY ARMOUR', 700);
+  const fitting = (await texts()).find((t) => /RANGER SQUAD: BODY ARMOUR/.test(t)) ?? '';
+  check('the second fits it, and the row counts the fitting down', /FITTING · 2:00:00/.test(fitting), fitting);
+  check('and the pair is closed for good', (await find('ASSAULT KIT')) === null && (await find('BODY ARMOUR')) === null, '');
+  check('paid for in supplies', before - (await supplies()) === 600, `${before} -> ${await supplies()}`);
+  await page.screenshot({ path: `screenshots/e2e-vet-armoury${isMobile ? '-phone' : ''}.png` });
+  await page.clock.setFixedTime(new Date(AT + 2 * 3_600_000 + 5_000));
+  await settle();
+  const fitted = (await texts()).find((t) => /RANGER SQUAD: BODY ARMOUR/.test(t)) ?? '';
+  check('two hours on, it is fitted', /· FITTED$/.test(fitted), fitted);
+  await tap('SQUADS', 700);
+
   // ---- the report names who came back -------------------------------------------
   await tap('+ RANGER', 300);
   await tap('+ RANGER', 300);
@@ -323,6 +360,8 @@ try {
     /·\s*(GRN|LN|VET|CDR)/.test(squadLines[0] ?? ''),
     '',
   );
+  // The rangers went out in the armour fitted above, and the report says so.
+  check('and the specialisation the rangers went out fitted with', await copyHas('Fitted: RGR BODY ARMOUR'), '');
   await page.screenshot({ path: `screenshots/e2e-vet-report${isMobile ? '-phone' : ''}.png` });
 
   await browser.close();

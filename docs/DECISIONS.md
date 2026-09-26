@@ -1556,3 +1556,26 @@ here with the change and its date.
   jolt and the buzz. The mix's view is never counted wider than the board: on
   a wide screen the whole board sat in the middle of the pan range, and every
   sound of a central fight came out centre.
+- 2026-09-26 — **Every unit a war trains can take one of two specialisations,
+  for good (M28 Phase 4, v1.73.0).** Settled with the commander: a pair for
+  each unit, one side chosen per war for good; paid in supplies, fuel and a
+  fitting of two to four hours at the facility that trains the unit; and
+  everywhere research goes, which is ladder raids, duels, ghost raids and all
+  their replays. The pairs belong to roles, so every army's heavy tank
+  chooses between the same two: armour or firepower for the line infantry,
+  the vehicles and the gunship, armour or speed for the swarm, damage to
+  walls or speed for the breacher, damage or range for the ranged teams,
+  healing or armour for the medic. A fitting costs ten times the unit's
+  training price, one at a time at each kind of facility, and serves every
+  unit of its kind from then on. The battle is told multipliers, not names,
+  to the thousandth, and the engine builds each fitted kind's profile once,
+  so a replay re-fights what was fitted whatever the table says later.
+  Measured, then tuned: at the first guess of +25-30%, each army's whole set
+  was worth up to one and a half times the STRIKE branch's first two tiers,
+  and armour, range and the pylons won most of their pairs outright. At
+  +10-35% the whole set is worth 0.74-1.06 times those tiers, and neither
+  side of any role's pair wins on every plan that fields it. Replay codes
+  carry the numbers behind a seventh bit in the rules block and ghost codes
+  as a format 2, so a build from before either refuses them as newer codes
+  rather than re-fighting a different battle, and codes without them are
+  unchanged.

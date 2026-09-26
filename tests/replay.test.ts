@@ -21,6 +21,7 @@ import {
   encodeReplay,
   replayFingerprint,
 } from '../src/meta/replaycode';
+import { checksum, fromBase64Url, toBase64Url } from '../src/meta/codec';
 import {
   fileCode,
   normalizeVault,
@@ -256,6 +257,82 @@ describe('a replay code is the battle', () => {
     expect(code.length).toBeLessThan(JSON.stringify(config).length / 4);
     // Long, but a paste rather than a file: a whole battle in one line.
     expect(code.length).toBeLessThan(1200);
+  });
+});
+
+describe('the specialisations a raid went out with (M28 Phase 4)', () => {
+  const SPECS = { ranger: { hp: 1.25, speed: 0.9 }, abrams: { damage: 1.25 }, engineer: { wall: 1.4 } };
+  const fitted = (): SimConfig => ({ ...raidFixture(), unitMods: structuredClone(SPECS) });
+  const code = (config: SimConfig): string =>
+    encodeReplay({ kind: 'raid', faction: 'usa', title: 'GRID 4-1', won: true, config });
+  /** A code's bytes with its body edited and its checksum made good again. */
+  const retouched = (bytes: number[], edit: (body: number[]) => void): string => {
+    const body = bytes.slice(0, -2);
+    edit(body);
+    const sum = checksum(body);
+    return toBase64Url([...body, sum & 0xff, (sum >> 8) & 0xff]);
+  };
+
+  it('are carried, and the raid re-fights with them', () => {
+    const config = fitted();
+    const back = decodeReplay(code(config));
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.unitMods).toEqual(SPECS);
+    expect(outcome(back.replay.config, RAID_CATALOG)).toBe(outcome(config, RAID_CATALOG));
+    // And they are what makes it that battle.
+    expect(outcome(raidFixture(), RAID_CATALOG)).not.toBe(outcome(config, RAID_CATALOG));
+  });
+
+  it('are one run of bytes however the army was fitted, and nothing for a raid with none', () => {
+    const plain = raidFixture();
+    expect(code({ ...plain, unitMods: {} })).toBe(code(plain));
+    expect(code({ ...plain, unitMods: { ranger: { hp: 1 } } })).toBe(code(plain));
+    const shuffled = { engineer: { hp: 1, wall: 1.4 }, abrams: { damage: 1.25 }, ranger: { speed: 0.9, hp: 1.25 } };
+    expect(code({ ...plain, unitMods: shuffled })).toBe(code(fitted()));
+    const back = decodeReplay(code(plain));
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.unitMods).toBeUndefined();
+  });
+
+  it('go in a duel and a ghost battle as in a raid', () => {
+    for (const kind of ['duel', 'ghost'] as const) {
+      const config = fitted();
+      const ghost =
+        kind === 'ghost'
+          ? { ghost: { attacker: 'usa' as const, attackerCallsign: 'VIPER 43', defenderCallsign: 'RED LANTERN', id: 9 } }
+          : {};
+      const back = decodeReplay(encodeReplay({ kind, faction: 'usa', title: 'X', won: true, config, ...ghost }));
+      if (!back.ok) throw new Error(`${kind} did not decode`);
+      expect(back.replay.config.unitMods, kind).toEqual(SPECS);
+      expect(outcome(back.replay.config, RAID_CATALOG), kind).toBe(outcome(config, RAID_CATALOG));
+    }
+  });
+
+  it('are a newer code to a build from before them, and so is a field this build does not know', () => {
+    const plain = fromBase64Url(code(raidFixture()))!;
+    const one = fromBase64Url(code({ ...raidFixture(), unitMods: { ranger: { damage: 1.25 } } }))!;
+    // The same battle up to where the code without them ends, then the rules byte...
+    const end = plain.length - 2;
+    expect(one.slice(0, end)).toEqual(plain.slice(0, end));
+    // ...naming a bit no build before M28 Phase 4 knew: those read 1 to 32 and refuse the rest.
+    expect(one[end]! & ~(1 | 2 | 4 | 8 | 16 | 32)).not.toBe(0);
+    // One kind, its name, a bit for each field it changes, then the damage in two bytes.
+    const mask = one.length - 2 - 2 - 1;
+    expect(one[mask]).toBe(2);
+    expect(decodeReplay(retouched(one, (body) => (body[mask] = 2 | 128)))).toEqual({ ok: false, error: 'version' });
+    expect(decodeReplay(retouched(one, (body) => (body[mask] = 0)))).toEqual({ ok: false, error: 'content' });
+    expect(decodeReplay(retouched(one, (body) => (body[end + 1] = 0)))).toEqual({ ok: false, error: 'content' });
+  });
+
+  it('refuses a kind named twice or out of order, as the writer never writes one', () => {
+    const two = fromBase64Url(code({ ...raidFixture(), unitMods: { abrams: { damage: 1.25 }, ranger: { damage: 1.25 } } }))!;
+    // [count, abrams, mask, damage x2, ranger, mask, damage x2]: swap the names.
+    const ranger = two.length - 2 - 2 - 1 - 1;
+    const abrams = ranger - 2 - 1 - 1;
+    const swapped = retouched(two, (body) => ([body[abrams], body[ranger]] = [body[ranger]!, body[abrams]!]));
+    expect(decodeReplay(swapped)).toEqual({ ok: false, error: 'content' });
+    const twice = retouched(two, (body) => (body[ranger] = body[abrams]!));
+    expect(decodeReplay(twice)).toEqual({ ok: false, error: 'content' });
   });
 });
 

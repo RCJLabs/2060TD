@@ -7,6 +7,8 @@
  * same primitives, so they live here rather than being written twice.
  */
 
+import type { UnitMods } from '../sim/types';
+
 /** How a paste can fail. Every code kind fails the same handful of ways. */
 export type CodeError =
   | 'empty'
@@ -120,4 +122,98 @@ export function getString(cur: Cursor): string | null {
   const bytes = Uint8Array.from(cur.bytes.slice(cur.at, cur.at + length));
   cur.at += length;
   return FROM_UTF8.decode(bytes);
+}
+
+// ---- specialisations ---------------------------------------------------------------
+
+/**
+ * A war's specialisations (M28 Phase 4), as the replay and ghost codes both
+ * carry them: how many kinds, then each kind's name (named as its code names
+ * kinds), a bit for each field it changes, in this order, and those fields to
+ * the thousandth.
+ */
+const UNIT_MOD_FIELDS = ['hp', 'damage', 'speed', 'range', 'wall', 'heal'] as const;
+const UNIT_MOD_BITS = (1 << UNIT_MOD_FIELDS.length) - 1;
+/** More kinds than any army trains, and a bound on a mangled paste. */
+const MAX_UNIT_MOD_KINDS = 32;
+
+/**
+ * Specialisations as a code carries them: each field to the thousandth, a
+ * field of 1 and a kind left with nothing dropped, the kinds in name order.
+ * So one army's fittings are one run of bytes however the object holding
+ * them was built, and a battle fought with them is the one its code
+ * re-fights. Undefined when nothing is left, which is how a code with none
+ * reads back.
+ */
+export function canonicalUnitMods(
+  mods: Readonly<Record<string, UnitMods>> | undefined,
+): Record<string, UnitMods> | undefined {
+  if (!mods) return undefined;
+  const out: Record<string, UnitMods> = {};
+  for (const kind of Object.keys(mods).sort()) {
+    const kept: UnitMods = {};
+    for (const field of UNIT_MOD_FIELDS) {
+      const value = mods[kind]?.[field];
+      if (value === undefined) continue;
+      const milli = Math.round(value * MILLI) / MILLI;
+      if (milli !== 1) kept[field] = milli;
+    }
+    if (Object.keys(kept).length > 0) out[kind] = kept;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Write `canonicalUnitMods`'s result, each kind named by `putKind`. */
+export function putUnitMods(
+  out: number[],
+  mods: Readonly<Record<string, UnitMods>>,
+  putKind: (kind: string) => void,
+): void {
+  const kinds = Object.keys(mods);
+  writeVarint(out, kinds.length);
+  for (const kind of kinds) {
+    const m = mods[kind]!;
+    putKind(kind);
+    out.push(UNIT_MOD_FIELDS.reduce((mask, field, bit) => (m[field] !== undefined ? mask | (1 << bit) : mask), 0));
+    for (const field of UNIT_MOD_FIELDS) {
+      const value = m[field];
+      if (value === undefined) continue;
+      if (!(value > 0) || !Number.isFinite(value)) {
+        throw new Error(`a specialisation multiplies ${kind}'s ${field} by more than nothing, not ${value}`);
+      }
+      putMilli(out, value);
+    }
+  }
+}
+
+/**
+ * Read specialisations back, refusing anything `putUnitMods` would not have
+ * written: kinds out of name order or named twice, a kind changing nothing,
+ * a field of 0 or 1. A field this reader does not know is one it cannot
+ * fight, so that code is newer than the reader, not damaged.
+ */
+export function getUnitMods(cur: Cursor, getKind: () => string | null): Record<string, UnitMods> | CodeError {
+  const count = readVarint(cur);
+  if (count === null) return 'truncated';
+  if (count < 1 || count > MAX_UNIT_MOD_KINDS) return 'content';
+  const out: Record<string, UnitMods> = {};
+  let last = '';
+  for (let i = 0; i < count; i++) {
+    const kind = getKind();
+    const mask = cur.bytes[cur.at++];
+    if (kind === null || mask === undefined) return 'truncated';
+    if ((mask & ~UNIT_MOD_BITS) !== 0) return 'version';
+    if (mask === 0 || (i > 0 && kind <= last)) return 'content';
+    last = kind;
+    const m: UnitMods = {};
+    for (let bit = 0; bit < UNIT_MOD_FIELDS.length; bit++) {
+      if ((mask & (1 << bit)) === 0) continue;
+      const value = getMilli(cur);
+      if (value === null) return 'truncated';
+      if (value === 0 || value === 1) return 'content';
+      m[UNIT_MOD_FIELDS[bit]!] = value;
+    }
+    out[kind] = m;
+  }
+  return out;
 }

@@ -15,6 +15,7 @@ import { normalizePlan } from './warfare';
 import { cleanCallsign, normalizeGhosts } from './ghost';
 import { normalizeCadre, promoteDue } from './cadre';
 import { normalizeHeadStart } from './career';
+import { normalizeSpecs } from './armoury';
 import { doctrineOf, TECH_BRANCHES, type TechBranch } from '../content/research';
 import { normalizeContracts } from './contracts';
 import {
@@ -299,6 +300,10 @@ export function deserialize(json: string): TownState | null {
     const headStart = normalizeHeadStart(town.headStart, town.lastSeen);
     if (headStart) town.headStart = headStart;
     else delete town.headStart;
+    // Specialisations arrived with M28 Phase 4; a war saved before them has none.
+    const specs = normalizeSpecs(town.specs);
+    if (specs) town.specs = specs;
+    else delete town.specs;
     // The stored plan arrived in v1.16. Anything unrecognizable is dropped
     // here rather than at the planner, so what reaches the scene is a plan.
     town.lastPlan = normalizePlan(town.lastPlan);

@@ -20,7 +20,27 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.72.0: the score follows the fight
+## Current state — v1.73.0: specialisations
+
+**Every unit you train can now be specialised.** Each unit has a choice of two, and your war
+picks one for good: heavier armour or a bigger gun for tanks, light vehicles, riflemen and
+gunships, armour or speed for the swarm, charges for walls or speed for the sappers, damage or
+range for the anti-armour teams, healing or armour for the UN's medics.
+
+- **In the raid planner:** the MUSTER tab lists each unit's two specialisations with what each
+  does and costs. Tap one to see what it rules out, tap again to buy it.
+- **Supplies, fuel and a few hours:** ten times the unit's price, fitted over two hours at the
+  barracks, three at the motor pool or four at the airfield, one at a time at each.
+- **Everywhere your research counts:** ladder raids, duels, ghost raids and their replays. A
+  fitted specialisation serves every unit of its kind, and the raid report says what went out
+  fitted.
+- **Worth about two early research tiers:** an army with the right side of every pair is about as
+  much stronger as the first two STRIKE techs make it, and neither side is always the right one.
+
+Replays and ghost codes carry the specialisations, so a build from before this one refuses the
+codes that have them instead of showing a different battle.
+
+## v1.72.0: the score follows the fight
 
 **The battle music now follows the fight.** It plays four steps: calm when no one is on the board,
 tense when the enemy is on it, pressing when they close on your command post, and critical while

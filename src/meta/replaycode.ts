@@ -18,12 +18,15 @@ import type {
 } from '../sim/types';
 import { SPAWN_EDGES } from '../sim/types';
 import {
+  canonicalUnitMods,
   checksum,
   fromBase64Url,
   getMilli,
   getString,
+  getUnitMods,
   putMilli,
   putString,
+  putUnitMods,
   readVarint,
   toBase64Url,
   writeVarint,
@@ -58,9 +61,11 @@ const FORMAT = 1;
 /**
  * The faction rules a code may name (M26): the refund, the hulk, the post's
  * HP, the elite field kit, the emplacements' HP and the field defences' HP
- * (Phase 3).
+ * (Phase 3). And the attacking army's specialisations (M28 Phase 4), which
+ * ride in the same block because a reader that cannot fight them has to
+ * refuse the code the same way.
  */
-const SIGNATURE_BITS = 1 | 2 | 4 | 8 | 16 | 32;
+const SIGNATURE_BITS = 1 | 2 | 4 | 8 | 16 | 32 | 64;
 
 /** The coarsest board a code may name: a cell of eight physical units. */
 const MAX_CELL_SIZE = 8;
@@ -341,13 +346,16 @@ export function encodeReplay(replay: Replay): string {
   const elite = c.signature?.elite;
   const emplacementHp = c.mods?.defender?.emplacementHp ?? 1;
   const fieldHp = c.mods?.defender?.fieldHp ?? 1;
+  // The army's specialisations (M28 Phase 4). None is every code before them.
+  const unitMods = canonicalUnitMods(c.unitMods);
   const signatureFlags =
     (refund > 0 ? 1 : 0) |
     (hulk ? 2 : 0) |
     (postHp !== 1 ? 4 : 0) |
     (elite ? 8 : 0) |
     (emplacementHp !== 1 ? 16 : 0) |
-    (fieldHp !== 1 ? 32 : 0);
+    (fieldHp !== 1 ? 32 : 0) |
+    (unitMods ? 64 : 0);
   // A ghost raid's commanders (M27) go on after the rules, so they force the
   // rules block, written as a zero byte when there are none.
   if (replay.kind === 'ghost' && !replay.ghost) throw new Error('a ghost raid names its commanders');
@@ -425,6 +433,9 @@ export function encodeReplay(replay: Replay): string {
     }
     if (emplacementHp !== 1) putMilli(body, emplacementHp);
     if (fieldHp !== 1) putMilli(body, fieldHp);
+    // Each fitted kind by its name in the dictionary, then its numbers: a
+    // replay re-fights what was fitted, whatever the table says later.
+    if (unitMods) putUnitMods(body, unitMods, (kind) => writeVarint(body, dict.id(kind)));
   }
 
   // The commanders of a ghost raid (M27 Phase 1), last of all.
@@ -798,7 +809,8 @@ export function decodeReplay(raw: string): ReplayDecode {
   }
 
   // The faction rules, if this code was written after M26 and the battle was
-  // fought under one. Older codes end here, and so does every raid.
+  // fought under one, and the army's specialisations after M28 Phase 4. Older
+  // codes end here, and so does every raid that went out with none.
   if (cur.at < body.length) {
     const flags = body[cur.at++]!;
     if ((flags & ~SIGNATURE_BITS) !== 0) return bad('version');
@@ -834,6 +846,11 @@ export function decodeReplay(raw: string): ReplayDecode {
       const fieldHp = getMilli(cur);
       if (fieldHp === null) return bad('truncated');
       config.mods = { ...config.mods, defender: { ...config.mods?.defender, fieldHp } };
+    }
+    if (flags & 64) {
+      const unitMods = getUnitMods(cur, () => kindOf(readVarint(cur)));
+      if (typeof unitMods === 'string') return bad(unitMods);
+      config.unitMods = unitMods;
     }
     if (flags & (1 | 2 | 8)) config.signature = signature;
   }

@@ -321,6 +321,29 @@ export interface AttackerMods {
 }
 
 /**
+ * One kind of unit's specialisation (M28 Phase 4), as the numbers it fitted:
+ * multipliers on that kind's profile, each to the thousandth. Carried in the
+ * config as numbers rather than names, so a replay re-fights what was fitted
+ * when it was fought, whatever the table says now. Absent means 1.
+ */
+export interface UnitMods {
+  /** Health at spawn. */
+  hp?: number;
+  /** Everything it hits with: weapon, walls and the post. */
+  damage?: number;
+  speed?: number;
+  /** Weapon range. */
+  range?: number;
+  /**
+   * Its demolition pace (`wallDps`), on top of `damage`: walls, blockers, a
+   * staged post's breach, and any other structure it takes apart by hand.
+   */
+  wall?: number;
+  /** A medic's healing. */
+  heal?: number;
+}
+
+/**
  * A pre-planned fire mission for hands-off battles: at `atSeconds` into the
  * assault, cast `kind` at the chosen target class (charges permitting).
  * Rules live in the config so replays re-fire them identically.
@@ -534,6 +557,12 @@ export interface SimConfig {
   playerSide?: 'defender' | 'attacker';
   /** Research effects, applied deterministically inside the sim. */
   mods?: { defender?: DefenderMods; attacker?: AttackerMods };
+  /**
+   * The attacking army's specialisations (M28 Phase 4), by unit kind: each
+   * specialised kind spawns from its profile with these applied. Absent for
+   * every battle before them and every army with none fitted.
+   */
+  unitMods?: Record<string, UnitMods>;
   /** Pre-planned fire missions (hands-off raids). */
   autoPowers?: AutoPowerRule[];
   /**

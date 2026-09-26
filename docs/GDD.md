@@ -1292,6 +1292,49 @@ Measured (M28 Phase 3): a war retired on day three pays about 15 merit, and one 
 All three head starts that the played fortnight can show, at level III, bring the build-out
 from day 3.0 to day 1.0 and the doctrine from day 4.7 to day 2.2.
 
+### 5.6e Specialisations *(v1.73, M28)*
+
+Everything else that improves a unit improves every unit alike: research, a squad's rank, its
+officer. A **specialisation** is the one thing a war decides for each kind of unit it trains.
+
+Every trainable unit fills a role, and every role has a pair. A war picks one side for each kind
+of unit, for good:
+
+| role | the units | first side | second side |
+|---|---|---|---|
+| line | Rangers, riflemen, motor rifles, KPA riflemen, peacekeepers | BODY ARMOUR: +15% health, 10% slower | ASSAULT KIT: +35% damage |
+| swarm | militia, conscripts, infiltrators | FLAK VESTS: +20% health, 10% slower | RUNNERS: 15% faster |
+| breacher | engineers, sappers, demolition teams, tunnelers, UN sappers | SHAPED CHARGES: +25% damage to walls | LIGHT KIT: 15% faster |
+| ranged | Javelins, grenadiers, RPGs, NLAWs | TANDEM WARHEADS: +20% damage | LONG SIGHTS: +10% range |
+| light vehicle | Humvees, ZBDs, BTRs, VABs | SLAT ARMOUR: +20% health, 10% slower | UP-GUNNED: +20% damage |
+| heavy | Abrams, Type 99s, T-72s, Chonma, Leopards | REACTIVE ARMOUR: +20% health, 10% slower | AUTOLOADER: +20% damage |
+| gunship | Reapers, WZ-10s, Ka-52s, An-2s, NH90s | ARMOURED BELLY: +25% health | EXTRA PYLONS: +15% damage |
+| medic | UN medics | FIELD SURGERY: +30% healing | PLATE CARRIERS: +20% health, 10% slower |
+
+- **Bought in the planner.** Under the training lines, the raid planner's MUSTER tab lists each
+  unit's pair with what each does, its price and its hours. The first tap says which side the
+  choice closes, the second pays and starts the fitting, and the row counts it down, then reads
+  FITTED.
+- **Paid in supplies, fuel and time**: ten times the unit's training price, to the nearest 50,
+  fitted over two hours at the barracks, three at the motor pool and four at the airfield. Each
+  kind of facility fits one at a time, and needs a working one of its kind. An army's whole set
+  is about one late research tier (the KPA's is half that), and the three kinds of facility fit
+  in parallel, so it takes six to eight hours.
+- **Everywhere research goes**: ladder raids, duels, ghost raids and the replays of all of them.
+  A fitting serves every unit of its kind, trained or to come, from the moment it is done. The
+  raid report names what went out fitted.
+- **Numbers, not names.** The battle is told each fitted kind's multipliers, to the thousandth,
+  and replay and ghost codes carry them, so a replay re-fights what was fitted when it was
+  fought. A build from before specialisations refuses a code that carries them as a newer one.
+  A new war starts with none.
+
+Measured (M28 Phase 4): an army's whole set, on the better side of every pair, is worth 0.74 to
+1.06 times the STRIKE branch's first two tiers, over the reference strike force, the mixed recipe
+and the air thesis. Neither side of any role's pair wins on every plan that fields it. Rifle
+armour is the smaller number because, at +20% each, it beat the assault kit in seven places out
+of eleven. A gunship's armour costs it no speed, because with the slowdown it bought half what
+the pylons did.
+
 ### 5.7 Offline probes
 
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).

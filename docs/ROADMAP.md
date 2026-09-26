@@ -5609,6 +5609,15 @@ distinct, unit upgrade paths, and a prestige reset that carries something forwar
 Veterancy already proved this project can build "pays in survivors, not in wins";
 this extends it into a reason for run #4.
 
+**Done (v1.73.0).** Every squad that reaches LINE gets a named officer with a
+doctrine, who keeps the squad's lessons until the squad is wiped out (v1.67.0).
+Each war commits to one research branch as its doctrine, and only that branch
+reaches its capstone (v1.68.0). A retired war banks merit that the War College
+spends on head starts for the next war, and sends its best officer to the reserve
+(v1.69.0). Every unit a war trains can be given one of two specialisations, for
+good, bought with supplies, fuel and a few hours at its facility, and the whole
+set is worth about what the STRIKE branch's first two tiers are (v1.73.0).
+
 - [x] **Phase 1 — officers as a save layer**, reaching the sim through the mod
       hooks that already exist.
 
@@ -5969,6 +5978,150 @@ this extends it into a reason for run #4.
         harness retires a war from the menu and reads the War College, and
         the touch harness reads the renamed SYS row. Nothing in `src/sim`
         changed.
+- [x] **Phase 4 — unit upgrade paths.** Named in the milestone's list and left
+      out when its three phases were planned.
+
+      **The plan, from the survey.** *(Written against v1.72.0.)* Each army
+      trains six or seven kinds of unit, and nearly all of them fill one role:
+      line infantry, a breacher, an anti-armour team, a light vehicle, a
+      heavy, a gunship, and in three armies a swarm unit. The exceptions are
+      the UN's medic and the KPA's infiltrator and tunneler. Everything that
+      improves a unit today improves every unit alike. STRIKE research gives
+      the whole force up to +34% health and +34% damage, a squad's rank up to
+      15%, and its officer up to 10% on the squad's doctrine. A war's Abrams
+      and its Rangers get the same multipliers, and every war's Abrams is the
+      same Abrams. Raids carry research as one pair of multipliers for the
+      whole force, and each unit carries its squad's from the moment it
+      spawns. Replay codes and ghost codes carry both.
+
+      Settled with the commander:
+      - **A choice of two per unit.** Each unit gets two specialisations, and
+        a war picks one per unit, for good: the doctrine's decision, made for
+        each kind of unit in the army.
+      - **Paid in supplies, fuel and time**, beside the unit in the planner,
+        at the facility that trains it: a sink for the surplus a war builds
+        after its first days, fitted over a few hours.
+      - **Everywhere research applies**: ladder raids, duels, ghost raids and
+        the replays of all of them. A ghost goes out with its specialisations
+        as it goes out with its research.
+
+      The build:
+      - **The paths, by role** (`content/specialisations.ts`). Every trainable
+        unit of every army has a role, and every role two specialisations.
+        The heavy's are the pattern: REACTIVE ARMOUR (+30% health, 10% slower)
+        or an AUTOLOADER (+25% damage). The line infantry, light vehicle and
+        gunship pairs trade armour for firepower the same way. The swarm
+        trades armour for speed, and the breacher damage to walls for speed.
+        The anti-armour team trades damage for range, and the medic healing
+        for armour. The first numbers are a guess, measured and tuned before
+        shipping.
+      - **What it costs**: ten times the unit's training price in supplies
+        and fuel, fitted over two hours at the barracks, three at the motor
+        pool and four at the airfield. One fitting at a time for each kind
+        of facility, with a working one of that kind to fit it. A fitted
+        specialisation serves every unit of its kind, trained or to come.
+      - **In the battle, as numbers, not names.** The config carries each
+        specialised kind's multipliers: health, damage, speed, weapon range,
+        damage to walls and healing, each to the thousandth. The engine
+        builds each specialised kind's profile once and spawns from it, so a
+        replay of an old battle re-fights what was fitted then, whatever the
+        table says now. Replay codes carry the numbers behind a new flag,
+        which a build that predates it refuses as a newer code, and ghost
+        codes carry them beside their research.
+      - **The planner**: under each unit its two specialisations with what
+        each does and costs. A first tap says which it closes, a second
+        commits, and the row then counts the fitting down.
+      - **Measured**: a table of the reference strike force's clear rate and
+        men returned, for each specialisation alone and for all of a kind,
+        in every army. The pairs are tuned until neither side of any pair is
+        the answer for every plan, and the whole set is worth no more than
+        the STRIKE branch's first two tiers.
+      - **Tests**: every unit has a role and a pair, the costs and fitting,
+        one fitting per facility, a choice closing its pair, the engine's
+        specialised profiles, the replay and ghost codes' round trips, old
+        codes still reading as they did, and old saves. A harness fits one in
+        the planner and sends it.
+
+      Not in Phase 4: anything carried from one war to the next (the War
+      College's head starts stay the only thing that is), and specialisations
+      for the defender's guns.
+
+      **What Phase 4 found.** *(v1.73.0)*
+      - **The first numbers were worth half as much again as the research.**
+        `npm run balance -- --specs` fights three plans with each
+        specialisation alone, and with the whole set three ways: the
+        reference strike force, the mixed recipe and the air thesis, at every
+        tier, in three variants, on twenty seeds. Its reading is clear% plus
+        MP home%, summed over the three plans, for each army's whole set on
+        the better side of every pair, set against the STRIKE branch's first
+        two tiers (+12% health and damage for the whole force). At the first
+        guess (+25-30%), armour, long sights and the pylons won most of their
+        pairs outright. Retuned to +10-35%:
+
+        | army | STRIKE 1-2 | whole set, first guess | whole set, shipped |
+        |---|---|---|---|
+        | USA | 42.2 | 59.5 (1.41×) | 44.7 (1.06×) |
+        | China | 53.2 | 57.4 (1.08×) | 39.3 (0.74×) |
+        | Russia | 61.5 | 90.1 (1.46×) | 59.9 (0.97×) |
+        | KPA | 56.6 | 52.3 (0.93×) | 47.0 (0.83×) |
+        | UN | 66.0 | 98.6 (1.50×) | 62.4 (0.95×) |
+
+        The USA's 1.06 is inside the table's noise: a change too small to
+        matter flips 3 to 5 of a plan's 300 raids.
+      - **Neither side of any pair wins everywhere.** Counting a side as
+        better where it leads by a point or more, across the plans that field
+        the role's unit in every army:
+
+        | role | first side | second side | even |
+        |---|---|---|---|
+        | line: BODY ARMOUR / ASSAULT KIT | 5 | 3 | 3 |
+        | breacher: SHAPED CHARGES / LIGHT KIT | 5 | 6 | 2 |
+        | ranged: TANDEM WARHEADS / LONG SIGHTS | 3 | 5 | 2 |
+        | light vehicle: SLAT ARMOUR / UP-GUNNED | 4 | 2 | 1 |
+        | heavy: REACTIVE ARMOUR / AUTOLOADER | 4 | 2 | 1 |
+        | gunship: ARMOURED BELLY / EXTRA PYLONS | 2 | 2 | 1 |
+
+        The swarm and the medic are each fielded by one plan, which they move
+        by about a point either way, and Russia's conscripts by none.
+      - **Why the pairs are uneven.** At +20% each, rifle armour beat the
+        assault kit in seven places out of eleven, and +20% damage on
+        riflemen measured about nothing, so the line pair ships at +15%
+        armour against +35% damage. A gunship's armour costs it no speed:
+        with the slowdown too, it bought half what the pylons did. Long
+        sights ship at +10% range, against +20% damage for tandem warheads.
+      - **Everywhere research goes.** A config carries the numbers, not the
+        names, so a replay re-fights what was fitted when it was fought.
+        Replay codes carry them behind a seventh bit in the rules block,
+        which a build from before refuses as a newer code. Codes without them
+        are byte for byte what they were: the v1.65.0 golden codes still read
+        and write back unchanged. A ghost with them is a format-2 ghost code,
+        which an older build refuses as newer, and every other ghost is the
+        format-1 code it always was. The defender fights a ghost's army as it
+        was fitted, and a result with its specialisations changed or dropped
+        is refused as tampered.
+      - **What a set costs.** An army's whole set is 12,200-13,600 supplies
+        and 3,550-4,250 fuel, about one late research tier; the KPA's is
+        6,700 and 1,600, its units being cheap. The three kinds of facility
+        fit in parallel, so a whole set takes six to eight hours, the length
+        of the barracks' line.
+      - **The planner.** Under the training lines, SPECIALISATIONS gives each
+        unit its pair: what each does, its price and its hours, or which
+        facility is missing or busy. The first tap says what the choice
+        closes, the second fits it, and the row counts the fitting down and
+        then reads FITTED. The raid report names what went out fitted.
+      - **Harnesses and tests.** The officers harness fits BODY ARMOUR in the
+        planner, reads the price, the countdown and the closed pair, moves
+        the clock past the fitting and raids with it. It now pins its clock:
+        the showcase's ground is made from the moment it loads, and a
+        barracks sited in its river is not built, so some loads had no
+        barracks to fit anything at. `tests/specialisations.test.ts` (15)
+        holds the roles, pairs, prices and the engine's profiles,
+        `tests/armoury.test.ts` (9) the fitting and the save, and the replay
+        and ghost tests gain 5 each. In `src/sim`, the engine builds each
+        fitted kind's profile once and spawns from it; a kind with nothing
+        fitted spawns the catalog's unit, untouched.
+      - **Cost.** Frame cost is unchanged within noise, measured against
+        v1.72.0 in both orders. The download grew 8 kB (3 kB gzipped).
 
 ## M29 — "After Action": make the sim explain itself
 

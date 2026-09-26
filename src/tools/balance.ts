@@ -58,6 +58,7 @@ import {
   type SquadPlan,
 } from '../meta/warfare';
 import { CONDITIONS } from '../content/conditions';
+import { pairFor, type Specialisation } from '../content/specialisations';
 import { effectsOf, TECHS, type TechBranch } from '../content/research';
 import type { TrainMeta } from '../content/usaUnits';
 import { RANKS } from '../content/veterancy';
@@ -6235,6 +6236,124 @@ function veterancyTable(faction: FactionId): string {
   return lines.join('\n');
 }
 
+/**
+ * What the specialisations are worth (M28 Phase 4), against the STRIKE
+ * branch's first two tiers (+12% health, +12% damage for the whole force).
+ *
+ * Each specialisation is fought alone, on every plan that fields its kind:
+ * the reference strike force, the mixed recipe, and the air thesis, which is
+ * where the gunships and most of the infantry are. Then the whole set three
+ * ways: every kind on the first side of its pair, every kind on the second,
+ * and every kind on whichever side measured better alone. The pairs are
+ * right when neither side is the answer for every plan, and the whole set
+ * is worth no more than the two research tiers.
+ *
+ * Clear% and MP home% over every tier, variant and seed; each cell is the
+ * difference from the same plan with nothing fitted, on the same dice.
+ */
+function specialisationTable(faction: FactionId, seeds = SEEDS): string {
+  const flavor = flavorFor(faction);
+  const trainable = trainableFor(faction);
+  const catalog = raidCatalogFor(faction);
+  const plans: [string, SquadPlan[]][] = [
+    ['REFERENCE', RAID_PLANS[faction]],
+    ['RECIPE', RECIPE_PLANS[faction]],
+    ['AIR', AIR_RAID_PLANS[faction]],
+  ];
+  const fields = (plan: SquadPlan[]): Set<string> =>
+    new Set(plan.flatMap((s) => Object.entries(s.units).filter(([, n]) => n > 0).map(([k]) => k)));
+  const run = (plan: SquadPlan[], support: RaidSupport): { clear: number; home: number } => {
+    let cleared = 0;
+    let runs = 0;
+    let sent = 0;
+    let home = 0;
+    for (const tier of RAID_TIERS) {
+      for (let variant = 0; variant < VARIANTS; variant++) {
+        const base = generateBase(tier, variant, baseKitFor(faction), undefined, faction);
+        for (let i = 0; i < seeds; i++) {
+          const squads = plan.map((s, slot) => ({ ...s, slot }));
+          const config = raidConfig(base, squads, seedOf(tier, variant, i), trainable, support);
+          const res = resolveRaid(config, squads, tier, catalog);
+          const flow = manpowerFlow(faction, res);
+          sent += flow.sent;
+          home += flow.home;
+          if (res.cleared) cleared++;
+          runs++;
+        }
+      }
+    }
+    return { clear: (cleared / runs) * 100, home: (home / sent) * 100 };
+  };
+  const signed = (n: number): string => `${n >= 0 ? '+' : ''}${n.toFixed(1)}`;
+  const cell = (d: { clear: number; home: number } | null): string =>
+    d ? `${pad(signed(d.clear), 5)} /${pad(signed(d.home), 5)}` : pad('—', 13);
+  const base = plans.map(([, plan]) => run(plan, {}));
+  const delta = (at: number, r: { clear: number; home: number }) => ({
+    clear: r.clear - base[at]!.clear,
+    home: r.home - base[at]!.home,
+  });
+  const width = 28;
+  const strikeCells = plans.map(([, plan], at) => delta(at, run(plan, { mods: { hp: 1.12, damage: 1.12 } })));
+  const strike = strikeCells.reduce((n, d) => n + d.clear + d.home, 0);
+  const lines = [
+    `SPECIALISATIONS — ${flavor.faction}: clear% / MP home% over T${RAID_TIERS[0]}-${RAID_TIERS.at(-1)}, ` +
+      `${VARIANTS} variants, ${seeds} seeds; the change from nothing fitted`,
+    `${''.padEnd(width)} | ${plans.map(([name]) => pad(name, 13)).join(' | ')}`,
+    `${'NOTHING FITTED'.padEnd(width)} | ${base.map((b) => `${pad(b.clear.toFixed(1), 5)} /${pad(b.home.toFixed(1), 5)}`).join(' | ')}`,
+    `${'STRIKE 1-2 (+12% HP, DMG)'.padEnd(width)} | ${strikeCells.map(cell).join(' | ')}`,
+    `${'-'.repeat(width)}-+-${plans.map(() => '-'.repeat(13)).join('-+-')}`,
+  ];
+  // Each alone, and which side of each pair did better where it was fielded.
+  const better: Record<string, Specialisation> = {};
+  for (const t of trainable) {
+    const pair = pairFor(t.kind);
+    if (!pair) continue;
+    const score = [0, 0];
+    pair.forEach((spec, side) => {
+      const cells = plans.map(([, plan], at) => {
+        if (!fields(plan).has(t.kind)) return null;
+        const d = delta(at, run(plan, { unitMods: { [t.kind]: spec.mods } }));
+        score[side]! += d.clear + d.home;
+        return d;
+      });
+      lines.push(`${`${t.kind} ${spec.name}`.padEnd(width)} | ${cells.map(cell).join(' | ')}`);
+    });
+    better[t.kind] = pair[score[1]! > score[0]! ? 1 : 0];
+  }
+  lines.push(`${'-'.repeat(width)}-+-${plans.map(() => '-'.repeat(13)).join('-+-')}`);
+  const whole = (pick: (kind: string) => Specialisation | undefined) =>
+    Object.fromEntries(
+      trainable.flatMap((t) => {
+        const spec = pick(t.kind);
+        return spec ? [[t.kind, spec.mods] as const] : [];
+      }),
+    );
+  const sets: [string, Record<string, Specialisation['mods']>][] = [
+    ['ALL FIRST SIDES', whole((k) => pairFor(k)?.[0])],
+    ['ALL SECOND SIDES', whole((k) => pairFor(k)?.[1])],
+    ['ALL, BETTER SIDE EACH', whole((k) => better[k])],
+  ];
+  /** Clear plus MP home, summed over the plans: one number to set against the research. */
+  const total = (cells: { clear: number; home: number }[]): number => cells.reduce((n, d) => n + d.clear + d.home, 0);
+  let best = 0;
+  for (const [name, unitMods] of sets) {
+    const cells = plans.map(([, plan], at) => delta(at, run(plan, { unitMods })));
+    if (name === 'ALL, BETTER SIDE EACH') best = total(cells);
+    lines.push(`${name.padEnd(width)} | ${cells.map(cell).join(' | ')}`);
+  }
+  lines.push(
+    `BETTER SIDE: ${trainable
+      .filter((t) => better[t.kind])
+      .map((t) => `${t.kind} ${better[t.kind]!.name}`)
+      .join(', ')}`,
+  );
+  lines.push(
+    `CLEAR + HOME OVER THE PLANS: STRIKE 1-2 ${strike.toFixed(1)} · BETTER SIDE EACH ${best.toFixed(1)} ` +
+      `(${(best / strike).toFixed(2)}×)`,
+  );
+  return lines.join('\n');
+}
+
 function main(): void {
   const started = Date.now();
   const sections: string[] = [];
@@ -7153,6 +7272,17 @@ function main(): void {
     const pick = FACTION_IDS.find((f) => process.argv.includes(f)) ?? 'usa';
     console.log(delayTable(pick));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--specs')) {
+    // `--specs usa china [--seeds 10]`: every army by default.
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    const at = process.argv.indexOf('--seeds');
+    const seeds = at > 0 ? Number(process.argv[at + 1]) : SEEDS;
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) {
+      console.log(`${specialisationTable(faction, seeds)}\n`);
+    }
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
   if (process.argv.includes('--vet')) {

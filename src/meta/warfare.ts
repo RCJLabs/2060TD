@@ -32,6 +32,7 @@ import type {
   Doctrine,
   SimConfig,
   SimEvent,
+  UnitMods,
   WaveDef,
   WaveEntry,
 } from '../sim/types';
@@ -57,6 +58,7 @@ import {
   type TownState,
 } from './town';
 import { recordBattle } from './vault';
+import { canonicalUnitMods } from './codec';
 import { creditContracts } from './contracts';
 import { chargeStrikes, retakeSector } from './strikes';
 import { canFeedNext } from './supply';
@@ -464,6 +466,11 @@ export interface RaidSupport {
   objective?: ObjectiveId;
   /** Research multipliers for the raiding units. */
   mods?: AttackerMods;
+  /**
+   * The army's fitted specialisations (M28 Phase 4), by kind: see
+   * `unitModsOf`. Wherever research goes, these go too.
+   */
+  unitMods?: Record<string, UnitMods>;
   /** Pre-planned fire missions, evaluated in-sim. */
   autoPowers?: AutoPowerRule[];
   /** Ordnance stock committed to this raid (usually the town's charges). */
@@ -506,6 +513,8 @@ export function raidConfig(
   // One reserved cell per tunneled squad, in squad order: the renderer draws
   // the mouths, replays re-dig them, and applyRaidResult bills them.
   const mouths = squads.filter((s) => s.tunnel !== undefined).map((s) => s.tunnel!);
+  // As the replay code carries them, so the raid fought is the one it re-fights.
+  const unitMods = canonicalUnitMods(support.unitMods);
   return {
     width: MAP_W,
     height: MAP_H,
@@ -580,6 +589,7 @@ export function raidConfig(
     ...(support.autoPowers && support.autoPowers.length > 0
       ? { autoPowers: support.autoPowers.map((r) => ({ ...r })) }
       : {}),
+    ...(unitMods ? { unitMods } : {}),
   };
 }
 

@@ -29,6 +29,7 @@ import type {
   StandingOrderTarget,
   StructureProfile,
   TargetLayer,
+  UnitMods,
   Weapon,
   Vec2,
   WaveEntry,
@@ -36,6 +37,27 @@ import type {
 
 export const TICKS_PER_SECOND = 20;
 export const DT = 1 / TICKS_PER_SECOND;
+
+/**
+ * A kind's profile with its specialisation applied (M28 Phase 4). Damage lands
+ * on everything the unit hits with, and damage to walls lands on top of it.
+ * Everything else about the unit is its catalog's.
+ */
+function fitProfile(base: AttackerProfile, m: UnitMods): AttackerProfile {
+  const damage = m.damage ?? 1;
+  return {
+    ...base,
+    maxHp: base.maxHp * (m.hp ?? 1),
+    speed: base.speed * (m.speed ?? 1),
+    wallDps: base.wallDps * damage * (m.wall ?? 1),
+    hqDps: base.hqDps * damage,
+    ...(base.weapon
+      ? { weapon: { ...base.weapon, damage: base.weapon.damage * damage, range: base.weapon.range * (m.range ?? 1) } }
+      : {}),
+    ...(base.heal ? { heal: { ...base.heal, perSecond: base.heal.perSecond * (m.heal ?? 1) } } : {}),
+  };
+}
+
 /** How close a flyer gets to its target's edge before working it over. */
 const AIR_STANDOFF = 0.6;
 /**
@@ -222,6 +244,8 @@ interface PendingImpact {
 export class Engine {
   readonly config: SimConfig;
   readonly catalog: Catalog;
+  /** Each specialised kind's profile (M28 Phase 4), built once from the config's numbers. */
+  private readonly fitted = new Map<string, AttackerProfile>();
   /** `AIR_STANDOFF` in cells of this board (M34). */
   private readonly airStandoff: number;
   /** `AIM_REACH` as this battle's chain reads it (M23 Phase 3c). */
@@ -394,6 +418,12 @@ export class Engine {
     // config written before M34 — it is the catalog it was handed.
     const cellSize = cellSizeOf(config.cellSize);
     this.catalog = scaleCatalog(catalog, cellSize);
+    // The attacking army's specialisations, applied to the profiles the
+    // battle actually reads (scaled above), once, before anything spawns.
+    for (const [kind, mods] of Object.entries(config.unitMods ?? {})) {
+      const base = this.catalog.attackers[kind];
+      if (base) this.fitted.set(kind, fitProfile(base, mods));
+    }
     this.airStandoff = AIR_STANDOFF / cellSize;
     this.grid = new Grid(config.width, config.height);
     this.rng = createRng(config.seed);
@@ -769,7 +799,7 @@ export class Engine {
     squad = -1,
     vet = 1,
   ): boolean {
-    const profile = this.catalog.attackers[kind];
+    const profile = this.fitted.get(kind) ?? this.catalog.attackers[kind];
     if (!profile || !this.grid.inBounds(cell)) return false;
     const spawnCell = this.findSpawnCell(cell);
     if (spawnCell === null) return false;

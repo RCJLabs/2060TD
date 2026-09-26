@@ -58,7 +58,8 @@ import type { StoredPlan } from './warfare';
 import type { GhostLedger } from './ghost';
 import type { CadreState } from './cadre';
 import type { Engine } from '../sim/engine';
-import type { AttackerMods, CellIndex, SimConfig, SimStats, SpawnEdge, WaveDef } from '../sim/types';
+import type { AttackerMods, CellIndex, SimConfig, SimStats, SpawnEdge, UnitMods, WaveDef } from '../sim/types';
+import { canonicalUnitMods } from './codec';
 import { awardStanding, counterAward, settleLadder, type LadderSettlement } from './ladder';
 import { chargeHunger, lineFed } from './supply';
 import { creditContracts, normalizeContracts, type ContractState } from './contracts';
@@ -371,6 +372,15 @@ export interface RaidRecord {
   cleared: boolean;
 }
 
+/**
+ * A war's specialisation for one kind of unit (M28 Phase 4, `meta/armoury.ts`):
+ * which of its pair, and when the fitting is done. Chosen for good.
+ */
+export interface FittedSpec {
+  id: string;
+  readyAt: number;
+}
+
 export interface TownState {
   version: 6;
   /** Whose war this town fights (M5): decides catalogs, campaign, enemies. */
@@ -505,6 +515,11 @@ export interface TownState {
    * Absent on every war begun before prestige.
    */
   headStart?: HeadStartState;
+  /**
+   * Its specialisations (M28 Phase 4), by unit kind: fitted once the fitting's
+   * time is up. Absent on a war saved before them, and on one with none.
+   */
+  specs?: Record<string, FittedSpec>;
   assaultLevel: number;
   victories: number;
   defeats: number;
@@ -1882,6 +1897,7 @@ export function ghostBattleConfig(
   wave: WaveDef,
   attacker: AttackerMods,
   seed: number,
+  unitMods?: Record<string, UnitMods>,
 ): SimConfig {
   const config = battleConfig(town, seed, {
     ...probeAssault(1, enemyRosterFor(town.faction)),
@@ -1896,6 +1912,9 @@ export function ghostBattleConfig(
   const hp = attacker.hp ?? 1;
   const damage = attacker.damage ?? 1;
   if (hp !== 1 || damage !== 1) config.mods = { ...config.mods, attacker: { hp, damage } };
+  // And the army's specialisations (M28 Phase 4), as its code carried them.
+  const fitted = canonicalUnitMods(unitMods);
+  if (fitted) config.unitMods = fitted;
   const orders = standingOrdersFor(town.standingOrders);
   return orders ? { ...config, standingOrders: orders } : config;
 }
