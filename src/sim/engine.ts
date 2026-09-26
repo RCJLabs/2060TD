@@ -1689,6 +1689,7 @@ export class Engine {
         type: 'attackerDied',
         id: attacker.id,
         at: { ...attacker.pos },
+        armor: attacker.profile.armor,
         ...(attacker.lastHit ? { by: attacker.lastHit.by, damageType: attacker.lastHit.type } : {}),
       });
       this.stats.kills++;

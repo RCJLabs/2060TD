@@ -20,7 +20,23 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.69.0: prestige
+## Current state — v1.70.0: impacts
+
+**Every blow in a battle now looks and sounds like what it is.**
+
+- **Hits, on both sides:** rounds landing, shells and gun runs going off, and now a wall being
+  broken (a chip and a knock) and your command post under attack (a red star and a clang).
+- **Kills by what died:** infantry go down with a star and a thud, armour with a double star and
+  a metal boom, and aircraft fall to their shadow with a whine and then a boom.
+- **Breaches and lost buildings are felt:** the board jolts for a fifth of a second (not if your
+  device asks for reduced motion), and on phones that can buzz, the phone buzzes. It follows the
+  haptics switch, and a replay never buzzes.
+
+No battle plays out differently: the same battle ends the same way, and now it shows what is
+happening in it. A reserve standing up no longer looks like a shell going off, and skipping a
+replay to its end is silent.
+
+## v1.69.0: prestige
 
 **Retire a war and your next one starts ahead.** A war can now be retired whenever you like:
 RETIRE THE WAR on its SYS tab, or RETIRE A WAR on the menu. It banks **merit** for what it

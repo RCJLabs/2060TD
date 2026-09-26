@@ -1714,6 +1714,56 @@ Because the score is data (`content/score.ts`) and the synth is separate
 **The mixer** is two buses — effects and music — set independently in five
 stops, because a bed that competes with the gunfire is not a bed.
 
+### 6.2a The impact vocabulary *(v1.70, M31)*
+
+Every moment of a battle worth interrupting the page for is an **impact**, and
+there are four families of them: a HIT, a KILL, a BREACH and a LOSS. Each impact
+has exactly one mark and one sound, and both come from one table
+(`game/impacts.ts`). The renderer plays an impact only through the table, so a
+mark cannot be drawn without its sound or a sound made without its mark. The
+compiler holds every mark to one the renderer draws and every sound to one the
+kit makes.
+
+| family | impact | mark | sound |
+|---|---|---|---|
+| hit | a round lands | the tracer, and a small star where it lands | a crack; heavier for explosive and shaped rounds |
+| hit | a shell, a charge or a mine goes off | a red ring of ticks round a red-cored star, lettered (WHAM, BLAM) | a blast |
+| hit | a gun run passes | speed lines down the line it rakes | a blast |
+| hit | a wall is being broken | a small star and two flecks on the wall | a knock |
+| hit | the post is under attack | a star with a red core, walking round the post | a clang with a thud under it |
+| kill | infantry | a star | a dull thud |
+| kill | armour | a heavier star with a second inside it | a boom with metal in it |
+| kill | an aircraft | a star falling to its shadow, trailing a streak | a falling whine, then the ground |
+| breach | a wall gone | a lettered burst (KRRAK) with focus lines | a wall breaking |
+| loss | a building gone | the biggest burst, red core, lettered (WHUMP); briefer and smaller over a hulk | a building going |
+
+**Hits on both sides.** Rounds landing on either side are hits, and so are a
+wall being broken and the post under attack, which the sim reports as health
+draining rather than as an event. The renderer reads their health between
+frames and marks a fall, no oftener than about twice a second for each wall and
+twice a second at the post, so a full assault stays readable.
+
+**A kill is weighed by what died.** The death event carries the dead unit's
+armour class: unarmoured is infantry, light or heavy armour is a vehicle, and
+air is an aircraft. Every unit of every army falls into exactly one of the
+three, and a test holds that.
+
+**Breaches and losses are felt.** The board jolts, a tenth of a cell for a
+breach and a sixth for a building, gone in a fifth of a second, and never under
+the device's reduced-motion setting. In a battle being fought (the live defence
+and the training range) the phone buzzes too, following the haptics switch and
+no oftener than every 0.3 seconds. A replay never buzzes.
+
+**Notices are not impacts.** A call for fire (the reticle and its beep), a
+reserve standing up (an ink ring of ticks and a radio blip) and a refund (its
+lettering, silent) tell the commander something rather than land. They keep
+marks of their own and never an impact's, so nothing on the board means two
+things.
+
+**Nothing here reaches the sim.** A replay plays the same battle with the same
+impacts, bar the buzz. A replay skipped to its end plays none, because none of
+its marks would ever be drawn.
+
 
 ### 6.3 Teaching *(v1.5)*
 

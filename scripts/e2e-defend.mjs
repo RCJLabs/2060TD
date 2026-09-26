@@ -381,6 +381,14 @@ try {
     return false;
   }, 300000);
   check('the battle runs to a finish', finished, (await labels()).slice(0, 4).join(' | '));
+  // The impact vocabulary (M31): the battle played its hits and its kills
+  // through the one table, and every impact it played made its sound.
+  const impacts = await page.evaluate(() => window.lastline.impacts());
+  const count = (...kinds) => kinds.reduce((n, k) => n + (impacts.played[k] ?? 0), 0);
+  const heard = JSON.stringify(impacts.played);
+  check('the battle landed its hits', count('hit', 'hitHeavy') > 0, heard);
+  check('and its kills', count('killInfantry', 'killVehicle', 'killAir') > 0, heard);
+  check('and every impact it played made its sound', impacts.silent.length === 0, impacts.silent.join(', '));
   await tapExact('RETURN TO BASE');
   await until(async () => await copyHas('LEVEL 9 '), 15000);
   const verdict = await copyLike('LEVEL 9 ');
@@ -389,6 +397,9 @@ try {
   // What this harness is for is that the loop closes: the offer becomes a
   // battle, the battle becomes a verdict, and the verdict is in the currency
   // of the answer the player gave — wrecks for a defeat, a bounty for a hold.
+  if (/BROKE THROUGH/.test(verdict)) {
+    check('a battle lost is one the post was hit in', count('postHit') > 0, heard);
+  }
   check(
     /BROKE THROUGH/.test(verdict) ? 'a defeat is counted in buildings' : 'a hold pays the bounty',
     /BROKE THROUGH/.test(verdict) ? /\d+ WRECKED/.test(verdict) : /\+\d+ SUP/.test(verdict),

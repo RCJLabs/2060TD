@@ -65,7 +65,7 @@ export class PlaygroundScene extends Scene {
       M1_CATALOG,
     );
     this.board = new BoardView(this, { cols: GRID_W, rows: GRID_H, cell: CELL });
-    this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world);
+    this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world, { live: true });
     this.accumulator = 0;
     this.lastPaintedCell = -1;
 

@@ -1500,3 +1500,22 @@ here with the change and its date.
   three measurable head starts at level III bring the played fortnight's
   build-out from day 3.0 to day 1.0. The menu's ERASE A WAR became RETIRE A
   WAR: no path throws a war's merit away.
+- 2026-09-26 — **Every impact plays through one table, with its mark and
+  its sound (M31 Phase 1, v1.70.0).** Settled with the commander: every hit on
+  both sides, including a wall or the post being worn down; kills weighed by
+  what died; and breaches and lost buildings felt, as a jolt of the board
+  (never under the device's reduced-motion setting) and a buzz (following the
+  haptics switch, never in a replay). The table (`impacts.ts`) gives each
+  impact its family (hit, kill, breach or loss), its mark, its sound and how
+  long the mark holds. The renderer plays an impact only through the table, so
+  a mark cannot be drawn without its sound, and the compiler holds every mark
+  to one the renderer draws and every sound to one the kit makes. A wall or
+  the post being worn down is read off its health between frames, because the
+  sim reports it as no event, and is marked about twice a second at most. A
+  kill's weight is read off the armour class the death event now carries (an
+  output field no battle reads). That splits the 34 attacker kinds into
+  infantry, vehicles and aircraft with no exceptions. Shells, charges, mines
+  and gun runs are hits too. A call for fire, a reserve standing up and a
+  refund are notices, not impacts: they keep marks of their own, and the
+  reserve's ring lost the blast star that M32 had drawn into it. A replay
+  skipped to its end plays nothing, since none of its marks would be drawn.

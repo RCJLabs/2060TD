@@ -4,21 +4,24 @@ import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
 import { audio } from './audio';
 import { drawAttackerGlyph, drawStructureGlyph, drawWallGlyph, wallJoins } from './glyphs';
 import { makeSheet } from './ground';
+import { haptic } from './haptics';
+import {
+  BUZZ_GAP,
+  eventImpact,
+  IMPACTS,
+  notePlayed,
+  POST_GAP,
+  WEAR_GAP,
+  WearWatch,
+  type EffectKind,
+  type ImpactKind,
+} from './impacts';
 import { focusLines, phaseAt, punch, speedLines, starPoints } from './kinetics';
 import { COLORS, css } from './palette';
 import { DISPLAY_FAMILY } from './tokens';
 
 interface Effect {
-  kind:
-    | 'tracer'
-    | 'boom'
-    | 'wallBoom'
-    | 'structBoom'
-    | 'aoe'
-    | 'strafe'
-    | 'reticle'
-    | 'flash'
-    | 'shout';
+  kind: EffectKind;
   x: number;
   y: number;
   x2?: number;
@@ -52,6 +55,23 @@ const SHOUTS: Record<string, readonly string[]> = {
 
 /** How high the air layer rides above its own shadow, in world px. */
 const AIR_LIFT = 15;
+
+/** How long a jolt of the board lasts, in seconds (M31 Phase 1). */
+const JOLT_SECONDS = 0.2;
+
+/** The device's reduced-motion setting: made once, and `matches` follows the device. */
+const reducedMotion: { matches: boolean } | null =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+
+export interface RendererOptions {
+  /**
+   * A battle being fought now, rather than watched: only then does a breach
+   * or a lost building buzz the phone (M31 Phase 1).
+   */
+  live?: boolean;
+}
 
 export interface GhostPreview {
   cell: CellIndex;
@@ -93,6 +113,20 @@ export class BattleRenderer {
   private readonly facings = new Map<number, number>();
   /** Pooled lettering. Lives in the world container, so it pans and zooms. */
   private readonly shouts: Text[] = [];
+  private readonly live: boolean;
+  /** Walls and the post read between frames, for the damage the sim reports as no event (M31). */
+  private readonly wallWear = new WearWatch<CellIndex>(WEAR_GAP);
+  private readonly postWear = new WearWatch<'post'>(POST_GAP);
+  /** The board's jolt: how far, when it began (scene ms), and which way it turns. */
+  private joltAmp = 0;
+  private joltAt = 0;
+  private joltPhase = 0;
+  private jolted = false;
+  /** When the phone last buzzed (scene ms): a volley of breaches is one buzz, not a drone. */
+  private buzzAt = Number.NEGATIVE_INFINITY;
+  private readonly wallsSeen = new Set<CellIndex>();
+  /** Events keep the board's bookkeeping but play nothing: see `hush`. */
+  private hushed = false;
 
   constructor(
     scene: Scene,
@@ -101,12 +135,14 @@ export class BattleRenderer {
     hostileStructures = false,
     /** World container when the scene splits board and HUD across cameras. */
     container?: Container,
+    opts: RendererOptions = {},
   ) {
     this.scene = scene;
     this.engine = engine;
     this.cell = cellPx;
     this.hostileStructures = hostileStructures;
     this.container = container;
+    this.live = opts.live === true;
     this.staticLayer = scene.add.graphics();
     this.dynLayer = scene.add.graphics();
     container?.add([this.staticLayer, this.dynLayer]);
@@ -153,19 +189,37 @@ export class BattleRenderer {
 
   // ---- events → transient effects ---------------------------------------------------
 
+  /**
+   * Play an impact (M31 Phase 1): its mark and its sound together, from the
+   * table, and for a breach or a loss the jolt and, in a live battle, the
+   * buzz. The one way an impact reaches the page, so none can arrive with
+   * half of itself.
+   */
+  private playImpact(kind: ImpactKind, x: number, y: number, extra: Partial<Effect> = {}, life?: number): void {
+    if (this.hushed) return;
+    const impact = IMPACTS[kind];
+    this.effects.push({ ...extra, kind: impact.mark, x, y, age: 0, life: life ?? impact.life });
+    audio.sfx(impact.sound);
+    if (impact.jolt !== undefined) this.jolt(impact.jolt, x, y);
+    if (impact.haptic !== undefined && this.live) {
+      const now = this.scene.time.now;
+      if (now - this.buzzAt >= BUZZ_GAP * 1000) {
+        haptic(impact.haptic);
+        this.buzzAt = now;
+      }
+    }
+    notePlayed(kind);
+  }
+
   consumeEvents(events: SimEvent[]): void {
     for (const event of events) {
       switch (event.type) {
         case 'shot': {
-          this.effects.push({
-            kind: 'tracer',
-            x: event.from.x,
-            y: event.from.y,
+          // A round lands: the tracer, the star where it lands, and its crack.
+          this.playImpact(eventImpact(event)!, event.from.x, event.from.y, {
             x2: event.to.x,
             y2: event.to.y,
             color: tracerColor(event.damageType),
-            age: 0,
-            life: 0.1,
           });
           this.effects.push({ kind: 'flash', x: event.from.x, y: event.from.y, age: 0, life: 0.07 });
           // Track the shooter's barrel when the shot came from an emplacement.
@@ -178,24 +232,20 @@ export class BattleRenderer {
               break;
             }
           }
-          audio.sfx(
-            event.damageType === 'explosive' || event.damageType === 'shaped' ? 'shotHeavy' : 'shot',
-          );
           break;
         }
         case 'attackerDied':
-          this.effects.push({ kind: 'boom', x: event.at.x, y: event.at.y, age: 0, life: 0.35 });
+          // A kill, weighed by what died (M31): infantry, armour or aircraft.
+          this.playImpact(eventImpact(event)!, event.at.x, event.at.y);
           this.facings.delete(event.id);
-          audio.sfx('shotHeavy');
           break;
         case 'wallDestroyed': {
           // A breach is the moment the battle turns, and it used to be a ring
           // that was gone in four tenths of a second. It gets long enough to
           // land, and it gets lettered.
           const at = this.engine.grid.centerOf(event.cell);
-          this.effects.push({ kind: 'wallBoom', x: at.x, y: at.y, age: 0, life: 0.7 });
+          this.playImpact('breach', at.x, at.y);
           this.shout('wallBoom', at.x, at.y, 0.8, 1);
-          audio.sfx('wallBreak');
           break;
         }
         case 'refund': {
@@ -209,52 +259,36 @@ export class BattleRenderer {
           // A fall that leaves a hulk (M26) is marked briefly, with a smaller
           // word above it: under a real assault a hulk lasts a second or three,
           // and the full-size boom sat on it for most of that.
-          this.effects.push({ kind: 'structBoom', x: event.at.x, y: event.at.y, age: 0, life: event.hulk ? 0.45 : 0.9 });
+          this.playImpact('loss', event.at.x, event.at.y, {}, event.hulk ? 0.45 : undefined);
           if (event.hulk) this.shout('structBoom', event.at.x, event.at.y - 0.9, 0.6, 0.75);
           else this.shout('structBoom', event.at.x, event.at.y, 1, 1.25);
           this.barrelDirs.delete(event.id);
-          audio.sfx('structureDown');
           break;
         case 'aoe':
-          this.effects.push({
-            kind: 'aoe',
-            x: event.at.x,
-            y: event.at.y,
-            radius: event.radius,
-            age: 0,
-            life: 0.45,
-          });
+          this.playImpact('blast', event.at.x, event.at.y, { radius: event.radius });
           this.shout('aoe', event.at.x, event.at.y, 0.65, 0.85);
-          audio.sfx('explosion');
           break;
         // A reserve standing up (v1.20). A slow ring rather than a blast: the
         // player needs to notice that the base just answered, and to be able
-        // to tell that answer apart from something going off.
+        // to tell that answer apart from something going off. A notice, so
+        // it has a mark of its own and not the blast's (M31).
         case 'garrisonDeployed':
           this.effects.push({
-            kind: 'aoe',
+            kind: 'muster',
             x: event.at.x,
             y: event.at.y,
             radius: 1.6,
             age: 0,
             life: 0.8,
           });
-          audio.sfx('radio');
+          if (!this.hushed) audio.sfx('radio');
           break;
         case 'strafePulse':
-          this.effects.push({
-            kind: 'strafe',
-            x: event.x0,
-            y: event.y,
-            x2: event.x1,
-            age: 0,
-            life: 0.3,
-          });
-          audio.sfx('explosion');
+          this.playImpact('strafe', event.x0, event.y, { x2: event.x1 });
           break;
         case 'powerCast':
           this.effects.push({ kind: 'reticle', x: event.at.x, y: event.at.y, age: 0, life: 0.8 });
-          audio.sfx('power');
+          if (!this.hushed) audio.sfx('power');
           break;
         default:
           break;
@@ -267,9 +301,88 @@ export class BattleRenderer {
    * the whole battle's events at once, and would otherwise draw every shot
    * and blast of it on the next frame.
    */
+  /**
+   * Run `fn` with nothing played (M31): a replay skipped to its end steps
+   * through the rest of the battle in one frame, and settles before a frame
+   * is drawn, so every sound it played would be a sound without its mark.
+   */
+  hush(fn: () => void): void {
+    this.hushed = true;
+    try {
+      fn();
+    } finally {
+      this.hushed = false;
+    }
+  }
+
   settle(): void {
     this.effects = [];
     for (const shout of this.shouts) shout.setVisible(false);
+    // A jump in time is not wear: the next frame only learns the health again.
+    this.wallWear.clear();
+    this.postWear.clear();
+    this.joltAmp = 0;
+  }
+
+  /**
+   * Wear (M31 Phase 1): a wall being broken and the post under attack lose
+   * health with no event, so their health is read between frames and a fall
+   * in it is marked, no oftener than the table's rate for each.
+   */
+  private watchWear(): void {
+    const t = this.scene.time.now / 1000;
+    const grid = this.engine.grid;
+    const alive = this.wallsSeen;
+    alive.clear();
+    for (const [cell, wall] of grid.walls) {
+      alive.add(cell);
+      if (this.wallWear.wore(cell, wall.hp, t)) {
+        const at = grid.centerOf(cell);
+        this.playImpact('wear', at.x, at.y);
+      }
+    }
+    this.wallWear.keep(alive);
+    const post = this.engine.cc;
+    if (post.hp > 0 && this.postWear.wore('post', post.hp, t)) {
+      // Where on the post, from where it happened: the marks walk round it.
+      const ph = phaseAt(t, post.hp);
+      this.playImpact('postHit', post.center.x + (ph - 0.5) * 0.9, post.center.y + (phaseAt(post.hp, t) - 0.5) * 0.9);
+    }
+  }
+
+  /**
+   * Nudge the board (M31 Phase 1): a few pixels, gone in a fifth of a
+   * second, the way a panel shakes when something heavy lands in it. Never
+   * under the device's reduced-motion setting, and a bigger jolt is not
+   * shrunk by a smaller one arriving on top of it.
+   */
+  private jolt(cells: number, x: number, y: number): void {
+    if (!this.container || reducedMotion?.matches === true) return;
+    const now = this.scene.time.now;
+    const left = Math.max(0, 1 - (now - this.joltAt) / (JOLT_SECONDS * 1000));
+    const amp = cells * this.cell;
+    if (amp < this.joltAmp * left * left) return;
+    this.joltAmp = amp;
+    this.joltAt = now;
+    this.joltPhase = phaseAt(x, y) * Math.PI * 2;
+  }
+
+  /** Where the board sits this frame: shaken while a jolt lasts, home otherwise. */
+  private applyJolt(): void {
+    if (!this.container) return;
+    const e = (this.scene.time.now - this.joltAt) / 1000;
+    if (this.joltAmp <= 0 || e >= JOLT_SECONDS) {
+      if (this.jolted) {
+        this.container.setPosition(0, 0);
+        this.jolted = false;
+      }
+      return;
+    }
+    const k = 1 - e / JOLT_SECONDS;
+    const a = this.joltAmp * k * k;
+    const turn = this.joltPhase + e * 55;
+    this.container.setPosition(Math.cos(turn) * a, Math.sin(turn) * a);
+    this.jolted = true;
   }
 
   // ---- dynamic layer -------------------------------------------------------------------
@@ -277,6 +390,8 @@ export class BattleRenderer {
   draw(alpha: number, dtSeconds: number, opts: DrawOptions): void {
     const g = this.dynLayer;
     g.clear();
+    this.watchWear();
+    this.applyJolt();
     this.drawWalls(g);
     if (opts.showPaths) this.drawPaths(g, alpha);
     this.drawStructures(g);
@@ -576,6 +691,45 @@ export class BattleRenderer {
           // A unit dies: one star, no focus lines. Those are for the wall.
           burst(c * (0.42 + 0.3 * t), c * 0.17, 7);
           break;
+        case 'boomVehicle':
+          // Armour dies (M31): a heavier star with a second burst inside it,
+          // still no focus lines and no accent. The accent is for your own.
+          burst(c * (0.58 + 0.34 * t), c * 0.22, 9);
+          burst(c * (0.3 + 0.12 * t), c * 0.12, 6);
+          break;
+        case 'boomAir': {
+          // An aircraft comes down (M31): the star falls from where it flew
+          // to its shadow, trailing speed lines up the way it came.
+          const lift = AIR_LIFT * (1 - t);
+          const fy = y - lift;
+          speedLines(g, x, fy, Math.PI / 2, c * 1.7, c * 0.16, 3, COLORS.oliveDark, a, Math.max(1.2, c * 0.05));
+          const pts = starPoints(x, fy, c * (0.45 + 0.3 * t), c * 0.17, 8, ph);
+          g.fillStyle(COLORS.bgField, a);
+          g.fillPoints(pts, true);
+          g.lineStyle(Math.max(1.5, c * 0.075), COLORS.oliveDark, a);
+          g.strokePoints(pts, true, true);
+          break;
+        }
+        case 'chip': {
+          // A wall being worn (M31): a small star and two flecks thrown off it.
+          const pts = starPoints(x, y, c * 0.27, c * 0.1, 5, ph);
+          g.fillStyle(COLORS.bgField, a);
+          g.fillPoints(pts, true);
+          g.lineStyle(Math.max(1.2, c * 0.055), COLORS.oliveDark, a);
+          g.strokePoints(pts, true, true);
+          const fling = c * (0.32 + 0.3 * t);
+          for (const k of [0, 1]) {
+            const ang = (ph + k * 0.45) * Math.PI * 2;
+            const cos = Math.cos(ang);
+            const sin = Math.sin(ang);
+            g.lineBetween(x + cos * fling, y + sin * fling, x + cos * (fling + c * 0.16), y + sin * (fling + c * 0.16));
+          }
+          break;
+        }
+        case 'postHit':
+          // The post under attack (M31): the one hit the accent is spent on.
+          burst(c * (0.42 + 0.18 * t), c * 0.16, 7, c * 0.2);
+          break;
         case 'wallBoom':
           burst(c * (0.55 + 0.35 * t), c * 0.2, 8);
           focusLines(g, x, y, c * (0.7 + 0.4 * t), c * (1.5 + 1.1 * t), 7, ph, COLORS.oliveDark, a, Math.max(1.5, c * 0.07));
@@ -599,6 +753,21 @@ export class BattleRenderer {
           }
           g.strokePath();
           burst(c * (0.5 + 0.3 * t), c * 0.2, 8, c * 0.24);
+          break;
+        }
+        case 'muster': {
+          // A reserve standing up: the ring of ticks alone, in ink, opening
+          // slowly. No star and no red, which are what something going off
+          // looks like.
+          const r = (fx.radius ?? 1) * c * (0.35 + 0.65 * t);
+          g.lineStyle(Math.max(1.5, c * 0.06), COLORS.oliveDark, a);
+          g.beginPath();
+          for (let i = 0; i < 18; i++) {
+            const ang = (i / 18) * Math.PI * 2;
+            g.moveTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r);
+            g.lineTo(x + Math.cos(ang) * (r + c * 0.16), y + Math.sin(ang) * (r + c * 0.16));
+          }
+          g.strokePath();
           break;
         }
         case 'strafe': {
@@ -650,6 +819,11 @@ export class BattleRenderer {
             .setAlpha(a)
             .setAngle((ph - 0.5) * 18);
           break;
+        }
+        default: {
+          // Every mark is drawn: a kind without a case is a compile error.
+          const undrawn: never = fx.kind;
+          return undrawn;
         }
       }
     }

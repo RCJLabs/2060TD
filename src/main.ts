@@ -13,6 +13,8 @@ import { COLORS, css } from './game/palette';
 import { applySettings, loadSettings } from './game/settings';
 import { liveButtons, liveTextRects, liveTexts, panelLayout, panelScroll, panelTab } from './game/probe';
 import { boardCamera, boardCellAt, boardGrid, boardStrays, boardWetAt } from './game/BoardView';
+import { audio } from './game/audio';
+import { playedImpacts, silentImpacts } from './game/impacts';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.
 applySettings(loadSettings());
@@ -110,6 +112,12 @@ dismissBootCard(game);
   scroll: () => panelScroll(),
   layout: () => panelLayout(),
   tab: () => panelTab(),
+  // Every impact the battle renderer has played, and every sound the kit
+  // has made, since the page loaded (M31).
+  impacts: () => {
+    const sounds = audio.soundsMade();
+    return { played: playedImpacts(), sounds, silent: silentImpacts(sounds) };
+  },
   get dpr() {
     return dpr;
   },

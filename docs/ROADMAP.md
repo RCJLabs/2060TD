@@ -6649,8 +6649,118 @@ weight, no craters that persist, no smoke, no shake, no destruction states. Audi
 is a mixer and some music — no positional combat mix, no reactive score, no radio
 chatter with texture.
 
-- [ ] **Phase 1 — an impact vocabulary.** Hit, kill, breach, structure loss; each
+- [x] **Phase 1 — an impact vocabulary.** Hit, kill, breach, structure loss; each
       with one visual and one sound, and nothing shipped without both.
+
+      **The plan, from the survey.** *(Written against v1.69.0.)* M32 drew
+      most of this before the phase came up, in the page's own language. One
+      renderer serves the live defence, every replay and the training range,
+      and today it plays:
+
+      | moment | mark | sound |
+      |---|---|---|
+      | a round lands | the tracer and a small star where it lands | the firing crack |
+      | a unit dies | a star | the heavy shot's, borrowed |
+      | a breach | a lettered burst (KRRAK) with focus lines | a wall breaking |
+      | a building lost | the biggest burst, alarm core, lettered (WHUMP) | a building going |
+
+      What is missing: a kill has no sound of its own, and no kill says what
+      died. A wall being broken and the post under attack make no mark and no
+      sound at all, because the sim reports them as health draining, with no
+      event. Nothing jolts the board and nothing buzzes the phone in any
+      battle. And nothing holds the rule: an effect can be written with a
+      mark and no sound, as the Rapid Response refund's lettering already is.
+
+      Settled with the commander:
+      - **Every hit, on both sides**: rounds landing on either side, and the
+        walls and the post while they are being worn down, rate-limited so a
+        full assault stays readable.
+      - **Kills by weight**: infantry, vehicles and aircraft each get their
+        own size of burst and their own sound, from one family.
+      - **Breaches and lost buildings are felt**: the board jolts (not under
+        the device's reduced-motion setting) and the phone buzzes (following
+        the haptics switch, and never in a replay).
+
+      The build:
+      - **One table, `impacts.ts`**, of every impact a battle plays: its
+        family (hit, kill, breach, loss), its mark, its sound, how long the
+        mark holds, and for a breach or a loss the jolt and the buzz. The
+        renderer plays an impact only through the table, so a mark cannot be
+        written without its sound. The type checker holds every mark to one
+        the renderer draws and every sound to one the kit makes, and a test
+        holds the table.
+      - **Wear**: a wall being broken and the post under attack are read off
+        their health between frames: a chip on the wall with a knock, at most
+        about twice a second a wall, and an alarm star on the post with a
+        clang, at most about twice a second. Rounds keep their tracer and
+        crack.
+      - **Kills by weight**, read off what died: infantry keep today's star
+        and get a dull thud, vehicles a double star and a metal boom,
+        aircraft a star with a falling streak and a whine into a boom. The
+        sim's death event gains the dead unit's armour class, an output field
+        that no battle reads.
+      - **The jolt and the buzz** on a breach and a building lost: a few
+        pixels for a fifth of a second, and two new haptic meanings (a breach,
+        a building lost) in live battles only.
+      - **Tests**: the table, what each sim event plays, a kill's weight for
+        every unit of every army, the wear's rate limit and the renderer's
+        exhaustiveness. The defence harness reads, through the test seam,
+        what a live battle played and that each impact's sound went with it.
+      - **Measured**: a frame of a busy battle, before and after
+        (`scripts/perf.mjs`).
+
+      Not in Phase 1: marks that stay on the board (Phase 2), and the score
+      and positional mix (Phase 3).
+
+      **What Phase 1 found.** *(v1.70.0)*
+      - **Built as planned, and shells and gun runs are in the table too.**
+        The survey's table had four rows, but a shell, a charge or a mine
+        going off and a gun run's pass land on the board as well, and each
+        already had a mark and a sound played outside any rule. They are hits
+        in the table now, eleven impacts in all. Everything else the board
+        shows is a notice: a call for fire (the reticle and its beep), a
+        reserve standing up (a ring and a radio blip) and a refund (its
+        lettering, still silent). Notices keep marks of their own, and never
+        an impact's.
+      - **A notice was wearing an impact's mark.** Since M32 the reserve's
+        ring had been drawn with the blast's red-cored star in it, so a
+        reserve standing up looked like a shell going off. v1.20 made that
+        ring to avoid exactly this. It is an ink ring of ticks again, with no
+        star and no red.
+      - **A kill's weight is its armour, with no exceptions.** Across the 34
+        attacker kinds of the five armies, every infantry unit is unarmoured,
+        every vehicle has light or heavy armour, and the five aircraft are
+        the only units with air armour. So a kill reads its weight off the
+        armour class its death event now carries, with no table of its own,
+        and a test holds the split for every unit.
+      - **Measured in the browser.** One run of the defence harness's level-9
+        live battle played 349 hits, 18 heavy hits, 48 infantry kills, 10 post
+        hits and 2 buildings lost, and made every impact's sound. In the
+        training range, men at a wall and at the post drew a chip and a post
+        hit about twice a second each (13 of each in six seconds). A tank, an
+        IFV, a helicopter and a militiaman killed there each drew their own
+        mark. A breach moved the board 3.2 px, a tenth of a cell, for 13
+        frames and put it back. With the device's reduced-motion setting on,
+        it never moved.
+      - **A skip was playing sounds without marks.** A replay skipped to its
+        end steps through the rest of the battle in one frame, and clears the
+        board before a frame is drawn, so every sound the skip played had no
+        mark: the one thing this phase rules out. The renderer is hushed while
+        it skips. The board's bookkeeping runs, and nothing plays.
+      - **The buzz is gated:** a volley of breaches is one buzz, not a
+        drone. The phone buzzes at most once every 0.3 seconds.
+      - **The renderer's exhaustiveness belongs to the compiler.** Every
+        mark in the table must be one the renderer's switch draws, and every
+        sound one the kit's switch makes. Either switch missing a case fails
+        the build, so the unit tests (`tests/impacts.test.ts`, 20) hold the
+        table, the events, the weights and the wear, and leave that to it.
+      - **Perf:** the download grew 5 kB (2 kB gzipped). A frame of the
+        scripted siege costs the same within noise, measured back to back
+        against v1.69.0 (`scripts/perf.mjs`): 4.6 → 4.4 ms of main thread
+        at ×1 and 18.5 → 18.4 ms at ×4.
+      - **Nothing in a battle changed.** The death event's armour is an
+        output field, and the whole battle suite and the replay determinism
+        tests pass untouched.
 - [ ] **Phase 2 — persistent battlefield scarring.** Craters, wreckage, burn
       marks. The board should look like the battle happened on it.
 - [ ] **Phase 3 — reactive score and a positional mix.**

@@ -11,7 +11,7 @@
  *
  * The Vibration API takes milliseconds, so it is tempting to expose
  * `buzz(ms)`. That produces a codebase where every call site invents its own
- * number and nothing is consistent. These five are a vocabulary instead, and
+ * number and nothing is consistent. These are a vocabulary instead, and
  * the rule for choosing between them is about MEANING, not strength:
  *
  *     tap      something acknowledged the finger
@@ -19,6 +19,8 @@
  *     deny     the thing you pressed will not do what you asked
  *     land     something arrived that you did not press for
  *     warn     a state you should look up from the drawer for
+ *     breach   a wall of yours gave way in a live battle (M31)
+ *     loss     a building of yours went in a live battle (M31)
  *
  * `deny` is two short pulses because a single pulse of any length reads as
  * success — the difference a thumb can feel is rhythm, not duration.
@@ -37,7 +39,7 @@
  * and only after a user gesture, which every one of these is by construction.
  */
 
-export type Haptic = 'tap' | 'commit' | 'deny' | 'land' | 'warn';
+export type Haptic = 'tap' | 'commit' | 'deny' | 'land' | 'warn' | 'breach' | 'loss';
 
 /**
  * Millisecond patterns. Kept short on purpose: anything past ~40ms for a
@@ -49,6 +51,10 @@ const PATTERNS: Record<Haptic, number | number[]> = {
   deny: [12, 60, 12],
   land: [8, 40, 18],
   warn: [20, 70, 20, 70, 20],
+  // The battle's (M31 Phase 1), in a live battle only: a wall gone is one
+  // hard pulse, a building gone a heavier one with an echo.
+  breach: 30,
+  loss: [40, 50, 24],
 };
 
 let enabled = true;

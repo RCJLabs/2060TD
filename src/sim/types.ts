@@ -594,8 +594,12 @@ export type Command =
 
 export type SimEvent =
   | { type: 'attackerSpawned'; id: number }
-  /** `by` and `damageType`: the hit that killed it, a structure's kind or a power's (M29). */
-  | { type: 'attackerDied'; id: number; at: Vec2; by?: string; damageType?: DamageType }
+  /**
+   * `by` and `damageType`: the hit that killed it, a structure's kind or a
+   * power's (M29). `armor`: what died, for the page to weigh the kill by
+   * (M31); nothing in a battle reads it.
+   */
+  | { type: 'attackerDied'; id: number; at: Vec2; armor: ArmorClass; by?: string; damageType?: DamageType }
   | { type: 'shot'; from: Vec2; to: Vec2; damageType: DamageType }
   | { type: 'aoe'; at: Vec2; radius: number }
   | { type: 'strafePulse'; x0: number; x1: number; y: number }

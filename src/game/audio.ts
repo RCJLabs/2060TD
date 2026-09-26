@@ -8,7 +8,7 @@
  * context resumes on the first user gesture (browser autoplay rules).
  */
 
-type SfxName =
+export type SfxName =
   | 'click'
   | 'place'
   | 'erase'
@@ -17,6 +17,13 @@ type SfxName =
   | 'explosion'
   | 'wallBreak'
   | 'structureDown'
+  // The impact vocabulary (M31 Phase 1): a wall worn, the post under
+  // attack, and a kill by what died.
+  | 'chip'
+  | 'postHit'
+  | 'killInfantry'
+  | 'killVehicle'
+  | 'killAir'
   | 'power'
   | 'trigger'
   | 'radio'
@@ -40,6 +47,11 @@ const THROTTLE_MS: Partial<Record<SfxName, number>> = {
   explosion: 120,
   wallBreak: 100,
   structureDown: 150,
+  chip: 90,
+  postHit: 180,
+  killInfantry: 70,
+  killVehicle: 140,
+  killAir: 200,
 };
 
 class AudioKit {
@@ -51,6 +63,8 @@ class AudioKit {
   private sfxLevel = 1;
   private musicLevel = 0.5;
   private readonly lastAt = new Map<SfxName, number>();
+  /** Sounds made since the page loaded, by name: what the test seam reads (M31). */
+  private readonly made = new Map<SfxName, number>();
 
   private ensure(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -112,6 +126,11 @@ class AudioKit {
 
   sfxVolume(): number {
     return this.sfxLevel;
+  }
+
+  /** Every sound made since the page loaded, by name. */
+  soundsMade(): Partial<Record<SfxName, number>> {
+    return Object.fromEntries(this.made) as Partial<Record<SfxName, number>>;
   }
 
   musicVolume(): number {
@@ -208,6 +227,34 @@ class AudioKit {
         this.noise(ctx, 0.3, 0.32, 1400, 'lowpass', 110);
         this.tone(ctx, 'sine', 110, 45, 0.28, 0.24);
         break;
+      case 'chip':
+        // A wall being worn: a gritty knock, short enough to repeat.
+        this.noise(ctx, 0.06, 0.18, 900, 'lowpass');
+        this.tone(ctx, 'triangle', 260, 180, 0.04, 0.1);
+        break;
+      case 'postHit':
+        // The post under attack: a clang with a low thud under it, the one
+        // hit that should make a commander look up.
+        this.tone(ctx, 'square', 540, 520, 0.08, 0.12);
+        this.noise(ctx, 0.1, 0.14, 1600, 'bandpass');
+        this.tone(ctx, 'sine', 95, 60, 0.12, 0.18);
+        break;
+      case 'killInfantry':
+        this.noise(ctx, 0.1, 0.26, 420, 'lowpass');
+        this.tone(ctx, 'sine', 120, 60, 0.1, 0.18);
+        break;
+      case 'killVehicle':
+        // Armour going: a boom with metal in it.
+        this.noise(ctx, 0.45, 0.36, 1800, 'lowpass', 70);
+        this.tone(ctx, 'sine', 110, 34, 0.4, 0.32);
+        this.tone(ctx, 'square', 180, 90, 0.12, 0.06);
+        break;
+      case 'killAir':
+        // An aircraft coming down: a falling whine, then the ground.
+        this.tone(ctx, 'sine', 900, 180, 0.32, 0.12);
+        this.noise(ctx, 0.4, 0.34, 1600, 'lowpass', 80, 0.22);
+        this.tone(ctx, 'sine', 130, 36, 0.35, 0.28, 0.22);
+        break;
       case 'power':
         this.tone(ctx, 'square', 620, 620, 0.06, 0.14);
         this.tone(ctx, 'square', 620, 620, 0.06, 0.14, 0.11);
@@ -232,7 +279,13 @@ class AudioKit {
         this.tone(ctx, 'sawtooth', 130, 52, 0.9, 0.22);
         this.noise(ctx, 0.7, 0.12, 500, 'lowpass', 80);
         break;
+      default: {
+        // Every name has a sound: a new one without a case is a compile error.
+        const unmade: never = name;
+        return unmade;
+      }
     }
+    this.made.set(name, (this.made.get(name) ?? 0) + 1);
   }
 }
 

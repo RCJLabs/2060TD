@@ -113,6 +113,8 @@ export class ReplayScene extends Scene {
       32,
       this.replay.kind === 'raid',
       this.board.world,
+      // Watched, not fought: the board still jolts, the phone does not buzz.
+      { live: false },
     );
     this.panel = createPanel(this, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
     this.panel.onDrawerToggle = () => {
@@ -306,7 +308,11 @@ export class ReplayScene extends Scene {
 
   private skipToEnd(): void {
     let safety = 20_000;
-    while (!this.ended() && safety-- > 0) this.advance();
+    // The rest of the battle is not heard at once: the skip keeps the board's
+    // bookkeeping and plays nothing, since none of its marks is ever drawn.
+    this.battle.hush(() => {
+      while (!this.ended() && safety-- > 0) this.advance();
+    });
     this.accumulator = 0;
     this.battle.settle();
   }
