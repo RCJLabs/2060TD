@@ -90,7 +90,9 @@ export class ReplayScene extends Scene {
   }
 
   create(): void {
-    music.play('quiet');
+    // Footage of a fight sounds like one: the score follows the threat to the
+    // post it shows, a raid's target as much as your own town (M31).
+    music.play('battle');
     this.engine = new Engine(this.replay.config, this.catalog());
     const objective = this.replay.config.objective;
     this.watch = isObjectiveId(objective)
@@ -114,7 +116,7 @@ export class ReplayScene extends Scene {
       this.replay.kind === 'raid',
       this.board.world,
       // Watched, not fought: the board still jolts, the phone does not buzz.
-      { live: false },
+      { live: false, view: () => this.board.listener() },
     );
     this.panel = createPanel(this, [{ id: 'ctrl', label: 'AFTER ACTION' }]);
     this.panel.onDrawerToggle = () => {
@@ -332,6 +334,8 @@ export class ReplayScene extends Scene {
       if (this.accumulator > DT) this.accumulator = 0;
     } else if (!this.endShown) {
       this.endShown = true;
+      // The footage has run out, whoever is still on the board: the score settles.
+      this.battle.over = true;
       const raid = this.replay.kind === 'raid';
       // A force that pulled out on its objective was not repelled — it left
       // with what it came for, which is a different ending and has to read as

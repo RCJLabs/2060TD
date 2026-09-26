@@ -178,7 +178,10 @@ export class SiegeScene extends Scene {
     };
     this.engine = new Engine(config, defenseCatalogFor(this.faction));
     this.board = new BoardView(this, { cols: GRID_W, rows: GRID_H, cell: CELL });
-    this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world, { live: true });
+    this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world, {
+      live: true,
+      view: () => this.board.listener(),
+    });
     this.board.passable = (col, row) => this.engine.terrain.passable(row * GRID_W + col);
 
     this.panel = createPanel(this, SIEGE_TABS);

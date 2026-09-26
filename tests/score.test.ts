@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { bar, barSeconds, MOODS, type Mood, type Note } from '../src/content/score';
+import {
+  bar,
+  barSeconds,
+  BATTLE_STEPS,
+  beatNotes,
+  MOODS,
+  scoreAt,
+  STEP_FALL_SECONDS,
+  STEP_RISE_SECONDS,
+  STEPS,
+  StepWatch,
+  threatStep,
+  type Mood,
+  type Note,
+  type Step,
+  type Threat,
+} from '../src/content/score';
 import { nextVolume, volumeLabel, VOLUME_STEPS } from '../src/game/settings';
 
 const MOOD_IDS: Mood[] = ['quiet', 'planning', 'battle'];
@@ -116,6 +132,144 @@ describe('a bar', () => {
       expect(barSeconds(mood)).toBeCloseTo((60 / MOODS[mood].bpm) * MOODS[mood].beats, 6);
     }
     expect(barSeconds('quiet')).toBeGreaterThan(barSeconds('battle'));
+  });
+});
+
+describe("the battle score's steps (M31 Phase 3)", () => {
+  it('run calm, contact, pressed, critical, and each is tighter and brighter than the last', () => {
+    expect(STEPS).toEqual(['calm', 'contact', 'pressed', 'critical']);
+    for (let i = 1; i < STEPS.length; i++) {
+      const lower = BATTLE_STEPS[STEPS[i - 1]!];
+      const upper = BATTLE_STEPS[STEPS[i]!];
+      expect(upper.pulseEvery, STEPS[i]).toBeLessThanOrEqual(lower.pulseEvery);
+      expect(upper.density, STEPS[i]).toBeGreaterThan(lower.density);
+      expect(upper.cutoffHz, STEPS[i]).toBeGreaterThan(lower.cutoffHz);
+      expect(upper.droneGain, STEPS[i]).toBeGreaterThanOrEqual(lower.droneGain);
+    }
+    // Every step keeps a heartbeat, and even the worst leaves beats empty.
+    for (const step of STEPS) expect(BATTLE_STEPS[step].pulseEvery).toBeGreaterThan(0);
+    expect(BATTLE_STEPS.critical.density).toBeLessThan(0.75);
+  });
+
+  it('put the second drone in only at critical', () => {
+    for (const step of STEPS) expect(BATTLE_STEPS[step].edgeGain > 0, step).toBe(step === 'critical');
+  });
+
+  it("make contact today's battle score exactly, so nothing changes until the board does", () => {
+    const contact = scoreAt('battle', 'contact');
+    expect(contact.pulseEvery).toBe(MOODS.battle.pulseEvery);
+    expect(contact.density).toBe(MOODS.battle.density);
+    expect(contact.cutoffHz).toBe(MOODS.battle.cutoffHz);
+    expect(contact.droneGain).toBe(MOODS.battle.droneGain);
+    expect(bar('battle', 5)).toEqual(bar('battle', 5, 'contact'));
+  });
+
+  it('leave the quiet and planning moods alone, whatever the step', () => {
+    for (const mood of ['quiet', 'planning'] as const) {
+      for (const step of STEPS) expect(bar(mood, 3, step)).toEqual(bar(mood, 3));
+    }
+  });
+});
+
+describe('booked a beat at a time', () => {
+  it('a bar is its beats, in order', () => {
+    for (const mood of MOOD_IDS) {
+      for (const step of STEPS) {
+        const beats: Note[] = [];
+        for (let b = 0; b < MOODS[mood].beats; b++) beats.push(...beatNotes(mood, 9, b, step));
+        expect(bar(mood, 9, step)).toEqual(beats);
+      }
+    }
+  });
+
+  it('a step up adds voices and takes none away, so a change is heard as more, not different', () => {
+    for (let i = 0; i < 40; i++) {
+      for (let b = 0; b < MOODS.battle.beats; b++) {
+        const lower = beatNotes('battle', i, b, 'contact').filter((n) => n.kind === 'voice');
+        const upper = beatNotes('battle', i, b, 'pressed').filter((n) => n.kind === 'voice');
+        for (const v of lower) expect(upper).toContainEqual(v);
+      }
+    }
+  });
+
+  it('sounds denser at every step up', () => {
+    const rate = (step: Step): number => {
+      let n = 0;
+      for (let i = 0; i < 200; i++) n += voices(bar('battle', i, step)).length;
+      return n / 200;
+    };
+    const rates = STEPS.map(rate);
+    for (let i = 1; i < rates.length; i++) expect(rates[i]!).toBeGreaterThan(rates[i - 1]!);
+  });
+});
+
+describe('the threat to the post', () => {
+  const threat = (t: Partial<Threat>): Threat => ({
+    ended: false,
+    alive: 3,
+    nearest: 9,
+    postHurt: false,
+    postHp: 1,
+    ...t,
+  });
+
+  it('is calm with no one on the board, and once the battle is over', () => {
+    expect(threatStep(threat({ alive: 0, nearest: Number.POSITIVE_INFINITY }))).toBe('calm');
+    expect(threatStep(threat({ ended: true, postHurt: true, nearest: 0.5 }))).toBe('calm');
+  });
+
+  it('is contact while they are on the board and far off', () => {
+    expect(threatStep(threat({}))).toBe('contact');
+  });
+
+  it('is pressed when one is close to the post, or when many are on the board', () => {
+    expect(threatStep(threat({ nearest: 3 }))).toBe('pressed');
+    expect(threatStep(threat({ alive: 8, nearest: 12 }))).toBe('pressed');
+  });
+
+  it('is critical while the post is being hurt, or when it is nearly gone with them close', () => {
+    expect(threatStep(threat({ postHurt: true, nearest: 1 }))).toBe('critical');
+    expect(threatStep(threat({ postHp: 0.3, nearest: 3 }))).toBe('critical');
+    // Nearly gone, but no one is near it: not critical.
+    expect(threatStep(threat({ postHp: 0.3, nearest: 9 }))).toBe('contact');
+  });
+});
+
+describe('a step holds long enough to be heard', () => {
+  it('rises at once the first time, and not again for a couple of seconds', () => {
+    const w = new StepWatch();
+    expect(w.update('contact', 0)).toBe('contact');
+    expect(w.update('pressed', 1)).toBe('contact');
+    expect(w.update('pressed', STEP_RISE_SECONDS)).toBe('pressed');
+  });
+
+  it('falls only once the lower step has held', () => {
+    const w = new StepWatch();
+    w.update('critical', 0);
+    expect(w.update('contact', 10)).toBe('critical');
+    expect(w.update('contact', 10 + STEP_FALL_SECONDS - 0.1)).toBe('critical');
+    expect(w.update('contact', 10 + STEP_FALL_SECONDS)).toBe('contact');
+  });
+
+  it('a threat that comes back during the hold starts the hold again', () => {
+    const w = new StepWatch();
+    w.update('pressed', 0);
+    w.update('calm', 10);
+    w.update('pressed', 12);
+    expect(w.update('calm', 13)).toBe('pressed');
+    expect(w.update('calm', 13 + STEP_FALL_SECONDS - 0.1)).toBe('pressed');
+    expect(w.update('calm', 13 + STEP_FALL_SECONDS)).toBe('calm');
+  });
+
+  it('never changes faster than the rise, even at replay speed', () => {
+    const w = new StepWatch();
+    const heard: Step[] = [];
+    let t = 0;
+    // A reading flipping every tenth of a second for ten seconds.
+    for (let i = 0; i < 100; i++, t += 0.1) heard.push(w.update(i % 2 === 0 ? 'critical' : 'calm', t));
+    let changes = 0;
+    for (let i = 1; i < heard.length; i++) if (heard[i] !== heard[i - 1]) changes++;
+    expect(changes).toBeLessThanOrEqual(Math.ceil(10 / STEP_RISE_SECONDS));
   });
 });
 

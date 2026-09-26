@@ -70,6 +70,8 @@ export interface Impact {
   jolt?: number;
   /** The phone's buzz, in a live battle only. Breaches and losses only. */
   haptic?: Haptic;
+  /** How long the music drops under it, in seconds, so it lands. Breaches and losses only (M31 Phase 3). */
+  duck?: number;
 }
 
 export const IMPACTS: Readonly<Record<ImpactKind, Impact>> = {
@@ -87,8 +89,8 @@ export const IMPACTS: Readonly<Record<ImpactKind, Impact>> = {
   killInfantry: { family: 'kill', mark: 'boom', life: 0.35, sound: 'killInfantry' },
   killVehicle: { family: 'kill', mark: 'boomVehicle', life: 0.5, sound: 'killVehicle' },
   killAir: { family: 'kill', mark: 'boomAir', life: 0.6, sound: 'killAir' },
-  breach: { family: 'breach', mark: 'wallBoom', life: 0.7, sound: 'wallBreak', jolt: 0.1, haptic: 'breach' },
-  loss: { family: 'loss', mark: 'structBoom', life: 0.9, sound: 'structureDown', jolt: 0.16, haptic: 'loss' },
+  breach: { family: 'breach', mark: 'wallBoom', life: 0.7, sound: 'wallBreak', jolt: 0.1, haptic: 'breach', duck: 0.5 },
+  loss: { family: 'loss', mark: 'structBoom', life: 0.9, sound: 'structureDown', jolt: 0.16, haptic: 'loss', duck: 0.7 },
 };
 
 export const IMPACT_KINDS = Object.keys(IMPACTS) as ImpactKind[];

@@ -77,6 +77,14 @@ export function buildSettings(
   };
   volume('EFFECTS', 'sfx');
   volume('MUSIC', 'music');
+  // Battle sounds sit where they happen (M31); this puts every one of them in
+  // the middle, for one earbud or one ear.
+  toggle('MONO AUDIO', settings.mono, () => {
+    const next = { ...loadSettings(), mono: !settings.mono };
+    saveSettings(next);
+    applySettings(next);
+    opts.rebuild();
+  });
   // Only offered where there is a motor to switch off. iOS Safari does not
   // implement the Vibration API at all, and a dead toggle is worse than no
   // toggle: it says the feature exists and is failing, rather than absent.

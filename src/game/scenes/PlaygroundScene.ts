@@ -48,7 +48,8 @@ export class PlaygroundScene extends Scene {
   }
 
   create(): void {
-    music.play('quiet');
+    // A range is a battle too: the score follows whatever is sent at it (M31).
+    music.play('battle');
     this.children.removeAll();
     this.engine = new Engine(
       {
@@ -65,7 +66,10 @@ export class PlaygroundScene extends Scene {
       M1_CATALOG,
     );
     this.board = new BoardView(this, { cols: GRID_W, rows: GRID_H, cell: CELL });
-    this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world, { live: true });
+    this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world, {
+      live: true,
+      view: () => this.board.listener(),
+    });
     this.accumulator = 0;
     this.lastPaintedCell = -1;
 

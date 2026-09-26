@@ -1,6 +1,7 @@
 import { clamp, type Container, type Graphics, type Image, type Scene, type Text } from './stage';
 import type { Attacker, Engine } from '../sim/engine';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
+import { POST_HURT_SECONDS, StepWatch, threatStep } from '../content/score';
 import { audio } from './audio';
 import { drawAttackerGlyph, drawStructureGlyph, drawWallGlyph, wallJoins } from './glyphs';
 import { makeSheet } from './ground';
@@ -17,6 +18,8 @@ import {
   type ImpactKind,
 } from './impacts';
 import { focusLines, phaseAt, punch, speedLines, starPoints } from './kinetics';
+import { placeSound, type Placement, type View } from './mix';
+import { music } from './music';
 import { COLORS, css } from './palette';
 import { notePainted, paintScar, ScarField, scarFor, SCARS, SMOKE_SECONDS, type ScarBoard } from './scars';
 import { DISPLAY_FAMILY } from './tokens';
@@ -72,6 +75,12 @@ export interface RendererOptions {
    * or a lost building buzz the phone (M31 Phase 1).
    */
   live?: boolean;
+  /**
+   * What the camera is looking at, in world pixels, so each battle sound can
+   * be heard where it happened (M31 Phase 3). Without it, sounds sit in the
+   * middle.
+   */
+  view?: () => View | null;
 }
 
 export interface GhostPreview {
@@ -128,6 +137,17 @@ export class BattleRenderer {
   private readonly wallsSeen = new Set<CellIndex>();
   /** Events keep the board's bookkeeping but play nothing: see `hush`. */
   private hushed = false;
+  private readonly view: (() => View | null) | undefined;
+  /** The step the score plays, from the threat to the post (M31 Phase 3). */
+  private readonly scoreWatch = new StepWatch();
+  private lastPostHp: number | null = null;
+  private postHurtAt = Number.NEGATIVE_INFINITY;
+  /**
+   * The footage has run out (M31 Phase 3). A raid's replay stops at its
+   * objective or its hard limit with men still on the board, and the score
+   * should not go on pressing after it.
+   */
+  over = false;
   /** The scars painted into the sheet so far, for spacing (M31 Phase 2). */
   private readonly scarField = new ScarField();
   private readonly scarBoard: ScarBoard = {
@@ -152,6 +172,7 @@ export class BattleRenderer {
     this.hostileStructures = hostileStructures;
     this.container = container;
     this.live = opts.live === true;
+    this.view = opts.view;
     this.staticLayer = scene.add.graphics();
     this.dynLayer = scene.add.graphics();
     container?.add([this.staticLayer, this.dynLayer]);
@@ -208,7 +229,8 @@ export class BattleRenderer {
     if (this.hushed) return;
     const impact = IMPACTS[kind];
     this.effects.push({ ...extra, kind: impact.mark, x, y, age: 0, life: life ?? impact.life });
-    audio.sfx(impact.sound);
+    audio.sfx(impact.sound, this.place(x, y));
+    if (impact.duck !== undefined) music.duck(impact.duck);
     if (impact.jolt !== undefined) this.jolt(impact.jolt, x, y);
     if (impact.haptic !== undefined && this.live) {
       const now = this.scene.time.now;
@@ -310,14 +332,14 @@ export class BattleRenderer {
             age: 0,
             life: 0.8,
           });
-          if (!this.hushed) audio.sfx('radio');
+          if (!this.hushed) audio.sfx('radio', this.place(event.at.x, event.at.y));
           break;
         case 'strafePulse':
           this.playImpact('strafe', event.x0, event.y, { x2: event.x1 });
           break;
         case 'powerCast':
           this.effects.push({ kind: 'reticle', x: event.at.x, y: event.at.y, age: 0, life: 0.8 });
-          if (!this.hushed) audio.sfx('power');
+          if (!this.hushed) audio.sfx('power', this.place(event.at.x, event.at.y));
           break;
         default:
           break;
@@ -350,7 +372,40 @@ export class BattleRenderer {
     // A jump in time is not wear: the next frame only learns the health again.
     this.wallWear.clear();
     this.postWear.clear();
+    this.lastPostHp = null;
     this.joltAmp = 0;
+  }
+
+  /** Where a sound at board point (x, y), in cells, is heard (M31 Phase 3). */
+  private place(x: number, y: number): Placement {
+    return placeSound(x * this.cell, y * this.cell, this.view?.() ?? null);
+  }
+
+  /**
+   * Tell the score how hard the battle is pressing the post (M31 Phase 3):
+   * how many attackers are on the board, how close the nearest is, and
+   * whether the post is being hurt. The watch holds each step long enough to
+   * be heard, and the synth plays it from the next beat.
+   */
+  private followThreat(t: number): void {
+    const engine = this.engine;
+    const post = engine.cc;
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const a of engine.attackers) {
+      const d = Math.hypot(a.pos.x - post.center.x, a.pos.y - post.center.y);
+      if (d < nearest) nearest = d;
+    }
+    const step = this.scoreWatch.update(
+      threatStep({
+        ended: this.over || engine.phase === 'victory' || engine.phase === 'defeat',
+        alive: engine.attackers.length,
+        nearest,
+        postHurt: t - this.postHurtAt < POST_HURT_SECONDS,
+        postHp: post.profile.maxHp > 0 ? post.hp / post.profile.maxHp : 1,
+      }),
+      t,
+    );
+    music.setStep(step);
   }
 
   /**
@@ -372,6 +427,10 @@ export class BattleRenderer {
     }
     this.wallWear.keep(alive);
     const post = this.engine.cc;
+    // Any fall at all counts as the post being hurt, for the score; the mark
+    // below keeps its own, slower rate.
+    if (this.lastPostHp !== null && post.hp < this.lastPostHp) this.postHurtAt = t;
+    this.lastPostHp = post.hp;
     if (post.hp > 0 && this.postWear.wore('post', post.hp, t)) {
       // Where on the post, from where it happened: the marks walk round it.
       const ph = phaseAt(t, post.hp);
@@ -420,6 +479,7 @@ export class BattleRenderer {
     const g = this.dynLayer;
     g.clear();
     this.watchWear();
+    this.followThreat(this.scene.time.now / 1000);
     this.applyJolt();
     this.drawWalls(g);
     if (opts.showPaths) this.drawPaths(g, alpha);

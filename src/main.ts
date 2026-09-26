@@ -16,6 +16,7 @@ import { boardCamera, boardCellAt, boardGrid, boardStrays, boardWetAt } from './
 import { audio } from './game/audio';
 import { playedImpacts, silentImpacts } from './game/impacts';
 import { paintedScars } from './game/scars';
+import { music } from './game/music';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.
 applySettings(loadSettings());
@@ -117,8 +118,10 @@ dismissBootCard(game);
   // has made, since the page loaded (M31).
   impacts: () => {
     const sounds = audio.soundsMade();
-    return { played: playedImpacts(), sounds, silent: silentImpacts(sounds) };
+    return { played: playedImpacts(), sounds, silent: silentImpacts(sounds), placed: audio.placements() };
   },
+  // What the score is playing, and every battle step it has been asked for (M31).
+  score: () => ({ mood: music.playing(), step: music.currentStep(), visited: music.visitedSteps() }),
   // Every scar the battle renderer has painted into a board since the page loaded (M31).
   scars: () => paintedScars(),
   get dpr() {

@@ -18,6 +18,11 @@ export interface Settings {
    * `=== true`: an existing player should get the feature, not have to find it.
    */
   haptics: boolean;
+  /**
+   * Every sound in the middle (M31 Phase 3): for one earbud, or one ear. Off
+   * by default and absent from every file written before it, so `=== true`.
+   */
+  mono: boolean;
 }
 
 /** Old name on purpose — see meta/save.ts: a key is an address, not a label. */
@@ -57,6 +62,7 @@ export function loadSettings(): Settings {
           sfx: silent ? 0 : DEFAULTS.sfx,
           colorblind: parsed.colorblind === true,
           haptics: parsed.haptics !== false,
+          mono: parsed.mono === true,
         };
       }
       return {
@@ -64,6 +70,7 @@ export function loadSettings(): Settings {
         sfx: clamp01(parsed.sfx, DEFAULTS.sfx),
         colorblind: parsed.colorblind === true,
         haptics: parsed.haptics !== false,
+        mono: parsed.mono === true,
       };
     }
   } catch {
@@ -73,7 +80,7 @@ export function loadSettings(): Settings {
 }
 
 /** Effects at full, music under them — it is a bed, not a soundtrack. */
-const DEFAULTS: Settings = { music: 0.5, sfx: 1, colorblind: false, haptics: true };
+const DEFAULTS: Settings = { music: 0.5, sfx: 1, colorblind: false, haptics: true, mono: false };
 
 export function saveSettings(settings: Settings): void {
   try {
@@ -89,4 +96,5 @@ export function applySettings(settings: Settings): void {
   audio.setMusicVolume(settings.music);
   applyPalette(settings.colorblind);
   setHapticsEnabled(settings.haptics);
+  audio.setMono(settings.mono);
 }

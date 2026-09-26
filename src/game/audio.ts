@@ -8,6 +8,8 @@
  * context resumes on the first user gesture (browser autoplay rules).
  */
 
+import { sideOf, type Placement, type Side } from './mix';
+
 export type SfxName =
   | 'click'
   | 'place'
@@ -65,6 +67,12 @@ class AudioKit {
   private readonly lastAt = new Map<SfxName, number>();
   /** Sounds made since the page loaded, by name: what the test seam reads (M31). */
   private readonly made = new Map<SfxName, number>();
+  /** Every sound in the middle (M31 Phase 3). */
+  private mono = false;
+  /** Where the sound being made goes: the master, or its placement on the way there. */
+  private dest: AudioNode | null = null;
+  /** Placed sounds made since the page loaded, by the side they were heard on. */
+  private readonly sides = new Map<Side, number>();
 
   private ensure(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -133,6 +141,44 @@ class AudioKit {
     return Object.fromEntries(this.made) as Partial<Record<SfxName, number>>;
   }
 
+  /** MONO AUDIO: placed sounds keep their level and lose their side. */
+  setMono(on: boolean): void {
+    this.mono = on;
+  }
+
+  monoAudio(): boolean {
+    return this.mono;
+  }
+
+  /** Placed sounds made since the page loaded, by the side they were heard on. */
+  placements(): Partial<Record<Side, number>> {
+    return Object.fromEntries(this.sides) as Partial<Record<Side, number>>;
+  }
+
+  /**
+   * The node a placed sound feeds (M31 Phase 3): its level, then its side,
+   * then the master. An unplaced sound, a notice from the menu say, goes
+   * straight to the master as it always did.
+   */
+  private route(ctx: AudioContext, place: Placement | undefined): AudioNode {
+    let node: AudioNode = this.master!;
+    if (!place) return node;
+    const pan = this.mono ? 0 : place.pan;
+    if (pan !== 0 && typeof ctx.createStereoPanner === 'function') {
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = pan;
+      panner.connect(node);
+      node = panner;
+    }
+    if (place.gain < 1) {
+      const level = ctx.createGain();
+      level.gain.value = place.gain;
+      level.connect(node);
+      node = level;
+    }
+    return node;
+  }
+
   musicVolume(): number {
     return this.musicLevel;
   }
@@ -154,7 +200,7 @@ class AudioKit {
     if (toHz !== fromHz) osc.frequency.exponentialRampToValueAtTime(Math.max(1, toHz), t0 + seconds);
     env.gain.setValueAtTime(gain, t0);
     env.gain.exponentialRampToValueAtTime(0.0001, t0 + seconds);
-    osc.connect(env).connect(this.master!);
+    osc.connect(env).connect(this.dest ?? this.master!);
     osc.start(t0);
     osc.stop(t0 + seconds + 0.02);
   }
@@ -182,12 +228,16 @@ class AudioKit {
     const env = ctx.createGain();
     env.gain.setValueAtTime(gain, t0);
     env.gain.exponentialRampToValueAtTime(0.0001, t0 + seconds);
-    src.connect(filter).connect(env).connect(this.master!);
+    src.connect(filter).connect(env).connect(this.dest ?? this.master!);
     src.start(t0);
     src.stop(t0 + seconds + 0.02);
   }
 
-  sfx(name: SfxName): void {
+  /**
+   * Make a sound. `place` puts it where it happened (M31 Phase 3): a battle
+   * sound pans to its side of the view and is quieter off its edge.
+   */
+  sfx(name: SfxName, place?: Placement): void {
     if (this.sfxLevel <= 0) return;
     const ctx = this.ensure();
     if (!ctx || !this.master) return;
@@ -198,6 +248,21 @@ class AudioKit {
     if (now - last < gap) return;
     this.lastAt.set(name, now);
 
+    this.dest = this.route(ctx, place);
+    try {
+      this.make(ctx, name);
+    } finally {
+      this.dest = null;
+    }
+    this.made.set(name, (this.made.get(name) ?? 0) + 1);
+    if (place) {
+      const side = sideOf(this.mono ? 0 : place.pan);
+      this.sides.set(side, (this.sides.get(side) ?? 0) + 1);
+    }
+  }
+
+  /** The sound itself, into wherever `dest` says. */
+  private make(ctx: AudioContext, name: SfxName): void {
     switch (name) {
       case 'click':
         this.tone(ctx, 'square', 820, 820, 0.03, 0.12);
@@ -285,7 +350,6 @@ class AudioKit {
         return unmade;
       }
     }
-    this.made.set(name, (this.made.get(name) ?? 0) + 1);
   }
 }
 

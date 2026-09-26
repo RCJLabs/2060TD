@@ -20,7 +20,23 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.71.0: scars
+## Current state — v1.72.0: the score follows the fight
+
+**The battle music now follows the fight.** It plays four steps: calm when no one is on the board,
+tense when the enemy is on it, pressing when they close on your command post, and critical while
+the post is being hit, with a grinding second drone under everything. A breach or a lost building
+drops the music for a moment so you hear it land.
+
+- **In every battle:** live defences, the training range and every replay, so watching a raid you
+  planned sounds like a fight.
+- **Sounds where they happen:** gunfire and explosions come from the side of the screen they happen
+  on, and are quieter off the edge of a zoomed-in view.
+- **MONO AUDIO:** a new switch beside the volume settings puts every sound back in the middle, for
+  one earbud or one ear.
+
+No battle plays out differently.
+
+## v1.71.0: scars
 
 **The board now shows a battle was fought on it.** Blasts leave craters, destroyed vehicles leave
 wrecks lying the way they drove, downed aircraft leave crash sites, fallen buildings leave scorch

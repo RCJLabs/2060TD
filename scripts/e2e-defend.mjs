@@ -394,6 +394,22 @@ try {
   check('the battle landed its hits', count('hit', 'hitHeavy') > 0, heard);
   check('and its kills', count('killInfantry', 'killVehicle', 'killAir') > 0, heard);
   check('and every impact it played made its sound', impacts.silent.length === 0, impacts.silent.join(', '));
+  // The reactive score and the positional mix (M31 Phase 3): the battle moved
+  // the score through its steps, and its sounds were heard on both sides.
+  const score = await page.evaluate(() => window.lastline.score());
+  check(
+    'the score followed the battle through more than one step',
+    score.mood === 'battle' && Object.keys(score.visited).length >= 2,
+    `${score.mood} ${JSON.stringify(score.visited)}`,
+  );
+  // Which sides depends on where the town is fought over (this one's fighting
+  // runs down its centre and left), so the check is that the sounds left the
+  // middle at all; that left is left and right is right is unit-tested.
+  check(
+    'and its sounds were heard where they happened',
+    (impacts.placed.left ?? 0) + (impacts.placed.right ?? 0) > 0,
+    JSON.stringify(impacts.placed),
+  );
   // Persistent scarring (M31 Phase 2): the board shows the battle was fought
   // on it. Every building lost left its scorch, and blasts left craters.
   const scars = await page.evaluate(() => window.lastline.scars());

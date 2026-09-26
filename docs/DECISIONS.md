@@ -1536,3 +1536,23 @@ here with the change and its date.
   lands on is the one the battle left. And every buzz now waits for the page's
   first touch: the battle's two buzzes follow no tap of their own, and Chrome
   refused one asked for before any tap, with a console error.
+- 2026-09-26 — **The battle score follows the threat to the post, and battle
+  sounds are heard where they happen (M31 Phase 3, v1.72.0).** Settled with
+  the commander: four steps (calm, contact, pressed, critical) read from how
+  many attackers are on the board, how close the nearest is to the command
+  post, and whether the post is being hurt. Each step tightens the pulse,
+  thickens the voices and brightens the drone, and a breach or a lost
+  building ducks the score so it lands. It plays in live battles and replays
+  alike. Sounds pan left and right across the view, are quieter off its edge,
+  and a MONO AUDIO switch puts them back in the middle. Measured first: the
+  nearest attacker is seven cells or more from the post for most of a quiet
+  defence and under three cells for half of a heavy one, and one unchanging
+  battle mood had been played over both. CONTACT is the old battle mood
+  exactly. A step rises no oftener than every two seconds and falls only
+  after the lower step has held for four, so a replay at x8 does not thrash.
+  The synth now books a beat at a time rather than a 5.7-second bar, so a
+  change is heard within a beat. Each beat draws from its own seed, so a step
+  up adds voices and moves none. The duck is in the impact table beside the
+  jolt and the buzz. The mix's view is never counted wider than the board: on
+  a wide screen the whole board sat in the middle of the pan range, and every
+  sound of a central fight came out centre.

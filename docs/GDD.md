@@ -1711,8 +1711,35 @@ scenes has no seam.
 Because the score is data (`content/score.ts`) and the synth is separate
 (`game/music.ts`), the musical decisions are testable without a browser.
 
+**The battle score follows the fight** *(v1.72, M31)*. The battle mood has four
+steps, read from the threat to the command post:
+
+| step | when | how it sounds |
+|---|---|---|
+| CALM | no one on the board, or the battle is over | a pulse every four beats, sparse voices: nearly the planner |
+| CONTACT | they are on the board, and far off | the battle mood as it always was |
+| PRESSED | one within four cells of the post, or eight on the board | the heartbeat on every beat, more voices, a brighter drone |
+| CRITICAL | the post is being hurt, or nearly gone with them close | all of that, and a second drone a semitone above the first |
+
+A step rises no oftener than every two seconds and falls only once the lower
+step has held for four, so the score neither flaps at a replay's ×8 nor drops
+the moment the last man dies. The synth books a beat at a time, so a change is
+heard within a beat. Each beat draws from its own seed, so a step up keeps
+every voice and adds more: it is heard as more, not as a different tune. A
+breach or a lost building ducks the whole score for about half a second, so it
+lands. Live defences, the training range and every replay play it; the menu,
+the town and the planner keep their own moods.
+
 **The mixer** is two buses — effects and music — set independently in five
 stops, because a bed that competes with the gunfire is not a bed.
+
+**The mix** *(v1.72, M31)* places every battle sound where it happened. It pans
+left or right across the view, but never hard into one ear: the edge of the
+view is as far as a sound travels. It is quieter the further it is off the edge
+of a zoomed-in view, down to a floor. And the view is never counted wider than
+the board, so a wide screen does not squeeze the whole board into the middle of
+the mix. MONO AUDIO, beside the mixer, puts every sound back in the middle, for
+one earbud or one ear.
 
 ### 6.2a The impact vocabulary *(v1.70, M31)*
 

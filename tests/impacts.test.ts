@@ -74,6 +74,15 @@ describe('the table: every impact has its mark and its sound', () => {
     expect(IMPACTS.killVehicle.life).toBeGreaterThan(IMPACTS.killInfantry.life);
   });
 
+  it('only a breach and a loss drop the music for a beat (M31 Phase 3), a loss for longer', () => {
+    for (const kind of IMPACT_KINDS) {
+      const impact = IMPACTS[kind];
+      expect(impact.duck !== undefined, `${kind} ducks`).toBe(impact.family === 'breach' || impact.family === 'loss');
+    }
+    expect(IMPACTS.loss.duck!).toBeGreaterThan(IMPACTS.breach.duck!);
+    expect(IMPACTS.loss.duck!).toBeLessThanOrEqual(1);
+  });
+
   it('only a breach and a loss are felt, and a loss harder than a breach', () => {
     for (const kind of IMPACT_KINDS) {
       const impact = IMPACTS[kind];

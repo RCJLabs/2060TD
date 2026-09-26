@@ -6649,6 +6649,15 @@ weight, no craters that persist, no smoke, no shake, no destruction states. Audi
 is a mixer and some music — no positional combat mix, no reactive score, no radio
 chatter with texture.
 
+**Done (v1.72.0).** Every impact a battle plays comes from one table with its
+mark and its sound, and breaches and lost buildings are felt as a jolt and a
+buzz (v1.70.0). The board keeps what the battle left on it, craters, wrecks,
+crashes, scorch and rubble, for the battle and its replay (v1.71.0). The battle
+score follows the threat to the post in four steps, in live battles and
+replays alike, and every battle sound is heard on the side it happened, with a
+MONO AUDIO switch for anyone who needs it (v1.72.0). On the way, a Phase 1 buzz
+that could come before the page was ever touched was found and fixed.
+
 - [x] **Phase 1 — an impact vocabulary.** Hit, kill, breach, structure loss; each
       with one visual and one sound, and nothing shipped without both.
 
@@ -6863,7 +6872,109 @@ chatter with texture.
         painter only strokes ink and paints the same scar every time. The stage
         tests hold `Image.paint` (2), and the haptics tests the first touch (1).
         Nothing in `src/sim` changed.
-- [ ] **Phase 3 — reactive score and a positional mix.**
+- [x] **Phase 3 — reactive score and a positional mix.**
+
+      **The plan, from the survey.** *(Written against v1.71.0.)* The score
+      is three moods (quiet, planning, battle), and a scene picks one when it
+      opens. Nothing a battle does moves it: the live siege plays the battle
+      mood from its first second to its last, whether the enemy is at the wire
+      or the board is empty. Replays, every raid the commander watches among
+      them, and the training range play the quiet mood. The synth books a
+      whole bar at a time, 5.7 seconds of battle music, so as built it could
+      not react inside a bar even if something asked it to. Every battle
+      sound plays dead centre: the kit takes no position, though every impact
+      already arrives through the table with the place it happened.
+
+      What the threat looks like, measured on live defences against the war
+      town, second by second:
+
+      | defence | nearest attacker 7+ cells from the post | 3-7 cells | under 3 cells | the post |
+      |---|---|---|---|---|
+      | USA, level 9 | 62% | 35% | 3% | untouched |
+      | KPA, level 13 | 21% | 27% | 52% | down to 70% |
+
+      So the same score plays over a battle that never comes near the post
+      and one that sits on it for two minutes.
+
+      Settled with the commander:
+      - **The score follows the threat to the post**, in four steps: CALM,
+        CONTACT, PRESSED and CRITICAL. They are read from how many attackers
+        are on the board, how close the nearest is to the command post, and
+        whether the post is being hurt. Each step tightens the pulse, thickens
+        the voices and brightens the drone, and the music drops for a beat
+        under a breach or a lost building so the impact lands.
+      - **In live battles and replays**: the live defence, the training range
+        and every replay, raids included, so watching a raid the commander
+        planned sounds like a fight. A step changes no faster than every
+        couple of seconds, so a replay at ×8 does not thrash.
+      - **Sounds placed left and right**, by where each happened across the
+        view, and quieter off the edge of a zoomed-in view. A MONO AUDIO
+        switch in settings folds everything back to the middle.
+
+      The build:
+      - **The steps, as data** (`content/score.ts`): the battle mood's four
+        steps, each a pulse spacing, a voice density, a drone colour and
+        level, and at CRITICAL a second drone a semitone above the first.
+        CONTACT is today's battle score exactly, so nothing sounds different
+        until the board does. The threat is read by a pure function, with the
+        dwell rules (up after two seconds at the earliest, down only once the
+        lower step has held for four) in a small tested class.
+      - **Booked a beat at a time**: the synth books each beat as it comes due,
+        with the step current at the time, so a change is heard within a beat.
+        A bar still plays the same way every time it comes round at the same
+        step.
+      - **The duck**: a breach and a lost building dip the music for about half
+        a second, from the impact table, so the table stays the one place that
+        says what an impact does.
+      - **Placement**: the battle renderer places each impact's sound from its
+        board position and the view it is watched through, as a pan and a
+        gain from a pure function; the kit gains a panner per sound. Notices
+        (a call for fire, a reserve landing) are placed the same way.
+      - **MONO AUDIO**: a device setting beside the mixer, off by default.
+      - **Tests**: the threat's steps and their dwell, the steps' ordering,
+        beat-level booking against the bar tests that exist, the placement's
+        pan and fall-off, the duck only on a breach and a loss, and the mono
+        setting's round trip. The test seam reports the steps the score has
+        visited and how sounds were placed, and the defence harness checks a
+        live battle moved the score and placed its sounds on both sides.
+      - **Measured**: a frame of the scripted siege before and after.
+
+      Not in Phase 3: recorded or sampled music (the artifact is one HTML
+      file, and the score stays synthesized), and radio chatter.
+
+      **What Phase 3 found.** *(v1.72.0)*
+      - **Built as planned.** One run of the level-9 live defence moved the
+        score through all four steps, calm, contact, pressed and critical,
+        and back. Pressed and critical came twice each, as the enemy closed
+        on the post and pulled back. A raid's footage now plays the battle
+        score and follows the threat to the post it shows.
+      - **The mix was first measured against the screen, and a wide screen
+        put every sound in the middle.** On a desktop the whole board sits
+        in a view half again as wide, so the board spanned only the middle
+        of the pan range, and all 177 sounds the defence placed came out
+        centre. The listener is now never wider than the board: the board's
+        edges are the mix's, and zooming in narrows it to the view. After
+        the fix, 57 of 175 came out left and 118 centre. That town is fought
+        down its centre and its left, so the harness checks sounds leave the
+        middle; that left is left and right is right is unit-tested.
+      - **A step up adds voices and moves none.** Each beat draws its numbers
+        from its own seed, so the same beat at a higher step keeps every
+        voice the lower step had and adds some. A rise is heard as more, not
+        as a different tune.
+      - **Perf, unchanged within noise.** Measured back to back in both
+        orders against v1.71.0 (`scripts/perf.mjs`), a frame of the
+        scripted siege costs 3.4 ms of main thread at ×1 either way. At ×4
+        both builds landed between 12.8 and 15.0 ms from run to run, and the
+        town demo, which runs none of this, moved by as much. The download
+        grew 5 kB (1 kB gzipped).
+      - **Tests:** `tests/score.test.ts` gains 15: the steps' ordering,
+        CONTACT as today's battle score, beat-by-beat booking against the bar
+        tests that were already there, the threat's four steps and the
+        dwell. `tests/mix.test.ts` (7) holds the placement and MONO AUDIO,
+        and the impact tests hold the duck (1). The defence harness checks
+        the score moved through more than one step and placed its sounds,
+        and the raid harness that a raid's footage plays the battle score.
+        Nothing in `src/sim` changed.
 
 ## M32 — "Ink": the screentone graphic-novel pass
 

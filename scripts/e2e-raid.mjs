@@ -352,6 +352,14 @@ try {
   const playing =
     offered && (await until(async () => /REPLAY —/i.test((await texts()).join('\n')), 15000));
   check('the replay runs a clock', playing, await copy(/T\+\d+s/i));
+  // Footage of a fight sounds like one (M31 Phase 3): the battle score, not
+  // the quiet bed, following the threat to the post it shows.
+  const replayScore = await page.evaluate(() => window.lastline.score());
+  check(
+    'and plays the battle score, following the raid',
+    replayScore.mood === 'battle' && Object.keys(replayScore.visited).length > 0,
+    `${replayScore.mood} ${JSON.stringify(replayScore.visited)}`,
+  );
   // The heat map (M29 Phase 2) is drawn from the first frame of the footage.
   const heat = await buttonState('HEAT MAP');
   check('the footage draws its heat map from the start', heat?.active === true, heat ? '' : 'no HEAT MAP row');

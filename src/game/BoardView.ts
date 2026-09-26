@@ -362,6 +362,22 @@ export class BoardView {
     this.camera.centerOn(this.centerX, this.centerY);
   }
 
+  /**
+   * What the board is looking at, in world pixels: the centre and half the
+   * extent of the view, for placing battle sounds where they happen (M31).
+   * Never wider than the board: a wide screen shows the whole board with room
+   * either side, and it is the board's edges, not the screen's, that should
+   * sit at the edges of the mix.
+   */
+  listener(): { cx: number; cy: number; halfW: number; halfH: number } {
+    return {
+      cx: this.centerX,
+      cy: this.centerY,
+      halfW: Math.min(this.rect.w / this.zoom / 2, this.worldWidth / 2),
+      halfH: Math.min(this.rect.h / this.zoom / 2, this.worldHeight / 2),
+    };
+  }
+
   /** Test seam: where the camera is looking, for `boardCamera`. */
   probe(): { zoom: number; cx: number; cy: number; rect: Rect } {
     return { zoom: this.zoom, cx: this.centerX, cy: this.centerY, rect: { ...this.rect } };
