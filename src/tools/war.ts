@@ -20,6 +20,7 @@
 import { CHARGE_PRICES } from '../content/buildings';
 import { conditionAt } from '../content/conditions';
 import {
+  campaignFor,
   canTunnel,
   defenseCatalogFor,
   raidCatalogFor,
@@ -29,6 +30,7 @@ import {
 } from '../content/factions';
 import { LADDER_EPOCH } from '../content/leagues';
 import { TECH_BRANCHES, TECHS, techsOpenTo, type TechBranch, type TechDef } from '../content/research';
+import { campaignMerit, MERIT_FIRST_WIN, MERIT_WAR_WON, rungMerit } from '../content/prestige';
 import { ladderPayout } from '../meta/ladder';
 import {
   applyCounterResult,
@@ -337,6 +339,7 @@ export function playWarWeek(
     made: zero(),
     banked: zero(),
     atCap: zero(),
+    delivered: zero(),
     pastOffline: zero(),
     converted: zero(),
     placements: zero(),
@@ -748,6 +751,39 @@ export function reachTable(faction: FactionId = 'usa', days = 70): string {
     );
   }
   return lines.join('\n');
+}
+
+/**
+ * M28 Phase 3: what a war banks if it is retired on a given day. The growing
+ * commander of THE ROAD TO THE CAPITAL, played daily, read at each day for
+ * the rung its front had reached and whether the war was won. The war town
+ * starts built out, so it has done the campaign (its CC3 is the seventh
+ * mission's requisition) and the days are counted after an opening the
+ * played fortnight puts at about three.
+ */
+export function meritTable(faction: FactionId = 'usa', days = 28): string {
+  const start = warTown(faction);
+  const run = playWarWeek(start, 'raids', 24, days, 10, {
+    raidsPerSession: 3,
+    front: 'easiest',
+    retake: 'push',
+    grow: true,
+  });
+  const campaign = campaignMerit(campaignFor(faction).length, campaignFor(faction).length);
+  const at = [3, 7, 10, 14, 21, 28].filter((d) => d <= days);
+  const cells = at.map((d) => {
+    let rung = 1;
+    run.reachedOn.forEach((when, tier) => {
+      if (when !== undefined && when <= d) rung = Math.max(rung, tier);
+    });
+    const won = run.wonOn !== undefined && run.wonOn <= d;
+    const merit = rungMerit(rung) + campaign + (won ? MERIT_WAR_WON + MERIT_FIRST_WIN : 0);
+    return `day ${String(d).padStart(2)}: T${String(rung).padEnd(2)} ${String(merit).padStart(3)} (${(merit / (d + 3)).toFixed(1)}/d)`;
+  });
+  return (
+    `${faction.toUpperCase().padEnd(7)} won ${run.wonOn === undefined ? 'never' : `day ${Math.round(run.wonOn)}`} · ` +
+    cells.join(' · ')
+  );
 }
 
 /**

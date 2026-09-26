@@ -14,6 +14,7 @@ import { regridTown } from './regrid';
 import { normalizePlan } from './warfare';
 import { cleanCallsign, normalizeGhosts } from './ghost';
 import { normalizeCadre, promoteDue } from './cadre';
+import { normalizeHeadStart } from './career';
 import { doctrineOf, TECH_BRANCHES, type TechBranch } from '../content/research';
 import { normalizeContracts } from './contracts';
 import {
@@ -294,6 +295,10 @@ export function deserialize(json: string): TownState | null {
     if (cadre) town.cadre = cadre;
     else delete town.cadre;
     promoteDue(town, town.lastSeen);
+    // The head start arrived with M28 Phase 3; a war begun before it had none.
+    const headStart = normalizeHeadStart(town.headStart, town.lastSeen);
+    if (headStart) town.headStart = headStart;
+    else delete town.headStart;
     // The stored plan arrived in v1.16. Anything unrecognizable is dropped
     // here rather than at the planner, so what reaches the scene is a plan.
     town.lastPlan = normalizePlan(town.lastPlan);

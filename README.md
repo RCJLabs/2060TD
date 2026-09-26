@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.68.0, in the browser. No install, no account, works on a phone.
+v1.69.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,28 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.68.0: doctrines
+## Current state — v1.69.0: prestige
+
+**Retire a war and your next one starts ahead.** A war can now be retired whenever you like:
+RETIRE THE WAR on its SYS tab, or RETIRE A WAR on the menu. It banks **merit** for what it
+achieved:
+
+- **What pays:** each rung your front reached (more for each deeper rung), the campaign's
+  missions, winning the war, and more for the first war you win with each army. HARD wars pay a
+  quarter more. A war won pays 160-205 merit; one retired on day three pays about 15.
+- **What merit buys:** the WAR COLLEGE on the menu sells four head starts, three levels each:
+  bigger opening stores (WAR CHEST), the campaign's first buildings and CC2 unlocked from day one
+  (THE OPENING), extra supplies and fuel for the first 72 hours (QUARTERMASTERS) and shorter
+  research (STAFF COLLEGE). Every war you start afterwards opens with them, in any slot, as any
+  army. With all of them, a town is built out on day one instead of day three.
+- **An officer carries over:** your retiring war's most experienced living officer waits in the
+  reserve and commands the first squad of your next war with the same army.
+
+Merit belongs to you, not to one war, and head starts change no battle: the ladder, ghost raids
+and replays stay fair. Erasing a war from the menu now retires it, so no war's merit is thrown
+away.
+
+## v1.68.0: doctrines
 
 **Each war now picks a doctrine.** Every war still researches the nine lower techs. The first
 tier-4 tech you start commits your war to that branch for good:

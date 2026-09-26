@@ -1478,3 +1478,25 @@ here with the change and its date.
   and its doctrine is the branch it went furthest in. In the week at war, each
   doctrine gains on one axis and gives up the others. FORTIFY and STRIKE wars
   pay full price for repairs, out of surplus a full store was losing.
+- 2026-09-26 — **Wars are retired for merit, and merit buys head starts
+  (M28 Phase 3, v1.69.0).** Settled with the commander: a war can be retired
+  at any time and is paid by what it achieved; merit buys head starts, not
+  battle power; the retiring war's best living officer carries over; and the
+  merit is the commander's, one pool on the device for every slot and army.
+  A war never ended before this, and nothing carried from one war to the next.
+  Merit pays each rung the front reached its number less one, the campaign 9
+  in all, winning the war 30, an army's first win 30 more, and a HARD war a
+  quarter more. That makes a war pay more for each day the longer it runs, up
+  to its win (2.5 merit a day retired on day three, 7.9-9.4 once won), so
+  restarting early is never the better trade. A war can pay only once:
+  retiring an imported copy again pays only what it earned since. The head
+  starts are WAR CHEST (opening stores), THE OPENING (the campaign's first
+  requisitions), QUARTERMASTERS (72 hours of deliveries on top of the depots,
+  banked but not production, so the supply line never sees them) and STAFF
+  COLLEGE (shorter research). None touches a battle, so the ladder's tuning,
+  ghost raids and replays are unchanged. Prices were raised in the build from
+  10/25/50 to 15/35/70 a level (480 for all twelve) after a first won war
+  measured at 160-205 merit, so everything takes about three won wars. All
+  three measurable head starts at level III bring the played fortnight's
+  build-out from day 3.0 to day 1.0. The menu's ERASE A WAR became RETIRE A
+  WAR: no path throws a war's merit away.

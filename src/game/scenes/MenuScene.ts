@@ -17,6 +17,19 @@ import type { Ink } from '../ink';
 import { COLORS } from '../palette';
 import { buildSettings } from '../settingsOverlay';
 import { createOverlay, type OverlayApi } from '../dom/overlay';
+import { HEAD_STARTS } from '../../content/prestige';
+import {
+  buy,
+  buyError,
+  loadCareer,
+  meritOf,
+  nextLevel,
+  ordinal,
+  retire,
+  saveCareer,
+  type Retirement,
+} from '../../meta/career';
+import { officerLine, paintRetirement } from '../careerView';
 
 /**
  * The front door (v1.1). Everything before this dropped the player straight
@@ -87,7 +100,11 @@ export class MenuScene extends Scene {
     this.enterWar(slot);
   }
 
-  /** First tap arms, second tap inside the window erases. */
+  /**
+   * First tap arms, second tap inside the window retires the war in the slot
+   * (M28 Phase 3): it banks its merit and sends its best officer to the
+   * reserve, as RETIRE THE WAR does inside it, and the slot is emptied.
+   */
   private eraseSlot(slot: number): void {
     if (this.wipeArmedSlot !== slot || Date.now() > this.wipeArmedUntil) {
       this.wipeArmedSlot = slot;
@@ -95,15 +112,107 @@ export class MenuScene extends Scene {
       this.rebuild();
       return;
     }
+    const town = readSlot(slot);
+    const career = loadCareer();
+    const retired = town ? retire(career, town, Date.now()) : null;
+    if (retired) saveCareer(career);
     clearSlot(slot);
     this.wipeArmedSlot = 0;
     this.wipeArmedUntil = 0;
     this.eraseMode = false;
-    this.rebuild();
+    if (retired) this.show(() => this.buildRetired(retired, career.merit));
+    else this.rebuild();
+  }
+
+  /** A war retired from the menu (M28 Phase 3): what it banked. */
+  private buildRetired(r: Retirement, merit: number): OverlayApi {
+    const days = Math.max(1, Math.floor((r.war.ended - r.war.began) / 86_400_000) + 1);
+    const ov = createOverlay(this, this.layout, {
+      scrim: 1,
+      title: 'THE WAR IS RETIRED',
+      subtitle: `${flavorFor(r.war.faction).faction} · DAY ${days}${r.war.wonDay !== null ? ` · WON ON DAY ${r.war.wonDay}` : ''}`,
+    });
+    paintRetirement(ov, this.layout, r, merit);
+    ov.footer('BACK', () => this.show(() => this.buildMenu()));
+    return ov;
+  }
+
+  /**
+   * The War College (M28 Phase 3): the commander's merit, the head starts it
+   * buys, the officers waiting in the reserve and the wars retired.
+   */
+  private buildCollege(): OverlayApi {
+    const career = loadCareer();
+    const ov = createOverlay(this, this.layout, {
+      scrim: 1,
+      title: 'WAR COLLEGE',
+      subtitle: `${career.merit} MERIT IN HAND · ${career.earned} EARNED IN ALL`,
+    });
+    const { font, gap } = this.layout;
+    const line = (text: string, color: number = COLORS.ink, gapAfter = Math.round(gap / 2)): void => {
+      ov.paragraph(text, font.body, color, { gapAfter });
+    };
+    const heading = (text: string): void => {
+      ov.text(ov.flow(Math.round(font.label * 1.4), Math.round(gap / 2)), text, font.label, COLORS.intel, {
+        fontStyle: 'bold',
+      });
+    };
+    line(
+      'A war retired banks merit for what it achieved: RETIRE THE WAR on its SYS tab, or RETIRE A WAR ' +
+        'here. Head starts open every war begun after they are bought, in any slot, as any army, and ' +
+        'change no battle.',
+      COLORS.inkDim,
+      gap,
+    );
+    heading('HEAD STARTS');
+    for (const track of HEAD_STARTS) {
+      const level = career.bought[track.id];
+      const next = nextLevel(career, track.id);
+      line(
+        `${track.name} · LV ${level}/${track.levels.length} — ${track.blurb}\n` +
+          (level > 0 ? `NOW: ${track.levels[level - 1]!.detail}` : 'NOT BOUGHT') +
+          (next ? `\nNEXT: ${next.detail}` : ''),
+        level > 0 ? COLORS.ink : COLORS.inkDim,
+      );
+      const button = ov.flowButton(
+        next ? `BUY LV ${level + 1}` : 'ALL THREE BOUGHT',
+        () => {
+          if (buy(career, track.id)) {
+            saveCareer(career);
+            this.show(() => this.buildCollege());
+          }
+        },
+        { sub: next ? `${next.price} MERIT` : '', gapAfter: gap },
+      );
+      if (buyError(career, track.id) !== null) button.setEnabled(false);
+    }
+    heading('THE RESERVE');
+    const waiting = FACTION_IDS.flatMap((f) => (career.reserve[f] ? [[f, career.reserve[f]!] as const] : []));
+    if (waiting.length === 0) {
+      line('Nobody is waiting. A war retired sends its most experienced living officer here.', COLORS.inkDim);
+    }
+    for (const [faction, officer] of waiting) {
+      line(`${officerLine(officer)} — waits for your next ${flavorFor(faction).short} war`);
+    }
+    heading('THE HONOUR ROLL');
+    if (career.wars.length === 0) line('No war has been retired yet.', COLORS.inkDim);
+    for (const w of career.wars) {
+      const days = Math.max(1, Math.floor((w.ended - w.began) / 86_400_000) + 1);
+      line(
+        `${flavorFor(w.faction).short} · ${days} day${days === 1 ? '' : 's'} · the ${ordinal(w.rung)} rung` +
+          (w.wonDay !== null ? ` · WON DAY ${w.wonDay}` : '') +
+          (w.hard ? ' · HARD' : '') +
+          ` · ${w.merit} MERIT`,
+        COLORS.inkDim,
+      );
+    }
+    ov.footer('BACK', () => this.show(() => this.buildMenu()));
+    return ov;
   }
 
   private buildMenu(): OverlayApi {
     const now = Date.now();
+    const career = loadCareer();
     // The masthead is pinned now, and that reverses a v1.4 decision. It was
     // flowed inside the card because a title floating over a dark scrim left
     // a hole between itself and the buttons — but the masthead is a filled
@@ -216,7 +325,7 @@ export class MenuScene extends Scene {
       tick(town, now);
       const armed = this.wipeArmedSlot === slot && now <= this.wipeArmedUntil;
       menuButton(
-        armed ? `TAP AGAIN — ERASES WAR ${slot}` : `${slot} · ${flavorFor(town.faction).faction}`,
+        armed ? `TAP AGAIN — RETIRES WAR ${slot}` : `${slot} · ${flavorFor(town.faction).faction}`,
         () => (this.eraseMode ? this.eraseSlot(slot) : this.enterWar(slot)),
         {
           align: 'left',
@@ -224,7 +333,7 @@ export class MenuScene extends Scene {
           // and PLA EXPEDITIONARY FORCE plus IRREGULARS does not fit a phone.
           // A war won says so, with the day (M25 Phase 4b).
           sub: this.eraseMode
-            ? 'ERASE'
+            ? `RETIRE · +${meritOf(town, career).total} MERIT`
             : `${wonDay(town) !== null ? `WON DAY ${wonDay(town)} · ` : ''}T${town.frontline.tier} · ${leagueOf(town).short}`,
           // Whose war this is, before the name is read. Five armies are told
           // apart by shape here for the same reason they are on the board:
@@ -253,8 +362,15 @@ export class MenuScene extends Scene {
       ov.flow(0, Math.round(air / 2));
     }
 
+    // The commander's career (M28 Phase 3): merit, head starts, the reserve.
+    if (!this.eraseMode) {
+      menuButton('WAR COLLEGE', () => this.show(() => this.buildCollege()), {
+        align: 'left',
+        sub: `${career.merit} MERIT`,
+      });
+    }
     if (fought.length > 0) {
-      menuButton(this.eraseMode ? 'CANCEL' : 'ERASE A WAR', () => {
+      menuButton(this.eraseMode ? 'CANCEL' : 'RETIRE A WAR', () => {
         this.eraseMode = !this.eraseMode;
         this.wipeArmedSlot = 0;
         this.wipeArmedUntil = 0;

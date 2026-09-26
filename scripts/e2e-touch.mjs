@@ -157,14 +157,14 @@ try {
   const home = await rowTop('SUPPLY DEPOT');
   check('swiping back reaches the top again', home === start, `${home} vs ${start}`);
 
-  // Tap vs drag, read off a row that reports its own state: ABANDON BASE
+  // Tap vs drag, read off a row that reports its own state: RETIRE THE WAR
   // arms on the first tap, so a tap is visible and costs nothing.
   await tap((await find('SYS')).x, (await find('SYS')).y);
-  const atRest = await labelOf('ABANDON');
-  const row = await find('ABANDON');
+  const atRest = await labelOf('RETIRE THE WAR');
+  const row = await find('RETIRE THE WAR');
   await swipe(row.x, row.y, row.y - 88);
-  check('dragging across a row does not fire it', (await labelOf('ABANDON')) === atRest, atRest);
-  const again = (await find('ABANDON')) ?? (await find('TAP AGAIN'));
+  check('dragging across a row does not fire it', (await labelOf('RETIRE THE WAR')) === atRest, atRest);
+  const again = (await find('RETIRE THE WAR')) ?? (await find('TAP AGAIN'));
   await tap(again.x, again.y);
   check(
     'tapping a row still fires it',

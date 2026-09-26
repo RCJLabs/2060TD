@@ -125,6 +125,7 @@ import {
   isPoweredCell,
   powerReachOf,
   researchEffects,
+  researchSeconds,
   yardOutput,
   yardOutputAt,
   yardRuleText,
@@ -185,6 +186,20 @@ import type { BattleTag } from './SiegeScene';
 import { createButton, type FreeButton } from '../dom/button';
 import { createLabel, type SceneLabel } from '../dom/label';
 import { createOverlay, type OverlayApi, type OverlayButton } from '../dom/overlay';
+import {
+  applyHeadStart,
+  isEmptyHeadStart,
+  isWar,
+  loadCareer,
+  meritOf,
+  newCareer,
+  retire,
+  saveCareer,
+  type Career,
+  type HeadStartNews,
+  type Retirement,
+} from '../../meta/career';
+import { headStartLines, paintRetirement } from '../careerView';
 import { createPanel } from '../dom/panel';
 import type { PanelApi, PanelRow } from '../rows';
 
@@ -309,6 +324,10 @@ export class TownScene extends Scene {
   private overlay: OverlayApi | null = null;
   /** How to rebuild the open overlay after the viewport changes. */
   private overlayBuilder: (() => void) | null = null;
+  /** The commander's career (M28 Phase 3), read when the scene starts: merit, head starts, the reserve. */
+  private career: Career = newCareer();
+  /** A head start just given, to be named once the scene has restarted around the new war. */
+  private pendingHeadStart: HeadStartNews | null = null;
   /** Which of today's orders had paid out last frame — the banner watches it. */
   private paidOrders: boolean[] = [];
 
@@ -533,8 +552,14 @@ export class TownScene extends Scene {
     onLayoutChange(this, () => this.applyLayout());
     this.bindInput();
 
+    this.career = this.demoMode ? newCareer() : loadCareer();
     if (!this.demoMode && this.town.campaign.difficulty === null)
       this.openOverlay(() => this.showIntro());
+    else if (this.pendingHeadStart) {
+      const news = this.pendingHeadStart;
+      this.pendingHeadStart = null;
+      if (!isEmptyHeadStart(news)) this.openOverlay(() => this.showHeadStart(news));
+    }
   }
 
   /** Frame the built-up part of the base rather than the whole empty grid. */
@@ -895,7 +920,7 @@ export class TownScene extends Scene {
         `${tech.intel} INTEL`,
         ...(tech.supplies ? [`${tech.supplies} SUP`] : []),
         ...(tech.fuel ? [`${tech.fuel} FUEL`] : []),
-        span(tech.seconds),
+        span(researchSeconds(town, tech)),
       ].join(' · ');
       const missing = techPrereqs(tech)
         .filter((id) => !town.research.completed.includes(id))
@@ -2386,6 +2411,11 @@ export class TownScene extends Scene {
 
     const pick = (difficulty: 'standard' | 'hard'): void => {
       this.town.campaign.difficulty = difficulty;
+      // The file is a war now, and opens with the commander's head start
+      // (M28 Phase 3): given once, and named after the restart below.
+      const career = loadCareer();
+      this.pendingHeadStart = applyHeadStart(this.town, career, Date.now());
+      saveCareer(career);
       saveTown(this.town);
       ov.close();
       this.overlay = null;
@@ -3018,8 +3048,26 @@ export class TownScene extends Scene {
               },
             ]
           : [];
+      // What lasts of the war's head start (M28 Phase 3), while it lasts.
+      const hs = town.headStart;
+      const headStart: PanelRow[] = [];
+      if (hs?.quartermasters && now < hs.quartermasters.until) {
+        headStart.push({
+          id: 'hsqm',
+          label: `QUARTERMASTERS +${Math.round(hs.quartermasters.bonus * 100)}% · ${span((hs.quartermasters.until - now) / 1000)} LEFT`,
+          heading: true,
+        });
+      }
+      if (hs?.staff !== undefined) {
+        headStart.push({
+          id: 'hsst',
+          label: `STAFF COLLEGE: RESEARCH ${Math.round((1 - hs.staff) * 100)}% SHORTER`,
+          heading: true,
+        });
+      }
       return [
         ...repairs,
+        ...headStart,
         { id: 'h', label: 'NOTHING SELECTED', heading: true },
         { id: 'hint', label: 'Tap a structure on the map', heading: true },
         { id: 'hint2', label: 'to inspect and upgrade it.', heading: true },
@@ -3446,7 +3494,9 @@ export class TownScene extends Scene {
       },
       {
         id: 'reset',
-        label: armed ? 'TAP AGAIN TO ABANDON' : 'ABANDON BASE',
+        // A war retired banks its merit (M28 Phase 3); the row says how much.
+        label: armed ? 'TAP AGAIN TO RETIRE' : 'RETIRE THE WAR',
+        sub: this.demoMode || !isWar(this.town) ? '' : `+${meritOf(this.town, this.career).total} MERIT`,
         active: armed,
         onTap: () => this.onReset(),
       },
@@ -3525,16 +3575,81 @@ export class TownScene extends Scene {
     const now = Date.now();
     if (now > this.resetArmedUntil) {
       this.resetArmedUntil = now + 3000;
-      this.setBanner('TAP ABANDON AGAIN TO CONFIRM.', 3);
+      this.setBanner('TAP RETIRE AGAIN TO CONFIRM.', 3);
       return;
     }
+    // Retired, the war banks its merit and sends its best officer to the
+    // reserve (M28 Phase 3). A showcase town, or a file that never chose its
+    // commitment, has nothing to bank and is simply cleared.
+    const retired = this.demoMode ? null : retire(this.career, this.town, now);
+    if (retired) saveCareer(this.career);
     clearSave();
+    // The slot holds a fresh file from here on, so nothing the card below
+    // does can write the retired war back.
     this.town = newTown(now);
     this.selectedId = null;
     this.resetArmedUntil = 0;
+    if (retired) {
+      this.openOverlay(() => this.showRetirement(retired));
+      return;
+    }
     this.setBanner('BASE ABANDONED. A NEW COMMAND STANDS.', 8);
     // Fresh save: restart into the intro so the faction pick runs again.
     this.scene.restart({});
+  }
+
+  /** The war retired (M28 Phase 3): what it banked, and where to go next. */
+  private showRetirement(r: Retirement): void {
+    const flavor = flavorFor(r.war.faction);
+    const days = Math.max(1, Math.floor((r.war.ended - r.war.began) / 86_400_000) + 1);
+    const ov = createOverlay(this, this.layout, {
+      title: 'THE WAR IS RETIRED',
+      subtitle: `${flavor.faction} · DAY ${days}${r.war.wonDay !== null ? ` · WON ON DAY ${r.war.wonDay}` : ''}`,
+    });
+    this.overlay = ov;
+    paintRetirement(ov, this.layout, r, this.career.merit);
+    const leave = (): void => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    };
+    ov.footer(
+      'NEW WAR',
+      () => {
+        leave();
+        // A fresh file: the scene restarts into the faction pick.
+        this.scene.restart({});
+      },
+      0,
+      2,
+    );
+    ov.footer(
+      'TO THE MENU',
+      () => {
+        leave();
+        this.scene.start('menu');
+      },
+      1,
+      2,
+    );
+  }
+
+  /** A new war's head start (M28 Phase 3), named once, the moment it begins. */
+  private showHeadStart(news: HeadStartNews): void {
+    const ov = createOverlay(this, this.layout, {
+      title: 'HEAD START',
+      subtitle: 'What your career gives this war',
+    });
+    this.overlay = ov;
+    const { font, gap } = this.layout;
+    for (const line of headStartLines(news, this.town.faction)) {
+      ov.paragraph(line, font.body, COLORS.ink, { gapAfter: Math.round(gap / 2) });
+    }
+    ov.footer('TO WAR', () => {
+      ov.close();
+      this.overlay = null;
+      this.overlayBuilder = null;
+    });
   }
 
   private saveSoon(): void {

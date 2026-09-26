@@ -112,6 +112,10 @@ try {
     throw new Error(`no button matching "${needle}"`);
   };
   const has = async (needle) => (await labels()).some((l) => l.toUpperCase().includes(needle));
+  const copyHas = async (needle) =>
+    (await page.evaluate(() => window.lastline.texts()))
+      .flatMap((t) => t.split('\n'))
+      .some((t) => t.toUpperCase().includes(needle.toUpperCase()));
   /**
    * Every button label, checked against its own box: centred vertically, and
    * inside it horizontally.
@@ -175,7 +179,7 @@ try {
     (await has('1 · EMPTY')) && (await has('2 · EMPTY')) && (await has('3 · EMPTY')),
     (await labels()).join(', '),
   );
-  check('and nothing to erase', !(await has('ERASE A WAR')));
+  check('and nothing to retire', !(await has('RETIRE A WAR')));
   {
     const bad = await misfits();
     check('every menu row holds its label square in its box', bad.length === 0, bad.join(' ; '));
@@ -319,7 +323,7 @@ try {
   await tap('MAIN MENU', 1500);
   check('the SYS tab walks back to the menu', await has('3 · EMPTY'), (await labels()).join(', '));
   check('war 1 is now on the board', await has('1 · UNITED STATES'));
-  check('and there is something to erase', await has('ERASE A WAR'));
+  check('and there is something to retire', await has('RETIRE A WAR'));
 
   // A second war, in a second slot. This is the whole point of slots.
   await tap('2 · EMPTY', 1200);
@@ -350,17 +354,25 @@ try {
   await tap('SYS', 600);
   await tap('MAIN MENU', 1500);
 
-  // Erasing takes two taps and takes exactly one war.
-  await tap('ERASE A WAR', 700);
-  check('erase mode marks the wars', await has('ERASE'), (await labels()).join(', '));
+  // Retiring takes two taps and takes exactly one war (M28 Phase 3: it
+  // banks the war's merit where erasing used to throw it away).
+  await tap('RETIRE A WAR', 700);
+  check('retire mode marks the wars with what they would bank', await has('RETIRE · +'), (await labels()).join(', '));
   await tap('2 · PLA', 700);
   check('the first tap only arms it', await has('TAP AGAIN'), (await labels()).join(', '));
   await tap('TAP AGAIN', 900);
+  check('the second tap retires it, and says what it banked', await copyHas('THE WAR IS RETIRED'), '');
+  check('a war that did nothing banks nothing', await copyHas('+0 MERIT'), '');
+  await tap('BACK', 900);
   check(
-    'the second tap takes that war and only that war',
+    'and it took that war and only that war',
     (await has('2 · EMPTY')) && (await has('1 · UNITED STATES')),
     (await labels()).join(', '),
   );
+  await tap('WAR COLLEGE', 900);
+  check('the War College keeps the honour roll', await copyHas('CHINA · 1 day · the 1st rung'), '');
+  check('and sells the head starts', await has('BUY LV 1'), (await labels()).join(', '));
+  await tap('BACK', 900);
 
   await browser.close();
   if (errors.length) {

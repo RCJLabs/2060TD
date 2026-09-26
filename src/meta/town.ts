@@ -45,6 +45,7 @@ import {
   TECH_BY_ID,
   type ResearchEffects,
   type TechBranch,
+  type TechDef,
 } from '../content/research';
 import { seasonAt, type LeagueId } from '../content/leagues';
 import { standingOrdersFor, type StandingOrdersId } from '../content/standingOrders';
@@ -497,11 +498,28 @@ export interface TownState {
    * under, and the one a live defence offers first. Absent means the default.
    */
   mandate?: MandateId;
+  /**
+   * The head start this war opened with (M28 Phase 3), where it lasts: the
+   * quartermasters' deliveries and the staff college's shorter research. Its
+   * presence says the head start was given, so it is never given twice.
+   * Absent on every war begun before prestige.
+   */
+  headStart?: HeadStartState;
   assaultLevel: number;
   victories: number;
   defeats: number;
   lastSeen: number;
   nextId: number;
+}
+
+/** What a war's head start leaves on the town (M28 Phase 3). */
+export interface HeadStartState {
+  /** When it was given (epoch ms). */
+  at: number;
+  /** Deliveries on top of the depots' supplies and fuel, as a share of them, until `until`. */
+  quartermasters?: { bonus: number; until: number };
+  /** What research timers are multiplied by. */
+  staff?: number;
 }
 
 /**
@@ -1135,6 +1153,24 @@ export interface Accrual {
   converted: { supplies: number; fuel: number; intel: number };
   /** Supplies the line to the front took (M25 Phase 3). */
   fed: number;
+  /** The quartermasters' deliveries banked (M28 Phase 3), before any cap. */
+  delivered: { supplies: number; fuel: number };
+}
+
+/**
+ * The quartermasters' deliveries over the `hours` from `lastSeen` (M28 Phase
+ * 3): the share of `made` the head start adds, for the part of the interval
+ * that falls inside its window.
+ */
+function deliveries(
+  town: TownState,
+  hours: number,
+  made: { supplies: number; fuel: number },
+): { supplies: number; fuel: number } {
+  const qm = town.headStart?.quartermasters;
+  if (!qm || hours <= 0) return { supplies: 0, fuel: 0 };
+  const inside = Math.max(0, Math.min(town.lastSeen + hours * 3_600_000, qm.until) - town.lastSeen) / 3_600_000;
+  return { supplies: made.supplies * qm.bonus * inside, fuel: made.fuel * qm.bonus * inside };
 }
 
 /**
@@ -1176,12 +1212,16 @@ export function accrue(town: TownState, elapsedMs: number): Accrual {
   const diverted = conv.into.fuel * tFuel + conv.into.intel * tIntel;
   const fill = (held: number, cap: number, delta: number): number =>
     Math.max(held, Math.min(cap, held + delta));
+  // The quartermasters' deliveries (M28 Phase 3) are banked like production,
+  // to the cap, but are not production: the line and the works never see them.
+  const delivered = deliveries(town, hours, made);
   return {
-    supplies: fill(town.supplies, cap.supplies, produced * hours - diverted),
-    fuel: fill(town.fuel, cap.fuel, made.fuel * hours + conv.fuel * tFuel),
+    supplies: fill(town.supplies, cap.supplies, produced * hours - diverted + delivered.supplies),
+    fuel: fill(town.fuel, cap.fuel, made.fuel * hours + conv.fuel * tFuel + delivered.fuel),
     intel: fill(town.intel, cap.intel, made.intel * hours + conv.intel * tIntel),
     converted: { supplies: diverted, fuel: conv.fuel * tFuel, intel: conv.intel * tIntel },
     fed: line * hours,
+    delivered,
   };
 }
 
@@ -1407,13 +1447,18 @@ export function canResearch(town: TownState, id: string): ResearchError {
   return null;
 }
 
+/** How long a tech takes this town, the staff college's head start included (M28 Phase 3). */
+export function researchSeconds(town: TownState, tech: TechDef): number {
+  return Math.round(tech.seconds * (town.headStart?.staff ?? 1));
+}
+
 export function startResearch(town: TownState, id: string, now: number): boolean {
   if (canResearch(town, id) !== null) return false;
   const tech = TECH_BY_ID[id]!;
   town.intel -= tech.intel;
   town.supplies -= tech.supplies ?? 0;
   town.fuel -= tech.fuel ?? 0;
-  town.research.active = { id, endsAt: now + tech.seconds * 1000 };
+  town.research.active = { id, endsAt: now + researchSeconds(town, tech) * 1000 };
   // The first tech past the nine is the war's doctrine, for good.
   if (isDoctrineTech(tech) && town.research.doctrine === undefined) town.research.doctrine = tech.branch;
   return true;

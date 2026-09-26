@@ -30,6 +30,8 @@ import {
 } from '../content/factions';
 import { LADDER_EPOCH } from '../content/leagues';
 import { effectsOf, TECH_BRANCHES, TECHS, techsOpenTo, type TechBranch } from '../content/research';
+import type { HeadStartId } from '../content/prestige';
+import { applyHeadStart, newCareer } from '../meta/career';
 import type { LadderSettlement } from '../meta/ladder';
 import {
   accrue,
@@ -403,6 +405,8 @@ export interface Accruals {
   placements: Amounts;
   /** Supplies the line to the front took (M25 Phase 3). */
   front: number;
+  /** The quartermasters' deliveries (M28 Phase 3), before any cap: income that is not production. */
+  delivered: Amounts;
 }
 
 interface Ledger extends Accruals {
@@ -519,7 +523,10 @@ export function advanceBooked(town: TownState, now: number, books: Accruals): La
     books.converted[r] += taken;
     // The line to the front is fed out of supplies before anything is banked.
     const fed = r === 'supplies' ? gained.fed : 0;
-    books.atCap[r] += (r === 'supplies' ? gain - taken - fed : gain + taken) - banked;
+    // The quartermasters' deliveries come in beside production (M28 Phase 3).
+    const delivered = r === 'intel' ? 0 : gained.delivered[r];
+    books.delivered[r] += delivered;
+    books.atCap[r] += (r === 'supplies' ? gain - taken - fed : gain + taken) + delivered - banked;
     expected[r] = gained[r];
   }
   const settled = tick(town, now);
@@ -544,11 +551,14 @@ export function playFortnight(
    * doctrine a commander buying the cheapest first commits to.
    */
   doctrine: TechBranch = 'logistics',
+  /** The head starts it opens with (M28 Phase 3), by level; none unless told. */
+  headStart: Partial<Record<HeadStartId, number>> = {},
 ): Run {
   const ledger: Ledger = {
     made: zero(),
     banked: zero(),
     atCap: zero(),
+    delivered: zero(),
     pastOffline: zero(),
     converted: zero(),
     contracts: zero(),
@@ -559,6 +569,11 @@ export function playFortnight(
   };
   const start = LADDER_EPOCH + 7 * HOUR;
   const town = unlockAll(newTown(start, faction));
+  // The head start, as a war given it when it chose its commitment. THE
+  // OPENING grants nothing here: this town has every requisition already.
+  const career = newCareer();
+  for (const [id, level] of Object.entries(headStart)) career.bought[id as HeadStartId] = level ?? 0;
+  applyHeadStart(town, career, start);
   const cells = cellsByDistance();
   const unplaceable = new Set<string>();
   const milestones: Record<string, number | null> = {
@@ -859,6 +874,37 @@ function doctrineTable(faction: FactionId): string[] {
         `${pad(`${works.fuel} F ${works.intel} I`, 14)} | ${pad(`${cap.supplies} / ${cap.fuel}`, 13)} | ` +
         `${pad(`x${effectsOf(row.ids).repairs}`, 7)} | ${pad(when(by), 15)} | ` +
         (row.doctrine ? `${k(cost.s)} S ${k(cost.f)} F` : '—'),
+    );
+  }
+  return lines;
+}
+
+/**
+ * M28 Phase 3: what each head start does to the played fortnight, a session
+ * every two hours. The fortnight's town has every requisition from the start,
+ * so THE OPENING, which grants requisitions, has nothing to show here.
+ */
+export function headStartTable(faction: FactionId = 'usa'): string[] {
+  const when = (d: number | null | undefined): string =>
+    d === null || d === undefined ? 'never' : d < 1 ? `${(d * 24).toFixed(0)} h` : `${d.toFixed(1)} d`;
+  const rows: { label: string; levels: Partial<Record<HeadStartId, number>> }[] = [{ label: 'NONE', levels: {} }];
+  for (const id of ['chest', 'quartermasters', 'staff'] as const) {
+    for (let level = 1; level <= 3; level++) {
+      rows.push({ label: `${id.toUpperCase()} ${'I'.repeat(level)}`, levels: { [id]: level } });
+    }
+  }
+  rows.push({ label: 'ALL THREE AT III', levels: { chest: 3, quartermasters: 3, staff: 3 } });
+  const lines = [
+    `HEAD STARTS — ${faction.toUpperCase()}: the played fortnight, a session every 2 h, with each head start it can show`,
+    'HEAD START         | CC2 BY | CC3 BY | ALL BOUGHT | THE NINE | THE DOCTRINE | SUPPLIES MADE',
+  ];
+  for (const row of rows) {
+    const run = playFortnight(faction, 2, 14, 10, 'naive', 'logistics', row.levels);
+    const m = run.milestones;
+    lines.push(
+      `${row.label.padEnd(18)} | ${pad(when(m['CC2']), 6)} | ${pad(when(m['CC3']), 6)} | ` +
+        `${pad(when(m['CC3 built out']), 10)} | ${pad(when(m['the nine']), 8)} | ${pad(when(m['the doctrine']), 12)} | ` +
+        `${k(run.ledger.made.supplies + run.ledger.delivered.supplies)}`,
     );
   }
   return lines;

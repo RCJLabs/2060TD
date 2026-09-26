@@ -75,9 +75,18 @@ import {
   setSignaturesLive,
 } from '../content/signatures';
 import { LAST_STAND_LEVEL } from '../content/theaters';
-import { economyTable } from './economy';
+import { economyTable, headStartTable } from './economy';
 import { yardTable } from './yard';
-import { doctrineWarTable, frontTable, reachTable, supplyTable, surgeTable, turnTable, warTable } from './war';
+import {
+  doctrineWarTable,
+  frontTable,
+  meritTable,
+  reachTable,
+  supplyTable,
+  surgeTable,
+  turnTable,
+  warTable,
+} from './war';
 import { idx, referenceBases, wallLine, type ReferenceBase } from './referenceBases';
 import {
   CITADEL_BUDGET,
@@ -6335,6 +6344,15 @@ function main(): void {
   if (process.argv.includes('--war')) {
     const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
     for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(`${warTable(faction)}\n`);
+    console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--career')) {
+    const picked = FACTION_IDS.filter((f) => process.argv.includes(f));
+    console.log('WHAT A WAR BANKS IF RETIRED ON THE DAY (the war town, after a ~3-day opening; merit, and merit a day of the whole war)');
+    for (const faction of picked.length > 0 ? picked : FACTION_IDS) console.log(meritTable(faction));
+    console.log('');
+    console.log(headStartTable(picked[0] ?? 'usa').join('\n'));
     console.log(`${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

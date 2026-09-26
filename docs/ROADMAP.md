@@ -5833,7 +5833,142 @@ this extends it into a reason for run #4.
         doctrine line. The build harness's three gesture checks fail on the
         phone viewport, as they already did in v1.67. The gate runs it on
         desktop.
-- [ ] **Phase 3 — prestige and the meta-currency it feeds.**
+- [x] **Phase 3 — prestige and the meta-currency it feeds.**
+
+      **The plan, from the survey.** *(Written against v1.68.0.)* A war never
+      ends. The citadel's fall is dated and paid once (4b), and then the war
+      goes on until the supply line holds it at the sixteenth rung: a grown
+      army wins on day 13-16 of daily play. Nothing carries from one war to
+      the next. ABANDON BASE and the menu's ERASE A WAR throw a war away for
+      nothing, and every war opens with the same fixed start: CC1, 600
+      supplies, 120 fuel, the campaign's first nine missions ahead of it. Only
+      the device's settings live outside the three war slots. What paces a
+      war's opening is production (the played fortnight has CC3 built out on
+      day 3, the nine on day 2, the doctrine on day 5) and the campaign, which
+      unlocks CC2 at its fourth mission and CC3 at its seventh. Build timers
+      are minutes; the research timers that matter are the doctrine's 4, 10
+      and 16 hours.
+
+      Settled with the commander:
+      - **Retire any time, paid by progress.** ABANDON BASE becomes RETIRE
+        THE WAR, and it banks MERIT for what the war achieved. A war retired
+        on its first day pays next to nothing, and a won war pays the most.
+      - **Merit buys head starts.** Later wars start further along and climb
+        the same ladder sooner. No battle changes, so the ladder's tuning,
+        ghost raids and replays stay fair.
+      - **One officer carries over.** The retiring war's best living officer
+        transfers to the next war and commands its first squad from day one,
+        keeping their grade.
+      - **The merit is the commander's.** One pool on the device, shared by
+        the three slots and the five armies.
+
+      The build:
+      - **The career**, a device-local store beside the settings: merit in
+        hand and earned, the head starts bought, the retired wars (the honour
+        roll), the officers in reserve and the armies that have won a war.
+      - **Merit**, read off the war when it retires, and shown as a
+        breakdown. Each rung the front reached past the first pays its number
+        less one, so a deep war pays more a day than a short one (the 14th
+        rung is 91, the 5th is 10). Each campaign mission pays 1, winning the
+        war pays 30, and a first win with an army pays 30 more. A HARD war
+        pays a quarter more. The numbers are to be measured before they are
+        fixed. A war can pay only once: retiring it again (a save exported
+        and imported) pays only what it has earned since.
+      - **Four head starts, three levels each**, applied when a new war
+        chooses its commitment, and priced so that maxing all four takes about
+        three won wars:
+        - WAR CHEST: bigger opening stores of supplies, fuel and intel.
+        - THE OPENING: the first two, four or five missions' requisitions
+          granted from the start (at level II, CC2), with the missions still
+          there to fight for their pay.
+        - QUARTERMASTERS: for the war's first 72 hours, deliveries on top of
+          the depots' output (+50%, +100%, +150%), banked like production
+          but outside it, so the supply line and the works read the town as
+          it stands.
+        - STAFF COLLEGE: research timers 25%, 50% or 75% shorter.
+      - **The officer**: the living officer with the most experience goes to
+        the reserve for their own army, and commands the first squad of that
+        army's next war. A reserve holds one officer an army, and keeps the
+        more experienced.
+      - **The UI**: RETIRE THE WAR on the SYS tab (tap twice), a retirement
+        card with the breakdown and the officer, the WAR COLLEGE on the menu
+        (merit, the four tracks, the reserve and the honour roll), the menu's
+        erase retiring as well, and the head start named when a war begins.
+      - **Measured**: the merit a played war banks by day, and what each
+        head start does to the played fortnight.
+      - **Tests**: the breakdown, a war that cannot pay twice, buying, the
+        head start applied once, the delivery window, shorter research, the
+        officer's transfer and the reserve, old saves, and the career read
+        off disk. A harness retires a war and starts the next with its head
+        start.
+
+      Not in Phase 3: unit upgrade paths (M28's list) and anything bought
+      with merit that changes a battle.
+
+      **What Phase 3 found.** *(v1.69.0)*
+      - **Merit rises until the war is won, then tails off.** `npm run
+        balance -- --career` plays the war instrument's growing commander
+        daily and reads what the war would bank on each day. The war town
+        starts built out, so its days come after an opening the played
+        fortnight puts at about three:
+
+        | retired on day | 3 | 7 | 10 | 14 | 21 | 28 |
+        |---|---|---|---|---|---|---|
+        | USA (won day 13) | 15 | 30 | 54 | 160 | 160 | 174 |
+        | China (won day 15) | 15 | 30 | 54 | 87 | 205 | 205 |
+        | Russia (won day 16) | 15 | 37 | 45 | 75 | 189 | 205 |
+        | KPA (not won) | 15 | 24 | 24 | 24 | 45 | 87 |
+        | UN (won day 13) | 15 | 37 | 54 | 160 | 205 | 205 |
+
+        Counting the opening, a war pays 2.5 merit a day retired on its
+        third day, 2.4-3.7 on its seventh and 7.9-9.4 once it is won, and
+        less every day after that, because the front stops at the supply
+        ceiling (the fifteenth to seventeenth rung). So the war that pays
+        best is the one retired soon after it is won. A war restarted early
+        is never the better trade. The KPA's commander does not win inside
+        four weeks in this instrument.
+      - **The prices went up in the build, to 15, 35 and 70.** A first war
+        won pays 160-205, so at the plan's 10, 25 and 50 (340 for all
+        twelve levels) two won wars bought everything. At 480, all twelve
+        take about three, and a fourth war is the first that opens with all
+        of it.
+      - **What the head starts do to the opening.** The played fortnight, a
+        session every two hours:
+
+        | head start | CC3 | built out | the nine | the doctrine |
+        |---|---|---|---|---|
+        | none | day 1.0 | day 3.0 | day 2.1 | day 4.7 |
+        | WAR CHEST I / III | 10 h / 2 h | day 2.4 / 2.0 | day 1.7 / 1.0 | day 4.3 / 3.7 |
+        | QUARTERMASTERS I / III | 12 h / 8 h | day 2.1 / 1.3 | day 2.0 / 1.4 | day 3.7 / 3.3 |
+        | STAFF COLLEGE I / III | day 1.0 | day 3.0 | day 2.1 | day 4.5 / 4.2 |
+        | all three at III | 2 h | day 1.0 | 16 h | day 2.2 |
+
+        STAFF COLLEGE alone does little, because the doctrine waits on
+        supplies and fuel more than on its timers. With the stores to buy
+        the doctrine sooner, it matters more: all three at level III finish
+        the doctrine on day 2.2. The fortnight's town has every requisition
+        from the start, so THE OPENING cannot show here. In a real war, CC3
+        still waits for the campaign's seventh mission (the sixth for the
+        other armies), and THE OPENING's CC2 is what brings the fourth (the
+        third) forward.
+      - **Deliveries are not production.** The quartermasters' share is
+        banked by `accrue`, to the cap, for the part of each interval inside
+        the window. The line to the front and the works read production
+        without it, so a boosted opening cannot push the front beyond what
+        the town will feed once the window closes.
+      - **A war pays once.** A war's identity is its army and when it began.
+        A save exported, retired and imported again pays only what it has
+        earned since, and sends no second officer.
+      - **Nothing throws a war away any more.** The menu's ERASE A WAR
+        became RETIRE A WAR and banks the war's merit like RETIRE THE WAR on
+        its SYS tab. A file that never chose its commitment has nothing to
+        bank and is simply cleared.
+      - **Harnesses:** a new one (`e2e-career`) buys a head start, begins a
+        war that opens with it and with the reserve's officer, retires the
+        war from its SYS tab and reads it on the honour roll. The menu
+        harness retires a war from the menu and reads the War College, and
+        the touch harness reads the renamed SYS row. Nothing in `src/sim`
+        changed.
 
 ## M29 — "After Action": make the sim explain itself
 

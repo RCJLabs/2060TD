@@ -1250,6 +1250,48 @@ officer's doctrine costs six to eleven, because each side's best doctrine is wor
 grade. So an officer's doctrine decides which squad goes on which job, not what a squad is
 ordered.
 
+### 5.6d The career: merit and head starts *(v1.69, M28)*
+
+A war never ends on its own. The commander retires it (RETIRE THE WAR on its SYS tab, or RETIRE
+A WAR on the menu), and it banks **MERIT** for what it achieved:
+
+| what the war achieved | merit |
+|---|---|
+| the front's furthest rung, *n* | each rung past the first pays its number less one: *n*(*n* − 1)/2 (the 14th rung is 91) |
+| the campaign | 9 in all, each mission its share |
+| the war won | 30 |
+| an army's first war won | 30 more |
+| a HARD war | a quarter more |
+
+A deep war pays more for each day than a short one, so a war restarted early is never the
+better trade. The best-paying war is one retired soon after it is won, because the front stops at
+the supply ceiling afterwards. A war can pay only once: its identity is its army and when it began,
+so a save retired and imported again pays only what it has earned since.
+
+Merit is the commander's: one pool on the device, beside the settings, shared by the three slots
+and the five armies. The **War College** on the menu spends it on four head starts, three levels
+each, at 15, 35 and 70 merit a level (480 for all twelve, about three won wars). Every war begun
+after a level is bought opens with it:
+
+- **WAR CHEST**: opening stores of +2,000/+5,000/+10,000 supplies, with fuel and intel.
+- **THE OPENING**: the campaign's first requisitions from day one: storage and the field
+  defences; then the fuel depot, the generator and CC2; then the Front Line, barracks,
+  engineering bay, autocannon and Signals Station. The missions stay to be fought for their pay.
+- **QUARTERMASTERS**: for the war's first 72 hours, deliveries of +50/+100/+150% of the depots'
+  supplies and fuel. They are banked like production, up to the cap, but they are not production:
+  the line to the front and the works never see them.
+- **STAFF COLLEGE**: research timers 25/50/75% shorter.
+
+A head start changes no battle, so the ladder's tuning, ghost raids and replays are what they
+were. The retiring war's living officer with the most experience goes to the **reserve** for
+their army, and commands the first squad of that army's next war from day one, keeping their
+grade. The reserve holds one officer an army and keeps the more experienced. The War College
+also keeps the **honour roll** of retired wars.
+
+Measured (M28 Phase 3): a war retired on day three pays about 15 merit, and one won pays 160-205.
+All three head starts that the played fortnight can show, at level III, bring the build-out
+from day 3.0 to day 1.0 and the doctrine from day 4.7 to day 2.2.
+
 ### 5.7 Offline probes
 
 - Max 3 probe raids per offline period; total possible loss capped (~15% of unbanked loot).
