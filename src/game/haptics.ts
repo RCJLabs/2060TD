@@ -36,7 +36,8 @@
  * iOS Safari does not implement `navigator.vibrate` at all, so this is a
  * no-op there and must never be the only feedback a control gives — every
  * call site here is paired with something visible. Android Chrome supports it,
- * and only after a user gesture, which every one of these is by construction.
+ * and only after a user gesture. The battle's two buzzes follow no gesture of
+ * their own, so every buzz waits for the page to have been touched once.
  */
 
 export type Haptic = 'tap' | 'commit' | 'deny' | 'land' | 'warn' | 'breach' | 'loss';
@@ -82,13 +83,26 @@ export function hapticsSupported(): boolean {
 }
 
 /**
- * Fire one. Silent and harmless when unsupported or switched off.
+ * Has the page been touched yet? A breach or a lost building buzzes from a
+ * battle event rather than a tap (M31), and the scripted siege fights before
+ * anyone touches it. Chrome refuses a buzz before the first gesture and logs
+ * an error for each one, so none is asked for until then. A browser that does
+ * not say is taken at its word that a buzz is allowed.
+ */
+function touched(): boolean {
+  const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+  return activation === undefined || activation.hasBeenActive;
+}
+
+/**
+ * Fire one. Silent and harmless when unsupported, switched off, or asked for
+ * before the page has been touched.
  *
  * Wrapped because `vibrate` throws on some embedded webviews when the page is
  * not visible, and a failed buzz must never take a tap handler down with it.
  */
 export function haptic(kind: Haptic): void {
-  if (!enabled || !hapticsSupported()) return;
+  if (!enabled || !hapticsSupported() || !touched()) return;
   try {
     navigator.vibrate(PATTERNS[kind]);
   } catch {

@@ -239,7 +239,22 @@ try {
   await boxButton('CLOSE');
   await tap('WATCH IT', 1500);
   check('the ghost is watchable as a raid on this town', await showsSoon('GHOST RAID FOOTAGE'));
-  await tap('SKIP TO END', 1500);
+  // A skip to the end plays none of the battle it jumps over, and still
+  // leaves its scars (M31): the board it lands on is the one the battle left.
+  // Read either side of the skip in one call, so no frame falls between.
+  const skipped = await page.evaluate(() => {
+    const read = () => ({ played: window.lastline.impacts().played, scars: window.lastline.scars() });
+    const before = read();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space' }));
+    return { before, after: read() };
+  });
+  const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+  check(
+    'a skip to the end plays nothing, and keeps what the battle left',
+    sum(skipped.after.played) === sum(skipped.before.played) && sum(skipped.after.scars) >= sum(skipped.before.scars),
+    `scars ${JSON.stringify(skipped.before.scars)} → ${JSON.stringify(skipped.after.scars)}`,
+  );
+  await page.waitForTimeout(1500);
   await tap('AFTER ACTION REPORT', 1500);
   check('the ghost has an after-action report', await showsSoon('AFTER ACTION'), (await texts()).slice(0, 3).join(' | '));
   await page.screenshot({ path: 'screenshots/e2e-ghost-report.png' });

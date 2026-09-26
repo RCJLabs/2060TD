@@ -1519,3 +1519,20 @@ here with the change and its date.
   refund are notices, not impacts: they keep marks of their own, and the
   reserve's ring lost the blast star that M32 had drawn into it. A replay
   skipped to its end plays nothing, since none of its marks would be drawn.
+- 2026-09-26 — **A battle's board keeps its scars, painted into the sheet, for
+  the battle and its replay (M31 Phase 2, v1.71.0).** Settled with the
+  commander: blasts leave craters, armour wrecks, aircraft crashes, fallen
+  buildings scorch and broken walls rubble, and a fresh wreck or fallen
+  building smokes. Soldiers leave nothing. Scars last for the battle and its
+  replay: nothing is saved and the town's board starts clean. They are marks
+  only, so no battle, replay code or balance number moves. Measured first: a
+  heavy live defence throws up to 69 blasts, but they land in 19 half-cells,
+  so with a half-cell spacing for each kind a board keeps a few dozen scars.
+  A scar is painted once, into the battle's baked sheet and into the scaled
+  copy the board draws from it (a new `Image.paint` in the stage runtime), so
+  it costs nothing a frame. Scars are ink line-work and never tone, because
+  the sheet's densities are the terrain legend the pathfinder reads and bare
+  paper is road. A skip paints every scar it jumps over, since the board it
+  lands on is the one the battle left. And every buzz now waits for the page's
+  first touch: the battle's two buzzes follow no tap of their own, and Chrome
+  refused one asked for before any tap, with a console error.

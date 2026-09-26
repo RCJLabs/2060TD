@@ -152,6 +152,31 @@ try {
   );
   check('and clears its card as well', (await card()) === null);
 
+  // ---- and the scripted siege fights on its own, without a complaint -------------
+  // The demo siege (?demo=1) fights before anyone touches the page. That is
+  // where a battle's buzz once asked for the motor before the first tap, and
+  // Chrome said so in the console (M31), which the error check below catches.
+  // The siege loses buildings and takes blasts in its first seconds, so it is
+  // also the quickest look at a board keeping what a battle left on it.
+  await page.goto(`http://localhost:${PORT}/?demo=1`, { waitUntil: 'domcontentloaded' });
+  const fought = async () =>
+    page.evaluate(() => ({ played: window.lastline?.impacts().played ?? {}, scars: window.lastline?.scars() ?? {} }));
+  let siege = await fought();
+  for (let i = 0; i < 60 && !((siege.played.loss ?? 0) > 0 && (siege.played.blast ?? 0) > 0); i++) {
+    await wait(500);
+    siege = await fought();
+  }
+  check(
+    'the scripted siege fights on its own',
+    (siege.played.loss ?? 0) > 0 && (siege.played.blast ?? 0) > 0,
+    JSON.stringify(siege.played),
+  );
+  check(
+    'and its board keeps a scorch and a crater',
+    (siege.scars.scorch ?? 0) > 0 && (siege.scars.crater ?? 0) > 0,
+    JSON.stringify(siege.scars),
+  );
+
   await browser.close();
   if (errors.length) {
     console.error('page errors:');

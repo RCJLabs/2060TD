@@ -96,6 +96,31 @@ describe('haptics', () => {
     }
   });
 
+  it('waits for the page to have been touched: a battle can buzz before the first tap', () => {
+    // A breach or a lost building buzzes from a battle event, not a tap (M31
+    // Phase 1), and the scripted siege fights before anyone touches it.
+    // Chrome refuses a buzz before the first gesture and logs an error for
+    // it, so none is asked for until the page has been touched.
+    const vibrate = vi.fn(() => true);
+    const restore = withVibrate(vibrate);
+    const nav = navigator as unknown as Record<string, unknown>;
+    const had = Object.prototype.hasOwnProperty.call(nav, 'userActivation');
+    const previous = nav['userActivation'];
+    const activation = { hasBeenActive: false };
+    Object.defineProperty(nav, 'userActivation', { value: activation, configurable: true });
+    try {
+      haptic('breach');
+      expect(vibrate, 'buzzed before the page was touched').not.toHaveBeenCalled();
+      activation.hasBeenActive = true;
+      haptic('breach');
+      expect(vibrate).toHaveBeenCalledTimes(1);
+    } finally {
+      if (had) Object.defineProperty(nav, 'userActivation', { value: previous, configurable: true });
+      else Reflect.deleteProperty(nav, 'userActivation');
+      restore();
+    }
+  });
+
   it('and survives a motor that throws', () => {
     // Some embedded webviews throw from vibrate() when the page is not
     // visible. A failed buzz must never become a failed tap.

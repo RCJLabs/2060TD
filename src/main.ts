@@ -15,6 +15,7 @@ import { liveButtons, liveTextRects, liveTexts, panelLayout, panelScroll, panelT
 import { boardCamera, boardCellAt, boardGrid, boardStrays, boardWetAt } from './game/BoardView';
 import { audio } from './game/audio';
 import { playedImpacts, silentImpacts } from './game/impacts';
+import { paintedScars } from './game/scars';
 
 // Device preferences (sound, colorblind palette) apply before any scene draws.
 applySettings(loadSettings());
@@ -118,6 +119,8 @@ dismissBootCard(game);
     const sounds = audio.soundsMade();
     return { played: playedImpacts(), sounds, silent: silentImpacts(sounds) };
   },
+  // Every scar the battle renderer has painted into a board since the page loaded (M31).
+  scars: () => paintedScars(),
   get dpr() {
     return dpr;
   },

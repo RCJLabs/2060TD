@@ -236,6 +236,32 @@ export class Image extends GameObject {
     return this;
   }
 
+  /**
+   * Draw onto the source, and onto the scaled copy the same way (M31). A
+   * source that is only ever added to keeps the copy it has, rather than
+   * drawing itself straight through for a few frames and resampling again.
+   * `draw` works in the source's own pixels. False, and nothing drawn, when
+   * the source is not a canvas that can be drawn on.
+   */
+  paint(draw: (ctx: CanvasRenderingContext2D) => void): boolean {
+    const source = this.source as { getContext?: (id: '2d') => CanvasRenderingContext2D | null };
+    const ctx = typeof source.getContext === 'function' ? source.getContext('2d') : null;
+    if (!ctx) return false;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    draw(ctx);
+    ctx.restore();
+    const copy = this.copy;
+    const c = copy && copy.source === this.source ? copy.canvas.getContext('2d') : null;
+    if (copy && c) {
+      c.save();
+      c.setTransform(copy.scale, 0, 0, copy.scale, copy.dx, copy.dy);
+      draw(c);
+      c.restore();
+    }
+    return true;
+  }
+
   /** The resampled copy to draw under `m`, or null to draw the source. */
   private scaledCopy(ctx: CanvasRenderingContext2D, m: DOMMatrix, left: number, top: number): ScaledCopy | null {
     // A plain scale and nothing else: a rotated or stretched image is drawn as it is.

@@ -6761,8 +6761,108 @@ chatter with texture.
       - **Nothing in a battle changed.** The death event's armour is an
         output field, and the whole battle suite and the replay determinism
         tests pass untouched.
-- [ ] **Phase 2 — persistent battlefield scarring.** Craters, wreckage, burn
+- [x] **Phase 2 — persistent battlefield scarring.** Craters, wreckage, burn
       marks. The board should look like the battle happened on it.
+
+      **The plan, from the survey.** *(Written against v1.70.0.)* A battle's
+      board is a sheet baked once, when the battle opens, with the battle's
+      layers drawn over it every frame. Nothing a battle does reaches the
+      sheet. A shell landing, a vehicle dying, a wall or a building going:
+      each is gone when its Phase 1 mark cuts, and the board at the end of a
+      battle looks like the board at its start. Measured per battle:
+
+      | battle | blasts | where they land | vehicles, aircraft killed | buildings lost | walls lost |
+      |---|---|---|---|---|---|
+      | live defence, levels 5-13, the war town | 1-69 | 1-19 half-cells | 3-9, 0-10 | 0-13 | 0-1 |
+      | raid, tiers 1-5, a USA force | 0-47 | 0-15 half-cells | 0-2, 0 | 4-9 | 0-1 |
+      | probe, while away | 0-5 | 0-4 half-cells | none | none | none |
+
+      Blasts cluster: a heavy defence's 69 land in 19 half-cells. So even a
+      board that has seen the worst of it carries a few dozen scars, not
+      hundreds.
+
+      Settled with the commander:
+      - **Craters, wrecks, scorch and rubble.** Blasts leave craters, dead
+        vehicles and aircraft leave wrecks, fallen buildings leave scorch and
+        broken walls leave rubble. A fresh wreck or fallen building smokes for
+        a few seconds. Soldiers leave nothing: the guardrails keep the war to
+        materiel.
+      - **For the battle and its replay.** Scars build up over the whole
+        battle, and a replay builds them again from the battle it re-runs.
+        Nothing is saved, and the town's board starts clean.
+      - **Marks only.** No battle outcome, replay code or balance number
+        moves.
+
+      The build:
+      - **Painted into the sheet.** A scar is painted onto the battle's
+        baked sheet, and onto the scaled copy of it the board draws from, so
+        it costs its strokes once and nothing per frame, however many there
+        are. The stage runtime's `Image` gains the one method that does both.
+      - **In line-work, never in tone.** The sheet's dot and hatch densities
+        are the terrain legend the pathfinder reads, and bare paper is road,
+        so a scar is never a tone fill and never a knockout. A crater is a
+        rim of short ink ticks with a few thrown flecks. A wreck is the dead
+        vehicle's hull in outline at its last heading, cracked across. A
+        crashed aircraft is a small crater with its debris. Scorch is a splash
+        of short strokes radiating from where the building stood, over the
+        dashed outline of its footprint. Rubble is broken blocks scattered
+        across the wall's cell. Scars are drawn lighter than the keylines, so
+        they sit under everything still standing, and they are silent: the
+        impact that made each one already made its sound.
+      - **One table, `scars.ts`**: which sim events scar, with what and how
+        big, as pure functions that are tested without a canvas, and the
+        painter beside them. A scar within half a cell of one of its own kind
+        is not painted again, so clustered blasts pit the ground and do not
+        bury it.
+      - **Smoke**: a fresh wreck or a fallen building trails rising ink
+        wisps for about eight seconds, on the frame's layer.
+      - **Replays**: a skip to the end still paints every scar, since the
+        board it lands on is the one the battle left. It plays no impacts
+        and no smoke.
+      - **Tests**: what each event scars, the spacing, a wreck's heading,
+        that soldiers leave nothing, that the painter only draws lines (no
+        paper, no tone), and the sheet's copy painted alike. The test seam
+        reports the scars painted, and the defence harness checks a live
+        battle leaves a scorch for every building it lost.
+      - **Measured**: a frame of the scripted siege before and after.
+
+      Not in Phase 2: carrying scars into the town (settled against), and the
+      score and positional mix (Phase 3).
+
+      **What Phase 2 found.** *(v1.71.0)*
+      - **Built as planned, and it costs nothing a frame.** Scars are painted
+        into the sheet and into its scaled copy through the stage's new
+        `Image.paint`, so the board never resamples for them. Measured back
+        to back against v1.70.0 (`scripts/perf.mjs`), a frame of the scripted
+        siege costs 3.8 → 3.9 ms of main thread at ×1 and 16.5 → 16.4 ms at
+        ×4. The download grew 4 kB (2 kB gzipped).
+      - **The first crater read as a sun.** A ring of radial ticks round an
+        arc is what a comic draws the sun with. A crater is now a ragged rim
+        broken in two places, shaded inside from the top left like the rest
+        of the page, with flecks thrown past it. A crash uses the same pit.
+      - **Measured in the browser.** In its first 40 seconds, the scripted
+        siege's 9 blasts left 6 craters, its 4 lost buildings 4 scorches, and
+        the aircraft it downed a crash. The level-9 live defence's 2 lost
+        buildings left 2 scorches. A raid's replay, jumped to its end,
+        painted the 2 scorches the rest of the raid left. A ghost raid's jump
+        to the end played no impact at all.
+      - **A Phase 1 bug, found and fixed.** The battle's buzz could be asked
+        for before the page had been touched: the scripted siege fights before
+        any tap, and Chrome refused each buzz with a console error. The haptics
+        module assumed every buzz followed a tap, and the battle's two do not.
+        Every buzz now waits for the page's first touch. The boot harness now
+        runs the scripted siege untouched and fails on any console error, so
+        it cannot come back unseen.
+      - **Harnesses:** the defence harness checks a scorch for every building
+        lost, and shoots the board between waves, where no result card covers
+        it. The raid harness checks a replay's jump to the end keeps what the
+        raid left, and the ghost harness that the jump plays nothing. The boot
+        harness checks the scripted siege's board keeps a scorch and a crater.
+      - **Tests:** `tests/scars.test.ts` (17) holds what each event leaves, the
+        spacing, a wreck's heading, that soldiers leave nothing, and that the
+        painter only strokes ink and paints the same scar every time. The stage
+        tests hold `Image.paint` (2), and the haptics tests the first touch (1).
+        Nothing in `src/sim` changed.
 - [ ] **Phase 3 — reactive score and a positional mix.**
 
 ## M32 — "Ink": the screentone graphic-novel pass

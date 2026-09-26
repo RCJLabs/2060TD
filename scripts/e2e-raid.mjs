@@ -366,9 +366,19 @@ try {
   check('and asks its what-ifs too', (await find('WHAT IF')) !== null, '');
   // ON THE MAP closes the card onto the end of the footage, and the footage
   // ends on a verdict, set as written across the top of the board.
+  const scarsBefore = await page.evaluate(() => window.lastline.scars());
   const mapped = await tap('ON THE MAP', 1200);
   const verdictRe = /COMMAND POST DESTROYED|RAID REPELLED|WITHDRAWN/;
   const ended = mapped && (await until(async () => (await rectOf(verdictRe)) !== null, 15000));
+  // The jump to the end plays nothing, but paints every scar the rest of the
+  // raid left, so the board it lands on is the one the battle left (M31).
+  const scarsAfter = await page.evaluate(() => window.lastline.scars());
+  const scarCount = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+  check(
+    'and the board it lands on keeps what the raid left',
+    scarCount(scarsAfter) > scarCount(scarsBefore),
+    `${JSON.stringify(scarsBefore)} → ${JSON.stringify(scarsAfter)}`,
+  );
   const verdict = await rectOf(verdictRe);
   check(
     'ON THE MAP goes to the end of the footage, its verdict set as written',

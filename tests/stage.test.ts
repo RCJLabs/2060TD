@@ -275,6 +275,49 @@ describe('an image kept at the scale it is drawn at', () => {
     expect(made).toHaveLength(1);
   });
 
+  it('paints onto its source and its copy alike, so a painted sheet keeps the copy it has', () => {
+    // The source is a canvas that can be drawn on, recording each call with
+    // the transform it was made under.
+    const calls: string[] = [];
+    const recording = (name: string) => {
+      let m = [1, 0, 0, 1, 0, 0];
+      const stack: number[][] = [];
+      return {
+        save: () => void stack.push(m),
+        restore: () => void (m = stack.pop() ?? m),
+        setTransform: (...t: number[]) => void (m = t),
+        moveTo: (x: number, y: number) => void calls.push(`${name} moveTo ${x},${y} under ${m.map((v) => +v.toFixed(3)).join(',')}`),
+      };
+    };
+    const sourceCtx = recording('source');
+    const source = { width: 640, height: 960, getContext: () => sourceCtx } as unknown as HTMLCanvasElement;
+    const img = new Image(source).setOrigin(0, 0).setScale(0.5).cacheScaled();
+    const draw = (c: CanvasRenderingContext2D): void => c.moveTo(10, 20);
+    // Before any copy is made, only the source is painted.
+    expect(img.paint(draw)).toBe(true);
+    expect(calls).toEqual(['source moveTo 10,20 under 1,0,0,1,0,0']);
+    const { ctx } = matrixContext(824, 1830);
+    for (let i = 0; i < 4; i++) frame(img, ctx, 2.576);
+    expect(made).toHaveLength(1);
+    const copyCtx = recording('copy');
+    (made[0] as unknown as { getContext: () => unknown }).getContext = () => copyCtx;
+    calls.length = 0;
+    img.paint(draw);
+    // The copy is painted at the scale and the fraction of a pixel it was made at.
+    expect(calls).toEqual(['source moveTo 10,20 under 1,0,0,1,0,0', 'copy moveTo 10,20 under 1.288,0,0,1.288,0.4,0.3']);
+    // And it is still the copy the image draws: nothing had to be made again.
+    for (let i = 0; i < 3; i++) frame(img, ctx, 2.576);
+    expect(made).toHaveLength(1);
+    expect(made[0]!.draws).toHaveLength(1);
+  });
+
+  it('will not paint a source that cannot be drawn on', () => {
+    const img = new Image({ width: 64, height: 64 } as HTMLImageElement);
+    let painted = false;
+    expect(img.paint(() => void (painted = true))).toBe(false);
+    expect(painted).toBe(false);
+  });
+
   it('draws a turned image as it is, and makes no copy unless asked', () => {
     const turned = sheet().cacheScaled().setAngle(90);
     const plain = sheet();

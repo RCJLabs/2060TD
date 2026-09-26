@@ -20,7 +20,21 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.70.0: impacts
+## Current state — v1.71.0: scars
+
+**The board now shows a battle was fought on it.** Blasts leave craters, destroyed vehicles leave
+wrecks lying the way they drove, downed aircraft leave crash sites, fallen buildings leave scorch
+marks and broken walls leave rubble. A fresh wreck or fallen building smokes for a few seconds.
+
+- **For the whole battle:** scars build up as the battle goes, and a replay shows them again.
+  Skipping a replay to its end shows the board as the battle left it.
+- **Light ink lines:** they never hide your guns or change how the ground reads.
+- **No marks for soldiers:** nothing marks where a soldier fell.
+
+No battle plays out differently. Also fixed: the scripted demo battle could ask the phone to buzz
+before the page had been touched, which Chrome refuses with an error.
+
+## v1.70.0: impacts
 
 **Every blow in a battle now looks and sounds like what it is.**
 

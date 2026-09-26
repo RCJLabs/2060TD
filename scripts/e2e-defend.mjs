@@ -377,7 +377,12 @@ try {
     const now = await labels();
     if (now.some((l) => /RETURN TO BASE/i.test(l))) return true;
     const phase = now.find((l) => /^(START ASSAULT|SKIP PREP)$/i.test(l));
-    if (phase) await tapExact(phase);
+    if (phase) {
+      // Between waves the board is clear of the result card and shows what
+      // the battle has left on it so far (M31 Phase 2).
+      await page.screenshot({ path: `screenshots/e2e-defend-scarred${isMobile ? '-phone' : ''}.png` });
+      await tapExact(phase);
+    }
     return false;
   }, 300000);
   check('the battle runs to a finish', finished, (await labels()).slice(0, 4).join(' | '));
@@ -389,6 +394,12 @@ try {
   check('the battle landed its hits', count('hit', 'hitHeavy') > 0, heard);
   check('and its kills', count('killInfantry', 'killVehicle', 'killAir') > 0, heard);
   check('and every impact it played made its sound', impacts.silent.length === 0, impacts.silent.join(', '));
+  // Persistent scarring (M31 Phase 2): the board shows the battle was fought
+  // on it. Every building lost left its scorch, and blasts left craters.
+  const scars = await page.evaluate(() => window.lastline.scars());
+  const scarred = JSON.stringify(scars);
+  check('the board keeps a scorch for every building lost', (scars.scorch ?? 0) === count('loss'), scarred);
+  if (count('blast') > 0) check('and a crater where blasts landed', (scars.crater ?? 0) > 0, scarred);
   await tapExact('RETURN TO BASE');
   await until(async () => await copyHas('LEVEL 9 '), 15000);
   const verdict = await copyLike('LEVEL 9 ');

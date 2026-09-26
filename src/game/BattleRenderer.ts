@@ -18,6 +18,7 @@ import {
 } from './impacts';
 import { focusLines, phaseAt, punch, speedLines, starPoints } from './kinetics';
 import { COLORS, css } from './palette';
+import { notePainted, paintScar, ScarField, scarFor, SCARS, SMOKE_SECONDS, type ScarBoard } from './scars';
 import { DISPLAY_FAMILY } from './tokens';
 
 interface Effect {
@@ -127,6 +128,14 @@ export class BattleRenderer {
   private readonly wallsSeen = new Set<CellIndex>();
   /** Events keep the board's bookkeeping but play nothing: see `hush`. */
   private hushed = false;
+  /** The scars painted into the sheet so far, for spacing (M31 Phase 2). */
+  private readonly scarField = new ScarField();
+  private readonly scarBoard: ScarBoard = {
+    centerOf: (cell) => this.engine.grid.centerOf(cell),
+    footprintOf: (kind) => this.engine.catalog.structures[kind]?.footprint ?? 1,
+    // Read before a death's bookkeeping forgets it.
+    headingOf: (id) => this.facings.get(id),
+  };
 
   constructor(
     scene: Scene,
@@ -211,8 +220,28 @@ export class BattleRenderer {
     notePlayed(kind);
   }
 
+  /**
+   * Leave what the event leaves on the board (M31 Phase 2), painted into the
+   * sheet once and kept for the rest of the battle. A skip paints it too,
+   * since the board a skip lands on is the one the battle left; only the
+   * smoke, which is a moment and not a mark, waits for a frame to be drawn.
+   */
+  private leaveScar(event: SimEvent): void {
+    const sheet = this.sheet;
+    const scar = sheet ? scarFor(event, this.scarBoard) : null;
+    if (!sheet || !scar || !this.scarField.admit(scar)) return;
+    // The sheet is baked finer than the world it lies in: this many of its pixels to a cell.
+    const px = this.cell / sheet.scaleX;
+    if (!sheet.paint((ctx) => paintScar(ctx, scar, px))) return;
+    notePainted(scar.kind);
+    if (SCARS[scar.kind].smokes && !this.hushed) {
+      this.effects.push({ kind: 'smoke', x: scar.x, y: scar.y, age: 0, life: SMOKE_SECONDS });
+    }
+  }
+
   consumeEvents(events: SimEvent[]): void {
     for (const event of events) {
+      this.leaveScar(event);
       switch (event.type) {
         case 'shot': {
           // A round lands: the tracer, the star where it lands, and its crack.
@@ -753,6 +782,23 @@ export class BattleRenderer {
           }
           g.strokePath();
           burst(c * (0.5 + 0.3 * t), c * 0.2, 8, c * 0.24);
+          break;
+        }
+        case 'smoke': {
+          // A fresh wreck or fallen building smoking (M31 Phase 2): three
+          // wisps, each rising a cell and cutting at the top, round and round
+          // until it burns out. Ink curls, not a grey wash.
+          g.lineStyle(Math.max(1, c * 0.04), COLORS.oliveDark, a);
+          for (let k = 0; k < 3; k++) {
+            const w = (fx.age / 1.8 + k / 3 + ph) % 1;
+            const r = c * (0.05 + 0.07 * w);
+            const wx = x + Math.sin((w * 2 + ph + k) * Math.PI) * c * 0.12 - r;
+            const wy = y - c * 0.25 - w * c * 1.1;
+            g.beginPath();
+            g.arc(wx, wy, r, Math.PI, Math.PI * 2);
+            g.arc(wx + 2 * r, wy, r, Math.PI, 0, true);
+            g.strokePath();
+          }
           break;
         }
         case 'muster': {

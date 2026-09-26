@@ -36,6 +36,7 @@ export const EFFECT_KINDS = [
   'aoe',
   'strafe',
   'muster',
+  'smoke',
   'reticle',
   'flash',
   'shout',

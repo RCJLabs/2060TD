@@ -1764,6 +1764,38 @@ things.
 impacts, bar the buzz. A replay skipped to its end plays none, because none of
 its marks would ever be drawn.
 
+### 6.2b Scars *(v1.71, M31)*
+
+**The board keeps what the battle left.** Blasts leave craters, dead vehicles
+leave wrecks, downed aircraft leave crashes, fallen buildings leave scorch and
+broken walls leave rubble. Soldiers leave nothing: the war is fought with
+materiel, and the page does not mark where a man fell.
+
+| scar | left by | drawn as |
+|---|---|---|
+| crater | a shell, a charge or a mine going off | a ragged rim broken in two places, shaded inside from the top left, with flecks thrown past it |
+| wreck | armour destroyed | the hull in outline at its last heading, cracked across; a heavy one keeps its turret ring |
+| crash | an aircraft downed | a small pit, and a broken skid back the way it flew |
+| scorch | a building fallen | a splash of short strokes radiating from where it stood, and what is left of it |
+| rubble | a wall broken | broken blocks across the wall's cell |
+
+**Line-work, never tone.** The sheet's dot and hatch densities are the terrain
+legend the pathfinder reads, and bare paper is road, so no scar fills or knocks
+out the ground. Scars are ink lines lighter than the keylines, under everything
+still standing, and silent: the impact that made each one has already made its
+sound. A scar within half a cell of one of its own kind is not painted again,
+so clustered blasts pit the ground rather than bury it.
+
+**Painted once.** A scar is painted into the battle's baked sheet, and into the
+scaled copy the board draws from it, so it costs its strokes once and nothing a
+frame after. A fresh wreck or a fallen building smokes for eight seconds: three
+ink wisps rising and cutting, on the frame's layer.
+
+**For the battle and its replay.** Scars build up over the whole battle. A
+replay paints them again from the battle it re-runs, and a replay skipped to
+its end paints every scar it jumped over. Nothing is saved, the town's board
+starts clean, and nothing reaches the sim.
+
 
 ### 6.3 Teaching *(v1.5)*
 
