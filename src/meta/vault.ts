@@ -1,5 +1,5 @@
 import { flavorFor, type FactionId } from '../content/factions';
-import type { SimConfig } from '../sim/types';
+import type { Command, SimConfig } from '../sim/types';
 import {
   cleanTitle,
   decodeReplay,
@@ -21,13 +21,32 @@ import type { TownState } from './town';
  * already what is stored, and a corrupted entry is rejected at load rather
  * than crashing a replay three taps later.
  *
- * ONLY HANDS-OFF BATTLES go in. A raid, a duel and an offline probe resolve
- * from their config alone, so re-running it IS the battle. A live siege does
- * not: the commander's placements during the fight are commands the config
- * never held. Storing one would produce a replay of a battle nobody fought.
+ * A raid, a duel and an offline probe resolve from their config alone, so
+ * re-running it IS the battle. A live siege is its config and the commands it
+ * took (M35 Phase 3), and goes in with them, on a shelf of its own: the last
+ * five sieges, kept apart from the ten other battles, so a day of raiding
+ * never pushes out a siege the commander fought. Both live in the one list on
+ * the save, capped each by its own count.
  */
 
 export const VAULT_CAP = 10;
+/** The siege shelf (M35 Phase 3). */
+export const SIEGE_CAP = 5;
+
+const isSiege = (entry: { kind: ReplayKind }): boolean => entry.kind === 'siege';
+
+/** Newest first, as the list is kept: at most five sieges and ten of everything else. */
+function capped<T extends { kind: ReplayKind }>(entries: T[]): T[] {
+  let sieges = 0;
+  let others = 0;
+  return entries.filter((e) => (isSiege(e) ? ++sieges <= SIEGE_CAP : ++others <= VAULT_CAP));
+}
+
+/** The shelf and the rest, each newest first. */
+export function vaultShelves(town: TownState): { sieges: VaultEntry[]; battles: VaultEntry[] } {
+  const vault = vaultOf(town);
+  return { sieges: vault.filter(isSiege), battles: vault.filter((e) => !isSiege(e)) };
+}
 
 export interface VaultEntry {
   /** The battle itself. Everything below is a copy, kept so the list is cheap. */
@@ -68,6 +87,8 @@ export function recordBattle(
     config: SimConfig;
     /** A ghost raid's commanders (M27). */
     ghost?: GhostTag;
+    /** A siege's commands (M35 Phase 3). */
+    commands?: Command[];
   },
 ): string {
   const code = encodeReplay({
@@ -77,6 +98,7 @@ export function recordBattle(
     won: battle.won,
     config: battle.config,
     ...(battle.ghost ? { ghost: battle.ghost } : {}),
+    ...(battle.commands ? { commands: battle.commands } : {}),
   });
   const vault = vaultOf(town);
   vault.unshift({
@@ -87,7 +109,7 @@ export function recordBattle(
     at: battle.at,
     detail: battle.detail.slice(0, 48),
   });
-  vault.length = Math.min(vault.length, VAULT_CAP);
+  town.vault = capped(vault);
   return code;
 }
 
@@ -126,9 +148,8 @@ export function normalizeVault(raw: unknown): VaultEntry[] {
           : 0,
       detail: typeof entry.detail === 'string' ? entry.detail.slice(0, 48) : '',
     });
-    if (out.length >= VAULT_CAP) break;
   }
-  return out;
+  return capped(out);
 }
 
 /**
@@ -156,6 +177,6 @@ export function fileCode(
     detail: `${FILED}${flavorFor(decoded.replay.faction).faction}`,
   };
   vault.unshift(entry);
-  vault.length = Math.min(vault.length, VAULT_CAP);
+  town.vault = capped(vault);
   return { ok: true, entry, replay: decoded.replay };
 }

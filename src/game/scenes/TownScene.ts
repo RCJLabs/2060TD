@@ -29,7 +29,8 @@ import {
   liveDefenseConfig,
   runOfflineProbes,
 } from '../../meta/warfare';
-import { fileCode, openEntry, vaultOf, VAULT_CAP } from '../../meta/vault';
+import { fileCode, openEntry, recordBattle, SIEGE_CAP, vaultOf, vaultShelves, VAULT_CAP, type VaultEntry } from '../../meta/vault';
+import type { SiegeRecord } from '../../meta/siegerecord';
 import { replayFingerprint, type Replay, type ReplayKind } from '../../meta/replaycode';
 import {
   CALLSIGN_MAX,
@@ -335,7 +336,7 @@ export class TownScene extends Scene {
     super('town');
   }
 
-  init(data: { outcome?: SiegeOutcome; battle?: BattleTag }): void {
+  init(data: { outcome?: SiegeOutcome; battle?: BattleTag; record?: SiegeRecord }): void {
     const now = Date.now();
     this.demoMode = new URLSearchParams(window.location.search).get('demo') === 'town';
 
@@ -495,7 +496,48 @@ export class TownScene extends Scene {
           14,
         );
       }
+      if (data.record) this.fileSiege(data.record, data.battle, data.outcome, mission, wreckedBefore, now);
       saveTown(this.town);
+    }
+  }
+
+  /**
+   * A siege fought in person onto the vault's shelf (M35 Phase 3): its config
+   * and the commands it took, which are the battle. Named for what it was, and
+   * how it went. A siege that cannot be written is left off rather than
+   * standing in the way of the fold it came back with.
+   */
+  private fileSiege(
+    record: SiegeRecord,
+    battle: BattleTag | undefined,
+    outcome: SiegeOutcome,
+    mission: MissionDef | undefined,
+    wreckedBefore: ReadonlySet<number>,
+    now: number,
+  ): void {
+    const title = mission
+      ? `M${mission.index + 1} ${mission.codename}`
+      : battle?.type === 'defense'
+        ? `DEFENCE LV ${battle.level}`
+        : battle?.type === 'laststand'
+          ? `LAST STAND LV ${battle.level}`
+          : battle?.type === 'counter'
+            ? 'COUNTERATTACK'
+            : `SKIRMISH LV ${Math.max(1, this.town.assaultLevel - (outcome.victory ? 1 : 0))}`;
+    const wrecked = wreckBill(this.town, wreckedBefore).count;
+    try {
+      recordBattle(this.town, {
+        kind: 'siege',
+        faction: this.town.faction,
+        title,
+        won: outcome.victory,
+        at: now,
+        detail: `${outcome.victory ? 'HELD' : 'BROKE THROUGH'}${wrecked > 0 ? ` · ${wrecked} WRECKED` : ''}`,
+        config: record.config,
+        commands: record.commands,
+      });
+    } catch (err) {
+      console.error('siege not filed', err);
     }
   }
 
@@ -1555,15 +1597,16 @@ export class TownScene extends Scene {
     if (this.overlay) return;
     const now = Date.now();
     const vault = vaultOf(this.town);
+    const { sieges, battles } = vaultShelves(this.town);
     const ov = createOverlay(this, this.layout, {
       title: 'REPLAY VAULT',
       subtitle:
         vault.length > 0
-          ? `${vault.length} of the last ${VAULT_CAP} battles`
+          ? `${sieges.length} of your last ${SIEGE_CAP} sieges · ${battles.length} of the last ${VAULT_CAP} other battles`
           : 'Nothing fought yet',
     });
     this.overlay = ov;
-    const { font, gap, rowH } = this.layout;
+    const { font, gap } = this.layout;
     const close = (): void => {
       ov.close();
       this.overlay = null;
@@ -1572,10 +1615,9 @@ export class TownScene extends Scene {
 
     if (vault.length === 0) {
       ov.paragraph(
-        'Raids, code duels and the probes fought while you were away are ' +
-          'filed here as you fight them. A live siege is not: what you place ' +
-          'during one is a command, not part of the battle plan, so there is ' +
-          'nothing to re-run.',
+        'The sieges you fight, your raids and code duels, and the probes ' +
+          'fought while you were away are filed here as they end. A siege ' +
+          'keeps every order you gave in it, so it plays back as you fought it.',
         font.body,
         COLORS.inkDim,
         { center: true },
@@ -1587,48 +1629,16 @@ export class TownScene extends Scene {
       duel: 'DUEL',
       probe: 'DEFENSE',
       ghost: 'GHOST',
+      siege: 'SIEGE',
     };
-    for (const entry of vault) {
-      const outcomeWord = entry.won
-        ? entry.kind === 'probe'
-          ? 'HELD'
-          : entry.kind === 'ghost'
-            ? 'WON'
-            : 'TAKEN'
-        : 'LOST';
-      this.overlayEntry(
-        ov,
-        `${KIND_LABEL[entry.kind]} · ${entry.title}\n` +
-          `${outcomeWord} · ${entry.detail || '—'} · ${TownScene.agoLabel(Math.max(0, now - entry.at))}`,
-        entry.won ? COLORS.olive : COLORS.ink,
-        {
-          label: 'WATCH',
-          onTap: () => {
-            const replay = openEntry(entry);
-            if (!replay) return;
-            close();
-            this.scene.start('replay', this.watchData(replay));
-          },
-        },
-      );
-      // The code is what the entry IS, so handing it over costs nothing.
-      const b = ov.button(
-        { x: ov.card.x, y: ov.flow(rowH, gap).y, w: ov.card.w, h: rowH },
-        `COPY CODE · ${replayFingerprint(entry.code)}`,
-        () => {
-          showTextBox({
-            title: `${KIND_LABEL[entry.kind]} — ${entry.title}`,
-            note:
-              'The whole battle, as a string. Anyone who pastes it watches ' +
-              'exactly the fight you did — same seed, same walls, same ' +
-              'result. It changes nothing on their front line.',
-            value: entry.code,
-            readOnly: true,
-          });
-        },
-      );
-      b.setFont(font.body);
-    }
+    // The shelf first (M35 Phase 3): the sieges you fought, kept apart.
+    const shelf = (heading: string, entries: VaultEntry[]): void => {
+      if (entries.length === 0) return;
+      ov.paragraph(heading, font.label, COLORS.signal, { gapAfter: gap });
+      for (const entry of entries) this.vaultEntry(ov, entry, KIND_LABEL, now, close);
+    };
+    shelf(`YOUR SIEGES — THE LAST ${SIEGE_CAP}`, sieges);
+    shelf(sieges.length > 0 ? `RAIDS, DUELS AND PROBES — THE LAST ${VAULT_CAP}` : '', battles);
 
     ov.footer(
       'WATCH A CODE',
@@ -1660,6 +1670,60 @@ export class TownScene extends Scene {
       2,
     );
     ov.footer('CLOSE', close, 1, 2);
+  }
+
+  /** One battle in the vault: what it was, how it went, WATCH, and its code to copy. */
+  private vaultEntry(
+    ov: OverlayApi,
+    entry: VaultEntry,
+    label: Record<ReplayKind, string>,
+    now: number,
+    close: () => void,
+  ): void {
+    const { font, gap, rowH } = this.layout;
+    const outcomeWord = entry.won
+      ? entry.kind === 'probe' || entry.kind === 'siege'
+        ? 'HELD'
+        : entry.kind === 'ghost'
+          ? 'WON'
+          : 'TAKEN'
+      : 'LOST';
+    this.overlayEntry(
+      ov,
+      `${label[entry.kind]} · ${entry.title}\n` +
+        `${outcomeWord} · ${entry.detail || '—'} · ${TownScene.agoLabel(Math.max(0, now - entry.at))}`,
+      entry.won ? COLORS.olive : COLORS.ink,
+      {
+        label: 'WATCH',
+        onTap: () => {
+          const replay = openEntry(entry);
+          if (!replay) return;
+          close();
+          this.scene.start('replay', this.watchData(replay));
+        },
+      },
+    );
+    // The code is what the entry IS, so handing it over costs nothing.
+    const b = ov.button(
+      { x: ov.card.x, y: ov.flow(rowH, gap).y, w: ov.card.w, h: rowH },
+      `COPY CODE · ${replayFingerprint(entry.code)}`,
+      () => {
+        showTextBox({
+          title: `${label[entry.kind]} — ${entry.title}`,
+          note:
+            entry.kind === 'siege'
+              ? 'The whole siege, as a string: your town, the waves and every order ' +
+                'you gave. Anyone who pastes it watches exactly the fight you did. ' +
+                'It changes nothing on their front line.'
+              : 'The whole battle, as a string. Anyone who pastes it watches ' +
+                'exactly the fight you did — same seed, same walls, same ' +
+                'result. It changes nothing on their front line.',
+          value: entry.code,
+          readOnly: true,
+        });
+      },
+    );
+    b.setFont(font.body);
   }
 
   private showRecord(): void {
@@ -1885,13 +1949,17 @@ export class TownScene extends Scene {
   private watchData(replay: Replay): ReplayData {
     const ghost = replay.ghost;
     const defending =
-      replay.kind === 'probe' || (ghost !== undefined && ghost.defenderCallsign === callsignOf(this.town));
+      replay.kind === 'probe' ||
+      replay.kind === 'siege' ||
+      (ghost !== undefined && ghost.defenderCallsign === callsignOf(this.town));
     return {
       config: replay.config,
       kind: defending ? 'defense' : 'raid',
       title: replay.title,
       faction: replay.faction,
       ...(ghost ? { attacker: ghost.attacker } : {}),
+      // A siege's orders (M35 Phase 3): its footage fights them again.
+      ...(replay.commands ? { commands: replay.commands } : {}),
       backTo: 'town',
       backData: { town: this.town },
     };
@@ -3331,11 +3399,16 @@ export class TownScene extends Scene {
       sub: town.frontline.wonAt !== undefined ? `DAY ${warDay(town, Date.now())} · WON` : `DAY ${warDay(town, Date.now())}`,
       onTap: () => this.openOverlay(() => this.showRecord()),
     });
-    const vault = vaultOf(town);
+    // The shelf is counted on its own (M35 Phase 3): five sieges, ten others.
+    const shelves = vaultShelves(town);
+    const filed = [
+      ...(shelves.sieges.length > 0 ? [`${shelves.sieges.length}/${SIEGE_CAP} SIEGES`] : []),
+      ...(shelves.battles.length > 0 ? [`${shelves.battles.length}/${VAULT_CAP}`] : []),
+    ];
     rows.push({
       id: 'vault',
       label: 'REPLAY VAULT',
-      sub: vault.length > 0 ? `${vault.length}/${VAULT_CAP}` : 'EMPTY',
+      sub: filed.length > 0 ? filed.join(' · ') : 'EMPTY',
       onTap: () => this.openOverlay(() => this.showVault()),
     });
     // "STANDING ORDERS" is already the offline-defense policy on this tab, so

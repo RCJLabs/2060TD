@@ -8407,7 +8407,7 @@ spot.
       Measured, none of the three actions earns a place in one as an order
       uses it, and aiming is worth a point.
 
-- [ ] **Phase 3 — a siege on the record.** A live siege is its config and its
+- [x] **Phase 3 — a siege on the record (v1.76.0).** A live siege is its config and its
       commands, and a log of those commands makes it a replay: kept in the
       vault, sent as a code, watched with its heat map and its report. On the
       same log, a skirmish or a training fight can go back to the start of any
@@ -8415,13 +8415,150 @@ spot.
       jump-to-event; and the what-if reaches defence battles, one change to one
       command (M29's first deferral).
 
-      *Measured*: a recorded siege re-fights to the identical state hash, the
-      replay tests' standard; the size of a long siege's code; a rewound wave
-      starts from exactly the state the first attempt reached.
+      **The survey.** *(Written against v1.75.0.)* A replay code is a config
+      and nothing else: raids, duels, probes and ghost raids resolve from their
+      config alone, and the code's own header says a live siege was left out
+      because the commander's placements are commands. The engine has one way
+      in for them: a command is queued with a tick and applied at the start of
+      that tick (`applyCommands`), and `applyCommand` says whether it took.
+      Standing orders call it directly, from rules the config already holds.
+      Every field of a config is on the wire but its build limits, and a
+      siege's setup keeps the clock running while the commander builds. A
+      siege at level 8 codes to about a kilobyte before any command (the
+      reference towns); a command is about five bytes more. The only floating
+      point a command carries is an aimed cast's second point, straight off the
+      pointer.
 
-      *Forks*: which sieges may be rewound (skirmishes and training only, since
-      a town battle with a stake has no free restarts); whether the vault keeps
-      sieges beside raids or apart.
+      The vault keeps the last ten battles, as codes, in one list. The replay
+      viewer plays a battle live with speed, path markers, the heat map, skip
+      to the end and, for a raid, its report and what-if; it cannot pause, seek
+      or jump. The report's recorder watches any battle, so a siege's footage
+      would have its heat map already; the report itself is a raid's, told in
+      squads.
+
+      Every siege fought from the town has a stake: a mission, a skirmish, a
+      counterattack, a live defence and the last stand all fold the buildings
+      they lose into the town, and pay loot and a rung, or the defeat. Only a
+      standalone battle has none, and it already restarts. The menu's training
+      range is the sandbox, not a siege.
+
+      Settled with the commander:
+
+      - **Drills, after the battle.** Once a siege is over and has counted, its
+        replay can put the commander back in it from the start of any wave, or
+        its setup. The drill counts for nothing: no loot, no damage, no rung.
+        So a battle with a stake still has no free restart, and every siege,
+        not only a skirmish, can be fought again.
+      - **A shelf of its own.** The last five sieges, kept apart from the ten
+        raids, duels and probes, so a day of raiding never pushes out a siege.
+      - **The what-if drops one order, or moves it ten seconds.** WITHOUT IT,
+        10s SOONER, 10s LATER, on any placement, strike, move, sale, upgrade,
+        gate or repair.
+
+      The build:
+
+      - **The log, in the engine.** Every command a battle applies from its
+        queue is kept, stamped with the tick it applied at; a refused one is
+        not, and neither is anything standing orders do. A siege is then its
+        config and its log: queue the log, step, and it is the same battle.
+      - **Aim a code can carry.** A drag's point is rounded to an eighth of a
+        cell before the cast is issued, so the log keeps exactly what the cast
+        used. A tap's target is a cell's centre already.
+      - **Siege codes.** A fifth replay kind, `siege`, appended, so an older
+        build refuses it; after every block a code already has, the battle's
+        build limits and its log, each command as the ticks since the last, its
+        type, its cells and kinds (the kinds from the dictionary) and its
+        points in eighths of a cell.
+      - **The siege shelf.** Every siege fought from the town is filed when it
+        ends, onto the shelf: its kind, the level or mission, and how it went.
+        The vault card shows the shelf above the rest; a code copies as before,
+        and a pasted siege code files onto the shelf.
+      - **The replay bar**, on every replay: pause, a timeline along the foot
+        of the board that scrubs, with the battle's events marked on it, and a
+        JUMP list of them: each wave, breach, gun lost and stage of the post,
+        and for a siege each strike called. A seek forward runs on hushed; a
+        seek back fights the battle again from its start to there, hushed. A
+        siege's footage opens where the assault begins, the build in place.
+      - **A siege's report.** What killed the enemy (the guns and strikes, by
+        kills), the post (its lowest, the stages that fell and when, the
+        killing blow), what the siege cost (buildings, walls, CP and supplies)
+        and the orders given (placements, strikes, moves, sales, upgrades).
+      - **Drills.** TAKE COMMAND on a siege's footage puts the commander in it
+        at the start of the wave on screen, or its setup: the siege is fought
+        from its config and its log to that tick, hushed, and is then theirs.
+        A drill folds nothing into the town and is not filed; its end offers
+        the same wave again, the footage, or home.
+      - **The defence what-if.** From the report: the orders given, each with
+        its time and what it was, and the three changes. The changed siege is
+        fought on its own seed beside what happened, and both on
+        `WHAT_IF_ROLLS` more seeds, which re-roll the dice and keep the waves;
+        the card says held or lost, the post's lowest and the buildings lost,
+        and WATCH IT plays the changed siege. An order its new time cannot pay
+        for is refused, as it would have been.
+      - **Measured**: a recorded siege re-fights to the identical state hash,
+        from its log and from its code; the size of a long siege's code; a
+        drill starts from exactly the state the siege had at that tick; how
+        long a seek takes on a phone-sized run.
+      - **Tests**: the log keeps what took and only that; a scripted siege
+        re-fights to the hash from its log and from its code, every command
+        type among it; an aimed point survives the code; build limits ride the
+        code; the shelf's cap and order, and old vaults still load; a drill's
+        state at its tick hashes as the siege's did, and its end changes
+        nothing in the town; each what-if change, and a moved order that can
+        no longer be paid for; the report's tallies against the battle's own
+        stats. The defence harness watches the siege it fought: pause, scrub,
+        jump, the report, a what-if and a drill from wave 2.
+
+      Not in Phase 3: rewinding a siege while it is fought; filing or sharing a
+      drill; a what-if on a raid's fire plan.
+
+      **Shipped in v1.76.0**, as planned but for what the building settled.
+
+      - **What the bar marks.** Losses within three seconds of each other are
+        one moment (LOST: M2 MG NEST +2), a breach is one until the walls have
+        held for ten, and a jump lands two seconds before what it names, so it
+        is seen happening; a wave's jump lands at its start, the prep a drill
+        starts from. The strikes marked are the ones in the log, the
+        commander's: standing orders cast too, and those are the town's rules.
+      - **A seek back opens the footage again** at the tick, watched as it was
+        (speed, pause, heat map, paths), which is the same battle to the tick.
+        What the bar knows of a battle (its end, its moments, its drill
+        points) is fought once, headless, as the footage opens, and kept with
+        its report and what-if for as long as it is watched.
+      - **The footage opens where the assault began**, which in a live defence
+        can be its first tick: the first siege's coach holds the clock while
+        it talks, so a setup can take no time at all.
+      - **A siege's result counts structures that would have outlasted it**,
+        the town's own and what the setup bought, apart from the field
+        defences a battle's end takes anyway. A what-if card says how each
+        siege ended: held, with the post's lowest, or broken through and when,
+        and the structures lost.
+      - **The vault's row counts the shelf on its own** (1/5 SIEGES · 3/10),
+        and the harness reads the footage on screen through the test seam
+        (`footage()`): where it is, where it opened and what it marks.
+
+      Measured:
+
+      - **Re-fights**: 36 sieges (levels 1, 3, 6, 9, 12 and 14, three seeds
+        each, a scripted commander who gives every order a siege can take and
+        a busy one who never stops) fight again to the identical state hash
+        from their log and from their code, and a drill from each of their 135
+        wave preps starts in the state the siege had there.
+      - **Code size**: a command costs about six characters of code (6.0 to
+        6.9). The scripted siege at level 9 codes to 1,375 characters with 29
+        commands (1,187 with none), the busy one to 1,724 with 87; at level 14
+        the config alone is 1,514. A thousand orders would add about 6 KB.
+      - **A seek on a phone-sized run** (412 by 915 at twice the density; the
+        busy level-9 siege, 431 seconds of battle), at a quarter of this
+        machine's speed, and at full speed: opening the footage 1.0 s and
+        0.24 s; a seek forward to 95% 0.37 s and 0.09 s; a seek back to 90%,
+        fought again from the start, 0.52 s and 0.14 s; back to 5% 0.30 s and
+        0.09 s. A what-if, twenty-two sieges fought a slice at a time, 2.5 s
+        and 0.5 s, and a second change to the same siege 1.2 s and 0.2 s,
+        since what was fought as it happened is kept.
+      - **What it costs**: the download grows 24 kB (8 kB gzipped), to 643 kB;
+        boot and frame times are v1.75.0's (the town at a quarter speed 13.9 ms
+        a frame in both).
 
 ## M36 — "Standing Orders": the garrison's war
 

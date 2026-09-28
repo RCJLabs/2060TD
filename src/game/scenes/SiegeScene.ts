@@ -22,6 +22,8 @@ import { createLabel, type SceneLabel } from '../dom/label';
 import { createOverlay, type OverlayApi } from '../dom/overlay';
 import { createPanel } from '../dom/panel';
 import { buildPowerSpec, buildStructureSpec, buildWallSpec } from '../spec';
+import { fightTo, type SiegeRecord } from '../../meta/siegerecord';
+import type { ReplayData } from './ReplayScene';
 import type { PanelApi, PanelRow } from '../rows';
 
 export type BattleTag =
@@ -50,6 +52,13 @@ export interface SiegeLaunchData {
   faction?: FactionId;
   /** Run the first-contact coach over this battle (v1.5). */
   coach?: boolean;
+  /**
+   * A drill (M35 Phase 3): the siege on this record, fought again from `tick`,
+   * the prep before `wave` or the setup for the first. Everything before it is
+   * the siege as it was; everything after is the commander's. It counts for
+   * nothing, and its end goes back to the footage it came from.
+   */
+  drill?: { record: SiegeRecord; tick: number; wave: number; footage: ReplayData };
 }
 
 const CELL = 32;
@@ -103,6 +112,8 @@ export class SiegeScene extends Scene {
   private overlayShown = false;
   private fromTown = false;
   private launchConfig: SimConfig | null = null;
+  private launchData: SiegeLaunchData = {};
+  private drill: SiegeLaunchData['drill'] | null = null;
   private battleTag: BattleTag | null = null;
   private faction: FactionId = 'usa';
   private paused = false;
@@ -127,9 +138,12 @@ export class SiegeScene extends Scene {
   }
 
   init(data: SiegeLaunchData): void {
-    this.launchConfig = data?.config ?? null;
-    this.fromTown = data?.fromTown ?? false;
-    this.battleTag = data?.battle ?? null;
+    this.launchData = data ?? {};
+    this.drill = data?.drill ?? null;
+    this.launchConfig = this.drill?.record.config ?? data?.config ?? null;
+    // A drill is off the record: no town behind it, no battle to fold.
+    this.fromTown = this.drill ? false : (data?.fromTown ?? false);
+    this.battleTag = this.drill ? null : (data?.battle ?? null);
     const urlFaction = new URLSearchParams(window.location.search).get('faction');
     this.faction =
       data?.faction ??
@@ -137,7 +151,7 @@ export class SiegeScene extends Scene {
         ? urlFaction
         : 'usa');
     this.paused = false;
-    this.wantCoach = data?.coach === true;
+    this.wantCoach = data?.coach === true && !this.drill;
     this.deployed = 0;
     this.casts = 0;
   }
@@ -192,7 +206,10 @@ export class SiegeScene extends Scene {
       terrainSeed: this.demoMode ? 4242 : Date.now() >>> 0,
       terrainVersion: TERRAIN_VERSION,
     };
-    this.engine = new Engine(config, defenseCatalogFor(this.faction));
+    // A drill starts where the siege stood at its tick: fought there from its
+    // config and the orders it took before it, and then it is the commander's.
+    const catalog = defenseCatalogFor(this.faction);
+    this.engine = this.drill ? fightTo(this.drill.record, catalog, this.drill.tick) : new Engine(config, catalog);
     this.board = new BoardView(this, { cols: GRID_W, rows: GRID_H, cell: CELL });
     this.battle = new BattleRenderer(this, this.engine, CELL, false, this.board.world, {
       live: true,
@@ -342,7 +359,7 @@ export class SiegeScene extends Scene {
     kb?.on('keydown-F', () => this.togglePause());
     kb?.on('keydown-R', () => {
       // Town battles have consequences — no free restarts.
-      if (!this.fromTown) this.scene.restart({});
+      if (!this.fromTown) this.runItBack();
     });
   }
 
@@ -448,7 +465,20 @@ export class SiegeScene extends Scene {
     this.scene.start('town', {
       outcome: outcomeFromEngine(this.engine),
       battle: this.battleTag ?? { type: 'skirmish' },
+      // The siege on the record (M35 Phase 3): its config and every order it took.
+      ...(this.launchConfig ? { record: { config: this.launchConfig, commands: [...this.engine.commandLog] } } : {}),
     });
+  }
+
+  /** The same battle from its start, or a drill from its wave: never a town battle. */
+  private runItBack(): void {
+    if (this.fromTown) return;
+    this.scene.restart(this.launchData);
+  }
+
+  /** Out of a drill, to the footage it was taken from. */
+  private leaveDrill(): void {
+    if (this.drill) this.scene.start('replay', this.drill.footage);
   }
 
   private togglePause(): void {
@@ -953,11 +983,12 @@ export class SiegeScene extends Scene {
             : [
                 {
                   id: 'restart',
-                  label: 'RESTART BATTLE',
+                  label: this.drill ? 'THIS WAVE AGAIN' : 'RESTART BATTLE',
                   sub: '[R]',
-                  onTap: () => this.scene.restart({}),
+                  onTap: () => this.runItBack(),
                 } as PanelRow,
               ]),
+          ...(this.drill ? [{ id: 'enddrill', label: 'END DRILL', onTap: () => this.leaveDrill() } as PanelRow] : []),
         ];
     }
   }
@@ -990,7 +1021,7 @@ export class SiegeScene extends Scene {
 
     const cpFrac = Math.round(Math.min(1, e.cp / siege.cpCap) * 100);
     this.panel.setStatus(
-      `${siege.name}`,
+      this.drill ? `DRILL · WAVE ${this.drill.wave} ON · ${siege.name}` : `${siege.name}`,
       this.layout.mode === 'portrait'
         ? [`${phase} · SUP ${Math.floor(e.supplies)} · CP ${Math.floor(e.cp)}`]
         : [phase, `SUPPLIES ${Math.floor(e.supplies)}`, `CP ${Math.floor(e.cp)} (${cpFrac}%)`],
@@ -1047,9 +1078,14 @@ export class SiegeScene extends Scene {
       if (mission.unlockNote) lines.push(mission.unlockNote);
     }
 
+    if (this.drill) lines.unshift('A DRILL: NOTHING HERE REACHES THE TOWN.', '');
     const ov = createOverlay(this, this.layout, {
-      title: victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST',
-      subtitle: mission ? `M${mission.index + 1} — ${mission.codename}` : 'AFTER ACTION',
+      title: `${this.drill ? 'DRILL — ' : ''}${victory ? 'SECTOR HELD' : 'COMMAND CENTER LOST'}`,
+      subtitle: this.drill
+        ? `FROM ${this.drill.wave === 1 ? 'THE SETUP' : `WAVE ${this.drill.wave}`}`
+        : mission
+          ? `M${mission.index + 1} — ${mission.codename}`
+          : 'AFTER ACTION',
       scrim: 0.8,
     });
     this.overlay = ov;
@@ -1061,11 +1097,16 @@ export class SiegeScene extends Scene {
       COLORS.ink,
       { lineSpacing: Math.round(font.body * 0.4) },
     );
+    if (this.drill) {
+      ov.footer('THIS WAVE AGAIN', () => this.runItBack(), 0, 2);
+      ov.footer('THE FOOTAGE', () => this.leaveDrill(), 1, 2);
+      return;
+    }
     ov.footer(this.fromTown ? 'RETURN TO BASE' : 'RUN IT BACK', () => {
       ov.close();
       this.overlay = null;
       if (this.fromTown) this.returnToTown();
-      else this.scene.restart({});
+      else this.runItBack();
     });
   }
 }

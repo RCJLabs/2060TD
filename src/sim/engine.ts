@@ -239,6 +239,23 @@ type ImpactShape =
   /** An aimed gun run's pass (M35 Phase 2): from one end to the other, `w` either side. */
   | { kind: 'strip'; x0: number; y0: number; x1: number; y1: number; w: number };
 
+/**
+ * A cast's points to the eighth of a cell, as it is taken from the queue
+ * (M35 Phase 3): what a siege's code carries exactly, so the cast a record
+ * replays is the one that was fought. A tap's target is a cell's centre
+ * already; only a drag's point ever moves, by a sixteenth of a cell at most.
+ */
+const toEighth = (v: number): number => Math.round(v * 8) / 8;
+
+function onEighths(cmd: Command): Command {
+  if (cmd.type !== 'castPower') return cmd;
+  return {
+    ...cmd,
+    target: { x: toEighth(cmd.target.x), y: toEighth(cmd.target.y) },
+    ...(cmd.toward ? { toward: { x: toEighth(cmd.toward.x), y: toEighth(cmd.toward.y) } } : {}),
+  };
+}
+
 function inShape(shape: ImpactShape, x: number, y: number): boolean {
   switch (shape.kind) {
     case 'circle':
@@ -382,6 +399,14 @@ export class Engine {
   private chainStill = '';
   private nextId = 1;
   private queue: Command[] = [];
+  /**
+   * Every command this battle took from its queue, stamped with the tick it
+   * took at (M35 Phase 3). A refused command is not in it, and neither is
+   * anything standing orders do, which the config already decides. With the
+   * config it is the battle: queue it again and step, and it is fought again
+   * to the same state hash.
+   */
+  readonly commandLog: Command[] = [];
   private spawnCursor = 0;
   private readonly waves: WaveEntry[][];
   /** What the enemy did to each wave (M35), index for index with `waves`. */
@@ -913,12 +938,13 @@ export class Engine {
 
   private applyCommands(events: SimEvent[]): void {
     const pending: Command[] = [];
-    for (const cmd of this.queue) {
-      if (cmd.tick > this.tick) {
-        pending.push(cmd);
+    for (const queued of this.queue) {
+      if (queued.tick > this.tick) {
+        pending.push(queued);
         continue;
       }
-      this.applyCommand(cmd, events);
+      const cmd = onEighths(queued);
+      if (this.applyCommand(cmd, events)) this.commandLog.push({ ...cmd, tick: this.tick });
     }
     this.queue = pending;
   }

@@ -7,7 +7,7 @@ fight through.
 
 ### ▶ [Play 2060TD](https://rcjlabs.github.io/2060TD/)
 
-v1.69.0, in the browser. No install, no account, works on a phone.
+v1.76.0, in the browser. No install, no account, works on a phone.
 
 - **Defense is the action game:** real-time tower defense on top of your persistent base —
   spend Command Points placing field defenses and calling fire missions mid-wave.
@@ -20,7 +20,30 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.75.0: field command
+## Current state — v1.76.0: a siege on the record
+
+**Every siege you fight is now kept, and can be watched, questioned and fought again.**
+
+- **The siege shelf:** your last five sieges are filed in the REPLAY VAULT when they end, above
+  your raids, duels and probes, with every order you gave in them. Copy one as a code, and whoever
+  pastes it watches the fight you did.
+- **The replay bar:** every replay can pause (K), and has a timeline along the foot of the board
+  with what happened marked on it. Press it to go anywhere in the battle, or pick from JUMP TO:
+  each wave, a breach, what was lost, each stage of the post, and each strike you called.
+- **Take command:** on a siege's footage, TAKE COMMAND puts you back in at the start of the wave
+  on screen, or the setup, with everything as it stood. It is a drill: nothing in it reaches your
+  town, and its end offers the same wave again or the footage.
+- **What if:** a siege's report says what killed them, what the post went through, what it cost
+  and the orders you gave. Pick one and fight the siege again without it, or with it ten seconds
+  sooner or later, on the same dice and on ten more rolls. WATCH IT plays the siege that would
+  have been.
+- **Measured:** a siege fights again to the same state hash from its code, across the ladder; a
+  code grows by about six characters an order; on a phone, a seek takes under a second and a
+  what-if a few.
+
+Replay codes for raids, duels, probes and ghosts are unchanged; a siege code needs this build.
+
+## v1.75.0: field command
 
 **The defences you buy in a battle can now be moved, sold or upgraded, and your powers can be
 aimed.**

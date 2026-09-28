@@ -637,6 +637,136 @@ try {
   );
   await page.screenshot({ path: `screenshots/e2e-defend-after${isMobile ? '-phone' : ''}.png` });
 
+  // --- a siege on the record (M35 Phase 3) -----------------------------------
+  // The siege just fought is filed on its own shelf, and plays back as it was
+  // fought: paused, scrubbed, jumped along, taken command of from its second
+  // wave, reported on and asked a what-if, none of which reaches the town.
+  await tap('CLOSE', 700);
+  // The vault's row is above the log's on the WAR tab, which a phone's list
+  // has just been scrolled past: the list goes back up until it shows.
+  await tap('WAR', 800);
+  await openDrawer();
+  let vaultRow = '';
+  for (let i = 0; i < 8 && !vaultRow; i++) {
+    vaultRow = await rowLike('REPLAY VAULT');
+    if (!vaultRow) await dragList(vh * 0.25);
+  }
+  if (!vaultRow) await page.screenshot({ path: `screenshots/e2e-defend-novault${isMobile ? '-phone' : ''}.png` });
+  check(
+    'the siege is filed on the way home, on its own shelf',
+    /1\/5 SIEGES/.test(vaultRow),
+    vaultRow || (await labels()).slice(0, 14).join(' | '),
+  );
+  await tap('REPLAY VAULT', 900);
+  check(
+    'the vault shows the shelf, with the siege on it',
+    (await copyHas('YOUR SIEGES')) && (await copyHas('SIEGE · DEFENCE LV 9')),
+    (await copyLike('DEFENCE LV 9')).slice(0, 60),
+  );
+  // The shelf is listed first, so its entry's WATCH is the first of them.
+  const watchAt = await page.evaluate(() => {
+    const api = window.lastline;
+    const b = api.buttons().find((x) => x.label.toUpperCase() === 'WATCH');
+    return b ? { x: (b.x + b.w / 2) / api.dpr, y: (b.y + b.h / 2) / api.dpr } : null;
+  });
+  if (watchAt) await page.mouse.click(watchAt.x, watchAt.y);
+  check('WATCH plays it as siege footage', await until(() => copyHas('SIEGE FOOTAGE'), 15000), (await copy()).slice(0, 3).join(' | '));
+  // What the town has on disk, to hold everything after this against.
+  const saved = () => page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('lastline_save_v1')).town));
+  const savedBefore = await saved();
+  const clock = async () => {
+    const m = /T\+(\d+)s\/(\d+)s/.exec((await copy()).find((t) => /T\+\d+s\/\d+s/.test(t)) ?? '');
+    return m ? { at: Number(m[1]), end: Number(m[2]) } : null;
+  };
+  // Where the assault began is the first wave's mark, and the footage opens
+  // there, the setup behind it: it has played a moment since.
+  const opened = await page.evaluate(() => window.lastline.footage());
+  const wave1 = opened?.moments.find((m) => m.label === 'WAVE 1');
+  check(
+    'it opens where the assault began, the build in place',
+    !!opened && !!wave1 && opened.opens === wave1.tick && opened.tick >= opened.opens && opened.tick - opened.opens < 20 * 20,
+    JSON.stringify({ opens: opened?.opens, tick: opened?.tick, wave1: wave1?.tick }),
+  );
+  const marks = await page.evaluate(() => document.querySelector('[data-ui="timeline"]')?.children[2]?.children.length ?? 0);
+  check('the timeline along the foot of the board marks what happened', marks > 0, `${marks} marks`);
+  await tapExact('PAUSE');
+  const held1 = await clock();
+  await wait(1200);
+  const held2 = await clock();
+  check(
+    'PAUSE holds the footage still',
+    !!held1 && !!held2 && held1.at === held2.at && (await labels()).includes('PLAY'),
+    `${JSON.stringify(held1)} → ${JSON.stringify(held2)}`,
+  );
+  const scrubTo = async (fraction) => {
+    const bar = await page.evaluate(() => {
+      const api = window.lastline;
+      const b = api.buttons().find((x) => x.label === 'TIMELINE');
+      return b ? { x: b.x / api.dpr, y: b.y / api.dpr, w: b.w / api.dpr, h: b.h / api.dpr } : null;
+    });
+    if (!bar) return false;
+    await page.mouse.click(bar.x + bar.w * fraction, bar.y + bar.h / 2);
+    await settle(2500);
+    return true;
+  };
+  const near = (c, fraction) => !!c && Math.abs(c.at - fraction * c.end) <= Math.max(2, c.end * 0.02);
+  await scrubTo(0.8);
+  const ahead = await clock();
+  check('a press on the timeline seeks forward', near(ahead, 0.8), JSON.stringify(ahead));
+  await scrubTo(0.1);
+  // A seek back fights the footage again from its start, so the scene opens again.
+  await until(async () => near(await clock(), 0.1), 10000);
+  const behind1 = await clock();
+  await wait(1000);
+  const behind2 = await clock();
+  check(
+    'and back, fighting it again to there, still paused',
+    near(behind1, 0.1) && behind1.at === behind2?.at,
+    `${JSON.stringify(behind1)} → ${JSON.stringify(behind2)}`,
+  );
+  await page.screenshot({ path: `screenshots/e2e-defend-footage${isMobile ? '-phone' : ''}.png` });
+  // The JUMP list is the drawer's last: a phone's comes up to reach it.
+  if (isMobile) await openDrawer();
+  await tap('WAVE 2', 700);
+  const wave2 = await page.evaluate(() => window.lastline.buttons().find((b) => b.label === 'WAVE 2')?.sub ?? '');
+  const jumped = await clock();
+  check('JUMP TO lists the waves, and one goes to its start', !!jumped && wave2 === `T+${jumped.at}s`, `${wave2} / ${JSON.stringify(jumped)}`);
+  // TAKE COMMAND is near the top of the list the jump scrolled down.
+  for (let i = 0; i < 3; i++) await dragList(vh * 0.35);
+  check('and TAKE COMMAND offers that wave', /FROM WAVE 2/.test(await rowLike('TAKE COMMAND')), await rowLike('TAKE COMMAND'));
+  await tap('TAKE COMMAND', 900);
+  check('TAKE COMMAND puts you in the siege at wave 2, as a drill', await until(() => copyHas('DRILL · WAVE 2'), 15000), (await copyLike('DRILL')).slice(0, 60));
+  check('in its prep, as the siege had it', await until(async () => (await labels()).some((l) => /^SKIP PREP$/i.test(l)), 8000), (await labels()).slice(0, 5).join(' | '));
+  await page.screenshot({ path: `screenshots/e2e-defend-drill${isMobile ? '-phone' : ''}.png` });
+  await tap('CTRL', 600);
+  await revealRow('END DRILL');
+  await tap('END DRILL', 900);
+  const resumed = (await until(() => copyHas('SIEGE FOOTAGE'), 15000)) ? await clock() : null;
+  check('END DRILL goes back to the footage, where the drill began', !!resumed && wave2 === `T+${resumed.at}s`, JSON.stringify(resumed));
+  await tap('AFTER ACTION REPORT', 900);
+  const sections = ['WHAT KILLED THEM', 'THE POST', 'WHAT IT COST', 'THE ORDERS'];
+  const present = [];
+  for (const heading of sections) if (await copyHas(heading)) present.push(heading);
+  check('the siege has its report: what killed them, the post, the cost and the orders', present.length === sections.length, present.join(', '));
+  await page.screenshot({ path: `screenshots/e2e-defend-report${isMobile ? '-phone' : ''}.png` });
+  await tap('WHAT IF', 900);
+  check('WHAT IF lists the orders given', await copyHas('Pick one order'), (await copy()).slice(0, 4).join(' | '));
+  // The gun run the harness called: drop it.
+  await tap('CALLED', 900);
+  await tap('WITHOUT IT', 900);
+  check(
+    'WITHOUT IT fights the siege again without the order, beside what happened',
+    await until(() => copyHas('As fought:'), 90000),
+    (await copyLike('Fighting')).slice(0, 60),
+  );
+  check('and on ten more rolls of the dice', await copyHas('Over 10 more rolls'), (await copyLike('rolls')).slice(0, 60));
+  await page.screenshot({ path: `screenshots/e2e-defend-whatif${isMobile ? '-phone' : ''}.png` });
+  await tap('WATCH IT', 900);
+  check('WATCH IT plays the siege without it', await until(() => copyHas('WHAT IF: WITHOUT'), 15000), (await copyLike('WHAT IF')).slice(0, 60));
+  check('none of it reached the town', (await saved()) === savedBefore, '');
+  await page.keyboard.press('Escape');
+  check('and BACK is the town', await until(async () => (await labels()).includes('WAR'), 15000), (await labels()).slice(0, 5).join(' | '));
+
   await browser.close();
   if (errors.length) {
     console.error('PAGE ERRORS:');

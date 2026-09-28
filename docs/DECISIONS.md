@@ -1631,3 +1631,20 @@ here with the change and its date.
   rule stalls a LATE siege with a tank that small arms cannot kill; and every
   ladder orders row fights on the one clock, as the game's sieges do. The
   presets are unchanged: none of the new actions earns a place in one.
+- 2026-09-28 — **A live siege is kept as its config and the commands it took,
+  and can be watched, drilled and asked a what-if (M35 Phase 3, v1.76.0).**
+  The engine keeps every command it takes from its queue, at the tick it took;
+  a refused one is not kept, and neither is anything standing orders do, whose
+  rules the config already holds. A drag's aim is taken to an eighth of a cell
+  as the cast is applied, so a code carries it exactly. Settled with the
+  commander: a siege that has counted can be fought again from the start of
+  any wave, or its setup, as a drill that counts for nothing, so a battle with
+  a stake still has no free restart; the vault keeps the last five sieges on a
+  shelf of their own, apart from the ten raids, duels and probes; and the
+  what-if drops one order or moves it ten seconds either way. Siege codes are a
+  fifth kind, appended, so an older build refuses them and every other code is
+  unchanged. Measured: 36 sieges across the ladder fight again to the
+  identical state hash from their log and from their code, and 135 drills start
+  in the state their siege had; a command costs about six characters of code;
+  on a phone-sized run at a quarter of this machine's speed a seek takes under
+  a second and a what-if two and a half.

@@ -3,7 +3,7 @@ import { BriefingScene } from './game/scenes/BriefingScene';
 import { MenuScene } from './game/scenes/MenuScene';
 import { PlaygroundScene } from './game/scenes/PlaygroundScene';
 import { RaidScene } from './game/scenes/RaidScene';
-import { ReplayScene } from './game/scenes/ReplayScene';
+import { ReplayScene, watchedFootage } from './game/scenes/ReplayScene';
 import { SiegeScene } from './game/scenes/SiegeScene';
 import { TownScene } from './game/scenes/TownScene';
 import { dismissBootCard } from './game/boot';
@@ -124,6 +124,8 @@ dismissBootCard(game);
   score: () => ({ mood: music.playing(), step: music.currentStep(), visited: music.visitedSteps() }),
   // Every scar the battle renderer has painted into a board since the page loaded (M31).
   scars: () => paintedScars(),
+  // The replay on screen: where it is, where it opened and what it marks (M35 Phase 3).
+  footage: () => watchedFootage(),
   get dpr() {
     return dpr;
   },

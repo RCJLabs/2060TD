@@ -1449,9 +1449,10 @@ of an absence is held back with a thirty-minute window on it and two answers:
   played siege, so every structure that did not survive is wrecked and costs a
   repair.
 
-A defence you fought is logged as DEFENDED rather than PROBE and carries no replay,
-under the same rule as the vault (§5.9): a played battle was made of commands the
-config never held.
+A defence you fought is logged as DEFENDED rather than PROBE. The log's entry carries
+no replay of its own: a played battle was made of commands the config never held, and
+since v1.76 the siege itself, its config and its orders, is filed on the vault's siege
+shelf instead (§5.10b).
 
 ### 5.8 Leagues and field conditions *(v1.3)*
 
@@ -1548,10 +1549,10 @@ battle uses a dozen. Strings are UTF-8, unlike share codes — a share code name
 player typed, but a replay code names generated content, and posts are quoted with curly
 quotes while probes are titled with an em dash.
 
-**Live sieges are excluded, deliberately.** What the commander places during a siege is a
-command, and the config never held it; a "replay" of one would be a battle nobody fought.
-Recording those would mean a command log and a second replay path, which is a different
-feature.
+**Live sieges were left out until v1.76.** What the commander places during a siege is a
+command, and the config never held it; a replay of the config alone would be a battle nobody
+fought. Since M35 Phase 3 the engine keeps a log of the commands it takes, and a siege goes
+into the vault as its config and that log, on a shelf of its own (§5.10b).
 
 ### 5.10a Ghost raids *(v1.66, M27)*
 
@@ -1588,6 +1589,41 @@ written by hand, or a friend from a second war of one's own.
 south sectors are the row under its command post, so a ghost, and since v1.66 a duel, comes in
 by N1 or N2. A plan written against a post opens on a town with each squad moved to the nearer
 of the two, and a duel's what-if offers only those.
+
+### 5.10b A siege on the record *(v1.76, M35)*
+
+A live siege is its config and the commands its commander gave. The engine keeps every
+command it takes from its queue, stamped with the tick it took at; a refused command is not
+kept, and neither is anything standing orders do, since the config already holds their
+rules. Queue the log on a new engine and step, and it is the same battle to the state hash.
+A drag's aim is taken to an eighth of a cell as the cast is applied, so a code carries the
+point exactly.
+
+- **The siege shelf.** Every siege fought from the town (a mission, a skirmish, a
+  counterattack, a live defence, the last stand) is filed when it ends, as a code of a fifth
+  kind, `siege`, which an older build refuses. The vault keeps the last five apart from the
+  ten raids, duels and probes, so a day of raiding never pushes one out, and lists them
+  first. A siege code copies as any other does, and a pasted one files onto the shelf.
+- **The replay bar**, on every replay: PAUSE (K), and a timeline along the foot of the board
+  with what happened marked on it, which a press or a drag moves along; and a JUMP TO list:
+  each wave of a siege, a wall breached, what was lost, each stage of the post's chain and
+  each strike a siege's commander called. A seek forward runs on hushed, as the skip does;
+  a seek back fights the battle again from its start to there, which is the same battle to
+  the tick. A siege's footage opens where its assault began, the build in place.
+- **A siege's report:** what killed the enemy, the post (its lowest, the stages that fell and
+  when, the killing blow), what the siege cost and the orders given.
+- **Drills.** TAKE COMMAND puts the commander in the siege at the start of the wave on screen,
+  or its setup for the first: the siege is fought from its record to the first tick of that
+  wave's prep, and from there it is theirs. A drill counts for nothing: nothing in it reaches
+  the town, and it is not filed. Its end offers the same wave again or the footage. A battle
+  with a stake still has no free restart, and every siege can be fought again.
+- **The defence what-if.** From the report, the orders given, each with its time and what it
+  acted on: a placement, strike, move, sale, upgrade, gate or repair. One is dropped (WITHOUT
+  IT) or moved ten seconds sooner or later. The changed siege is fought on its own dice beside
+  what happened, and both on ten more rolls, which re-roll the dice and keep the waves, since
+  a siege's config holds every man it sends. The card says how each ended, the post's lowest
+  and the structures lost; an order its new time cannot pay for is refused, as it would have
+  been, and the card says so. WATCH IT plays the changed siege.
 
 ### 5.11 Day orders *(v1.12)*
 

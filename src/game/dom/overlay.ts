@@ -68,6 +68,8 @@ export interface OverlayApi {
   ): OverlayButton;
   footer(label: string, onTap: () => void, index?: number, of?: number): OverlayButton;
   readonly scrollable: boolean;
+  /** False once closed: work a card started on a timer stops when it reads false. */
+  readonly open: boolean;
   close(): void;
 }
 
@@ -445,6 +447,10 @@ export class DomOverlay implements OverlayApi {
   /** True when the content is taller than the card (a scroll hint is due). */
   get scrollable(): boolean {
     return this.contentH > this.card.h;
+  }
+
+  get open(): boolean {
+    return !this.closed;
   }
 
   close(): void {

@@ -8,6 +8,7 @@ import { OBJECTIVE_IDS, isObjectiveId } from './objectives';
 import type {
   AutoPowerRule,
   CellIndex,
+  Command,
   Doctrine,
   LayoutStructure,
   LayoutWall,
@@ -44,10 +45,12 @@ import {
  * and why a code is verifiable: encode, decode, run both, compare state
  * hashes. The tests do precisely that.
  *
- * ONLY HANDS-OFF BATTLES. Raids, duels and offline probes resolve from their
- * config alone. A live siege does not: the commander's placements during the
- * fight are commands, and the config never held them. Recording those would
- * mean a command log and a second replay path, which is not what this is.
+ * A live siege is the one battle a config is not (M35 Phase 3): the
+ * commander's placements during the fight are commands the config never held.
+ * The engine keeps the ones that took, at the tick they took (its
+ * `commandLog`), and a siege's code carries them after everything else, so a
+ * siege is its config and its log and nothing more. Raids, duels and offline
+ * probes resolve from their config alone, as they always did.
  *
  * Kind names go in a DICTIONARY rather than a fixed byte table. Share codes
  * use a fixed table and carry a warning about never reordering it; this game
@@ -108,9 +111,50 @@ const MAX_CELL_SIZE = 8;
  */
 const CHAIN_LATEST = Math.max(...Object.keys(CHAIN_MODELS).map(Number));
 
-export type ReplayKind = 'raid' | 'duel' | 'probe' | 'ghost';
+export type ReplayKind = 'raid' | 'duel' | 'probe' | 'ghost' | 'siege';
 /** Appended to, never reordered: a code names its kind by its place here. */
-const REPLAY_KINDS: ReplayKind[] = ['raid', 'duel', 'probe', 'ghost'];
+const REPLAY_KINDS: ReplayKind[] = ['raid', 'duel', 'probe', 'ghost', 'siege'];
+
+/**
+ * A siege's commands (M35 Phase 3), by their place here: appended to, never
+ * reordered, and a type a reader does not know is a code it cannot fight.
+ */
+const COMMAND_TYPES: Command['type'][] = [
+  'placeWall',
+  'removeWall',
+  'placeStructure',
+  'removeStructure',
+  'spawnAttacker',
+  'startAssault',
+  'skipPrep',
+  'repairAll',
+  'castPower',
+  'toggleGate',
+  'moveStructure',
+  'sellStructure',
+  'upgradeStructure',
+];
+
+/** The most commands a siege's code may carry: a mangled paste cannot ask for more. */
+const MAX_COMMANDS = 50_000;
+
+/**
+ * A point on the board in eighths of a cell, zigzagged so a point off its
+ * edge still reads back. The engine takes a cast's points to the eighth as it
+ * applies them, so what the log holds is exact here; anything else is a bug,
+ * and the code refuses to be written rather than carry a different battle.
+ */
+function putEighths(out: number[], v: number): void {
+  const n = Math.round(v * 8);
+  if (n / 8 !== v) throw new Error(`a siege's code carries points in eighths of a cell, not ${v}`);
+  writeVarint(out, n >= 0 ? n * 2 : -n * 2 - 1);
+}
+
+function getEighths(cur: Cursor): number | null {
+  const z = readVarint(cur);
+  if (z === null) return null;
+  return (z % 2 === 0 ? z / 2 : -(z + 1) / 2) / 8;
+}
 
 const DOCTRINES: Doctrine[] = ['assault', 'hunt', 'raze'];
 const POWER_TARGETS: AutoPowerRule['target'][] = ['cc', 'guns'];
@@ -141,6 +185,11 @@ export interface Replay {
   config: SimConfig;
   /** A ghost raid's commanders (kind 'ghost' only, and always there). */
   ghost?: GhostTag;
+  /**
+   * A siege's commands (kind 'siege' only, and always there): what the battle
+   * took from its queue, in order, each stamped with the tick it took at.
+   */
+  commands?: Command[];
 }
 
 const MAX_TITLE = 28;
@@ -398,8 +447,11 @@ export function encodeReplay(replay: Replay): string {
   // A ghost raid's commanders (M27) go on after the rules, so they force the
   // rules block, written as a zero byte when there are none.
   if (replay.kind === 'ghost' && !replay.ghost) throw new Error('a ghost raid names its commanders');
+  if (replay.kind === 'siege' && !replay.commands) throw new Error('a siege carries its commands');
   const needGhost = replay.kind === 'ghost';
-  const needSignature = signatureFlags !== 0 || needGhost;
+  // A siege's limits and commands (M35 Phase 3) go on after the rules too.
+  const needSiege = replay.kind === 'siege';
+  const needSignature = signatureFlags !== 0 || needGhost || needSiege;
   const needCellSize = cellSize > 1 || needSignature;
   const needChain = chainVersion > CHAIN_NONE || needCellSize;
   const needEdge = edgeIndex > 0 || needChain;
@@ -496,6 +548,67 @@ export function encodeReplay(replay: Replay): string {
     putString(body, g.attackerCallsign);
     putString(body, g.defenderCallsign);
     writeVarint(body, g.id >>> 0);
+  }
+
+  // A siege's build limits and its commands (M35 Phase 3), last of all. The
+  // limits are the one part of a config nothing else carries, and a what-if
+  // that moves an order has to be refused where the battle refused it.
+  if (needSiege) {
+    const limits = c.buildLimits ?? {};
+    putRecord(body, dict, limits.structures ?? {});
+    body.push(limits.walls === undefined ? 0 : 1);
+    if (limits.walls !== undefined) writeVarint(body, Math.max(0, Math.round(limits.walls)));
+    const commands = replay.commands!;
+    writeVarint(body, commands.length);
+    let previous = 0;
+    for (const cmd of commands) {
+      if (cmd.tick < previous) throw new Error("a siege's commands are in the order they took");
+      writeVarint(body, cmd.tick - previous);
+      previous = cmd.tick;
+      body.push(COMMAND_TYPES.indexOf(cmd.type));
+      switch (cmd.type) {
+        case 'placeWall':
+          writeVarint(body, cmd.cell);
+          writeVarint(body, dict.id(cmd.kind));
+          break;
+        case 'placeStructure':
+          writeVarint(body, cmd.cell);
+          writeVarint(body, dict.id(cmd.kind));
+          // 0 for a command that named no level, which is every one a player gives.
+          body.push(cmd.level === undefined ? 0 : Math.max(1, Math.min(9, cmd.level)));
+          break;
+        case 'spawnAttacker':
+          writeVarint(body, cmd.cell);
+          writeVarint(body, dict.id(cmd.kind));
+          body.push(cmd.doctrine === undefined ? 0 : DOCTRINES.indexOf(cmd.doctrine) + 1);
+          break;
+        case 'castPower':
+          writeVarint(body, dict.id(cmd.kind));
+          putEighths(body, cmd.target.x);
+          putEighths(body, cmd.target.y);
+          body.push(cmd.toward ? 1 : 0);
+          if (cmd.toward) {
+            putEighths(body, cmd.toward.x);
+            putEighths(body, cmd.toward.y);
+          }
+          break;
+        case 'moveStructure':
+          writeVarint(body, cmd.cell);
+          writeVarint(body, cmd.to);
+          break;
+        case 'removeWall':
+        case 'removeStructure':
+        case 'toggleGate':
+        case 'sellStructure':
+        case 'upgradeStructure':
+          writeVarint(body, cmd.cell);
+          break;
+        case 'startAssault':
+        case 'skipPrep':
+        case 'repairAll':
+          break;
+      }
+    }
   }
 
   // Header, dictionary, then the body — the reader needs the names first.
@@ -934,11 +1047,12 @@ export function decodeReplay(raw: string): ReplayDecode {
     if (flags & (1 | 2 | 8)) config.signature = signature;
   }
 
-  // A ghost raid's commanders (M27 Phase 1): a ghost raid has them, and
-  // nothing else has anything after the rules.
+  // A ghost raid's commanders (M27 Phase 1), or a siege's limits and
+  // commands (M35 Phase 3): each kind has its own, and no other kind has
+  // anything after the rules.
   let ghost: GhostTag | undefined;
-  if (cur.at < body.length) {
-    if (kind !== 'ghost') return bad('content');
+  let commands: Command[] | undefined;
+  if (cur.at < body.length && kind === 'ghost') {
     const attacker = FACTION_IDS[body[cur.at++]!];
     const attackerCallsign = getString(cur);
     const defenderCallsign = getString(cur);
@@ -946,8 +1060,110 @@ export function decodeReplay(raw: string): ReplayDecode {
     if (!attacker) return bad('content');
     if (attackerCallsign === null || defenderCallsign === null || id === null) return bad('truncated');
     ghost = { attacker, attackerCallsign, defenderCallsign, id };
+  } else if (cur.at < body.length && kind === 'siege') {
+    const limitCount = readVarint(cur);
+    if (limitCount === null || limitCount > 256) return bad('content');
+    const structures: Record<string, number> = {};
+    for (let i = 0; i < limitCount; i++) {
+      const kindName = kindOf(readVarint(cur));
+      const value = readVarint(cur);
+      if (kindName === null || value === null) return bad('truncated');
+      structures[kindName] = value;
+    }
+    const hasWalls = body[cur.at++];
+    if (hasWalls === undefined || hasWalls > 1) return bad('truncated');
+    const walls = hasWalls === 1 ? readVarint(cur) : undefined;
+    if (walls === null) return bad('truncated');
+    if (limitCount > 0 || walls !== undefined) {
+      config.buildLimits = {
+        ...(limitCount > 0 ? { structures } : {}),
+        ...(walls !== undefined ? { walls } : {}),
+      };
+    }
+    const count = readVarint(cur);
+    if (count === null || count > MAX_COMMANDS) return bad('content');
+    commands = [];
+    let tick = 0;
+    const cellAt = (): number | null => {
+      const cell = readVarint(cur);
+      return cell === null || cell >= cells ? null : cell;
+    };
+    for (let i = 0; i < count; i++) {
+      const delta = readVarint(cur);
+      const typeIndex = body[cur.at++];
+      if (delta === null || typeIndex === undefined) return bad('truncated');
+      const type = COMMAND_TYPES[typeIndex];
+      if (!type) return bad('version');
+      tick += delta;
+      switch (type) {
+        case 'placeWall': {
+          const cell = cellAt();
+          const kindName = kindOf(readVarint(cur));
+          if (cell === null || kindName === null) return bad('content');
+          commands.push({ tick, type, cell, kind: kindName });
+          break;
+        }
+        case 'placeStructure': {
+          const cell = cellAt();
+          const kindName = kindOf(readVarint(cur));
+          const level = body[cur.at++];
+          if (cell === null || kindName === null || level === undefined || level > 9) return bad('content');
+          commands.push({ tick, type, cell, kind: kindName, ...(level > 0 ? { level } : {}) });
+          break;
+        }
+        case 'spawnAttacker': {
+          const cell = cellAt();
+          const kindName = kindOf(readVarint(cur));
+          const doctrineIndex = body[cur.at++];
+          if (cell === null || kindName === null || doctrineIndex === undefined) return bad('content');
+          const doctrine = doctrineIndex > 0 ? DOCTRINES[doctrineIndex - 1] : undefined;
+          if (doctrineIndex > 0 && !doctrine) return bad('content');
+          commands.push({ tick, type, cell, kind: kindName, ...(doctrine ? { doctrine } : {}) });
+          break;
+        }
+        case 'castPower': {
+          const kindName = kindOf(readVarint(cur));
+          const x = getEighths(cur);
+          const y = getEighths(cur);
+          const aimed = body[cur.at++];
+          if (kindName === null || x === null || y === null || aimed === undefined || aimed > 1) return bad('content');
+          if (aimed === 1) {
+            const tx = getEighths(cur);
+            const ty = getEighths(cur);
+            if (tx === null || ty === null) return bad('truncated');
+            commands.push({ tick, type, kind: kindName, target: { x, y }, toward: { x: tx, y: ty } });
+          } else {
+            commands.push({ tick, type, kind: kindName, target: { x, y } });
+          }
+          break;
+        }
+        case 'moveStructure': {
+          const cell = cellAt();
+          const to = cellAt();
+          if (cell === null || to === null) return bad('content');
+          commands.push({ tick, type, cell, to });
+          break;
+        }
+        case 'removeWall':
+        case 'removeStructure':
+        case 'toggleGate':
+        case 'sellStructure':
+        case 'upgradeStructure': {
+          const cell = cellAt();
+          if (cell === null) return bad('content');
+          commands.push({ tick, type, cell });
+          break;
+        }
+        case 'startAssault':
+        case 'skipPrep':
+        case 'repairAll':
+          commands.push({ tick, type });
+          break;
+      }
+    }
   }
   if (kind === 'ghost' && !ghost) return bad('content');
+  if (kind === 'siege' && !commands) return bad('content');
   if (cur.at !== body.length) return bad('content');
 
   if (orders !== '' && isStandingOrdersId(orders)) {
@@ -956,7 +1172,15 @@ export function decodeReplay(raw: string): ReplayDecode {
 
   return {
     ok: true,
-    replay: { kind, faction, title, won: wonByte === 1, config, ...(ghost ? { ghost } : {}) },
+    replay: {
+      kind,
+      faction,
+      title,
+      won: wonByte === 1,
+      config,
+      ...(ghost ? { ghost } : {}),
+      ...(commands ? { commands } : {}),
+    },
   };
 }
 
