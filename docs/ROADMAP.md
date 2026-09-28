@@ -7988,3 +7988,286 @@ was being read for.
   when the next touch lands — so a settle-poll there would buy false passes
   rather than fewer false failures. `e2e-drawer` is the one that still flakes,
   and that is the accepted residual rather than an oversight.
+
+---
+
+# The play programme — M35 to M39
+
+*Written 2026-09-28, from an audit of v1.73.0: every screen read for what a
+player can do there, and four of the balance tool's instruments run on the game
+as it ships. Ten phases, all of them gameplay or interaction. None is a tuning
+pass, though three re-tune what they touch.*
+
+**What the audit found.** 83,000 lines: `src/game` 20.0k, `tests` 18.4k,
+`src/tools` 10.6k, `src/meta` 10.3k, `scripts` 9.9k, `src/content` 9.0k,
+`src/sim` 5.3k. 34 attacker kinds, 21 structures, 33 campaign missions, 8
+archetypes, 18 techs, 6 field conditions, 3 raid objectives, five armies, and
+two commander powers, the A-10 and the 155mm, which all five armies share.
+
+Six findings drive the programme:
+
+1. **The action half is rare, and it is never lost.** `--turn` plays a week at
+   war for each army, a session every two hours. Raids are 80-84% of the battles
+   it fights, skirmishes 7-11%, counterattacks 5-7% and live defences 3%. With
+   the factions' rules on, as they ship, it holds every defence it fights, 19 to
+   23 a week. A raid is planned and then watched.
+
+2. **A siege is one script, and it turns on one wave.** Every assault at every
+   level is the same six waves in the same order from the same lanes, scaled
+   (`buildAssault`, `assaults.ts:146`): a swarm probe, a breach, an infantry
+   push, suppression, the armoured hammer, the rotors. `--siege` at the
+   contested levels (6-12, through a new `--levels` option; its default is
+   v1.41's levels 2-4, the easy end of today's ladder) finds 44% of waves moving
+   the post at all, and in 32 of the 58 rows that lost anything, one wave did
+   80% or more of the loss. The commonest row reads `100 100 100 99 0`. Between
+   waves the INTEL tab shows the next wave as counts of units: no lane, no
+   timing, nothing about air.
+
+3. **M23 promised five live verbs and built one.** It built the live-defend
+   offer. It did not build powers on cooldowns (a cast still needs CP, a
+   cooldown and a stocked charge), unit orders, a prep phase that is a puzzle
+   (it is a 25-second countdown), wave modifiers, or moving field defences. A
+   field defence is placed once and never touched again: it cannot be moved,
+   sold or upgraded. A power is a point, and the gun run always strafes along
+   the board's width. Two siege hotkeys are broken: key 2 arms the gate as a
+   structure it cannot place, and the rows offer keys 5 and 6 when only 1-4 are
+   bound.
+
+4. **The idle defence has no stakes.** The one battle the garrison fights for an
+   absent commander is the offline probe, and every reference base holds every
+   probe at every level against every army. Standing orders change the ending of
+   one probe in 2,000 (M23 Phase 6): they cost upkeep and change nothing, and
+   M23 handed on the question of what they are for. Measured where they could
+   matter, on the contested band of the ladder's sieges, the shipped presets
+   also leave points that a one-line edit recovers: TRIPWIRE holds 73%, and 84%
+   without its claymore; COUNTERBATTERY holds 63%, and 80% with a gun at the
+   approach (`--verbs`). The commander can only cycle between the three.
+
+5. **A plan cannot branch.** A raid is three squads, each an entry sector, a
+   doctrine and a delay, and a fire plan that fires each power once, at HOLD,
+   15, 40 or 70 seconds, on "the guns" or "the post". The GDD's trigger rules
+   ("fire mission when 3+ defenders cluster", section 2.2) were never built, and
+   the fire plan resets to HOLD each time the planner opens, while the squads
+   reopen as they were. No squad has a route, and no plan has a reserve. One
+   unit still carries a raid for two armies: `--carry` puts the UN's VAB at 64%
+   and China's Type 99 at 63%, over M22's bar of 50%.
+
+6. **Everything else asks one question at a time.** The war map asks which post
+   to raid, and any three wins take a column whatever the lane; strikes, the
+   supply line and the last stand happen to the commander. The town has no undo
+   (SELL is one tap), no layouts to keep and no line for walls (a fast drag
+   leaves gaps), and it never shows where the enemy will walk or where a gun
+   reaches while you place it, on a board whose maze is the defence. The game
+   teaches its first siege in seven steps and the raid planner in one screen,
+   and nothing after: the economy, research, the map, standing orders, officers,
+   specialisations and codes are learned by accident. A live siege is never
+   kept, because a replay is a config and a siege is commands, and a replay
+   cannot be paused, scrubbed or rewound.
+
+**Also found**, small, and folded into the phases that touch them: the town's
+move preview shows green and enables CONFIRM on water and across the board's
+right edge, where `move()` refuses (`TownScene.ts:2755, 2790`, `town.ts:1495`),
+in M39 Phase 1; the two siege hotkeys, in M35 Phase 2; the fire plan that
+forgets, in M37 Phase 1. Each could ship as a patch on its own.
+
+**Considered and left out**: a commander the player moves on the defence's
+board, Kingdom Rush's hero, which no finding asks for ahead of the verbs M23
+never built; any control of a raid once it is launched, which the second pillar
+refuses; and M27's server, whose Phases 2 and 3 stay open and outside a
+programme about play.
+
+---
+
+## M35 — "Contact": a siege you read and answer
+
+Findings 1, 2 and 3. Defence is the first design pillar and 3% of a played week,
+and when it happens it is a script the commander has already seen, decided by
+one wave, fought with five kinds of gun placed once and two powers pointed at a
+spot.
+
+- [ ] **Phase 1 — the enemy has a plan.** Assaults composed, not scripted. Each
+      wave draws a threat from the vocabulary the six waves already are (swarm,
+      breach, push, suppression, armour, air), an entry of one lane or two, and
+      a doctrine the raid side already has (assault, hunt, raze), from the
+      siege's seed and its level. A replay re-fights it, and no two sieges at a
+      level are the same battle. Wave modifiers a commander reads and answers:
+      smoke, a night wave, a jammed net with no powers, a fast column. Between
+      waves the INTEL tab says what is coming, where and when, and the drawer
+      stays on it while the prep runs.
+
+      *Measured* on `--siege` at the contested levels, with a target of no
+      single wave doing 80% of the loss in most rows and well over half the
+      waves live. The ladder's holds at each level stay within a few points of
+      today's, so no war in progress gets harder overnight. Two compositions
+      fought on the same seeds against the same town read as different battles
+      on the heat map.
+
+      *Forks to settle*: how much the commander sees (all of it, a partial read
+      the Signals Station sharpens, or intel paid for); whether campaign
+      missions keep their written waves; which modifiers.
+
+- [ ] **Phase 2 — field command.** The verbs M23 promised. A field defence can
+      be picked up and moved, for CP and a moment out of action; sold back for
+      part of its CP; or upgraded once. A power is aimed along a line (the gun
+      run's axis) or across an area (the barrage), not only at a point. Powers
+      in a live siege run on one clock, a cooldown and CP, with the stocked
+      charge kept for the raids that need it. Every siege row gets the
+      hold-for-card the town's rows have, and the hotkeys it shows: the two
+      broken keys are fixed.
+
+      *Measured* on `--verbs`: each new verb alone on the contested band, by
+      stage, with the battles it flips each way, and the CLOSEST column, the
+      only reading that says a win was earned.
+
+      *Forks*: the price of a move; whether charges stay in live sieges; how
+      many upgrades a field defence takes.
+
+- [ ] **Phase 3 — a siege on the record.** A live siege is its config and its
+      commands, and a log of those commands makes it a replay: kept in the
+      vault, sent as a code, watched with its heat map and its report. On the
+      same log, a skirmish or a training fight can go back to the start of any
+      wave and be fought again from there; the replay bar gets pause, scrub and
+      jump-to-event; and the what-if reaches defence battles, one change to one
+      command (M29's first deferral).
+
+      *Measured*: a recorded siege re-fights to the identical state hash, the
+      replay tests' standard; the size of a long siege's code; a rewound wave
+      starts from exactly the state the first attempt reached.
+
+      *Forks*: which sieges may be rewound (skirmishes and training only, since
+      a town battle with a stake has no free restarts); whether the vault keeps
+      sieges beside raids or apart.
+
+## M36 — "Standing Orders": the garrison's war
+
+Finding 4. The garrison fights every battle the commander is away for, and
+nothing it does changes how one ends.
+
+- [ ] **Phase 1 — a probe comes for something.** A probe is the enemy's raid on
+      the town, and it gets what the commander's raids have had since v1.24: an
+      objective. It comes for the stores, a gun line, the fuel or a building,
+      and leaves when it has it, and the defence log says what it took, where it
+      got in and why. What it carries off comes out of the town's stores, as a
+      raid's loot comes out of a post's, and a probe that leaves with nothing
+      earns the town standing. The town's layout and its orders then decide what
+      is lost, where today every town holds every probe.
+
+      *Measured* on `--probes` and `--probe-held`, with a spread as the target:
+      towns and orders that differ lose different amounts. The loss stays
+      capped, so an absent commander is never punished, which the idle loop has
+      promised from the start.
+
+      *Forks*: what a probe can take; how much; whether it can wreck a building
+      or only carry stores away.
+
+- [ ] **Phase 2 — orders you write.** Standing orders become rules the commander
+      writes: an ordered list of WHEN-THEN lines from a small list of conditions
+      (anything in the air, anything within reach of a place, the post below a
+      mark, the kill chain's stage, the wave, CP in hand) and actions (deploy a
+      kind at a place, call a power on a target, work a gate), with the three
+      presets as templates to start from. A TEST button fights the last probe
+      again with the new orders on its own dice, M29's what-if pointed at a
+      defence, so an order is judged before it is trusted.
+
+      *Measured* on `--verbs` and `--probes`: the best written orders beat the
+      best preset on the band, where TRIPWIRE's 73% is a bar already beaten, and
+      a TEST agrees with the probe fought after it.
+
+      *Forks*: how many rules; which conditions; whether the order of the list
+      is the commander's (M23 Phase 6 measured what that costs).
+
+## M37 — "Contingency": plans that branch
+
+Finding 5. "Your plan is your skill" is the second pillar, and a plan today is
+fixed at launch: nothing in it can answer what the post does.
+
+- [ ] **Phase 1 — fire plans with triggers.** The GDD's trigger rules, at last:
+      WHEN the breach opens, N guns cluster, a squad comes under fire, the post
+      drops below a mark, or the clock reaches T+s, FIRE a power AT a target
+      class. Each power booked as many times as it has charges; the fire plan
+      kept with the plan, so it reopens as the squads do; and the what-if
+      reaches the fire plan (M29's second deferral).
+
+      *Measured*: on the reference bases, the best triggered plan against the
+      best timed plan for each army, and the ladder's raid tables checked again,
+      because a better fire plan is a stronger raid.
+
+      *Forks*: which conditions; whether a trigger can also hold a squad's start
+      ("go when the barrage lands").
+
+- [ ] **Phase 2 — routes and the reserve.** A squad can be given a route, a
+      waypoint or two drawn on the planner's board and walked before its
+      doctrine takes over, and a fourth formation can be held back and sent in
+      by a trigger: the breach open, a squad broken, the post below a mark. The
+      heat map already shows where the last raid died, and the next one can now
+      go round it.
+
+      *Measured* on `--carry`, with the UN's VAB and China's Type 99 under M22's
+      50% as the target, since combined arms with a route and a reserve have a
+      reason to be combined; plans that use them against plans that do not, on
+      the same seeds.
+
+      *Forks*: waypoints per squad; the reserve's size and what holding it
+      costs; which triggers.
+
+## M38 — "The Theatre": a map that asks more than where
+
+Finding 6. The map is three posts, and the answer is always a raid.
+
+- [ ] **Phase 1 — operations.** The map offers timed operations, each a decision
+      with a price and a consequence the map shows: intercept a convoy before it
+      reinforces a post (a raid now, or a harder post tomorrow); fortify a
+      sector against the next strike (supplies for a day's protection); evacuate
+      a town ahead of the enemy's push (fuel, for standing, the one civilian
+      role the content guardrails give); push a lane to open a road early. One
+      or two at a time, on the war's calendar, so a daily commander meets them,
+      and an absent one misses some and pays nothing for what they could not
+      have seen.
+
+      *Measured* on the war instrument: decisions a played day, and the capital
+      still falling when it falls today for a daily commander.
+
+      *Forks*: which operations; how often; whether ignoring one costs anything.
+
+## M39 — "The Drafting Table": interaction the genre takes for granted
+
+Finding 6 again, and the frictions the audit counted.
+
+- [ ] **Phase 1 — the builder's tools.** Undo for the town's last few actions,
+      and a confirm on SELL; layouts saved and rebuilt, so a wrecked town can be
+      rebuilt from its blueprint at its price; walls drawn as a line or a box,
+      with a drag that leaves no gaps; the enemy's route and each gun's reach
+      drawn while placing, as the Training Range already draws them; direct
+      picks where the planner makes the commander cycle through choices, and a
+      −1 beside every +1. The move preview's bug is fixed.
+
+      *Measured*: taps per common task in the harnesses (a wall line, a rebuilt
+      town, a four-unit squad), and nothing moved out of thumb reach (M16's
+      rule).
+
+      *Forks*: how deep undo goes; what a blueprint costs.
+
+- [ ] **Phase 2 — teaching the whole war.** A first-time note for every system
+      when it first matters, not only for the first siege: the economy and
+      adjacency, research and the doctrine, the map and its strikes, standing
+      orders, officers, specialisations, objectives, codes and the what-if. And
+      a FIELD MANUAL: every unit's and structure's card and every rule,
+      searchable, one tap from where it applies rather than only on a long
+      press.
+
+      *Measured*: the tutorial harness walks every note, against a list of the
+      systems each note covers.
+
+      *Forks*: notes or the manual first; whether notes can be replayed, as the
+      briefings can.
+
+---
+
+**Sequencing.** M35 Phase 1 first. It redraws the siege that the rest of the
+defence work is measured on, and like M22 it moves the defence tables in
+`docs/BALANCE.md`, so Phase 2's verbs are judged on the new band rather than the
+old one. Phase 3 can come before or after Phase 2. M36 does not need M35, but
+its Phase 2 needs its Phase 1, because orders need something to change. M37 is
+independent of both and checks the raid tables again; M38 is independent of
+everything. M39 Phase 1 is independent and cheap, and its bug fix could ship
+tomorrow; Phase 2 goes last, so it teaches the game as it will be.

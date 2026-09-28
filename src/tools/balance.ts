@@ -6530,9 +6530,13 @@ function main(): void {
     return;
   }
   if (process.argv.includes('--siege')) {
+    // `--siege [seeds] [--levels 6,8,10]`: the default levels are v1.41's,
+    // the easy end of the ladder v1.42 lengthened.
     const arg = process.argv[process.argv.indexOf('--siege') + 1];
     const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 8;
-    console.log(siegeTable([2, 3, 4], seeds));
+    const at = process.argv.indexOf('--levels');
+    const levels = at > 0 ? (process.argv[at + 1] ?? '').split(',').map(Number).filter((n) => n > 0) : [2, 3, 4];
+    console.log(siegeTable(levels, seeds));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
