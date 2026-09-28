@@ -1766,12 +1766,21 @@ function buildLimitsFor(town: TownState): NonNullable<SimConfig['buildLimits']> 
   return { structures, walls: g.walls };
 }
 
+/**
+ * `stocked`: the battle draws on the town's charges. Only the two fought for
+ * an absent commander do (M35 Phase 2). In a battle the commander fights in
+ * person a power costs CP and a cooldown and nothing else, and the charges a
+ * town buys with fuel are kept for raids, where they are the only way to call
+ * fire at all; a new town stocks none, and used to be unable to cast in a
+ * siege until it bought some.
+ */
 function battleConfig(
   town: TownState,
   seed: number,
   siege: SiegeDefWithSupplies,
-  reservedCells?: CellIndex[],
+  opts: { reservedCells?: CellIndex[]; stocked?: boolean } = {},
 ): SimConfig {
+  const { reservedCells, stocked = false } = opts;
   const fx = researchEffects(town);
   // The faction's signature (M26): the sim's rule with its numbers, and the
   // mods on top of what research set, the UN's mandate among them.
@@ -1790,7 +1799,7 @@ function battleConfig(
     // Authored in physical positions; mapped onto this board's cells here.
     siege: siegeOnBoard(siege, TOWN_GRID.cellSize),
     layout: townLayout(town),
-    powerCharges: { ...town.charges },
+    ...(stocked ? { powerCharges: { ...town.charges } } : {}),
     buildLimits: buildLimitsFor(town),
     // Every town battle is fought on the town's own ground. This is the only
     // seam: the four config builders all come through here, so a battle that
@@ -1836,12 +1845,7 @@ export function missionConfig(town: TownState, mission: MissionDef, seed: number
   const reserved = (mission.tunnels ?? []).map(
     (tn) => onBoard(tn.row, cs) * TOWN_GRID.width + onBoard(tn.col, cs),
   );
-  return battleConfig(
-    town,
-    seed,
-    { ...def, startingSupplies: Math.floor(town.supplies) },
-    reserved,
-  );
+  return battleConfig(town, seed, { ...def, startingSupplies: Math.floor(town.supplies) }, { reservedCells: reserved });
 }
 
 /** Battle config for a Front Line counterattack on the town. */
@@ -1908,12 +1912,12 @@ export function ghostBattleConfig(
   seed: number,
   unitMods?: Record<string, UnitMods>,
 ): SimConfig {
-  const config = battleConfig(town, seed, {
-    ...probeAssault(1, enemyRosterFor(town.faction)),
-    name,
-    waves: [],
-    startingSupplies: 0,
-  });
+  const config = battleConfig(
+    town,
+    seed,
+    { ...probeAssault(1, enemyRosterFor(town.faction)), name, waves: [], startingSupplies: 0 },
+    { stocked: true },
+  );
   config.siege!.waves = [wave];
   // Only research that does something, as a raid writes it: a replay code
   // reads identity back as nothing, and a config that did not match its own
@@ -1957,10 +1961,12 @@ export function defenseBounty(level: number): { supplies: number; fuel: number }
 }
 
 export function probeConfig(town: TownState, level: number, seed: number): SimConfig {
-  const config = battleConfig(town, seed, {
-    ...probeAssault(level, enemyRosterFor(town.faction), seed),
-    startingSupplies: 0,
-  });
+  const config = battleConfig(
+    town,
+    seed,
+    { ...probeAssault(level, enemyRosterFor(town.faction), seed), startingSupplies: 0 },
+    { stocked: true },
+  );
   // Offline defenses fight under the commander's standing orders (v0.8);
   // the orders ride the config, so the defense log replays them exactly.
   const orders = standingOrdersFor(town.standingOrders);
@@ -1982,7 +1988,8 @@ export interface PendingDefense {
 export interface SiegeOutcome {
   victory: boolean;
   supplies: number;
-  chargesLeft: Record<string, number>;
+  /** What the battle left of the town's charges; absent when it drew on none (M35 Phase 2). */
+  chargesLeft?: Record<string, number>;
   walls: { cell: CellIndex; kind: string }[];
   survivors: { cell: CellIndex; kind: string; level: number }[];
   stats: SimStats;
@@ -2008,13 +2015,17 @@ export function outcomeFromEngine(engine: Engine): SiegeOutcome {
     )
     .map((s) => ({ cell: s.origin, kind: s.profile.kind, level: s.level }));
   const chargesLeft: Record<string, number> = {};
+  let stocked = false;
   for (const kind of Object.keys(engine.catalog.powers)) {
-    chargesLeft[kind] = engine.powerChargesLeft(kind) ?? 0;
+    const left = engine.powerChargesLeft(kind);
+    if (left === null) continue;
+    stocked = true;
+    chargesLeft[kind] = left;
   }
   return {
     victory: engine.phase === 'victory',
     supplies: Math.floor(engine.supplies),
-    chargesLeft,
+    ...(stocked ? { chargesLeft } : {}),
     walls,
     survivors,
     stats: { ...engine.stats },
@@ -2056,7 +2067,8 @@ function foldBattle(town: TownState, outcome: SiegeOutcome, now: number): void {
   }
 
   town.supplies = outcome.supplies;
-  town.charges = { ...outcome.chargesLeft };
+  // A battle that drew on none of the town's charges leaves them where they were.
+  if (outcome.chargesLeft) town.charges = { ...outcome.chargesLeft };
   // Battle time was not idle time.
   town.lastSeen = now;
 }

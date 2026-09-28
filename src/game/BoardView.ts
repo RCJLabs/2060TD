@@ -469,6 +469,39 @@ export class BoardView {
   }
 
   /**
+   * When true a press AIMS (M35 Phase 2): it is held where it began, the
+   * finger draws out a line from there, and the lift is the decision. A press
+   * that does not travel half a cell is a tap on where it began. For an armed
+   * power, whose gun run is laid along the drag and whose barrage is as wide
+   * as it.
+   */
+  aimMode = false;
+  private aimFrom: { x: number; y: number } | null = null;
+  private aimTo: { x: number; y: number } | null = null;
+  private aimHandler: ((from: { x: number; y: number }, to: { x: number; y: number } | null) => void) | null =
+    null;
+
+  /**
+   * Fires on the lift of an aimed press, with where it began and where it
+   * ended in cells (fractional), or `to` null for a press that did not travel.
+   */
+  onAim(handler: (from: { x: number; y: number }, to: { x: number; y: number } | null) => void): void {
+    this.aimHandler = handler;
+  }
+
+  /** The aim being drawn out right now, for a preview, or null when there is none. */
+  aim(): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+    return this.aimFrom && this.aimTo ? { from: this.aimFrom, to: this.aimTo } : null;
+  }
+
+  /** Where a pointer is on the grid in cells, with the fraction, clamped to the board. */
+  private gridPoint(pointer: At): { x: number; y: number } {
+    const p = this.camera.getWorldPoint(pointer.x, pointer.y);
+    const clamp = (v: number, max: number): number => Math.max(0, Math.min(max, v));
+    return { x: clamp(p.x / this.opts.cell, this.opts.cols), y: clamp(p.y / this.opts.cell, this.opts.rows) };
+  }
+
+  /**
    * Take over a press that began somewhere else — a row dragged out of the
    * drawer and onto the map (v1.29).
    *
@@ -579,6 +612,10 @@ export class BoardView {
         if (cell) this.dragHandler?.(cell.col, cell.row);
       }
       if (this.placeMode) this.lastPlaceCell = this.cellAt(pointer);
+      if (this.aimMode && this.cellAt(pointer)) {
+        this.aimFrom = this.gridPoint(pointer);
+        this.aimTo = { ...this.aimFrom };
+      }
     });
 
     input.on(POINTER_MOVE, (pointer: Pointer) => {
@@ -639,6 +676,10 @@ export class BoardView {
         this.toolDrag(pointer);
         return;
       }
+      if (this.aimMode) {
+        if (this.aimFrom) this.aimTo = this.gridPoint(pointer);
+        return;
+      }
       this.edgePan.x = 0;
       this.edgePan.y = 0;
       if (this.movedBy > this.slop) {
@@ -658,9 +699,23 @@ export class BoardView {
       }
       this.edgePan.x = 0;
       this.edgePan.y = 0;
-      if (!this.dragging) return;
+      if (!this.dragging) {
+        this.aimFrom = null;
+        this.aimTo = null;
+        return;
+      }
       this.dragging = false;
       this.dragPress = -1;
+      if (this.aimMode) {
+        const from = this.aimFrom;
+        const to = this.aimTo;
+        this.aimFrom = null;
+        this.aimTo = null;
+        if (wasPinching || !from || !to) return;
+        const travelled = Math.hypot(to.x - from.x, to.y - from.y) >= 0.5;
+        this.aimHandler?.(from, travelled ? to : null);
+        return;
+      }
       // A double tap reframes the whole grid, and that has to work with a tool
       // in hand — losing your bearings is exactly when you reach for it.
       if (wasPinching) return;

@@ -236,7 +236,7 @@ describe('town state', () => {
 });
 
 describe('the siege bridge', () => {
-  it('builds a battle config from the town: layout, limits, charges, stockpile', () => {
+  it('builds a battle config from the town: layout, limits, stockpile, and none of its charges', () => {
     const town = rich(yardTown(T0));
     place(town, 'supplyDepot', idx(5, 5), T0); // still under construction
     place(town, 'm2nest', idx(6, 10), T0);
@@ -260,7 +260,9 @@ describe('the siege bridge', () => {
     expect(config.buildLimits!.walls).toBe(25);
     // And the battle is fought on this board's cell.
     expect(config.cellSize).toBe(TOWN_GRID.cellSize);
-    expect(config.powerCharges).toEqual(town.charges);
+    // Powers in a live siege cost CP and a cooldown (M35 Phase 2); the
+    // charges are kept for raids.
+    expect(config.powerCharges).toBeUndefined();
 
     // And the engine accepts it wholesale.
     const engine = new Engine(config, TEST_CATALOG);
@@ -411,6 +413,7 @@ describe('the siege bridge', () => {
     expect(outcome.victory).toBe(false);
     expect(outcome.walls).toEqual([{ cell: 30, kind: 'wall' }]); // hesco excluded
     expect(outcome.survivors).toEqual([{ cell: 4 * 20 + 8, kind: 'm2nest', level: 1 }]);
-    expect(outcome.chargesLeft).toHaveProperty('a10');
+    // A battle that drew on no charges reports none, and the town keeps its stock.
+    expect(outcome.chargesLeft).toBeUndefined();
   });
 });

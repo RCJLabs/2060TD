@@ -8243,7 +8243,7 @@ spot.
       siege kept as a replay (Phase 3), composed campaign missions, and anything
       for a probe to take (M36).
 
-- [ ] **Phase 2 — field command.** The verbs M23 promised. A field defence can
+- [x] **Phase 2 — field command.** The verbs M23 promised. A field defence can
       be picked up and moved, for CP and a moment out of action; sold back for
       part of its CP; or upgraded once. A power is aimed along a line (the gun
       run's axis) or across an area (the barrage), not only at a point. Powers
@@ -8252,12 +8252,160 @@ spot.
       hold-for-card the town's rows have, and the hotkeys it shows: the two
       broken keys are fixed.
 
-      *Measured* on `--verbs`: each new verb alone on the contested band, by
-      stage, with the battles it flips each way, and the CLOSEST column, the
-      only reading that says a win was earned.
+      **The survey.** *(Written against v1.74.0.)* A field defence is placed
+      with `placeStructure` in combat, remembers what it cost (`cpPaid`) and
+      the wave it went down in, and is never touched again: `removeStructure`
+      works only in setup, and field kinds carry no levels. A tap on the board
+      with no tool armed does nothing. A cast is one tap: the gun run's strip
+      always runs along the board's width through the tapped point, and the
+      barrage scatters its shells round it. A siege cast needs CP, a cooldown
+      and a stocked charge, and a new town stocks none, so it cannot call a
+      power in a siege until it buys one with fuel. The spec cards exist for
+      structures, walls and units, not powers, and no siege row opens one.
+      Key 2 arms the gate as a structure it cannot place, and the rows offer
+      keys 5 and 6 when only 1-4 are bound.
 
-      *Forks*: the price of a move; whether charges stay in live sieges; how
-      many upgrades a field defence takes.
+      Measured on composed sieges at levels 6, 8 and 10 (every army, the three
+      reference bases, four seeds, the harness's commander placing six field
+      defences a wave on the post's approach):
+
+      - **60% of field defences sit out at least one whole wave** alive with
+        nothing in range. Their guns reach under two cells, and nothing can
+        take one to where the fight went.
+      - **17% of a siege's CP is still unspent at the end**, and a wave ends
+        with 44 CP in hand on average.
+      - **A gun run through the thickest knot of men hits 1.92 of them along
+        the board's width, 2.65 along the knot's own heading and 3.20 along
+        the best of eight axes.** Aiming is worth a third more men a run.
+
+      Settled with the commander:
+
+      - **A move costs half the defence's price and puts it out of action for
+        three seconds.** Cheap enough to rescue a stranded gun, dear enough not
+        to shuffle every gun every wave.
+      - **Powers in a live siege cost CP and a cooldown, and nothing else.**
+        Charges bought with fuel are kept for raids, where they are the only
+        way to call fire, and a siege no longer touches the stock.
+      - **A field defence is upgraded once**: tougher and harder hitting, for
+        its price again.
+
+      The build:
+
+      - **Field command in the sim.** Three commands for a field defence, in a
+        wave or between waves: `moveStructure` (half its price; it keeps its
+        health and its rank, and fires, covers the post and heals nothing for
+        three seconds), `sellStructure` (half what it cost back, by the share
+        of its health left) and `upgradeStructure` (once, for its price again:
+        more health and damage, the numbers set by measuring). A town building
+        is never moved, sold or upgraded in a battle.
+      - **Aimed powers.** A cast may carry a second point. The gun run then
+        flies through the target along the line to it, and the barrage lands
+        across a circle as wide as the distance to it, from half to twice its
+        spread. Without one, a cast is today's, so raids, auto powers and every
+        code are what they were.
+      - **One clock in live sieges.** The skirmish, the counterattack, the live
+        defence, the last stand and campaign missions carry no charges, and a
+        siege's outcome leaves the town's stock alone.
+      - **The siege scene.** A tap on a field defence with no tool armed selects
+        it, and the drawer shows MOVE, SELL and UPGRADE with their prices; MOVE
+        then takes a tap on open ground. An armed power is aimed by pressing on
+        the board and dragging: along the drag for the gun run, as wide as the
+        drag for the barrage, with a preview; a tap still casts as today. Every
+        deploy and fire row opens its card on a hold, a new card for powers
+        among them. Key 2 places the gate, keys 5 and 6 are bound, and M, X and
+        U work the selection.
+      - **Measured** on `--verbs`: each new verb alone on the contested band,
+        by stage, with the battles it flips each way and a CLOSEST column (how
+        low the post went in the battles the verb held). The instruments get
+        `move`, `sell` and `upgrade` actions and an `aimed` flag for power
+        rules, which no preset uses.
+      - **Tests**: each command's price, refusal and effect; a moving gun
+        neither fires nor covers the post; an aimed run hits a file of men
+        that a run across it misses, and the barrage's circle is clamped; a
+        cast with no second point hashes as before; live sieges carry no
+        charges and leave the stock alone. The defence harness selects a field
+        gun, upgrades, moves and sells it, and presses the fixed keys.
+
+      **Shipped in v1.75.0**, as planned but for four things the measuring
+      found.
+
+      - **A stranded gun is measured on the fight's clock.** The instruments'
+        orders move or sell a field defence the rest of the defence has fought
+        on without for ten seconds. Measured on the battle's clock instead,
+        the walk in at the start of every wave, and every lull between its
+        groups, stranded every gun there was. A move also passes over a gun
+        already in reach of where the order aims: that move would be paid for
+        and go nowhere.
+
+      - **A gun rule with no cap on its actions stalls a LATE siege.**
+        Uncapped, the gun at the approach bought 100 to 130 guns a battle on
+        the LATE bases and "lost" nearly every battle the bare base held (four
+        seeds): by running out of time, not by losing the post. Small arms
+        cannot kill armour, so a tank kept busy by a new gun every ten seconds
+        neither reaches the post nor dies. The field command table runs at six
+        actions a wave, the pace of the survey's commander, where the verbs
+        table allows three a battle.
+
+      - **Aimed as well as it can be, a strike hits more men where they stand,
+        and holds about a point more.** The `aimed` flag first laid the gun run
+        along the knot's own heading, and on a knot on the move that hit fewer
+        men than the run across it (1.08 to 1.30 a run): the strip is under a
+        cell wide, and a knot is wider. Laid instead along the best of eight
+        axes, on where the men will be halfway through it, and the barrage at
+        whichever width from half to twice its spread lands the most shell, a
+        strike on the assault at the post hits 2.72 men to 2.26 (the gun run)
+        and 4.39 to 3.32 (the barrage), and one on a knot still on the move
+        about as many as unaimed. The held rate moves by about a point: the
+        gun run on the assault 58% to 60%, the barrage 57% to 58%, and on the
+        densest knot −1 and +1.
+
+      - **The balance tool fights sieges on the one clock too.** Every orders
+        row on the ladder fights without charges, as the game's sieges now do,
+        and the probe rows keep the magazine. So `--verbs` measures a fire
+        mission called as often as its CP, its cooldown and three actions
+        allow.
+
+      Field command on the contested band (57 cells, 20 seeds), each verb
+      with the gun rule it works on and listed first, so it acts whenever it
+      can, against the gun rule alone on the same seeds:
+
+      | rules | held | against the gun alone | battles won, lost |
+      |---|---|---|---|
+      | gun at the breach | 57% | — | — |
+      | + upgrade it first | 57% | +0 | +28 −26 |
+      | + move it when stranded | 57% | +0 | +1 −2 |
+      | + sell it when stranded | 56% | −1 | +15 −29 |
+      | gun at the approach | 96% | — | — |
+      | + upgrade it first | 96% | +0 | +28 −27 |
+      | + move it when stranded | 94% | −2 | +20 −48 |
+      | + sell it when stranded | 79% | −17 | +8 −202 |
+
+      None of the three decides battles as an order uses it, and the sale
+      loses them: a gun the fight has left behind is often the one it comes
+      back to. What the verbs are for is the judgement an order does not
+      have, which no harness commander plays.
+
+      The upgrade's strength was set by `--upgrades`, the upgrade-first row at
+      four strengths against the gun rule alone: ×1.25 health and ×1.2 damage
+      −1 (+19 −34, a direction), ×1.5 and ×1.4 +0 (+28 −26), ×2 and ×1.7 +1
+      (+34 −19, a direction), ×2.5 and ×2 +2 (+44 −24, a direction). It
+      ships at ×1.5 and ×1.4, where an upgrade does what a second gun does for
+      the same CP: a choice, not the answer.
+
+      On a phone the drawer rests two rows deep, so a picked gun's rows are
+      MOVE, UPGRADE and then SELL, a scroll below: the sale gives ground up,
+      and goes last. A move onto the cell the defence already stands on is
+      refused, where it was first taken and paid for.
+
+      The download grew 11 kB (4 kB gzipped), and a frame of play costs what
+      it did (`scripts/perf.mjs`, v1.74 against v1.75 twice, in both orders:
+      4.1 to 4.7 ms a frame at ×1 against 4.4 to 4.5, and 19.1 to 20.2 at ×4
+      against 19.7 to 19.9; the boot times overlapped, 167 to 210 ms against
+      176 to 193).
+
+      Not in Phase 2: presets that use the new actions or aim their powers.
+      Measured, none of the three actions earns a place in one as an order
+      uses it, and aiming is worth a point.
 
 - [ ] **Phase 3 — a siege on the record.** A live siege is its config and its
       commands, and a log of those commands makes it a replay: kept in the

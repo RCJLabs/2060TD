@@ -412,8 +412,13 @@ export type StandingOrderTarget = 'breach' | 'ccApproach' | 'densest' | 'assault
 export interface StandingOrderRule {
   /** Act only while CP is at or above this reserve. */
   cpAtLeast: number;
-  /** Deploy a field defense (CP-priced structure kind) or cast a power. */
-  action: 'deploy' | 'power';
+  /**
+   * Deploy a field defense (CP-priced structure kind) or cast a power. And
+   * (M35 Phase 2, the balance tool's only) upgrade the field defence of `kind`
+   * nearest where the rule aims, or sell or move the one of `kind` that has
+   * gone longest without firing.
+   */
+  action: 'deploy' | 'power' | 'upgrade' | 'sell' | 'move';
   /** Role kind: 'depmg' | 'foxhole' | 'claymore' … or 'a10' | 'arty'. */
   kind: string;
   target: StandingOrderTarget;
@@ -438,6 +443,12 @@ export interface StandingOrderRule {
   minKnot?: number;
   /** Ticks between successful firings of this rule. */
   cooldownTicks: number;
+  /**
+   * A power rule's cast is aimed (M35 Phase 2), as well as a commander could
+   * lay it: the gun run along the best of eight axes, the barrage at the width
+   * that lands the most shell on the men. The balance tool's only.
+   */
+  aimed?: boolean;
 }
 
 export interface StandingOrders {
@@ -664,8 +675,17 @@ export type Command =
   | { tick: number; type: 'startAssault' }
   | { tick: number; type: 'skipPrep' }
   | { tick: number; type: 'repairAll' }
-  | { tick: number; type: 'castPower'; kind: string; target: Vec2 }
-  | { tick: number; type: 'toggleGate'; cell: CellIndex };
+  /**
+   * `toward` aims the cast (M35 Phase 2): the gun run flies through `target`
+   * along the line to it, and the barrage lands across a circle as wide as
+   * the distance to it. Without it, a cast is the one it always was.
+   */
+  | { tick: number; type: 'castPower'; kind: string; target: Vec2; toward?: Vec2 }
+  | { tick: number; type: 'toggleGate'; cell: CellIndex }
+  /** Field command (M35 Phase 2): a field defence moved, sold or upgraded in a battle. */
+  | { tick: number; type: 'moveStructure'; cell: CellIndex; to: CellIndex }
+  | { tick: number; type: 'sellStructure'; cell: CellIndex }
+  | { tick: number; type: 'upgradeStructure'; cell: CellIndex };
 
 // ---- events -------------------------------------------------------------------------
 
@@ -679,13 +699,19 @@ export type SimEvent =
   | { type: 'attackerDied'; id: number; at: Vec2; armor: ArmorClass; by?: string; damageType?: DamageType }
   | { type: 'shot'; from: Vec2; to: Vec2; damageType: DamageType }
   | { type: 'aoe'; at: Vec2; radius: number }
-  | { type: 'strafePulse'; x0: number; x1: number; y: number }
+  /**
+   * One pass of a gun run, from (x0, y) to (x1, y); an aimed run (M35 Phase 2)
+   * says where it starts and ends across the board as well, in `y0` and `y1`.
+   */
+  | { type: 'strafePulse'; x0: number; x1: number; y: number; y0?: number; y1?: number }
   | { type: 'wallDestroyed'; cell: CellIndex }
   | { type: 'gateToggled'; cell: CellIndex; open: boolean }
   /** `hulk`: it burns on where it fell (M26, Overbuilt) rather than going. */
   | { type: 'structureDestroyed'; id: number; kind: string; at: Vec2; hulk?: true }
   /** A field defence that lived through its wave paid back its share (M26, Rapid Response). */
   | { type: 'refund'; id: number; at: Vec2; cp: number }
+  /** A field defence moved, sold or upgraded (M35 Phase 2), where it stands after. */
+  | { type: 'fieldCommand'; verb: 'move' | 'sell' | 'upgrade'; kind: string; at: Vec2 }
   /** A garrison order landed a reserve on the board (v1.20). */
   | { type: 'garrisonDeployed'; kind: string; at: Vec2; committed: number; ceiling: number }
   | { type: 'powerCast'; kind: string; at: Vec2 }

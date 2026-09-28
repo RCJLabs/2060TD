@@ -140,6 +140,7 @@ import type {
   SiegeDef,
   Signature,
   SimConfig,
+  StandingOrderRule,
   StandingOrders,
   StandingOrderTarget,
   Catalog,
@@ -147,6 +148,7 @@ import type {
   Doctrine,
   WaveDef,
 } from '../sim/types';
+import { FIELD_COMMAND } from '../sim/fieldcommand';
 
 const SEEDS = 20;
 const VARIANTS = 3;
@@ -641,6 +643,8 @@ interface WaveTrace {
   /** CP the field defences paid back, and emplacements that burned on (M26). */
   refunded: number;
   hulks: number;
+  /** Field defences moved, sold or upgraded (M35 Phase 2). */
+  fieldCommands: number;
 }
 
 /**
@@ -698,7 +702,9 @@ function siegeTraceOn(
   const config = defenseConfigFor(faction, base, level, seed, {
     orders: policy ?? undefined,
     chainVersion,
-    ...(FIGHT === 'probe' ? { siege: probeAssault(level, enemyRosterFor(faction), CLASSIC ? undefined : seed) } : {}),
+    ...(FIGHT === 'probe'
+      ? { siege: probeAssault(level, enemyRosterFor(faction), CLASSIC ? undefined : seed), stocked: true }
+      : {}),
     ...(extra
       ? {
           rules: {
@@ -717,8 +723,18 @@ function siegeTraceOn(
   const integrity: number[] = [];
   let low = 1;
   let seen = -1;
+  let fieldCommands = 0;
+  // Orders carried out, counted here: the engine's count starts again with
+  // each wave under a per-wave budget, which only `--verbs` gives.
+  let acts = 0;
+  let actsBefore = 0;
+  let waveBefore = engine.waveIndex;
   while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
-    engine.step();
+    for (const e of engine.step()) if (e.type === 'fieldCommand') fieldCommands++;
+    const done = engine.ordersExecuted;
+    acts += policy?.perWave && engine.waveIndex !== waveBefore ? done : done - actsBefore;
+    actsBefore = done;
+    waveBefore = engine.waveIndex;
     const now = Math.max(0, engine.cc.hp / max);
     if (now < low) low = now;
     // A wave ended when the index moved on, or when the battle did. Read the
@@ -735,7 +751,7 @@ function siegeTraceOn(
     held: engine.phase === 'victory',
     low,
     timedOut: engine.phase !== 'victory' && engine.phase !== 'defeat',
-    acts: engine.ordersExecuted,
+    acts,
     spent: engine.stats.cpSpent,
     banked: engine.cp,
     kills: engine.stats.kills,
@@ -750,6 +766,7 @@ function siegeTraceOn(
     ),
     refunded: engine.stats.cpRefunded ?? 0,
     hulks: engine.stats.hulks ?? 0,
+    fieldCommands,
   };
 }
 
@@ -799,10 +816,22 @@ function contestedBand(seeds: number): BandCell[] {
 interface BandScore {
   held: number;
   low: number;
+  /**
+   * CLOSEST (M35 Phase 2): the mean low-water mark of the battles the policy
+   * HELD, how near a win came to being a loss. It moves two ways: a policy
+   * that keeps the post safer raises it, and one that turns close losses
+   * into wins adds its narrowest wins and lowers it, so it is read beside
+   * FLIPS, never alone.
+   */
+  closest: number;
   byStage: number[];
   acts: number;
+  /** Field defences moved, sold or upgraded, a battle. */
+  commands: number;
   won: number;
   lost: number;
+  /** Each battle's verdict, cell by cell and seed by seed, to flip another policy against. */
+  verdicts: boolean[][];
 }
 
 /**
@@ -824,17 +853,24 @@ function scoreOnBand(
 ): BandScore {
   let held = 0;
   let low = 0;
+  let heldLow = 0;
   let acts = 0;
+  let commands = 0;
   let won = 0;
   let lost = 0;
   let n = 0;
   const stageHeld = [0, 0, 0];
   const stageN = [0, 0, 0];
+  const verdicts: boolean[][] = [];
   for (const c of cells) {
+    const row: boolean[] = [];
+    verdicts.push(row);
     for (let i = 0; i < seeds; i++) {
       const r = siegeTraceOn(c.faction, c.base, c.level, seedOf(c.level, c.base.ccLevel, i), policy, chainVersion);
+      row.push(r.held);
       if (r.held) {
         held++;
+        heldLow += r.low;
         stageHeld[bandStageOf(c)]!++;
       }
       if (r.held && !c.bare[i]) won++;
@@ -842,16 +878,20 @@ function scoreOnBand(
       stageN[bandStageOf(c)]!++;
       low += r.low;
       acts += r.acts;
+      commands += r.fieldCommands;
       n++;
     }
   }
   return {
     held: (held / n) * 100,
     low: low / n,
+    closest: held ? heldLow / held : NaN,
     byStage: stageHeld.map((h, st) => (stageN[st] ? (h / stageN[st]!) * 100 : NaN)),
     acts: acts / n,
+    commands: commands / n,
     won,
     lost,
+    verdicts,
   };
 }
 
@@ -876,6 +916,7 @@ function oneRulePolicy(
   target: StandingOrderTarget,
   price: number,
   minKnot?: number,
+  aimed?: boolean,
 ): StandingOrders {
   return {
     id: 'probe',
@@ -889,9 +930,39 @@ function oneRulePolicy(
         minHostiles: 2,
         cooldownTicks: 200,
         ...(minKnot !== undefined ? { minKnot } : {}),
+        ...(aimed ? { aimed } : {}),
       },
     ],
   };
+}
+
+/**
+ * Field command's orders for the instruments (M35 Phase 2): a gun rule, and
+ * one of the verbs that work on what it puts down, at the kit's list price
+ * (the engine charges each army its own). Six actions a wave, the pace of the
+ * commander the phase's survey measured: `--verbs` says why neither three a
+ * battle nor no cap at all.
+ */
+const FIELD_GUN_PRICE = 25;
+
+function fieldGunRule(target: StandingOrderTarget): StandingOrderRule {
+  return { cpAtLeast: FIELD_GUN_PRICE, action: 'deploy', kind: 'depmg', target, minHostiles: 2, cooldownTicks: 200 };
+}
+
+function fieldVerbRule(action: 'upgrade' | 'move' | 'sell', target: StandingOrderTarget): StandingOrderRule {
+  const share = action === 'upgrade' ? FIELD_COMMAND.upgradeShare : action === 'move' ? FIELD_COMMAND.moveShare : 0;
+  return {
+    cpAtLeast: Math.ceil(FIELD_GUN_PRICE * share),
+    action,
+    kind: 'depmg',
+    target,
+    minHostiles: 2,
+    cooldownTicks: 200,
+  };
+}
+
+function fieldBook(rules: StandingOrderRule[]): StandingOrders {
+  return { id: 'probe', maxActions: 6, perWave: true, rules };
 }
 
 /**
@@ -925,6 +996,8 @@ function verbTable(seeds = 20): string {
     target: StandingOrderTarget;
     price: number;
     minKnot?: number;
+    /** A fire mission aimed along the knot's heading or across it (M35 Phase 2). */
+    aimed?: boolean;
   }
   const VERBS: Verb[] = [
     { label: 'depmg -> breach', action: 'deploy', kind: 'depmg', target: 'breach', price: 25 },
@@ -934,14 +1007,37 @@ function verbTable(seeds = 20): string {
     { label: 'foxhole -> ccApproach', action: 'deploy', kind: 'foxhole', target: 'ccApproach', price: 20 },
     { label: 'claymore -> ccApproach', action: 'deploy', kind: 'claymore', target: 'ccApproach', price: 15 },
     { label: 'claymore -> densest', action: 'deploy', kind: 'claymore', target: 'densest', price: 15 },
+    // Each fire mission twice: as it is called, and aimed (M35 Phase 2), the
+    // gun run along the heading of the men it will hit and the barrage across
+    // the ground they stand on, as a commander who drags it would lay it.
     { label: 'a10 -> densest', action: 'power', kind: 'a10', target: 'densest', price: 45 },
+    { label: 'a10 -> densest, aimed', action: 'power', kind: 'a10', target: 'densest', price: 45, aimed: true },
     { label: 'arty -> densest', action: 'power', kind: 'arty', target: 'densest', price: 60 },
+    { label: 'arty -> densest, aimed', action: 'power', kind: 'arty', target: 'densest', price: 60, aimed: true },
     // Fire on the assault at the post, once a knot of that many is inside its
     // cover ring (M23 Phase 5): the orders COUNTERBATTERY and HOLDFAST give.
     // Aimed at the post itself instead, a strike goes the moment it can be
     // paid for and lands on an empty post; 3c measured that at +0 and +3.
     { label: 'a10 -> assault k2', action: 'power', kind: 'a10', target: 'assault', price: 45, minKnot: 2 },
+    {
+      label: 'a10 -> assault k2, aimed',
+      action: 'power',
+      kind: 'a10',
+      target: 'assault',
+      price: 45,
+      minKnot: 2,
+      aimed: true,
+    },
     { label: 'arty -> assault k3', action: 'power', kind: 'arty', target: 'assault', price: 60, minKnot: 3 },
+    {
+      label: 'arty -> assault k3, aimed',
+      action: 'power',
+      kind: 'arty',
+      target: 'assault',
+      price: 60,
+      minKnot: 3,
+      aimed: true,
+    },
   ];
 
   const CELLS = contestedBand(seeds);
@@ -953,22 +1049,25 @@ function verbTable(seeds = 20): string {
   const bare = score(null);
   const perStage = STAGES.map((_, st) => CELLS.filter((c) => stageOf(c) === st).length);
   const signed = (d: number) => (Number.isNaN(d) ? '—' : d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0));
+  const closest = (got: BandScore) => pad(Number.isNaN(got.closest) ? '—' : got.closest.toFixed(3), 7);
   const lines = [
     `VERBS — one rule at a time, on the contested band: ${CELLS.length} cells ` +
       `(EARLY ${perStage[0]}, MID ${perStage[1]}, LATE ${perStage[2]}) held 5-95% bare, ${seeds} seeds each`,
-    'VERB                   | HELD | vs NONE |   LOW | vs NONE | EARLY |   MID |  LATE |       FLIPS',
-    '-----------------------+------+---------+-------+---------+-------+-------+-------+------------',
-    `${pad('(nothing)', 22)} | ${pad(`${bare.held.toFixed(0)}%`, 4)} |       — | ` +
-      `${bare.low.toFixed(3)} |       — | ${bare.byStage.map((h) => pad(Number.isNaN(h) ? '—' : `${h.toFixed(0)}%`, 5)).join(' | ')} |           —`,
+    'VERB                      | HELD | vs NONE |   LOW | vs NONE | CLOSEST | EARLY |   MID |  LATE |       FLIPS',
+    '--------------------------+------+---------+-------+---------+---------+-------+-------+-------+------------',
+    `${pad('(nothing)', 25)} | ${pad(`${bare.held.toFixed(0)}%`, 4)} |       — | ` +
+      `${bare.low.toFixed(3)} |       — | ${closest(bare)} | ` +
+      `${bare.byStage.map((h) => pad(Number.isNaN(h) ? '—' : `${h.toFixed(0)}%`, 5)).join(' | ')} |           —`,
   ];
   for (const verb of VERBS) {
-    const got = score(oneRulePolicy(verb.action, verb.kind, verb.target, verb.price, verb.minKnot));
+    const got = score(oneRulePolicy(verb.action, verb.kind, verb.target, verb.price, verb.minKnot, verb.aimed));
     const dHeld = got.held - bare.held;
     const dLow = got.low - bare.low;
     lines.push(
-      `${pad(verb.label, 22)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
+      `${pad(verb.label, 25)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
         `${pad(dHeld >= 0 ? `+${dHeld.toFixed(0)}` : dHeld.toFixed(0), 7)} | ` +
         `${got.low.toFixed(3)} | ${pad(dLow >= 0 ? `+${dLow.toFixed(3)}` : dLow.toFixed(3), 7)} | ` +
+        `${closest(got)} | ` +
         got.byStage.map((h, st) => pad(signed(h - bare.byStage[st]!), 5)).join(' | ') +
         ` | ${flips(got)}`,
     );
@@ -976,7 +1075,76 @@ function verbTable(seeds = 20): string {
   lines.push('');
   lines.push(
     'FLIPS: the battles the rule changed, each way, on the same seeds. * marks a net beyond twice ' +
-      'the square root of the gross — what changing that many verdicts at random would not give.',
+      'the square root of the gross — what changing that many verdicts at random would not give. ' +
+      'CLOSEST: the mean low-water mark of the battles held; read it beside FLIPS, since a rule ' +
+      'that wins close battles it used to lose adds its narrowest wins to it. Since M35 Phase 2 a ' +
+      'siege power costs CP and a cooldown and no charge, so a fire mission can be called as often ' +
+      'as the three actions allow.',
+  );
+
+  // ---- field command (M35 Phase 2): each new verb on the gun it works on --------
+  //
+  // An upgrade, a move or a sale needs a field defence to work on, and on
+  // these bases only an order puts one down. So each verb is measured as a
+  // gun rule and that one verb, against the gun rule alone, on the same
+  // seeds: FLIPS here are the battles the VERB changed. The verb is listed
+  // first, so it acts whenever it can: upgrade the gun before buying another,
+  // move a stranded gun before buying a new one, sell a stranded gun and let
+  // the rule buy one where the fight is.
+  //
+  // Six actions a wave, the pace of the commander the phase's survey
+  // measured, where the table above allows three a battle: a verb charged
+  // one of three actions would be judged on a price a live commander never
+  // pays. And not uncapped, because a gun rule with no cap stalls a LATE
+  // siege: small arms cannot kill armour, so a tank kept busy by a gun every
+  // ten seconds neither reaches the post nor dies, and the battle runs out of
+  // time. Measured on four seeds: nearly every LATE battle such a rule lost,
+  // it lost that way.
+  lines.push('');
+  lines.push(
+    'FIELD COMMAND — each new verb with the gun rule it works on, against that rule alone, on the ' +
+      'same cells and seeds, six actions a wave',
+  );
+  lines.push(
+    'RULES                     | HELD | vs GUN |   LOW | CLOSEST | EARLY |   MID |  LATE | ACTS | CMDS |  FLIPS vs GUN',
+  );
+  lines.push(
+    '--------------------------+------+--------+-------+---------+-------+-------+-------+------+------+--------------',
+  );
+  for (const [target, where] of [
+    ['breach', 'breach'],
+    ['ccApproach', 'approach'],
+  ] as const) {
+    const alone = score(fieldBook([fieldGunRule(target)]));
+    lines.push(
+      `${pad(`gun at the ${where}`, 25)} | ${pad(`${alone.held.toFixed(0)}%`, 4)} |      — | ` +
+        `${alone.low.toFixed(3)} | ${closest(alone)} | ` +
+        `${alone.byStage.map((h) => pad(Number.isNaN(h) ? '—' : `${h.toFixed(0)}%`, 5)).join(' | ')} | ` +
+        `${pad(alone.acts.toFixed(1), 4)} | ${pad(alone.commands.toFixed(1), 4)} |             —`,
+    );
+    // The gun rule's own verdicts stand in for the bare ones, so a flip is a
+    // battle the verb changed.
+    const versus = CELLS.map((c, k) => ({ ...c, bare: alone.verdicts[k]! }));
+    for (const [action, label] of [
+      ['upgrade', '+ upgrade it'],
+      ['move', '+ move it when stranded'],
+      ['sell', '+ sell it when stranded'],
+    ] as const) {
+      const got = scoreOnBand(versus, seeds, fieldBook([fieldVerbRule(action, target), fieldGunRule(target)]));
+      const d = got.held - alone.held;
+      lines.push(
+        `${pad(label, 25)} | ${pad(`${got.held.toFixed(0)}%`, 4)} | ` +
+          `${pad(d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0), 6)} | ${got.low.toFixed(3)} | ${closest(got)} | ` +
+          got.byStage.map((h, st) => pad(signed(h - alone.byStage[st]!), 5)).join(' | ') +
+          ` | ${pad(got.acts.toFixed(1), 4)} | ${pad(got.commands.toFixed(1), 4)} |   ${flips(got)}`,
+      );
+    }
+  }
+  lines.push('');
+  lines.push(
+    'ACTS: orders carried out a battle, guns bought among them. CMDS: field defences moved, sold or ' +
+      'upgraded a battle. A stranded gun is one the rest of the defence has fought on without for ' +
+      `${FIELD_COMMAND.idleSeconds}s; a move passes over one already in reach of where the rule aims.`,
   );
 
   // ---- and what the SHIPPED presets do with those verbs ------------------------
@@ -1048,6 +1216,63 @@ function verbTable(seeds = 20): string {
         ` | ${flips(got)}`,
     );
   }
+  return lines.join('\n');
+}
+
+/**
+ * M35 Phase 2: how strong the one upgrade should be.
+ *
+ * It costs a field defence's price again, which is the price of a second gun,
+ * and the kill chain counts guns: a gun in the post's cover ring is one more
+ * gate for the attack to clear, and an upgrade adds none. So the upgrade is a
+ * choice only if a tougher, harder-hitting gun can do about what a second one
+ * does. This fights `--verbs`' upgrade row, a gun rule at the breach that
+ * upgrades before it buys, at several strengths, against the gun rule alone
+ * on the same cells and seeds.
+ */
+function upgradeTable(seeds = 20): string {
+  const cells = contestedBand(seeds);
+  const knobs = FIELD_COMMAND as unknown as { upgradeHp: number; upgradeDamage: number };
+  const shipped = { hp: knobs.upgradeHp, damage: knobs.upgradeDamage };
+  const pct = (x: number) => (Number.isNaN(x) ? '—' : `${x.toFixed(0)}%`);
+  const signed = (d: number) => (Number.isNaN(d) ? '—' : d >= 0 ? `+${d.toFixed(0)}` : d.toFixed(0));
+  const lines = [
+    `UPGRADES — the one upgrade at several strengths, on the contested band: ${cells.length} cells, ` +
+      `${seeds} seeds each, a gun rule at the breach that upgrades before it buys`,
+    'HEALTH x DAMAGE           | HELD | vs GUN |   LOW | CLOSEST | EARLY |   MID |  LATE | CMDS |  FLIPS vs GUN',
+    '--------------------------+------+--------+-------+---------+-------+-------+-------+------+--------------',
+  ];
+  const alone = scoreOnBand(cells, seeds, fieldBook([fieldGunRule('breach')]));
+  lines.push(
+    `${pad('the gun rule alone', 25)} | ${pad(pct(alone.held), 4)} |      — | ${alone.low.toFixed(3)} | ` +
+      `${pad(alone.closest.toFixed(3), 7)} | ${alone.byStage.map((h) => pad(pct(h), 5)).join(' | ')} | ` +
+      `${pad(alone.commands.toFixed(1), 4)} |             —`,
+  );
+  const versus = cells.map((c, k) => ({ ...c, bare: alone.verdicts[k]! }));
+  try {
+    for (const [hp, damage] of [
+      [1.25, 1.2],
+      [1.5, 1.4],
+      [2, 1.7],
+      [2.5, 2],
+    ] as const) {
+      knobs.upgradeHp = hp;
+      knobs.upgradeDamage = damage;
+      const got = scoreOnBand(versus, seeds, fieldBook([fieldVerbRule('upgrade', 'breach'), fieldGunRule('breach')]));
+      const label = `x${hp} x ${damage}${hp === shipped.hp && damage === shipped.damage ? ' (shipped)' : ''}`;
+      lines.push(
+        `${pad(label, 25)} | ${pad(pct(got.held), 4)} | ${pad(signed(got.held - alone.held), 6)} | ` +
+          `${got.low.toFixed(3)} | ${pad(got.closest.toFixed(3), 7)} | ` +
+          got.byStage.map((h, st) => pad(signed(h - alone.byStage[st]!), 5)).join(' | ') +
+          ` | ${pad(got.commands.toFixed(1), 4)} |   ${flipCell(got)}`,
+      );
+    }
+  } finally {
+    knobs.upgradeHp = shipped.hp;
+    knobs.upgradeDamage = shipped.damage;
+  }
+  lines.push('');
+  lines.push('FLIPS: the battles the upgrade changed against the gun rule alone, starred as in --verbs.');
   return lines.join('\n');
 }
 
@@ -2080,9 +2305,16 @@ function defenseConfigFor(
      * the rule, the trim, the UN's standing mandate.
      */
     rules?: { signature?: Signature; mods?: DefenderMods };
+    /**
+     * The battle is a probe, fought for an absent commander, and its orders
+     * draw on a stocked magazine as `probeConfig`'s do. Every other battle
+     * here is a siege a commander fights in person, where a power costs CP
+     * and a cooldown and nothing else (M35 Phase 2).
+     */
+    stocked?: boolean;
   } = {},
 ): SimConfig {
-  const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT, ladder = LADDER } = opts;
+  const { mods, extraStructures = [], orders, chainVersion = CHAIN_CURRENT, ladder = LADDER, stocked = false } = opts;
   const rules: { signature?: Signature; defender?: DefenderMods } = opts.rules
     ? {
         ...(opts.rules.signature ? { signature: opts.rules.signature } : {}),
@@ -2129,9 +2361,11 @@ function defenseConfigFor(
       walls: base.walls.map((w) => ({ ...w })),
       structures: [...base.structures, ...extraStructures].map((s) => ({ ...s })),
     },
-    // Orders rows fight with a typically-stocked magazine; bare rows stay
-    // empty so every pre-v0.8 number is unchanged.
-    powerCharges: orders ? { a10: 2, arty: 1 } : {},
+    // Orders rows fight as the game fights them: a probe with a typically
+    // stocked magazine, a siege on the one clock, CP and a cooldown, since
+    // M35 Phase 2 (before it every orders row had the magazine). Bare rows
+    // stay empty so every pre-v0.8 number is unchanged.
+    ...(orders ? (stocked ? { powerCharges: { a10: 2, arty: 1 } } : {}) : { powerCharges: {} }),
     ...(orders ? { standingOrders: orders } : {}),
     ...(rules.defender ? { mods: { defender: rules.defender } } : {}),
     ...(reserved.length > 0 ? { reservedCells: reserved } : {}),
@@ -7298,6 +7532,12 @@ function main(): void {
   if (process.argv.includes('--order')) {
     const arg = process.argv[process.argv.indexOf('--order') + 1];
     console.log(orderTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--upgrades')) {
+    const arg = process.argv[process.argv.indexOf('--upgrades') + 1];
+    console.log(upgradeTable(/^\d+$/.test(arg ?? '') ? Number(arg) : 20));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }

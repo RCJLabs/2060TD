@@ -20,7 +20,32 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.74.0: the enemy has a plan
+## Current state — v1.75.0: field command
+
+**The defences you buy in a battle can now be moved, sold or upgraded, and your powers can be
+aimed.**
+
+- **Pick one out:** with nothing armed, tap a field defence you put down in this battle. It gets a
+  ring, and the DEPLOY tab shows what you can do with it and what each costs.
+- **MOVE** (M) costs half its price and puts it out of action for three seconds while it sets up
+  again. **UPGRADE** (U) is once, for its price again: half as much health again and 40% more
+  damage. **SELL** (X) gives back half of what it cost, less the damage it has taken.
+- **Aim a power:** arm it, press on the map and drag. The gun run flies along the drag, and the
+  barrage lands as wide as the drag, from half to twice its usual spread. A plain tap casts as it
+  always did.
+- **One clock in a siege:** in a battle you fight yourself, a power costs CP and a cooldown and
+  nothing else. The charges you buy with fuel are kept for raids, and a new town can call fire in
+  its first siege.
+- **Cards and keys:** hold any deploy or fire row for its card; powers have cards now. Keys 1–6
+  all arm the rows they name (the gate on 2 was broken, and 5 and 6 did nothing), Q and W arm the
+  powers, and M, U and X work the defence you picked.
+- **Measured:** an upgrade is worth about what a second gun is for the same CP; aiming hits a fifth
+  to a third more men at your post, which holds about one siege in a hundred more; and selling a
+  gun because the fight has moved away can lose you the battle when it comes back.
+
+Replays and codes are unchanged: a cast you don't drag is the cast it always was.
+
+## v1.74.0: the enemy has a plan
 
 **Every siege on the ladder is now the enemy's own plan.** The same units come in the same waves
 as before; what changes is where they come in, what they go for, when they arrive, and whether a

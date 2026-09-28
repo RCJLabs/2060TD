@@ -3396,7 +3396,8 @@ export class TownScene extends Scene {
       });
     }
 
-    rows.push({ id: 'h2', label: 'ORDNANCE (FUEL)', heading: true });
+    // Stocked for raids (M35 Phase 2): in a siege a power costs CP and a cooldown.
+    rows.push({ id: 'h2', label: 'ORDNANCE FOR RAIDS (FUEL)', heading: true });
     const powers = defenseCatalogFor(town.faction).powers;
     for (const power of ['a10', 'arty'] as const) {
       const stock = town.charges[power] ?? 0;

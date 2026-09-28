@@ -21,6 +21,7 @@ import { createButton, type FreeButton } from '../dom/button';
 import { createLabel, type SceneLabel } from '../dom/label';
 import { createOverlay, type OverlayApi } from '../dom/overlay';
 import { createPanel } from '../dom/panel';
+import { buildPowerSpec, buildStructureSpec, buildWallSpec } from '../spec';
 import type { PanelApi, PanelRow } from '../rows';
 
 export type BattleTag =
@@ -68,7 +69,9 @@ type Tool =
   | { type: 'gate' }
   | { type: 'structure'; kind: string }
   | { type: 'erase' }
-  | { type: 'power'; kind: string };
+  | { type: 'power'; kind: string }
+  /** Carrying the selected field defence to where it goes next (M35 Phase 2). */
+  | { type: 'move'; id: number };
 
 const SETUP_TOOL_KEYS = ['wall', 'gate', 'm2nest', 'autocannon', 'mortar', 'aa'] as const;
 const COMBAT_TOOL_KEYS = ['depmg', 'foxhole', 'claymore', 'hesco', 'manpads'] as const;
@@ -87,6 +90,14 @@ export class SiegeScene extends Scene {
   /** The next wave's lanes for the board's edge, and the wave they are for. */
   private lanes: readonly number[] | undefined;
   private lanesKey = '';
+  /** The field defence the commander has picked out, by id (M35 Phase 2). */
+  private selected: number | null = null;
+  /**
+   * Rebuilds the card on screen, when one is (M35 Phase 2): a spec card is
+   * rebuilt at the new size on a layout change, where the end-of-battle card
+   * is re-shown. The battle holds while a card is up.
+   */
+  private cardBuilder: (() => void) | null = null;
   private demoMode = false;
   private lastPaintedCell = -1;
   private overlayShown = false;
@@ -243,8 +254,12 @@ export class SiegeScene extends Scene {
     if (this.overlay) {
       this.overlay.close();
       this.overlay = null;
-      this.overlayShown = false;
-      this.showOverlay(this.engine.phase === 'victory');
+      if (this.cardBuilder) {
+        this.cardBuilder();
+      } else {
+        this.overlayShown = false;
+        this.showOverlay(this.engine.phase === 'victory');
+      }
     }
   }
 
@@ -297,6 +312,7 @@ export class SiegeScene extends Scene {
   private bindInput(): void {
     this.board.onTap((col, row) => this.handleCell(col, row, true));
     this.board.onPaint((col, row) => this.handleCell(col, row, false));
+    this.board.onAim((from, to) => this.aimed(from, to));
     this.input.on('pointerdown', (pointer: Pointer) => {
       if (pointer.rightButtonDown()) this.setTool(null);
     });
@@ -307,6 +323,13 @@ export class SiegeScene extends Scene {
     kb?.on('keydown-TWO', () => this.selectToolSlot(1));
     kb?.on('keydown-THREE', () => this.selectToolSlot(2));
     kb?.on('keydown-FOUR', () => this.selectToolSlot(3));
+    // The rows offer five keys in a wave and six before it (M35 Phase 2).
+    kb?.on('keydown-FIVE', () => this.selectToolSlot(4));
+    kb?.on('keydown-SIX', () => this.selectToolSlot(5));
+    // And the selected field defence's three verbs.
+    kb?.on('keydown-M', () => this.armMove());
+    kb?.on('keydown-X', () => this.sellSelected());
+    kb?.on('keydown-U', () => this.upgradeSelected());
     kb?.on('keydown-E', () => this.setTool({ type: 'erase' }));
     kb?.on('keydown-G', () => this.setTool({ type: 'gate' }));
     kb?.on('keydown-Q', () => this.armPower('a10'));
@@ -328,8 +351,86 @@ export class SiegeScene extends Scene {
     const keys = inCombat ? COMBAT_TOOL_KEYS : SETUP_TOOL_KEYS;
     const kind = keys[slot];
     if (!kind) return;
-    if (kind === 'wall' || kind === 'hesco') this.setTool({ type: 'wall', kind });
+    // The gate is a wall piece, as its row places it: key 2 used to arm it as
+    // a structure the battle could not place (M35 Phase 2).
+    if (kind === 'wall' || kind === 'gate' || kind === 'hesco') this.setTool({ type: 'wall', kind });
     else this.setTool({ type: 'structure', kind });
+  }
+
+  // ---- field command (M35 Phase 2) -------------------------------------------------
+
+  /** The selected field defence and what can be done with it, or null (and the selection dropped). */
+  private selection(): { cell: number; kind: string; name: string; level: number; move: number; sell: number; upgrade: number | null } | null {
+    if (this.selected === null) return null;
+    const s = this.engine.structures.find((st) => st.id === this.selected);
+    const options = s ? this.engine.fieldOptions(s.origin) : null;
+    if (!s || !options) {
+      this.selected = null;
+      return null;
+    }
+    return { cell: s.origin, name: s.profile.name, level: s.level, ...options };
+  }
+
+  private armMove(): void {
+    const sel = this.selection();
+    if (sel && this.engine.cp >= sel.move && this.selected !== null) this.setTool({ type: 'move', id: this.selected });
+  }
+
+  private sellSelected(): void {
+    const sel = this.selection();
+    if (!sel) return;
+    this.engine.command({ type: 'sellStructure', cell: sel.cell });
+    this.selected = null;
+    if (this.tool?.type === 'move') this.setTool(null);
+  }
+
+  private upgradeSelected(): void {
+    const sel = this.selection();
+    if (sel && sel.upgrade !== null) this.engine.command({ type: 'upgradeStructure', cell: sel.cell });
+  }
+
+  /**
+   * An armed power's press, lifted: a tap casts on the cell as it always did,
+   * and a drag aims it — the gun run along the drag, the barrage as wide.
+   */
+  private aimed(from: { x: number; y: number }, to: { x: number; y: number } | null): void {
+    if (this.tool?.type !== 'power' || this.overlay) return;
+    // Aim at the cell centre: a fingertip is wider than a pixel.
+    const target = { x: Math.floor(from.x) + 0.5, y: Math.floor(from.y) + 0.5 };
+    this.engine.command({ type: 'castPower', kind: this.tool.kind, target, ...(to ? { toward: to } : {}) });
+    if (this.engine.phase === 'combat') this.casts++;
+    this.setTool(null);
+  }
+
+  /** Open a card over the battle; it is rebuilt if the layout changes, and closes on its footer. */
+  private openCard(build: (close: () => void) => OverlayApi | null): void {
+    if (this.overlay) return;
+    const close = (): void => {
+      this.overlay?.close();
+      this.overlay = null;
+      this.cardBuilder = null;
+    };
+    this.cardBuilder = () => {
+      this.overlay = build(close);
+      if (!this.overlay) this.cardBuilder = null;
+    };
+    this.cardBuilder();
+  }
+
+  /** A deploy row's card: the structure or wall as this battle has it. */
+  private showSpec(kind: string, wall: boolean): void {
+    const opts = { layout: this.layout, catalog: this.engine.catalog };
+    this.openCard((onClose) =>
+      wall ? buildWallSpec(this, kind, { ...opts, onClose }) : buildStructureSpec(this, kind, { ...opts, onClose }),
+    );
+  }
+
+  /** A fire row's card, at what this battle charges for the power. */
+  private showPowerSpec(kind: string): void {
+    const def = this.engine.catalog.powers[kind];
+    if (!def) return;
+    const cp = this.engine.cpPrice(def.cpCost);
+    this.openCard((onClose) => buildPowerSpec(this, kind, { layout: this.layout, catalog: this.engine.catalog, cp, onClose }));
   }
 
   private armPower(kind: string): void {
@@ -372,12 +473,32 @@ export class SiegeScene extends Scene {
     // Walls and the eraser paint across a drag; everything else leaves the
     // drag to the camera so the board can still be panned mid-build.
     this.board.paintMode = tool?.type === 'wall' || tool?.type === 'erase';
+    // An armed power is aimed by the drag instead (M35 Phase 2).
+    this.board.aimMode = tool?.type === 'power';
     this.lastPaintedCell = -1;
   }
 
   private handleCell(cellX: number, cellY: number, isTap: boolean): void {
-    if (!this.tool || this.overlay) return;
+    if (this.overlay) return;
     const cell = this.engine.grid.idx(cellX, cellY);
+
+    // With nothing in hand, a tap picks out a field defence (M35 Phase 2), and
+    // anywhere else lets it go. The drawer opens on what can be done with it.
+    if (!this.tool) {
+      if (!isTap) return;
+      const hit = this.engine.structureAt(cell);
+      this.selected = hit && this.engine.fieldOptions(cell) ? hit.id : null;
+      if (this.selected !== null && this.panel.tab !== 'deploy') this.panel.setTab('deploy');
+      return;
+    }
+
+    if (this.tool.type === 'move') {
+      if (!isTap) return;
+      const sel = this.selection();
+      if (sel) this.engine.command({ type: 'moveStructure', cell: sel.cell, to: cell });
+      this.setTool(null);
+      return;
+    }
 
     if (this.tool.type === 'power') {
       if (!isTap) return;
@@ -425,8 +546,9 @@ export class SiegeScene extends Scene {
   override update(_time: number, deltaMs: number): void {
     const held = this.runCoach(deltaMs / 1000);
     const lanes = this.laneShares();
-    if (this.paused || held) {
-      this.battle.draw(1, deltaMs / 1000, { showPaths: this.showPaths, ...(lanes ? { lanes } : {}) });
+    const picked = this.selection() ? { selected: this.selected! } : {};
+    if (this.paused || held || this.cardBuilder) {
+      this.battle.draw(1, deltaMs / 1000, { showPaths: this.showPaths, ...(lanes ? { lanes } : {}), ...picked });
       this.updateHud();
       return;
     }
@@ -447,6 +569,7 @@ export class SiegeScene extends Scene {
       ghost: this.currentGhost(),
       powerPreview: this.currentPowerPreview(),
       ...(ahead ? { lanes: ahead } : {}),
+      ...(this.selection() ? { selected: this.selected! } : {}),
     });
     this.updateHud();
   }
@@ -553,7 +676,14 @@ export class SiegeScene extends Scene {
     const pointer = this.input.activePointer;
     const at = this.board.cellAt(pointer);
     if (!at) return undefined;
-    const cell = this.engine.grid.idx(Math.floor(pointer.x / CELL), Math.floor(pointer.y / CELL));
+    // The cell the board says is under the pointer, which knows the camera.
+    const cell = this.engine.grid.idx(at.col, at.row);
+
+    if (this.tool.type === 'move') {
+      const sel = this.selection();
+      if (!sel) return undefined;
+      return { cell, kind: sel.kind, valid: this.engine.isBuildable(cell) && this.engine.cp >= sel.move };
+    }
 
     if (this.tool.type === 'erase') {
       const erasable =
@@ -586,6 +716,13 @@ export class SiegeScene extends Scene {
 
   private currentPowerPreview(): PowerPreview | undefined {
     if (this.tool?.type !== 'power') return undefined;
+    // Being aimed (M35 Phase 2): from the pressed cell, along or out to the drag.
+    const aim = this.board.aim();
+    if (aim) {
+      const at = { x: Math.floor(aim.from.x) + 0.5, y: Math.floor(aim.from.y) + 0.5 };
+      const travelled = Math.hypot(aim.to.x - aim.from.x, aim.to.y - aim.from.y) >= 0.5;
+      return { kind: this.tool.kind, at, ...(travelled ? { toward: aim.to } : {}) };
+    }
     const pointer = this.input.activePointer;
     const at = this.board.cellAt(pointer);
     if (!at) return undefined;
@@ -621,6 +758,8 @@ export class SiegeScene extends Scene {
       enabled: affordable && !spent,
       active: armed,
       onTap: () => this.setTool(isWall ? { type: 'wall', kind } : { type: 'structure', kind }),
+      // What it does, on a hold, as the town's rows have it (M35 Phase 2).
+      onHold: () => this.showSpec(kind, isWall),
     };
   }
 
@@ -629,9 +768,40 @@ export class SiegeScene extends Scene {
     const build = e.phase === 'setup' || e.phase === 'prep';
     switch (this.panel.tab) {
       case 'deploy': {
-        const rows: PanelRow[] = [
-          { id: 'h', label: build ? 'FORTIFY (SUPPLIES)' : 'FIELD DEPLOY (CP)', heading: true },
-        ];
+        const rows: PanelRow[] = [];
+        // The picked-out field defence's verbs, first (M35 Phase 2). The two
+        // a fight reaches for come first, where a phone's drawer shows them
+        // at rest, and the sale, which gives the ground up, last.
+        const sel = this.selection();
+        if (sel) {
+          const moving = this.tool?.type === 'move';
+          rows.push(
+            { id: 'sh', label: `SELECTED — ${sel.name.toUpperCase()}${sel.level >= 2 ? ' (UPGRADED)' : ''}`, heading: true },
+            {
+              id: 'sel-move',
+              label: moving ? 'TAP WHERE IT GOES [M]' : 'MOVE [M]',
+              sub: `${sel.move} CP · 3s DOWN`,
+              enabled: e.cp >= sel.move,
+              active: moving,
+              onTap: () => (moving ? this.setTool(null) : this.armMove()),
+            },
+            {
+              id: 'sel-up',
+              label: 'UPGRADE [U]',
+              sub: sel.upgrade === null ? 'UPGRADED' : `${sel.upgrade} CP`,
+              enabled: sel.upgrade !== null && e.cp >= sel.upgrade,
+              onTap: () => this.upgradeSelected(),
+              onHold: () => this.showSpec(sel.kind, false),
+            },
+            {
+              id: 'sel-sell',
+              label: 'SELL [X]',
+              sub: `+${Math.floor(sel.sell)} CP`,
+              onTap: () => this.sellSelected(),
+            },
+          );
+        }
+        rows.push({ id: 'h', label: build ? 'FORTIFY (SUPPLIES)' : 'FIELD DEPLOY (CP)', heading: true });
         const keys = build ? SETUP_TOOL_KEYS : COMBAT_TOOL_KEYS;
         keys.forEach((kind, i) => {
           rows.push(this.toolRow(kind, kind === 'wall' || kind === 'gate' || kind === 'hesco', String(i + 1)));
@@ -689,9 +859,14 @@ export class SiegeScene extends Scene {
             enabled: cd <= 0 && e.canCastPower(kind),
             active: this.tool?.type === 'power' && this.tool.kind === kind,
             onTap: () => this.armPower(kind),
+            onHold: () => this.showPowerSpec(kind),
           });
         }
-        rows.push({ id: 'hint', label: 'Arm a power, then tap the map.', heading: true });
+        rows.push({
+          id: 'hint',
+          label: 'Arm a power, then tap the map, or press and drag to aim it: the gun run along the drag, the barrage as wide.',
+          heading: true,
+        });
         if (e.pinSeconds > 0) {
           rows.push({ id: 'pin', label: `What it lands on is pinned ${e.pinSeconds}s.`, heading: true });
         }

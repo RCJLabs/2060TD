@@ -1,5 +1,6 @@
 import { clamp, type Container, type Graphics, type Image, type Scene, type Text } from './stage';
 import type { Attacker, Engine } from '../sim/engine';
+import { FIELD_COMMAND } from '../sim/fieldcommand';
 import { laneAlong } from '../sim/read';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
 import { POST_HURT_SECONDS, StepWatch, threatStep } from '../content/score';
@@ -94,6 +95,8 @@ export interface GhostPreview {
 export interface PowerPreview {
   kind: string;
   at: Vec2;
+  /** Where the cast is being aimed (M35 Phase 2): the run's line, the barrage's width. */
+  toward?: Vec2;
 }
 
 export interface DrawOptions {
@@ -105,6 +108,8 @@ export interface DrawOptions {
    * to east (M35 Phase 1), marked on the edge while the defence readies.
    */
   lanes?: readonly number[];
+  /** The field defence the commander has selected (M35 Phase 2), ringed. */
+  selected?: number;
 }
 
 /**
@@ -341,7 +346,12 @@ export class BattleRenderer {
           if (!this.hushed) audio.sfx('radio', this.place(event.at.x, event.at.y));
           break;
         case 'strafePulse':
-          this.playImpact('strafe', event.x0, event.y, { x2: event.x1 });
+          // An aimed run (M35) says where each pass starts and ends; the rest run along the width.
+          this.playImpact('strafe', event.x0, event.y0 ?? event.y, { x2: event.x1, y2: event.y1 ?? event.y });
+          break;
+        case 'fieldCommand':
+          this.effects.push({ kind: 'reticle', x: event.at.x, y: event.at.y, age: 0, life: 0.6 });
+          if (!this.hushed) audio.sfx('radio', this.place(event.at.x, event.at.y));
           break;
         case 'powerCast':
           this.effects.push({ kind: 'reticle', x: event.at.x, y: event.at.y, age: 0, life: 0.8 });
@@ -491,6 +501,7 @@ export class BattleRenderer {
     if (opts.lanes) this.drawLanes(g, opts.lanes);
     if (opts.showPaths) this.drawPaths(g, alpha);
     this.drawStructures(g);
+    if (opts.selected !== undefined) this.drawSelected(g, opts.selected);
     this.drawAttackers(g, alpha);
     this.drawProjectiles(g, alpha);
     if (opts.ghost) this.drawGhost(g, opts.ghost);
@@ -532,7 +543,9 @@ export class BattleRenderer {
         // the size they had, not at the size today's board would give them.
         footprint: s.profile.footprint === 2 ? 2 : 1,
         level: s.level,
-        inert: s.inert,
+        // A field defence being set up again after a move (M35) is drawn as
+        // what it is for those three seconds: there, and not firing.
+        inert: s.inert || this.engine.isDown(s),
         // A hulk (M26, Overbuilt) is drawn as the wreck it already is.
         wrecked: s.hulk !== undefined,
         hostile: this.hostileStructures,
@@ -591,6 +604,15 @@ export class BattleRenderer {
       if (north) g.fillRect(from, inner - thick / 2, length, thick);
       else g.fillRect(inner - thick / 2, from, thick, length);
     }
+  }
+
+  /** A ring round the field defence the commander has selected (M35 Phase 2). */
+  private drawSelected(g: Graphics, id: number): void {
+    const s = this.engine.structures.find((st) => st.id === id);
+    if (!s || s.hp <= 0) return;
+    const c = this.cell;
+    g.lineStyle(Math.max(2, c * 0.07), COLORS.signal, 0.9);
+    g.strokeCircle(s.center.x * c, s.center.y * c, c * 0.62);
   }
 
   private drawPaths(g: Graphics, alpha: number): void {
@@ -758,17 +780,39 @@ export class BattleRenderer {
     if (!def) return;
     const c = this.cell;
     const { x, y } = preview.at;
+    const aim = preview.toward;
     g.lineStyle(1.5, COLORS.signal, 0.7);
     if (def.type === 'strafe') {
-      g.strokeRect(
-        (x - def.halfLength) * c,
-        (y - def.halfWidth) * c,
-        def.halfLength * 2 * c,
-        def.halfWidth * 2 * c,
-      );
-      g.lineBetween((x - def.halfLength - 1) * c, y * c, (x - def.halfLength) * c, y * c);
+      // The strip the run will cover, along the drag when it is being aimed
+      // (M35), and a lead-in line where it comes from.
+      let ux = 1;
+      let uy = 0;
+      if (aim) {
+        const len = Math.hypot(aim.x - x, aim.y - y);
+        if (len > 1e-6) {
+          ux = (aim.x - x) / len;
+          uy = (aim.y - y) / len;
+        }
+      }
+      const L = def.halfLength;
+      const W = def.halfWidth;
+      const corner = (a: number, b: number): { x: number; y: number } => ({
+        x: (x + ux * a - uy * b) * c,
+        y: (y + uy * a + ux * b) * c,
+      });
+      g.strokePoints([corner(-L, -W), corner(L, -W), corner(L, W), corner(-L, W)], true);
+      const tail = corner(-L - 1, 0);
+      const head = corner(-L, 0);
+      g.lineBetween(tail.x, tail.y, head.x, head.y);
     } else {
-      g.strokeCircle(x * c, y * c, def.scatter * c);
+      // As wide as the drag when it is being aimed, within the barrage's limits.
+      const spread = aim
+        ? Math.min(
+            def.scatter * FIELD_COMMAND.areaMax,
+            Math.max(def.scatter * FIELD_COMMAND.areaMin, Math.hypot(aim.x - x, aim.y - y)),
+          )
+        : def.scatter;
+      g.strokeCircle(x * c, y * c, spread * c);
       g.lineStyle(1, COLORS.signal, 0.4);
       g.strokeCircle(x * c, y * c, def.splashRadius * c);
     }
@@ -919,11 +963,24 @@ export class BattleRenderer {
         case 'strafe': {
           // Speed lines down the run, and the run itself knocked out in paper
           // so the ground under it reads as blown past rather than covered.
-          const midY = fx.y * c;
-          const len = (fx.x2! - fx.x) * c;
+          // Along whatever line the run was aimed (M35), the width if it was not.
+          const x2 = fx.x2! * c;
+          const y2 = (fx.y2 ?? fx.y) * c;
+          const len = Math.hypot(x2 - x, y2 - y);
+          const ang = Math.atan2(y2 - y, x2 - x);
+          const nx = -Math.sin(ang) * c * 0.34;
+          const ny = Math.cos(ang) * c * 0.34;
           g.fillStyle(COLORS.bgField, a * 0.85);
-          g.fillRect(x, midY - c * 0.34, len, c * 0.68);
-          speedLines(g, fx.x2! * c, midY, 0, len, c * 0.3, 7, COLORS.oliveDark, a, Math.max(1.5, c * 0.055));
+          g.fillPoints(
+            [
+              { x: x + nx, y: y + ny },
+              { x: x2 + nx, y: y2 + ny },
+              { x: x2 - nx, y: y2 - ny },
+              { x: x - nx, y: y - ny },
+            ],
+            true,
+          );
+          speedLines(g, x2, y2, ang, len, c * 0.3, 7, COLORS.oliveDark, a, Math.max(1.5, c * 0.055));
           break;
         }
         case 'reticle':

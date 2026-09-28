@@ -1168,6 +1168,52 @@ and not an arrow, because the strip's own arrows are part of the sheet.
 Replay codes carry each wave's modifiers behind the rules block's eighth bit;
 veterans need nothing new, since a wave entry's rank was always on the wire.
 
+### 5.5c Field command *(v1.75, M35)*
+
+A field defence is one bought with CP in the battle, and it can be worked
+after it goes down. With nothing armed, a tap on one picks it out: it gets a
+ring, and the DEPLOY tab opens on it with three rows and their prices, the
+two a fight reaches for first, where a phone's drawer shows them at rest.
+
+- **MOVE** (M) costs half its price, rounded up, and the next tap on open
+  ground says where. It keeps its health and its rank, and for three seconds
+  it is being set up again: it neither fires, nor covers the post, nor lends
+  a sustainment aura, and it is drawn grey.
+- **UPGRADE** (U) is once, for its price again: half as much health again (the
+  damage it has taken stays taken) and 40% more damage.
+- **SELL** (X), last because it gives the ground up, pays back half of
+  everything it cost, its upgrade included, by the share of its health it has
+  left, and never past the CP cap.
+
+A town building is never moved, sold or upgraded in a battle. The prices and
+the rule for what may be picked out are the engine's, so the drawer and the
+balance tool's orders read the same ones.
+
+**Aimed powers.** With a power armed, a press on the board and a drag aims it,
+with a preview while the finger is down. The gun run flies through the press
+point along the drag, and the barrage lands across a circle as wide as the
+drag, from half to twice its usual spread. A tap still casts as it always
+did, and a cast without a drag is the old cast to the last bit, so raids,
+pre-planned fire and every code are unchanged.
+
+**One clock.** In a battle the commander fights in person (a skirmish, a
+counterattack, a live defence, the last stand, a mission) a power costs CP
+and a cooldown and nothing else. The charges a town buys with fuel are for
+raids, where they are the only way to call fire, and a siege leaves them
+where they were. An offline probe, fought by the garrison, draws on them as
+it always has.
+
+Every deploy and fire row opens its card on a hold, powers included, and the
+keys the rows show all work: 1-6 arm the rows they name (2 is the gate), Q and
+W the powers, and M, X and U the selection.
+
+Measured on the balance tool's contested band, none of the three decides
+battles as a standing order uses it, and selling a gun the fight has left
+behind loses them (−17 points at the approach, where the fight comes back). The
+upgrade is as strong as it is because that is where it is even with a second
+gun for the same CP. Aimed as well as it can be, a strike on the assault at
+the post hits a fifth to a third more men and holds about a point more.
+
 ### 5.6 Raid planning & doctrines
 
 Each deployed squad gets: an entry point (revealed map-edge sectors), a launch delay (0–60s),

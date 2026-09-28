@@ -37,10 +37,12 @@ import type {
   ArmorClass,
   AttackerProfile,
   Catalog,
+  PowerDef,
   StructureProfile,
   WallDef,
   Weapon,
 } from '../sim/types';
+import { FIELD_COMMAND } from '../sim/fieldcommand';
 import type { Layout } from './layout';
 import { COLORS } from './palette';
 import { ATTACKER_GLYPH_SPAN, drawAttackerGlyph, drawStructureGlyph } from './glyphs';
@@ -342,6 +344,64 @@ export function buildWallSpec(scene: Scene, kind: string, opts: SpecOpts): Overl
       : 'ATTACKERS BREAK IT OR ROUTE AROUND IT. EITHER\nWAY THEY SPEND TIME UNDER YOUR GUNS, WHICH IS\nTHE ONLY THING A WALL SELLS.',
     font.tiny,
     COLORS.inkDim,
+    { gapAfter: gap * 2 },
+  );
+  ov.footer('CLOSE', opts.onClose);
+  return ov;
+}
+
+/**
+ * The card for a commander power (M35 Phase 2): what it lands, how wide, what
+ * it costs, and how to aim it. Read out of the battle's own catalog like every
+ * other card, so the numbers are the board's.
+ *
+ * `cp` and `cooldown` are what this battle charges, which research and the
+ * faction can move from the catalog's list price.
+ */
+export function buildPowerSpec(
+  scene: Scene,
+  kind: string,
+  opts: SpecOpts & { cp: number },
+): OverlayApi | null {
+  const def: PowerDef | undefined = opts.catalog.powers[kind];
+  if (!def) return null;
+  const { layout } = opts;
+  const { font, gap } = layout;
+  const ov = createOverlay(scene, layout, { title: def.name.toUpperCase(), scrim: 1 });
+  const cost = `${opts.cp} CP · ${num(def.cooldownSeconds)}s TO RELOAD`;
+  const damage = opts.catalog.damage[def.damageType];
+  const hit = def.type === 'strafe' ? def.pulseDamage : def.shellDamage;
+  const lines =
+    def.type === 'strafe'
+      ? [
+          cost,
+          `${def.pulses} PASSES OF ${num(def.pulseDamage)} ${DAMAGE_NAMES[def.damageType]}`,
+          `A STRIP ${num(def.halfLength * 2)} CELLS LONG AND ${num(def.halfWidth * 2)} WIDE`,
+          `ARRIVES ${num(def.delayTicks / 20)}s AFTER THE CALL`,
+        ]
+      : [
+          cost,
+          `${def.shells} SHELLS OF ${num(def.shellDamage)} ${DAMAGE_NAMES[def.damageType]} · SPLASH ${num(def.splashRadius)}`,
+          `LANDING WITHIN ${num(def.scatter)} CELLS OF THE MARK`,
+          `ARRIVES ${num(def.delayTicks / 20)}s AFTER THE CALL`,
+        ];
+  ov.paragraph(lines.join('\n'), font.body, COLORS.ink, { gapAfter: gap * 2 });
+  // Ground only: the answer to air is a gun that can elevate.
+  const rank = TARGET_CLASSES.filter((c) => c !== 'air')
+    .map((armor) => ({ armor, per: hit * damage[armor] }))
+    .sort((a, b) => b.per - a.per);
+  ov.paragraph(
+    ['GROUND ONLY — AIRCRAFT FLY THROUGH IT', ...rank.map((e) => `  vs ${ARMOR_NAMES[e.armor].padEnd(15)}${num(Math.round(e.per))} A HIT`)].join('\n'),
+    font.tiny,
+    COLORS.inkDim,
+    { gapAfter: gap * 2 },
+  );
+  ov.paragraph(
+    def.type === 'strafe'
+      ? 'TAP THE MAP TO RUN IT ACROSS THE BOARD. PRESS AND DRAG TO LAY IT ALONG ANY LINE, DOWN A COLUMN OF MEN.'
+      : `TAP THE MAP TO LAND IT. PRESS AND DRAG TO SET HOW WIDE IT FALLS, FROM ${num(def.scatter * FIELD_COMMAND.areaMin)} TO ${num(def.scatter * FIELD_COMMAND.areaMax)} CELLS: TIGHT ON A KNOT, WIDE ON A CROWD.`,
+    font.tiny,
+    COLORS.ink,
     { gapAfter: gap * 2 },
   );
   ov.footer('CLOSE', opts.onClose);

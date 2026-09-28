@@ -4,6 +4,7 @@ import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
 import { COMBAT_NONE, combatModelFor, type CombatModel } from './combat';
 import { chainModelFor, type ChainModel, type ChainStage } from './killchain';
+import { FIELD_COMMAND } from './fieldcommand';
 import { laneAlong, waveModifierOf } from './read';
 import { cellSizeOf, scaleCatalog, scaleChain } from './scale';
 import {
@@ -198,6 +199,25 @@ export interface Structure {
    * and is gone at zero; it was counted destroyed when it fell.
    */
   hulk?: { burn: number; from: number };
+  /**
+   * Field command (M35 Phase 2): the tick a moved field defence is set up
+   * again by, what its one upgrade cost, and the last tick it fired (or went
+   * down), which the instruments' orders read against the fight's own clock.
+   */
+  downUntil?: number;
+  upgradePaid?: number;
+  firedAt?: number;
+}
+
+/** What the commander can do with one field defence, and what each costs (M35 Phase 2). */
+export interface FieldOptions {
+  kind: string;
+  /** The CP a move costs. */
+  move: number;
+  /** The CP a sale pays back. */
+  sell: number;
+  /** The CP the upgrade costs, or null once it has had it. */
+  upgrade: number | null;
 }
 
 export interface Projectile {
@@ -215,7 +235,27 @@ export interface Projectile {
 
 type ImpactShape =
   | { kind: 'circle'; x: number; y: number; r: number }
-  | { kind: 'rect'; x0: number; x1: number; y0: number; y1: number };
+  | { kind: 'rect'; x0: number; x1: number; y0: number; y1: number }
+  /** An aimed gun run's pass (M35 Phase 2): from one end to the other, `w` either side. */
+  | { kind: 'strip'; x0: number; y0: number; x1: number; y1: number; w: number };
+
+function inShape(shape: ImpactShape, x: number, y: number): boolean {
+  switch (shape.kind) {
+    case 'circle':
+      return (x - shape.x) ** 2 + (y - shape.y) ** 2 <= shape.r * shape.r;
+    case 'rect':
+      return x >= shape.x0 && x <= shape.x1 && y >= shape.y0 && y <= shape.y1;
+    case 'strip': {
+      const dx = shape.x1 - shape.x0;
+      const dy = shape.y1 - shape.y0;
+      const t = ((x - shape.x0) * dx + (y - shape.y0) * dy) / (dx * dx + dy * dy);
+      if (t < 0 || t > 1) return false;
+      const px = shape.x0 + t * dx - x;
+      const py = shape.y0 + t * dy - y;
+      return px * px + py * py <= shape.w * shape.w;
+    }
+  }
+}
 
 interface PendingImpact {
   tick: number;
@@ -346,6 +386,8 @@ export class Engine {
   private readonly waves: WaveEntry[][];
   /** What the enemy did to each wave (M35), index for index with `waves`. */
   private readonly waveMods: (WaveMods | undefined)[];
+  /** Each field kind's upgraded profile, built once (M35 Phase 2). */
+  private readonly fieldUpgrades = new Map<string, StructureProfile>();
   private readonly structureAtCell = new Map<CellIndex, Structure>();
   private readonly pendingImpacts: PendingImpact[] = [];
   private readonly powerCooldowns = new Map<string, number>();
@@ -383,6 +425,8 @@ export class Engine {
   /** Actions each rule has spent, for `StandingOrders.fairShare`. */
   private orderUsedBy: number[] = [];
   private lastBreachCell: CellIndex | null = null;
+  /** The last tick any defence fired: the fight's clock, which a stranded field defence falls behind. */
+  private lastShotTick = 0;
 
   /** How many standing-order actions the garrison executed this battle. */
   get ordersExecuted(): number {
@@ -556,9 +600,28 @@ export class Engine {
   /** Base profile merged with its per-level overrides (level 2 = levels[0]). */
   resolveProfile(kind: string, level: number): StructureProfile | undefined {
     const base = this.catalog.structures[kind];
+    // A field defence's one upgrade (M35 Phase 2) is the same step for every
+    // kind, so no faction's content has to write a second level for it.
+    if (base && level >= 2 && base.cpCost !== undefined && !base.levels?.length) {
+      return this.kitProfile(this.fieldUpgrade(base), level);
+    }
     if (!base || level <= 1 || !base.levels || base.levels.length === 0) return this.kitProfile(base, level);
     const override = base.levels[Math.min(level - 2, base.levels.length - 1)];
     return this.kitProfile(override ? { ...base, ...override } : base, level);
+  }
+
+  /** A field defence after its upgrade: more health, and more damage from its gun or its charge. */
+  private fieldUpgrade(base: StructureProfile): StructureProfile {
+    const known = this.fieldUpgrades.get(base.kind);
+    if (known) return known;
+    const up: StructureProfile = {
+      ...base,
+      maxHp: base.maxHp * FIELD_COMMAND.upgradeHp,
+      ...(base.weapon ? { weapon: { ...base.weapon, damage: base.weapon.damage * FIELD_COMMAND.upgradeDamage } } : {}),
+      ...(base.trigger ? { trigger: { ...base.trigger, damage: base.trigger.damage * FIELD_COMMAND.upgradeDamage } } : {}),
+    };
+    this.fieldUpgrades.set(base.kind, up);
+    return up;
   }
 
   /**
@@ -947,6 +1010,7 @@ export class Engine {
           if (this.phase === 'combat') {
             structure.cpPaid = price;
             structure.placedWave = this.waveIndex;
+            structure.firedAt = this.tick;
           }
         } else {
           this.pay(def);
@@ -1005,7 +1069,59 @@ export class Engine {
         return true;
       }
       case 'castPower': {
-        return this.castPowerAt(cmd.kind, cmd.target, events);
+        return this.castPowerAt(cmd.kind, cmd.target, events, cmd.toward);
+      }
+      case 'moveStructure': {
+        const s = this.fieldAt(cmd.cell);
+        // Nowhere to go is not a move, and is not paid for as one.
+        if (!s || cmd.to === s.origin) return false;
+        const price = this.movePrice(s);
+        if (this.cp < price) return false;
+        // Lift it, and put it down only where a new one could stand.
+        for (const cell of s.cells) this.structureAtCell.delete(cell);
+        const cells = this.footprintCells(cmd.to, s.profile.footprint);
+        if (!cells || !cells.every((c) => this.isBuildable(c))) {
+          for (const cell of s.cells) this.structureAtCell.set(cell, s);
+          return false;
+        }
+        s.origin = cmd.to;
+        s.cells = cells;
+        s.center =
+          s.profile.footprint === 2
+            ? { x: this.grid.xOf(cmd.to) + 1, y: this.grid.yOf(cmd.to) + 1 }
+            : this.grid.centerOf(cmd.to);
+        for (const cell of cells) this.structureAtCell.set(cell, s);
+        if (s.profile.blocks) this.grid.version++;
+        s.downUntil = this.tick + Math.round(FIELD_COMMAND.moveSeconds * TICKS_PER_SECOND);
+        s.firedAt = this.tick;
+        this.cp -= price;
+        this.stats.cpSpent += price;
+        events.push({ type: 'fieldCommand', verb: 'move', kind: s.profile.kind, at: { ...s.center } });
+        return true;
+      }
+      case 'sellStructure': {
+        const s = this.fieldAt(cmd.cell);
+        if (!s || !this.siege) return false;
+        this.cp = Math.min(this.siege.cpCap, this.cp + this.sellValue(s));
+        events.push({ type: 'fieldCommand', verb: 'sell', kind: s.profile.kind, at: { ...s.center } });
+        this.dropStructure(s);
+        return true;
+      }
+      case 'upgradeStructure': {
+        const s = this.fieldAt(cmd.cell);
+        if (!s || s.level >= 2) return false;
+        const price = this.upgradePrice(s);
+        const next = this.resolveProfile(s.profile.kind, 2);
+        if (!next || this.cp < price) return false;
+        // It keeps the damage it had taken: the new health is added, not topped up.
+        s.hp += next.maxHp - s.profile.maxHp;
+        s.profile = next;
+        s.level = 2;
+        s.upgradePaid = price;
+        this.cp -= price;
+        this.stats.cpSpent += price;
+        events.push({ type: 'fieldCommand', verb: 'upgrade', kind: s.profile.kind, at: { ...s.center } });
+        return true;
       }
     }
   }
@@ -1015,7 +1131,7 @@ export class Engine {
     return this.config.playerSide === 'attacker';
   }
 
-  private castPowerAt(kind: string, target: Vec2, events: SimEvent[]): boolean {
+  private castPowerAt(kind: string, target: Vec2, events: SimEvent[], toward?: Vec2): boolean {
     if (!this.canCastPower(kind)) return false;
     const def = this.catalog.powers[kind]!;
     // Raid-side ordnance is pre-paid stock (charges), not a CP purchase.
@@ -1028,7 +1144,7 @@ export class Engine {
       this.chargesLeft.set(def.kind, (this.chargesLeft.get(def.kind) ?? 0) - 1);
     }
     this.powerCooldowns.set(def.kind, Math.round(def.cooldownSeconds * TICKS_PER_SECOND));
-    this.schedulePower(def.kind, target);
+    this.schedulePower(def.kind, target, toward);
     events.push({ type: 'powerCast', kind: def.kind, at: { ...target } });
     return true;
   }
@@ -1170,7 +1286,30 @@ export class Engine {
     [2, 0], [-2, 0], [0, 2], [0, -2], [2, 1], [-2, -1], [1, 2], [-1, -2],
   ];
 
-  private orderDeployCell(target: StandingOrderTarget, kind: string): CellIndex | null {
+  private orderDeployCell(
+    target: StandingOrderTarget,
+    kind: string,
+    fits: (cell: CellIndex) => boolean = (cell) => this.canPlaceStructure(kind, cell),
+  ): CellIndex | null {
+    const anchor = this.orderAnchor(target);
+    if (!anchor) return null;
+    const ax = Math.floor(anchor.x);
+    const ay = Math.floor(anchor.y);
+    for (const [dc, dr] of Engine.ORDER_OFFSETS) {
+      // The duty officer reinforces AROUND a breach; corking the hole
+      // itself is a live commander's move, not a standing order.
+      if (target === 'breach' && dc === 0 && dr === 0) continue;
+      const x = ax + dc;
+      const y = ay + dr;
+      if (x < 0 || y < 0 || x >= this.grid.width || y >= this.grid.height) continue;
+      const cell = this.grid.idx(x, y);
+      if (fits(cell)) return cell;
+    }
+    return null;
+  }
+
+  /** Where a standing order aims, as a point on the board, or null when there is nothing there. */
+  private orderAnchor(target: StandingOrderTarget): Vec2 | null {
     let anchor: Vec2 | null = null;
     if (target === 'breach') {
       anchor = this.lastBreachCell !== null ? this.grid.centerOf(this.lastBreachCell) : null;
@@ -1198,20 +1337,7 @@ export class Engine {
             : null;
       }
     }
-    if (!anchor) return null;
-    const ax = Math.floor(anchor.x);
-    const ay = Math.floor(anchor.y);
-    for (const [dc, dr] of Engine.ORDER_OFFSETS) {
-      // The duty officer reinforces AROUND a breach; corking the hole
-      // itself is a live commander's move, not a standing order.
-      if (target === 'breach' && dc === 0 && dr === 0) continue;
-      const x = ax + dc;
-      const y = ay + dr;
-      if (x < 0 || y < 0 || x >= this.grid.width || y >= this.grid.height) continue;
-      const cell = this.grid.idx(x, y);
-      if (this.canPlaceStructure(kind, cell)) return cell;
-    }
-    return null;
+    return anchor;
   }
 
   /**
@@ -1338,7 +1464,35 @@ export class Engine {
                 : this.chain.leadFire
                   ? this.fireMissionAim(rule.kind)
                   : this.densestAttackerCluster();
-        if (target) acted = this.castPowerAt(rule.kind, target, events);
+        if (target) acted = this.castPowerAt(rule.kind, target, events, rule.aimed ? this.aimFor(rule.kind, target) : undefined);
+      } else if (rule.action === 'upgrade') {
+        // The one of its kind nearest where the rule aims that has not had it.
+        const anchor = this.orderAnchor(rule.target);
+        const pick = anchor ? this.nearestField(rule.kind, anchor, (s) => s.level < 2) : null;
+        if (pick) acted = this.applyCommand({ tick: this.tick, type: 'upgradeStructure', cell: pick.origin }, events);
+      } else if (rule.action === 'sell' || rule.action === 'move') {
+        // The one of its kind the fight has gone on without longest, once it
+        // has gone on without it long enough to call it stranded. A move
+        // passes over one already in reach of where the rule aims: that move
+        // would be paid for and go nowhere.
+        const anchor = rule.action === 'move' ? this.orderAnchor(rule.target) : null;
+        const idle =
+          rule.action === 'sell'
+            ? this.idlestField(rule.kind)
+            : anchor
+              ? this.idlestField(
+                  rule.kind,
+                  (s) => Math.hypot(s.center.x - anchor.x, s.center.y - anchor.y) > (s.profile.weapon?.range ?? 1),
+                )
+              : null;
+        if (idle && rule.action === 'sell') {
+          acted = this.applyCommand({ tick: this.tick, type: 'sellStructure', cell: idle.origin }, events);
+        } else if (idle) {
+          const to = this.orderDeployCell(rule.target, rule.kind, (c) => this.isBuildable(c));
+          if (to !== null) {
+            acted = this.applyCommand({ tick: this.tick, type: 'moveStructure', cell: idle.origin, to }, events);
+          }
+        }
       } else {
         const cell = this.orderDeployCell(rule.target, rule.kind);
         if (cell !== null) {
@@ -1368,30 +1522,165 @@ export class Engine {
     }
   }
 
-  private schedulePower(kind: string, target: Vec2): void {
+  /** The field defence of a kind nearest a point that passes a test, lowest id on a tie. */
+  private nearestField(kind: string, at: Vec2, ok: (s: Structure) => boolean): Structure | null {
+    let best: Structure | null = null;
+    let bestD = Infinity;
+    for (const s of this.structures) {
+      if (s.profile.kind !== kind || !ok(s) || this.fieldAt(s.origin) !== s) continue;
+      const d = (s.center.x - at.x) ** 2 + (s.center.y - at.y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * The field defence of a kind the fight has gone on without longest, once
+   * the rest of the defence has been firing for `idleSeconds` since it last
+   * did. Measured on the fight's clock rather than the battle's, so a lull,
+   * or the walk in at the start of a wave, strands nobody.
+   */
+  private idlestField(kind: string, ok: (s: Structure) => boolean = () => true): Structure | null {
+    const idle = Math.round(FIELD_COMMAND.idleSeconds * TICKS_PER_SECOND);
+    let best: Structure | null = null;
+    for (const s of this.structures) {
+      if (s.profile.kind !== kind || this.fieldAt(s.origin) !== s || !ok(s)) continue;
+      const since = s.firedAt ?? 0;
+      if (this.lastShotTick - since < idle) continue;
+      if (!best || since < (best.firedAt ?? 0)) best = s;
+    }
+    return best;
+  }
+
+  /**
+   * Where the instruments' orders aim a cast (M35 Phase 2): the best a
+   * commander could lay it, on where the men on the ground will be halfway
+   * through it. The gun run goes along whichever of eight axes through the
+   * target covers the most of them, the board's width on a tie, which is the
+   * cast unaimed; the barrage at whichever width lands the most shell on
+   * them. Undefined leaves the cast unaimed.
+   */
+  private aimFor(kind: string, target: Vec2): Vec2 | undefined {
+    const def = this.catalog.powers[kind];
+    if (!def) return undefined;
+    const ticks =
+      def.type === 'strafe'
+        ? def.delayTicks + ((def.pulses - 1) * def.pulseSpacingTicks) / 2
+        : def.delayTicks + ((def.shells - 1) * def.shellSpacingTicks) / 2;
+    const men: Vec2[] = [];
+    for (const a of this.attackers) {
+      if (a.hp <= 0 || a.profile.air) continue;
+      // Led if it is on the move; a man fighting, or pinned, stays put.
+      const moving = a.state === 'moving' && a.pinnedUntil <= this.tick;
+      men.push(moving ? this.leadAim(a, ticks / TICKS_PER_SECOND) : { ...a.pos });
+    }
+    if (def.type === 'strafe') {
+      let best = 0;
+      let most = -1;
+      for (let k = 0; k < 8; k++) {
+        const ux = Math.cos((k * Math.PI) / 8);
+        const uy = Math.sin((k * Math.PI) / 8);
+        let count = 0;
+        for (const m of men) {
+          const dx = m.x - target.x;
+          const dy = m.y - target.y;
+          if (Math.abs(dx * ux + dy * uy) <= def.halfLength && Math.abs(dy * ux - dx * uy) <= def.halfWidth) count++;
+        }
+        if (count > most) {
+          most = count;
+          best = k;
+        }
+      }
+      if (best === 0) return undefined;
+      return { x: target.x + Math.cos((best * Math.PI) / 8), y: target.y + Math.sin((best * Math.PI) / 8) };
+    }
+    // The barrage: whichever width, from the tightest to the widest, lands
+    // the most shell on the men. A shell falls anywhere in the circle, so a
+    // man well inside it is hit by the share of it one splash covers, and one
+    // near its edge by less; its own width on a tie, which is the cast unaimed.
+    const splash = def.splashRadius;
+    const expected = (r: number): number => {
+      let sum = 0;
+      for (const m of men) {
+        const d = Math.hypot(m.x - target.x, m.y - target.y);
+        const inside = Math.min(1, Math.max(0, (r + splash - d) / (2 * splash)));
+        sum += Math.min(1, (splash * splash) / (r * r)) * inside;
+      }
+      return sum;
+    };
+    let width = def.scatter;
+    let most = expected(width);
+    for (const share of [FIELD_COMMAND.areaMin, 0.75, 1.5, FIELD_COMMAND.areaMax]) {
+      const got = expected(def.scatter * share);
+      if (got > most) {
+        most = got;
+        width = def.scatter * share;
+      }
+    }
+    return width === def.scatter ? undefined : { x: target.x + width, y: target.y };
+  }
+
+  private schedulePower(kind: string, target: Vec2, toward?: Vec2): void {
     const def = this.catalog.powers[kind]!;
     if (def.type === 'strafe') {
+      // Along the board's width, unless the cast is aimed (M35 Phase 2): then
+      // through the target along the line to the point it was aimed at. A run
+      // aimed along the width is the run it always was, to the last bit.
+      let ux = 1;
+      let uy = 0;
+      if (toward) {
+        const dx = toward.x - target.x;
+        const dy = toward.y - target.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 1e-9) {
+          ux = dx / len;
+          uy = dy / len;
+        }
+      }
       const x0 = target.x - def.halfLength;
       const segment = (def.halfLength * 2) / def.pulses;
       for (let i = 0; i < def.pulses; i++) {
+        const from = -def.halfLength + i * segment;
+        const to = from + segment;
         this.pendingImpacts.push({
           tick: this.tick + def.delayTicks + i * def.pulseSpacingTicks,
-          shape: {
-            kind: 'rect',
-            x0: x0 + i * segment,
-            x1: x0 + (i + 1) * segment,
-            y0: target.y - def.halfWidth,
-            y1: target.y + def.halfWidth,
-          },
+          shape:
+            uy === 0 && ux > 0
+              ? {
+                  kind: 'rect',
+                  x0: x0 + i * segment,
+                  x1: x0 + (i + 1) * segment,
+                  y0: target.y - def.halfWidth,
+                  y1: target.y + def.halfWidth,
+                }
+              : {
+                  kind: 'strip',
+                  x0: target.x + ux * from,
+                  y0: target.y + uy * from,
+                  x1: target.x + ux * to,
+                  y1: target.y + uy * to,
+                  w: def.halfWidth,
+                },
           damage: def.pulseDamage,
           damageType: def.damageType,
           source: kind,
         });
       }
     } else {
+      // Across its own spread, unless the cast is aimed: then across a circle
+      // as wide as the distance to the point it was aimed at, within limits.
+      const spread = toward
+        ? Math.min(
+            def.scatter * FIELD_COMMAND.areaMax,
+            Math.max(def.scatter * FIELD_COMMAND.areaMin, Math.hypot(toward.x - target.x, toward.y - target.y)),
+          )
+        : def.scatter;
       for (let i = 0; i < def.shells; i++) {
         const angle = this.rng() * Math.PI * 2;
-        const dist = Math.sqrt(this.rng()) * def.scatter;
+        const dist = Math.sqrt(this.rng()) * spread;
         this.pendingImpacts.push({
           tick: this.tick + def.delayTicks + i * def.shellSpacingTicks,
           shape: {
@@ -1488,10 +1777,6 @@ export class Engine {
   private applyPendingImpacts(events: SimEvent[]): void {
     if (this.pendingImpacts.length === 0) return;
     const remaining: PendingImpact[] = [];
-    const inShape = (shape: ImpactShape, x: number, y: number): boolean =>
-      shape.kind === 'circle'
-        ? (x - shape.x) ** 2 + (y - shape.y) ** 2 <= shape.r * shape.r
-        : x >= shape.x0 && x <= shape.x1 && y >= shape.y0 && y <= shape.y1;
 
     for (const impact of this.pendingImpacts) {
       if (impact.tick > this.tick) {
@@ -1533,8 +1818,17 @@ export class Engine {
       }
       if (shape.kind === 'circle') {
         events.push({ type: 'aoe', at: { x: shape.x, y: shape.y }, radius: shape.r });
-      } else {
+      } else if (shape.kind === 'rect') {
         events.push({ type: 'strafePulse', x0: shape.x0, x1: shape.x1, y: (shape.y0 + shape.y1) / 2 });
+      } else {
+        events.push({
+          type: 'strafePulse',
+          x0: shape.x0,
+          x1: shape.x1,
+          y: (shape.y0 + shape.y1) / 2,
+          y0: shape.y0,
+          y1: shape.y1,
+        });
       }
     }
     this.pendingImpacts.length = 0;
@@ -1545,7 +1839,7 @@ export class Engine {
     // Night (M35): the defence's guns see a share of their reach.
     const sight = this.fightingMods?.range ?? 1;
     for (const structure of this.structures) {
-      if (structure.hp <= 0 || structure.inert) continue;
+      if (structure.hp <= 0 || !this.live(structure)) continue;
       const { profile } = structure;
       // A hulk fires at its strength (M26); everything else at full.
       const mult = structure.hulk ? this.defWeaponMult * this.hulkRule!.strength : this.defWeaponMult;
@@ -1591,6 +1885,8 @@ export class Engine {
       );
       if (!target) continue;
       structure.weaponCooldown = 1 / weapon.shotsPerSecond;
+      structure.firedAt = this.tick;
+      this.lastShotTick = this.tick;
 
       if (weapon.flightSeconds !== undefined) {
         // Lobbed shell: lead the target by its current velocity.
@@ -1705,7 +2001,7 @@ export class Engine {
 
     for (const source of this.structures) {
       const aura = source.profile.aura;
-      if (!aura || source.hp <= 0 || source.inert) continue;
+      if (!aura || source.hp <= 0 || !this.live(source)) continue;
       const r2 = aura.radius * aura.radius;
       for (const target of this.structures) {
         if (target.id === source.id || target.hp <= 0 || target.inert || target.hulk) continue;
@@ -2076,7 +2372,7 @@ export class Engine {
   }
 
   private isDefenseStructure(s: Structure): boolean {
-    return structureClass(s.profile) === 'defense' && !s.inert;
+    return structureClass(s.profile) === 'defense' && this.live(s);
   }
 
   private isEconomyStructure(s: Structure): boolean {
@@ -2505,6 +2801,37 @@ export class Engine {
     return s.profile.weapon !== undefined && s.profile.cpCost === undefined && !s.inert && s.profile.kind !== 'cc';
   }
 
+  /** Able to act: built, and not being set up again after a move (M35 Phase 2). */
+  private live(s: Structure): boolean {
+    return !s.inert && (s.downUntil === undefined || s.downUntil <= this.tick);
+  }
+
+  /**
+   * The field defence at a cell that field command can touch (M35 Phase 2):
+   * one bought with CP in this battle's fighting, standing, in a wave or
+   * between waves. Never a town building, which the battle only borrows.
+   */
+  private fieldAt(cell: CellIndex): Structure | null {
+    if (this.phase !== 'combat' && this.phase !== 'prep') return null;
+    const s = this.structureAtCell.get(cell);
+    if (!s || s.hp <= 0 || s.hulk || s.cpPaid === undefined || s.profile.cpCost === undefined) return null;
+    return s;
+  }
+
+  private movePrice(s: Structure): number {
+    return Math.ceil(this.fieldPrice(s.profile.cpCost!) * FIELD_COMMAND.moveShare);
+  }
+
+  private upgradePrice(s: Structure): number {
+    return Math.ceil(this.fieldPrice(s.profile.cpCost!) * FIELD_COMMAND.upgradeShare);
+  }
+
+  /** Half of everything it cost, the upgrade too, by the share of its health left. */
+  private sellValue(s: Structure): number {
+    const paid = (s.cpPaid ?? 0) + (s.upgradePaid ?? 0);
+    return paid * FIELD_COMMAND.sellShare * Math.max(0, Math.min(1, s.hp / s.profile.maxHp));
+  }
+
   private dropStructure(structure: Structure): void {
     for (const cell of structure.cells) this.structureAtCell.delete(cell);
     const index = this.structures.indexOf(structure);
@@ -2541,6 +2868,26 @@ export class Engine {
 
   structureAt(cell: CellIndex): Structure | undefined {
     return this.structureAtCell.get(cell);
+  }
+
+  /**
+   * What the commander can do with the field defence at a cell, and at what
+   * price (M35 Phase 2), or null when there is none field command can touch.
+   */
+  fieldOptions(cell: CellIndex): FieldOptions | null {
+    const s = this.fieldAt(cell);
+    if (!s) return null;
+    return {
+      kind: s.profile.kind,
+      move: this.movePrice(s),
+      sell: this.sellValue(s),
+      upgrade: s.level >= 2 ? null : this.upgradePrice(s),
+    };
+  }
+
+  /** Is this field defence out of action while it is set up again after a move? */
+  isDown(s: Structure): boolean {
+    return s.downUntil !== undefined && s.downUntil > this.tick;
   }
 
   /** Open ground, not the spawn lane or a reserved cell, no attacker on it. */
@@ -2736,7 +3083,8 @@ export class Engine {
     }
     for (const st of this.structures) {
       parts.push(
-        `S${st.id}:${st.profile.kind}L${st.level}${st.inert ? 'i' : ''}${st.hulk ? 'h' : ''}@${st.origin}:${st.hp.toFixed(6)}:${st.weaponCooldown.toFixed(6)}`,
+        `S${st.id}:${st.profile.kind}L${st.level}${st.inert ? 'i' : ''}${st.hulk ? 'h' : ''}` +
+          `${st.downUntil !== undefined ? `d${st.downUntil}` : ''}@${st.origin}:${st.hp.toFixed(6)}:${st.weaponCooldown.toFixed(6)}`,
       );
     }
     for (const a of this.attackers) {

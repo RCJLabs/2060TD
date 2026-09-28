@@ -1606,3 +1606,28 @@ here with the change and its date.
   deploy where the read says the wave is going: it held 56% to the approach's
   61%. Reading is worth nothing to a commander who already reacts to the fight;
   what it is for is the prep, which no harness commander plays.
+- 2026-09-28 — **A field defence can be moved, sold or upgraded once in the
+  battle it was bought for, a power can be aimed, and a live siege's powers
+  run on one clock (M35 Phase 2, v1.75.0).** Settled with the commander: a
+  move costs half the defence's price and puts it out of action for three
+  seconds; a power in a battle the commander fights in person costs CP and a
+  cooldown and no charge, and the charges a town buys with fuel are for raids
+  (an offline probe still draws on them); an upgrade is once, for the price
+  again. The prices and the rule for what may be picked out live in the
+  engine, so the drawer and the balance tool's orders read the same ones. A
+  cast without a second point is the old cast to the last bit, so raids,
+  pre-planned fire and every code are unchanged. Measured on `--verbs`, the
+  contested band, each verb with the gun rule it works on: none of the three
+  decides battles as an order uses it (upgrading +0; moving a stranded gun +0
+  and −2; selling it −1, and −17 at the approach, where the fight comes back
+  to the gun it left). The upgrade's strength is the point where it is even
+  with a second gun for the same CP (`--upgrades`: ×1.25 health and ×1.2
+  damage −1, ×1.5 and ×1.4 +0, ×2 and ×1.7 +1, ×2.5 and ×2 +2), so it ships at
+  ×1.5 and ×1.4. Aimed as well as it can be laid, a strike on the assault at
+  the post hits a fifth to a third more men and holds about a point more.
+  Three things the measuring changed in the instrument: a stranded gun is
+  measured on the fight's clock, since on the battle's the walk in stranded
+  every gun; the field table runs at six actions a wave, since an uncapped gun
+  rule stalls a LATE siege with a tank that small arms cannot kill; and every
+  ladder orders row fights on the one clock, as the game's sieges do. The
+  presets are unchanged: none of the new actions earns a place in one.

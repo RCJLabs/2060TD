@@ -270,6 +270,9 @@ try {
       // And a Signals Station beside the post (M35), whose read of a wave says
       // when each group arrives and what it is going for.
       town.unlocked = [...new Set([...town.unlocked, 'radar'])];
+      // And the deployable gun, which the campaign's second mission unlocks,
+      // for the field command checks to put down, move, upgrade and sell.
+      town.unlocked = [...new Set([...town.unlocked, 'depmg'])];
       if (!town.structures.some((st) => st.kind === 'radar')) {
         town.structures.push({ id: town.nextId++, kind: 'radar', cell: 11 * 10 + 6, level: 1, wrecked: false });
       }
@@ -394,6 +397,164 @@ try {
     read.slice(0, 3).join(' | '),
   );
   await page.screenshot({ path: `screenshots/e2e-defend-intel${isMobile ? '-phone' : ''}.png` });
+
+  // --- field command (M35 Phase 2) -------------------------------------------
+  // The keys the rows show. Key 2 arms the gate as the wall piece it is, where
+  // it used to arm a structure the battle could not place, and 5 and 6 are bound.
+  const armedKey = (key) =>
+    page.evaluate((k) => window.lastline.buttons().some((b) => b.active && b.label.includes(`[${k}]`)), key);
+  await tap('DEPLOY', 600);
+  // A phone has no keys, and its drawer shows the rows for 5 and 6 only
+  // scrolled into view.
+  for (const key of isMobile ? [] : ['2', '5', '6']) {
+    await page.keyboard.press(key);
+    check(
+      `key ${key} arms the row it names`,
+      await until(() => armedKey(key), 3000),
+      (await labels()).filter((l) => l.includes(`[${key}]`)).join(' | '),
+    );
+    await page.keyboard.press('Escape');
+  }
+
+  const cellAt = (col, row) =>
+    page.evaluate(
+      ([c, r]) => {
+        const api = window.lastline;
+        const hit = api.cell(c, r);
+        return hit ? { x: hit.x / api.dpr, y: hit.y / api.dpr } : null;
+      },
+      [col, row],
+    );
+  const tapCell = async (col, row) => {
+    const at = await cellAt(col, row);
+    if (!at) return false;
+    await page.mouse.click(at.x, at.y);
+    await settle(1500);
+    return true;
+  };
+  const rowNamed = async (needle) =>
+    (await labels()).find((l) => l.toUpperCase().includes(needle.toUpperCase())) ?? '';
+  /**
+   * On a phone the siege's drawer rests two rows deep and its list scrolls
+   * under a thumb: drag it up from its top row until the row named shows.
+   * `tap` drags from the middle row, which in a drawer this shallow can be a
+   * row half under the tab bar, and a drag that starts on the bar is not one
+   * the list ever sees.
+   */
+  const revealRow = async (needle) => {
+    for (let i = 0; i < 5 && cdp && !(await rowNamed(needle)); i++) {
+      const top = await page.evaluate(() => {
+        const api = window.lastline;
+        const all = api.buttons();
+        const maxW = Math.max(...all.map((b) => b.w));
+        const r = all.filter((b) => b.w >= maxW - 2).sort((a, b) => a.y - b.y)[0];
+        return r ? { x: (r.x + r.w / 2) / api.dpr, y: (r.y + r.h / 2) / api.dpr, h: r.h / api.dpr } : null;
+      });
+      if (!top) break;
+      const to = top.y - top.h * 1.2;
+      await touch('touchStart', top.x, top.y);
+      for (let k = 1; k <= 10; k++) {
+        await touch('touchMove', top.x, top.y + ((to - top.y) * k) / 10);
+        await wait(16);
+      }
+      await touch('touchEnd', top.x, to);
+      await settle(1200);
+    }
+    // And until the list has stopped coasting: `settle` reads labels, which a
+    // scroll does not change, and a tap on a row still moving lands on the
+    // row that has taken its place.
+    let before = null;
+    for (let i = 0; i < 20; i++) {
+      const at = await find(needle);
+      if (at && before && Math.abs(at.y - before.y) < 0.5) return true;
+      before = at;
+      await wait(100);
+    }
+    return Boolean(await rowNamed(needle));
+  };
+
+  // In the fight: place a field gun, pick it out, upgrade it, move it, sell it.
+  // The first siege's coach holds the battle for a few seconds at a time, and
+  // a command waits for the battle to run, so each step looks again (and taps
+  // again) until what it did shows, rather than reading a wait as a failure.
+  await tapExact('START ASSAULT');
+  check('the assault opens on the field deploy rows', await until(() => copyHas('FIELD DEPLOY'), 8000), '');
+  await tap('[1]', 500);
+  await tapCell(2, 8);
+  await page.keyboard.press('Escape');
+  // The two a fight reaches for first; on a phone the sale is a scroll below them.
+  const verbs = isMobile ? ['MOVE [M]', 'UPGRADE [U]'] : ['MOVE [M]', 'UPGRADE [U]', 'SELL [X]'];
+  const picked = async () =>
+    (await labels()).filter((l) => verbs.some((v) => l.startsWith(v))).length === verbs.length;
+  check(
+    'a tap on a field gun with nothing in hand picks it out, with its three verbs',
+    await until(async () => (await picked()) || ((await tapCell(2, 8)) && false), 12000),
+    (await labels()).slice(0, 8).join(' | '),
+  );
+  // A row the CP cannot pay for yet takes no tap. The gun spent most of the
+  // opening CP, so the upgrade waits for more to come in, and the move after it.
+  const ready = (prefix) =>
+    until(
+      () => page.evaluate((p) => window.lastline.buttons().some((b) => b.label.startsWith(p) && b.enabled), prefix),
+      45000,
+    );
+  await ready('UPGRADE [U]');
+  await tap('UPGRADE [U]', 500);
+  check(
+    'UPGRADE upgrades it, and only once',
+    await until(async () => /UPGRADED/.test(await rowNamed('UPGRADE [U]')), 12000),
+    await rowNamed('UPGRADE [U]'),
+  );
+  await ready('MOVE [M]');
+  await tap('MOVE [M]', 500);
+  await tapCell(6, 8);
+  check(
+    'MOVE carries it to the next cell tapped, upgrade and all',
+    // A tap on the new cell picks it out only once it is standing there.
+    await until(async () => (await tapCell(6, 8)) && (await picked()) && (await copyHas('(UPGRADED)')), 12000),
+    (await copyLike('SELECTED')).slice(0, 60),
+  );
+  await page.screenshot({ path: `screenshots/e2e-defend-selected${isMobile ? '-phone' : ''}.png` });
+  await revealRow('SELL [X]');
+  await tap('SELL [X]', 500);
+  check(
+    'and SELL takes it off the board',
+    await until(async () => !(await rowNamed('SELL [X]')) && !((await tapCell(6, 8)) && (await picked())), 12000),
+    await rowNamed('SELL'),
+  );
+
+  // Aim the gun run down a column: press, drag, lift. The CP comes back
+  // quicker at four times the speed, and the speed goes back after. A wave
+  // that ends first takes the FIRE rows into its prep, so the step runs the
+  // prep on and tries again rather than reading that as a failure.
+  await page.keyboard.press('S');
+  await page.keyboard.press('S');
+  const aimRun = async () => {
+    const now = await labels();
+    if (now.some((l) => /^SKIP PREP$/i.test(l))) await tapExact('SKIP PREP');
+    if (!now.some((l) => l.includes('[Q]')) && now.includes('FIRE')) await tap('FIRE', 300);
+    const armable = await page.evaluate(() =>
+      window.lastline.buttons().some((b) => b.label.includes('[Q]') && b.enabled),
+    );
+    if (!armable) return false;
+    await tap('[Q]', 300);
+    const from = await cellAt(5, 4);
+    const to = await cellAt(5, 9);
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    // The strip it will rake, laid along the drag while the finger is down...
+    await page.screenshot({ path: `screenshots/e2e-defend-aim${isMobile ? '-phone' : ''}.png` });
+    await page.mouse.up();
+    // ...and the pass itself, down the column: at four times the speed its
+    // four bursts land a quarter of a second after the lift, and fade soon after.
+    await wait(250);
+    await page.screenshot({ path: `screenshots/e2e-defend-run${isMobile ? '-phone' : ''}.png` });
+    return until(async () => /\d+s/.test(await rowNamed('[Q]')), 4000);
+  };
+  check('a press and a drag aims the armed gun run and calls it', await until(aimRun, 120000), await rowNamed('[Q]'));
+  await page.keyboard.press('S');
+  await page.keyboard.press('S');
 
   // Run the clock up rather than sitting through nine levels of waves in real
   // time, then drive the phase button WHENEVER it appears. A rung has a prep
