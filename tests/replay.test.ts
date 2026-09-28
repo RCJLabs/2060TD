@@ -4,7 +4,7 @@ import { generateBase } from '../src/content/bases';
 import { RAID_CATALOG } from '../src/content/catalog';
 import { defenseCatalogFor } from '../src/content/factions';
 import { Engine } from '../src/sim/engine';
-import type { Catalog, SimConfig } from '../src/sim/types';
+import type { Catalog, SimConfig, WaveMods } from '../src/sim/types';
 import { deserialize, serialize } from '../src/meta/save';
 import {
   place,
@@ -333,6 +333,90 @@ describe('the specialisations a raid went out with (M28 Phase 4)', () => {
     expect(decodeReplay(swapped)).toEqual({ ok: false, error: 'content' });
     const twice = retouched(two, (body) => (body[ranger] = body[abrams]!));
     expect(decodeReplay(twice)).toEqual({ ok: false, error: 'content' });
+  });
+});
+
+describe('what the enemy did to its waves (M35 Phase 1)', () => {
+  const CATALOG = defenseCatalogFor('usa');
+  const code = (config: SimConfig): string =>
+    encodeReplay({ kind: 'probe', faction: 'usa', title: 'PROBE — LEVEL 4', won: true, config });
+  /** The probe fixture with its second wave carrying `mods` and its first none. */
+  const modded = (mods: WaveMods | undefined): SimConfig => {
+    const config = probeFixture();
+    const waves = config.siege!.waves;
+    waves[0] = { entries: waves[0]!.entries };
+    waves[1] = mods ? { entries: waves[1]!.entries, mods } : { entries: waves[1]!.entries };
+    return config;
+  };
+  /** A code's bytes with its body edited and its checksum made good again. */
+  const retouched = (bytes: number[], edit: (body: number[]) => void): string => {
+    const body = bytes.slice(0, -2);
+    edit(body);
+    const sum = checksum(body);
+    return toBase64Url([...body, sum & 0xff, (sum >> 8) & 0xff]);
+  };
+
+  it('are carried, and the probe re-fights with them', () => {
+    for (const mods of [{ range: 0.75 }, { jammed: true }, { speed: 1.3, hp: 0.8 }]) {
+      const config = modded(mods);
+      const back = decodeReplay(code(config));
+      if (!back.ok) throw new Error('decode failed');
+      expect(back.replay.config.siege!.waves[1]!.mods).toEqual(mods);
+      expect(back.replay.config.siege!.waves[0]!.mods).toBeUndefined();
+      expect(outcome(back.replay.config, CATALOG)).toBe(outcome(config, CATALOG));
+    }
+    // And a fast column is what makes it that battle.
+    expect(outcome(modded({ speed: 1.3, hp: 0.8 }), CATALOG)).not.toBe(outcome(modded(undefined), CATALOG));
+  });
+
+  it("re-fight the town's own composed probes exactly, whatever the seed drew", () => {
+    const town = unlockAll(yardTown(T0));
+    place(town, 'm2nest', idx(4, 10), T0 - 1_000_000);
+    tick(town, T0);
+    let modifiers = 0;
+    for (let seed = 1; seed <= 40 && modifiers < 3; seed++) {
+      const config = probeConfig(town, 9, seed * 7_919);
+      if (config.siege!.waves.every((w) => w.mods === undefined)) continue;
+      modifiers++;
+      const back = decodeReplay(code(config));
+      if (!back.ok) throw new Error('decode failed');
+      expect(back.replay.config.siege!.waves.map((w) => w.mods)).toEqual(config.siege!.waves.map((w) => w.mods));
+      expect(outcome(back.replay.config, CATALOG), `seed ${seed * 7_919}`).toBe(outcome(config, CATALOG));
+    }
+    expect(modifiers).toBe(3);
+  });
+
+  it('are nothing for a wave with none, so a code without them is the one it always was', () => {
+    const plain = code(modded(undefined));
+    expect(code(modded({}))).toBe(plain);
+    expect(code(modded({ range: 1, speed: 1 }))).toBe(plain);
+    expect(code(modded({ jammed: false }))).toBe(plain);
+    const back = decodeReplay(plain);
+    if (!back.ok) throw new Error('decode failed');
+    expect(back.replay.config.siege!.waves.every((w) => w.mods === undefined)).toBe(true);
+  });
+
+  it('are a newer code to a build from before them, and so is a modifier this build does not know', () => {
+    const plain = fromBase64Url(code(modded(undefined)))!;
+    const night = fromBase64Url(code(modded({ range: 0.75 })))!;
+    // The same battle up to its rules byte, which gains a bit no build before
+    // M35 knew: those read 1 to 64 and refuse the rest...
+    let flags = 0;
+    while (night[flags] === plain[flags]) flags++;
+    expect(night[flags]).toBe(plain[flags]! | 128);
+    // ...then the same rules, and the waves after them.
+    const end = plain.length - 2;
+    expect(night.slice(flags + 1, end)).toEqual(plain.slice(flags + 1, end));
+    // One modified wave, its place, a bit for each modifier, then night's reach in two bytes.
+    expect(night.length - 2 - end).toBe(1 + 1 + 1 + 2);
+    const mask = end + 2;
+    expect(night[mask]).toBe(1);
+    expect(night[mask - 1]).toBe(1);
+    expect(decodeReplay(retouched(night, (body) => (body[mask] = 1 | 16)))).toEqual({ ok: false, error: 'version' });
+    expect(decodeReplay(retouched(night, (body) => (body[mask] = 0)))).toEqual({ ok: false, error: 'content' });
+    // A wave the siege does not have, or none named at all.
+    expect(decodeReplay(retouched(night, (body) => (body[mask - 1] = 2)))).toEqual({ ok: false, error: 'content' });
+    expect(decodeReplay(retouched(night, (body) => (body[mask - 2] = 0)))).toEqual({ ok: false, error: 'content' });
   });
 });
 

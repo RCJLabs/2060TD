@@ -1123,6 +1123,51 @@ edge still counts on a button with nothing behind it to scroll. A thumb on a
 one-row button at the bottom of a phone rolls; a press discarded for that is a
 press the player is certain they made.
 
+### 5.5b The enemy's plan *(v1.74, M35)*
+
+Every ladder siege — a skirmish, a counterattack, a live defence, the last
+stand and an offline probe — is the enemy's own plan of its rung, drawn from the
+battle's seed, so the same seed is the same siege. The rung decides WHAT comes,
+wave for wave, exactly as the script the plan replaced; the plan decides the
+rest:
+
+- **Where.** Each wave takes an axis: one of the three lanes of the entry edge,
+  both flanks, or the script's broad front. Each body of men in it follows the
+  axis or, now and then, goes its own way down a single lane.
+- **What for.** The first wave goes for the post, as the script's probe did.
+  After that each wave has one purpose for all its men: the post half the time,
+  the guns or the economy.
+- **When.** Each body starts a little earlier or later than the script put it.
+- **What else.** From level 3, a wave after the first may carry one modifier,
+  priced so the wave weighs what the plain one did:
+
+  | modifier | what it does | what it costs the enemy |
+  |---|---|---|
+  | night | the defence's guns reach 90% | 80% kept |
+  | jammed net | no power is cast, by anyone, while it fights | 90% kept |
+  | fast column | +40% speed, −5% health | nothing |
+  | veterans | ×1.3 health and damage | 65% kept |
+
+  The price is paid by the kinds a wave fields three or more of. The one or two
+  heavies and rotors that decide a wave come as the script sends them, plain:
+  a share of two rounds to one or to two with nothing between.
+
+Measured against the script with nobody acting, the plan puts every row's first
+level under half within one of where it was (mean −0.07 levels) and costs a
+town about one building more from level 6 on. Campaign missions keep their
+written waves, which teach in order.
+
+**The read.** The INTEL tab shows the next wave through setup and every prep,
+and a prep opens on it: each body of men by lane, count and kind, and the
+wave's modifier. A Signals Station standing and working adds when each body
+arrives and what it is going for, so a wave that burns the station blinds the
+rest of the siege. While the defence gets ready, a bar along the entry strip
+marks each lane the wave will use, as heavy as the lane's share of it. A bar
+and not an arrow, because the strip's own arrows are part of the sheet.
+
+Replay codes carry each wave's modifiers behind the rules block's eighth bit;
+veterans need nothing new, since a wave entry's rank was always on the wire.
+
 ### 5.6 Raid planning & doctrines
 
 Each deployed squad gets: an entry point (revealed map-edge sectors), a launch delay (0–60s),

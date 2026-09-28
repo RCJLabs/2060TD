@@ -15,6 +15,7 @@ import type {
   SimConfig,
   WaveDef,
   WaveEntry,
+  WaveMods,
 } from '../sim/types';
 import { SPAWN_EDGES } from '../sim/types';
 import {
@@ -61,11 +62,41 @@ const FORMAT = 1;
 /**
  * The faction rules a code may name (M26): the refund, the hulk, the post's
  * HP, the elite field kit, the emplacements' HP and the field defences' HP
- * (Phase 3). And the attacking army's specialisations (M28 Phase 4), which
- * ride in the same block because a reader that cannot fight them has to
- * refuse the code the same way.
+ * (Phase 3). And the attacking army's specialisations (M28 Phase 4), and what
+ * the enemy did to its waves (M35 Phase 1), which ride in the same block
+ * because a reader that cannot fight them has to refuse the code the same way.
  */
-const SIGNATURE_BITS = 1 | 2 | 4 | 8 | 16 | 32 | 64;
+const SIGNATURE_BITS = 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128;
+
+/**
+ * A wave's modifiers (M35 Phase 1) as a code carries them: a bit for each,
+ * night's reach, the jammed net, a fast column's speed and its health, and the
+ * numbers to the thousandth. Veterans need nothing here: a wave entry's `vet`
+ * has been on the wire since M28.
+ */
+const WAVE_MOD_FIELDS = [
+  [1, 'range'],
+  [2, 'jammed'],
+  [4, 'speed'],
+  [8, 'hp'],
+] as const;
+const WAVE_MOD_BITS = 1 | 2 | 4 | 8;
+
+/** A wave's modifiers to the thousandth, identity dropped; undefined for none. */
+function canonicalWaveMods(mods: WaveMods | undefined): WaveMods | undefined {
+  if (!mods) return undefined;
+  const out: WaveMods = {};
+  const milli = (v: number | undefined): number | undefined =>
+    v === undefined || Math.round(v * 1000) === 1000 ? undefined : Math.round(v * 1000) / 1000;
+  const range = milli(mods.range);
+  const speed = milli(mods.speed);
+  const hp = milli(mods.hp);
+  if (range !== undefined) out.range = range;
+  if (mods.jammed) out.jammed = true;
+  if (speed !== undefined) out.speed = speed;
+  if (hp !== undefined) out.hp = hp;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 /** The coarsest board a code may name: a cell of eight physical units. */
 const MAX_CELL_SIZE = 8;
@@ -348,6 +379,13 @@ export function encodeReplay(replay: Replay): string {
   const fieldHp = c.mods?.defender?.fieldHp ?? 1;
   // The army's specialisations (M28 Phase 4). None is every code before them.
   const unitMods = canonicalUnitMods(c.unitMods);
+  // What the enemy did to its waves (M35 Phase 1), wave by wave. None is
+  // every code before it, and every raid.
+  const waveMods: [number, WaveMods][] = [];
+  (c.siege?.waves ?? []).forEach((w, i) => {
+    const mods = canonicalWaveMods(w.mods);
+    if (mods) waveMods.push([i, mods]);
+  });
   const signatureFlags =
     (refund > 0 ? 1 : 0) |
     (hulk ? 2 : 0) |
@@ -355,7 +393,8 @@ export function encodeReplay(replay: Replay): string {
     (elite ? 8 : 0) |
     (emplacementHp !== 1 ? 16 : 0) |
     (fieldHp !== 1 ? 32 : 0) |
-    (unitMods ? 64 : 0);
+    (unitMods ? 64 : 0) |
+    (waveMods.length > 0 ? 128 : 0);
   // A ghost raid's commanders (M27) go on after the rules, so they force the
   // rules block, written as a zero byte when there are none.
   if (replay.kind === 'ghost' && !replay.ghost) throw new Error('a ghost raid names its commanders');
@@ -436,6 +475,18 @@ export function encodeReplay(replay: Replay): string {
     // Each fitted kind by its name in the dictionary, then its numbers: a
     // replay re-fights what was fitted, whatever the table says later.
     if (unitMods) putUnitMods(body, unitMods, (kind) => writeVarint(body, dict.id(kind)));
+    // Each modified wave by its place, a bit for each modifier, its numbers.
+    if (waveMods.length > 0) {
+      writeVarint(body, waveMods.length);
+      for (const [index, m] of waveMods) {
+        writeVarint(body, index);
+        body.push(WAVE_MOD_FIELDS.reduce((mask, [bit, field]) => (m[field] !== undefined ? mask | bit : mask), 0));
+        for (const [, field] of WAVE_MOD_FIELDS) {
+          const value = m[field];
+          if (typeof value === 'number') putMilli(body, value);
+        }
+      }
+    }
   }
 
   // The commanders of a ghost raid (M27 Phase 1), last of all.
@@ -851,6 +902,34 @@ export function decodeReplay(raw: string): ReplayDecode {
       const unitMods = getUnitMods(cur, () => kindOf(readVarint(cur)));
       if (typeof unitMods === 'string') return bad(unitMods);
       config.unitMods = unitMods;
+    }
+    if (flags & 128) {
+      const waves = config.siege?.waves ?? [];
+      const count = readVarint(cur);
+      if (count === null) return bad('truncated');
+      if (count < 1 || count > waves.length) return bad('content');
+      let last = -1;
+      for (let i = 0; i < count; i++) {
+        const index = readVarint(cur);
+        const mask = body[cur.at++];
+        if (index === null || mask === undefined) return bad('truncated');
+        if ((mask & ~WAVE_MOD_BITS) !== 0) return bad('version');
+        if (mask === 0 || index <= last || index >= waves.length) return bad('content');
+        last = index;
+        const mods: WaveMods = {};
+        for (const [bit, field] of WAVE_MOD_FIELDS) {
+          if ((mask & bit) === 0) continue;
+          if (field === 'jammed') {
+            mods.jammed = true;
+            continue;
+          }
+          const value = getMilli(cur);
+          if (value === null) return bad('truncated');
+          if (value === 0 || value === 1) return bad('content');
+          mods[field] = value;
+        }
+        waves[index] = { ...waves[index]!, mods };
+      }
     }
     if (flags & (1 | 2 | 8)) config.signature = signature;
   }

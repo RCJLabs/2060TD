@@ -1,5 +1,6 @@
 import { clamp, type Container, type Graphics, type Image, type Scene, type Text } from './stage';
 import type { Attacker, Engine } from '../sim/engine';
+import { laneAlong } from '../sim/read';
 import type { CellIndex, DamageType, SimEvent, Vec2 } from '../sim/types';
 import { POST_HURT_SECONDS, StepWatch, threatStep } from '../content/score';
 import { audio } from './audio';
@@ -99,6 +100,11 @@ export interface DrawOptions {
   showPaths: boolean;
   ghost?: GhostPreview;
   powerPreview?: PowerPreview;
+  /**
+   * The next wave's share of its men down each lane of the entry edge, west
+   * to east (M35 Phase 1), marked on the edge while the defence readies.
+   */
+  lanes?: readonly number[];
 }
 
 /**
@@ -482,6 +488,7 @@ export class BattleRenderer {
     this.followThreat(this.scene.time.now / 1000);
     this.applyJolt();
     this.drawWalls(g);
+    if (opts.lanes) this.drawLanes(g, opts.lanes);
     if (opts.showPaths) this.drawPaths(g, alpha);
     this.drawStructures(g);
     this.drawAttackers(g, alpha);
@@ -550,6 +557,39 @@ export class BattleRenderer {
       } else if (s.hp < s.profile.maxHp) {
         this.hpBar(g, px, py - 16, 22, s.hp / s.profile.maxHp, false);
       }
+    }
+  }
+
+  /**
+   * Where the next wave comes in (M35 Phase 1): a bar along the inner line of
+   * the entry strip, over each lane the read names, as heavy as the lane's
+   * share of the wave. A bar and not an arrow, because the strip already
+   * carries arrows every third cell, baked into the sheet, and an arrow here
+   * would read as one of them. Hostile ink, like the men it announces.
+   */
+  private drawLanes(g: Graphics, lanes: readonly number[]): void {
+    const grid = this.engine.grid;
+    const c = this.cell;
+    const north = (this.engine.config.spawnEdge ?? 'west') === 'north';
+    const span = north ? grid.width : grid.height;
+    const inner = (this.engine.config.spawnLane + 1) * c;
+    g.fillStyle(COLORS.crimson, 1);
+    for (let lane = 0; lane < 3; lane++) {
+      const share = lanes[lane] ?? 0;
+      if (share <= 0) continue;
+      let first = -1;
+      let last = -1;
+      for (let along = 0; along < span; along++) {
+        if (laneAlong(along, span) !== lane) continue;
+        if (first < 0) first = along;
+        last = along;
+      }
+      if (first < 0) continue;
+      const from = first * c + c * 0.1;
+      const length = (last + 1 - first) * c - c * 0.2;
+      const thick = c * (0.1 + 0.25 * share);
+      if (north) g.fillRect(from, inner - thick / 2, length, thick);
+      else g.fillRect(inner - thick / 2, from, thick, length);
     }
   }
 

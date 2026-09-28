@@ -1,4 +1,4 @@
-import { buildAssault, assaultLoot, probeAssault, rescaleLadder } from '../content/assaults';
+import { buildAssault, assaultLoot, LADDER, probeAssault, rescaleLadder } from '../content/assaults';
 import {
   generateTerrain,
   TERRAIN_VERSION,
@@ -1814,9 +1814,16 @@ function battleConfig(
 
 type SiegeDefWithSupplies = ReturnType<typeof buildAssault>;
 
-/** Battle config for the next SKIRMISH ladder assault. */
+/**
+ * Battle config for the next SKIRMISH ladder assault.
+ *
+ * Every ladder siege is the enemy's own plan of its rung (M35 Phase 1), drawn
+ * from the battle's seed: the same seed is the same plan wherever a battle is
+ * built again, and a probe is the first two waves of the plan its live
+ * defence would have fought.
+ */
 export function siegeConfig(town: TownState, seed: number): SimConfig {
-  const def = buildAssault(town.assaultLevel, enemyRosterFor(town.faction));
+  const def = buildAssault(town.assaultLevel, enemyRosterFor(town.faction), LADDER, seed);
   return battleConfig(town, seed, { ...def, startingSupplies: Math.floor(town.supplies) });
 }
 
@@ -1847,6 +1854,8 @@ export function counterattackConfig(town: TownState, seed: number): SimConfig {
   const def = buildAssault(
     rescaleLadder(Math.max(2, town.frontline.tier + 1)),
     enemyRosterFor(town.faction),
+    LADDER,
+    seed,
   );
   return battleConfig(town, seed, {
     ...def,
@@ -1874,7 +1883,7 @@ export function counterattackConfig(town: TownState, seed: number): SimConfig {
  * the CP is what decides it.
  */
 export function defenseConfig(town: TownState, level: number, seed: number): SimConfig {
-  const def = buildAssault(level, enemyRosterFor(town.faction));
+  const def = buildAssault(level, enemyRosterFor(town.faction), LADDER, seed);
   return battleConfig(town, seed, {
     ...def,
     name: `DEFENCE — LEVEL ${level}`,
@@ -1926,7 +1935,7 @@ export function ghostBattleConfig(
  * when the commander leaves it to them.
  */
 export function lastStandConfig(town: TownState, level: number, seed: number): SimConfig {
-  const def = buildAssault(level, enemyRosterFor(town.faction));
+  const def = buildAssault(level, enemyRosterFor(town.faction), LADDER, seed);
   return battleConfig(town, seed, {
     ...def,
     name: `LAST STAND — LEVEL ${level}`,
@@ -1949,7 +1958,7 @@ export function defenseBounty(level: number): { supplies: number; fuel: number }
 
 export function probeConfig(town: TownState, level: number, seed: number): SimConfig {
   const config = battleConfig(town, seed, {
-    ...probeAssault(level, enemyRosterFor(town.faction)),
+    ...probeAssault(level, enemyRosterFor(town.faction), seed),
     startingSupplies: 0,
   });
   // Offline defenses fight under the commander's standing orders (v0.8);

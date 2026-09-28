@@ -4,6 +4,7 @@ import { findPath, type PathGrid } from './pathfinding';
 import { createRng, rollRange, type Rng } from './rng';
 import { COMBAT_NONE, combatModelFor, type CombatModel } from './combat';
 import { chainModelFor, type ChainModel, type ChainStage } from './killchain';
+import { laneAlong, waveModifierOf } from './read';
 import { cellSizeOf, scaleCatalog, scaleChain } from './scale';
 import {
   FLAT_TERRAIN,
@@ -33,6 +34,9 @@ import type {
   Weapon,
   Vec2,
   WaveEntry,
+  WaveMods,
+  WaveRead,
+  WaveReadGroup,
 } from './types';
 
 export const TICKS_PER_SECOND = 20;
@@ -340,6 +344,8 @@ export class Engine {
   private queue: Command[] = [];
   private spawnCursor = 0;
   private readonly waves: WaveEntry[][];
+  /** What the enemy did to each wave (M35), index for index with `waves`. */
+  private readonly waveMods: (WaveMods | undefined)[];
   private readonly structureAtCell = new Map<CellIndex, Structure>();
   private readonly pendingImpacts: PendingImpact[] = [];
   private readonly powerCooldowns = new Map<string, number>();
@@ -452,6 +458,7 @@ export class Engine {
     this.waves = (config.siege?.waves ?? []).map((w) =>
       [...w.entries].sort((a, b) => a.atTick - b.atTick),
     );
+    this.waveMods = (config.siege?.waves ?? []).map((w) => w.mods);
     this.chargesLeft = config.powerCharges
       ? new Map(Object.entries(config.powerCharges))
       : null;
@@ -683,6 +690,7 @@ export class Engine {
       this.cp = Math.min(siege.cpCap, this.cp + siege.cpPerSecond * DT);
 
       const wave = this.waves[this.waveIndex]!;
+      const mods = this.waveMods[this.waveIndex];
       while (this.spawnCursor < wave.length && wave[this.spawnCursor]!.atTick <= this.waveTick) {
         const entry = wave[this.spawnCursor++]!;
         this.spawnAttackerAt(
@@ -692,6 +700,7 @@ export class Engine {
           entry.doctrine,
           entry.squad ?? -1,
           entry.vet ?? 1,
+          mods,
         );
       }
       this.waveTick++;
@@ -798,6 +807,7 @@ export class Engine {
     doctrine: Doctrine = 'assault',
     squad = -1,
     vet = 1,
+    mods?: WaveMods,
   ): boolean {
     const profile = this.fitted.get(kind) ?? this.catalog.attackers[kind];
     if (!profile || !this.grid.inBounds(cell)) return false;
@@ -805,9 +815,10 @@ export class Engine {
     if (spawnCell === null) return false;
     cell = spawnCell;
     const jitter = profile.speedJitter;
-    const speed = profile.speed * (1 + rollRange(this.rng, -jitter, jitter));
+    // A fast column (M35) is quicker and lighter than the same men walking.
+    const speed = profile.speed * (1 + rollRange(this.rng, -jitter, jitter)) * (mods?.speed ?? 1);
     const pos = this.grid.centerOf(cell);
-    const maxHp = profile.maxHp * this.atkHpMult * vet;
+    const maxHp = profile.maxHp * this.atkHpMult * vet * (mods?.hp ?? 1);
     const attacker: Attacker = {
       id: this.nextId++,
       profile,
@@ -1169,6 +1180,8 @@ export class Engine {
       // Beside the assault on the post, where it is standing.
       const knot = this.densestAttacker(true, this.assaultRing);
       anchor = knot ? { ...knot.pos } : null;
+    } else if (target === 'headed') {
+      anchor = this.headedAnchor();
     } else {
       // ccApproach: between the post and the fight, `AIM_REACH` out.
       const threat = this.densestAttackerCluster();
@@ -1199,6 +1212,50 @@ export class Engine {
       if (this.canPlaceStructure(kind, cell)) return cell;
     }
     return null;
+  }
+
+  /**
+   * Where the wave now fighting is headed (M35 Phase 1), from what the read of
+   * it says rather than from whatever is nearest: the target its purpose
+   * picks — the gun or the depot nearest where it comes in, or the post — and
+   * `aimReach` out from that toward its entry. For the balance tool's
+   * commander who plans from the read; no preset aims here.
+   */
+  private headedAnchor(): Vec2 | null {
+    const wave = this.waves[this.waveIndex];
+    if (!wave || wave.length === 0) return null;
+    let x = 0;
+    let y = 0;
+    const purposes = new Map<Doctrine, number>();
+    for (const e of wave) {
+      const at = this.grid.centerOf(this.entryCell(e));
+      x += at.x;
+      y += at.y;
+      const doctrine = e.doctrine ?? 'assault';
+      purposes.set(doctrine, (purposes.get(doctrine) ?? 0) + 1);
+    }
+    const entry = { x: x / wave.length, y: y / wave.length };
+    let purpose: Doctrine = 'assault';
+    for (const [doctrine, n] of purposes) if (n > (purposes.get(purpose) ?? 0)) purpose = doctrine;
+    let goal: Structure = this.cc;
+    if (purpose !== 'assault') {
+      const wants =
+        purpose === 'hunt' ? (s: Structure) => this.isDefenseStructure(s) : (s: Structure) => this.isEconomyStructure(s);
+      let best = Infinity;
+      for (const s of this.structures) {
+        if (s.hp <= 0 || !wants(s)) continue;
+        const d = (s.center.x - entry.x) ** 2 + (s.center.y - entry.y) ** 2;
+        if (d < best) {
+          best = d;
+          goal = s;
+        }
+      }
+    }
+    const dx = entry.x - goal.center.x;
+    const dy = entry.y - goal.center.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 0.001) return { ...goal.center };
+    return { x: goal.center.x + (dx / len) * this.aimReach, y: goal.center.y + (dy / len) * this.aimReach };
   }
 
   /**
@@ -1485,6 +1542,8 @@ export class Engine {
   }
 
   private updateStructures(events: SimEvent[]): void {
+    // Night (M35): the defence's guns see a share of their reach.
+    const sight = this.fightingMods?.range ?? 1;
     for (const structure of this.structures) {
       if (structure.hp <= 0 || structure.inert) continue;
       const { profile } = structure;
@@ -1526,7 +1585,7 @@ export class Engine {
 
       const target = this.acquireAttacker(
         structure.center,
-        weapon.range,
+        weapon.range * sight,
         weapon.minRange ?? 0,
         layerOf(weapon),
       );
@@ -2566,6 +2625,8 @@ export class Engine {
     if (this.chargesLeft && (this.chargesLeft.get(kind) ?? 0) <= 0) return false;
     if (this.phase === 'sandbox') return (this.powerCooldowns.get(kind) ?? 0) <= 0;
     if (this.phase !== 'combat') return false;
+    // A jammed net (M35): nothing gets through while this wave fights.
+    if (this.fightingMods?.jammed) return false;
     if ((this.powerCooldowns.get(kind) ?? 0) > 0) return false;
     // Attacker-side ordnance is charge-budgeted, never CP-budgeted.
     return this.attackerSide || this.cp >= this.cpPrice(def.cpCost);
@@ -2598,6 +2659,55 @@ export class Engine {
       counts.set(entry.kind, (counts.get(entry.kind) ?? 0) + 1);
     }
     return [...counts.entries()].map(([kind, count]) => ({ kind, count }));
+  }
+
+  /**
+   * The read of the next wave to fight (M35 Phase 1), during setup and prep,
+   * else null: each body of men by kind, lane and purpose, when the first of
+   * them arrives, and what the enemy has done to the wave. The scene decides
+   * how much of it the defence may see.
+   */
+  nextWaveRead(): WaveRead | null {
+    if (!this.siege) return null;
+    const index = this.phase === 'setup' ? 0 : this.phase === 'prep' ? this.waveIndex + 1 : -1;
+    if (index < 0 || index >= this.waves.length) return null;
+    const entries = this.waves[index]!;
+    const groups = new Map<string, WaveReadGroup>();
+    for (const entry of entries) {
+      const lane = this.laneOf(entry);
+      const doctrine = entry.doctrine ?? 'assault';
+      const key = `${entry.kind}|${lane}|${doctrine}`;
+      const group = groups.get(key);
+      if (group) group.count++;
+      else {
+        groups.set(key, {
+          kind: entry.kind,
+          count: 1,
+          lane,
+          arrives: Math.floor(entry.atTick / TICKS_PER_SECOND),
+          doctrine,
+        });
+      }
+    }
+    const mods = this.waveMods[index];
+    return {
+      index,
+      modifier: waveModifierOf({ entries, mods }),
+      ...(mods ? { mods: { ...mods } } : {}),
+      groups: [...groups.values()],
+    };
+  }
+
+  /** What the enemy did to the wave now fighting (M35), or null between waves. */
+  get fightingMods(): WaveMods | null {
+    return this.phase === 'combat' ? (this.waveMods[this.waveIndex] ?? null) : null;
+  }
+
+  /** Which third of the entry edge an entry comes in on, west to east. */
+  private laneOf(entry: WaveEntry): 0 | 1 | 2 {
+    const north = (this.config.spawnEdge ?? 'west') === 'north';
+    const cell = this.entryCell(entry);
+    return north ? laneAlong(this.grid.xOf(cell), this.grid.width) : laneAlong(this.grid.yOf(cell), this.grid.height);
   }
 
   get waveCount(): number {

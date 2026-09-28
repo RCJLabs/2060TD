@@ -1579,3 +1579,30 @@ here with the change and its date.
   as a format 2, so a build from before either refuses them as newer codes
   rather than re-fighting a different battle, and codes without them are
   unchanged.
+- 2026-09-28 — **Ladder sieges are the enemy's plan of their rung, drawn from
+  the battle's seed, and the INTEL tab reads each wave before it comes (M35
+  Phase 1, v1.74.0).** Settled with the commander: every commander sees what is
+  coming and down which lane, and a working Signals Station adds when each body
+  of men arrives and what it is going for; all four modifiers (night, a jammed
+  net, a fast column, veterans), each priced; skirmishes, counterattacks, live
+  defences, the last stand and offline probes, with the campaign's written
+  waves left alone; and the script's units, wave for wave. Measured first, each
+  part of a plan alone against the script with nobody acting: lanes, purposes
+  and timing moved held by 0 to 2 points, and the modifiers at their first
+  guess by −5, night alone by −24 when it was on every wave. Thinning kind by
+  kind was too lumpy to price with: a pair of tanks rounds to one at 70% kept
+  and to two at 75%, which put veterans thirteen points easy at one and three
+  hard at the other. So a modifier's price is paid only by the kinds a wave
+  fields three or more of. Priced on every wave after the first, each lands
+  within a point of the plain wave: night reaches 90% for 80% kept, the jammed
+  net keeps 90%, a fast column is +40% speed and −5% health, and veterans are
+  ×1.3 for 65% kept. With those, every row's first level under half is within
+  one of the script's (mean −0.07 levels), and a siege costs about one building
+  more from level 6 on. A composed wave's men are listed in the order a replay
+  code reads them back, so men arriving on the same tick spawn in the same
+  order in a replay, and codes carry wave modifiers behind the rules block's
+  eighth bit. The balance tool fights the composition in every table
+  (`--classic` for the script). Its commander was given a `headed` target, to
+  deploy where the read says the wave is going: it held 56% to the approach's
+  61%. Reading is worth nothing to a commander who already reacts to the fight;
+  what it is for is the prep, which no harness commander plays.

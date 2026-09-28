@@ -223,8 +223,54 @@ export interface WaveEntry {
   vet?: number;
 }
 
+/**
+ * What the enemy has done to one wave (M35 Phase 1), as the sim reads it
+ * while the wave fights. A wave of veterans needs nothing here: an entry's
+ * `vet` already scales its health and damage.
+ */
+export interface WaveMods {
+  /** Night: the share of their range the defence's guns reach. */
+  range?: number;
+  /** A jammed net: no power can be cast, by anyone, while the wave fights. */
+  jammed?: boolean;
+  /** A fast column: its men's speed... */
+  speed?: number;
+  /** ...and their health. */
+  hp?: number;
+}
+
 export interface WaveDef {
   entries: WaveEntry[];
+  /** Absent on every wave before M35, and on any the enemy left plain. */
+  mods?: WaveMods;
+}
+
+/**
+ * The four things the enemy can do to a wave (M35 Phase 1), by name: what the
+ * read shows. See `waveModifierOf` for how a wave's name is found.
+ */
+export type WaveModifier = 'night' | 'jammed' | 'fast' | 'veterans';
+
+/** One body of men in the read of a wave: one kind, down one lane, for one purpose. */
+export interface WaveReadGroup {
+  kind: string;
+  count: number;
+  /** West, centre or east third of the entry edge, as the defender faces it. */
+  lane: 0 | 1 | 2;
+  /** Seconds into the wave when the first of them arrives. */
+  arrives: number;
+  doctrine: Doctrine;
+}
+
+/** What the defence knows of the next wave before it comes (M35 Phase 1). */
+export interface WaveRead {
+  /** Which wave, from 0. */
+  index: number;
+  modifier?: WaveModifier | undefined;
+  /** The numbers behind it, as the sim will read them. */
+  mods?: WaveMods | undefined;
+  /** In the order they arrive. */
+  groups: WaveReadGroup[];
 }
 
 export interface SiegeDef {
@@ -358,8 +404,10 @@ export interface AutoPowerRule {
 /** Where a standing order acts: the latest wall breach, the command post
  * approach, the densest attacker cluster, or (M23 Phase 5) the assault on
  * the post itself — the densest knot inside the ring the kill chain is fought
- * in, and only while there is one. */
-export type StandingOrderTarget = 'breach' | 'ccApproach' | 'densest' | 'assault';
+ * in, and only while there is one. And (M35 Phase 1) where the wave is headed,
+ * as the read of it says: the balance tool's commander who plans from the
+ * read, which no preset uses. */
+export type StandingOrderTarget = 'breach' | 'ccApproach' | 'densest' | 'assault' | 'headed';
 
 export interface StandingOrderRule {
   /** Act only while CP is at or above this reserve. */

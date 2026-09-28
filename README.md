@@ -20,7 +20,29 @@ Full design in [`docs/GDD.md`](docs/GDD.md) · milestones in [`docs/ROADMAP.md`]
 · the ten locked decisions in [`docs/DECISIONS.md`](docs/DECISIONS.md)
 · third-party licences in [`LICENSES.md`](LICENSES.md).
 
-## Current state — v1.73.0: specialisations
+## Current state — v1.74.0: the enemy has a plan
+
+**Every siege on the ladder is now the enemy's own plan.** The same units come in the same waves
+as before; what changes is where they come in, what they go for, when they arrive, and whether a
+wave brings a trick.
+
+- **Where and what for:** a wave may come down the left, the middle or the right, or down both
+  flanks at once, and after the first it goes for your command post, your guns or your economy.
+- **Four tricks, from level 3:** night (your guns reach less far), a jammed net (no powers that
+  wave), a fast column (quicker, a little lighter) and veterans (fewer and tougher). A wave with
+  a trick sends fewer men to make up for it.
+- **Read it coming:** the INTEL tab shows the next wave during setup and every prep, and opens
+  when a prep starts: what is coming, down which lane, and its trick. The board's top edge marks
+  the lanes. A working Signals Station adds when each group arrives and what it is after, and a
+  wave that destroys the station takes that away for the rest of the siege.
+- **Everywhere you defend on the ladder:** skirmishes, counterattacks, live defences, the last
+  stand and offline probes. Campaign missions keep their written waves.
+- **Same difficulty:** measured against the old waves, every rung holds within a level of where
+  it did, and a siege costs about one building more from level 6 on.
+
+Replay codes carry the tricks, so a build from before this one refuses the codes that have them.
+
+## v1.73.0: specialisations
 
 **Every unit you train can now be specialised.** Each unit has a choice of two, and your war
 picks one for good: heavier armour or a bigger gun for tanks, light vehicles, riflemen and

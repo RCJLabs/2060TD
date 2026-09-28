@@ -6,7 +6,9 @@ import { bonusMet, missionSiege, type MissionDef } from '../../content/campaign'
 import { campaignFor, defenseCatalogFor, flavorFor, type FactionId } from '../../content/factions';
 import { HOLD_THE_LINE } from '../../content/missions';
 import { outcomeFromEngine, TOWN_GRID } from '../../meta/town';
+import { readLines, signalsOf, type Signals } from '../../meta/intel';
 import { DT, Engine } from '../../sim/engine';
+import { waveModifierOf } from '../../sim/read';
 import type { SimConfig, SimEvent } from '../../sim/types';
 import { audio } from '../audio';
 import { BattleRenderer, type GhostPreview, type PowerPreview } from '../BattleRenderer';
@@ -82,6 +84,9 @@ export class SiegeScene extends Scene {
   private speedMult = 1;
   private tool: Tool | null = null;
   private showPaths = true;
+  /** The next wave's lanes for the board's edge, and the wave they are for. */
+  private lanes: readonly number[] | undefined;
+  private lanesKey = '';
   private demoMode = false;
   private lastPaintedCell = -1;
   private overlayShown = false;
@@ -419,8 +424,9 @@ export class SiegeScene extends Scene {
 
   override update(_time: number, deltaMs: number): void {
     const held = this.runCoach(deltaMs / 1000);
+    const lanes = this.laneShares();
     if (this.paused || held) {
-      this.battle.draw(1, deltaMs / 1000, { showPaths: this.showPaths });
+      this.battle.draw(1, deltaMs / 1000, { showPaths: this.showPaths, ...(lanes ? { lanes } : {}) });
       this.updateHud();
       return;
     }
@@ -435,10 +441,12 @@ export class SiegeScene extends Scene {
     if (this.accumulator > DT) this.accumulator = 0;
 
     const alpha = clamp(this.accumulator / DT, 0, 1);
+    const ahead = this.laneShares();
     this.battle.draw(alpha, deltaMs / 1000, {
       showPaths: this.showPaths,
       ghost: this.currentGhost(),
       powerPreview: this.currentPowerPreview(),
+      ...(ahead ? { lanes: ahead } : {}),
     });
     this.updateHud();
   }
@@ -487,11 +495,15 @@ export class SiegeScene extends Scene {
       switch (event.type) {
         case 'assaultStarted':
         case 'waveStarted':
-        case 'prepStarted':
           // Phase flips retarget the deploy tab (fortify ⇄ field deploy).
           this.setTool(null);
           // setTab on the *current* tab collapses the drawer, so only move.
           if (this.panel.tab !== 'deploy') this.panel.setTab('deploy');
+          break;
+        case 'prepStarted':
+          // A prep opens on the read of the wave it is getting ready for (M35).
+          this.setTool(null);
+          if (this.panel.tab !== 'intel') this.panel.setTab('intel');
           break;
         case 'victory':
           this.showOverlay(true);
@@ -503,6 +515,37 @@ export class SiegeScene extends Scene {
           break;
       }
     }
+  }
+
+  /** Whether the read is whole: a Signals Station standing, lost, or never here. */
+  private signals(): Signals {
+    const hadStation = this.engine.config.layout?.structures.some((s) => s.kind === 'radar') ?? false;
+    return signalsOf(this.engine.structures, hadStation);
+  }
+
+  /**
+   * The next wave's share down each lane, for the board's edge (M35), or
+   * nothing while a wave fights. Kept per wave: the read does not change
+   * while it is being waited for.
+   */
+  private laneShares(): readonly number[] | undefined {
+    const e = this.engine;
+    const key = e.phase === 'setup' || e.phase === 'prep' ? `${e.phase}:${e.waveIndex}` : '';
+    if (key !== this.lanesKey) {
+      this.lanesKey = key;
+      this.lanes = undefined;
+      const read = key ? e.nextWaveRead() : null;
+      if (read) {
+        const shares = [0, 0, 0];
+        let total = 0;
+        for (const g of read.groups) {
+          shares[g.lane]! += g.count;
+          total += g.count;
+        }
+        if (total > 0) this.lanes = shares.map((n) => n / total);
+      }
+    }
+    return this.lanes;
   }
 
   private currentGhost(): GhostPreview | undefined {
@@ -641,7 +684,8 @@ export class SiegeScene extends Scene {
           rows.push({
             id: kind,
             label: `${(def.short ?? def.name).toUpperCase()} [${kind === 'a10' ? 'Q' : 'W'}]`,
-            sub: cd > 0 ? `${Math.ceil(cd)}s${stock}` : `${def.cpCost} CP${stock}`,
+            // A jammed net (M35) is why a power cannot go, and the row says so.
+            sub: e.fightingMods?.jammed ? `JAMMED${stock}` : cd > 0 ? `${Math.ceil(cd)}s${stock}` : `${def.cpCost} CP${stock}`,
             enabled: cd <= 0 && e.canCastPower(kind),
             active: this.tool?.type === 'power' && this.tool.kind === kind,
             onTap: () => this.armPower(kind),
@@ -655,17 +699,21 @@ export class SiegeScene extends Scene {
       }
       case 'intel': {
         const rows: PanelRow[] = [];
-        const preview = e.nextWavePreview();
-        if (preview) {
-          const waveNumber = e.phase === 'setup' ? 1 : e.waveIndex + 2;
-          rows.push({ id: 'h', label: `INBOUND — WAVE ${waveNumber}/${e.waveCount}`, heading: true });
-          for (const { kind, count } of preview) {
-            rows.push({
-              id: `p${kind}`,
-              label: `  ${count}× ${e.catalog.attackers[kind]?.name.toUpperCase() ?? kind}`,
-              heading: true,
-            });
+        // The read of the next wave (M35): what, down which lane, and with a
+        // Signals Station standing, when and for what.
+        const read = e.nextWaveRead();
+        if (read) {
+          rows.push({ id: 'h', label: `INBOUND — WAVE ${read.index + 1}/${e.waveCount}`, heading: true });
+          for (const line of readLines(read, this.signals(), (kind) => e.catalog.attackers[kind]?.name ?? kind)) {
+            rows.push({ id: `r${line.id}`, label: `  ${line.text}`, heading: true });
           }
+        }
+        // And while a wave fights, what the enemy did to it.
+        const fighting = e.fightingMods;
+        const modifier = fighting ? waveModifierOf({ entries: [], mods: fighting }) : undefined;
+        if (modifier) {
+          const [line] = readLines({ index: e.waveIndex, modifier, mods: fighting!, groups: [] }, 'up', (k) => k);
+          if (line) rows.push({ id: 'hm', label: `THIS WAVE — ${line.text}`, heading: true });
         }
         const integrity = Math.max(0, Math.round((e.cc.hp / e.cc.profile.maxHp) * 100));
         // Under the kill chain the integrity number STOPS for reasons the bar

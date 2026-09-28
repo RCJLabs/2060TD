@@ -8085,26 +8085,163 @@ and when it happens it is a script the commander has already seen, decided by
 one wave, fought with five kinds of gun placed once and two powers pointed at a
 spot.
 
-- [ ] **Phase 1 — the enemy has a plan.** Assaults composed, not scripted. Each
-      wave draws a threat from the vocabulary the six waves already are (swarm,
-      breach, push, suppression, armour, air), an entry of one lane or two, and
-      a doctrine the raid side already has (assault, hunt, raze), from the
-      siege's seed and its level. A replay re-fights it, and no two sieges at a
-      level are the same battle. Wave modifiers a commander reads and answers:
-      smoke, a night wave, a jammed net with no powers, a fast column. Between
-      waves the INTEL tab says what is coming, where and when, and the drawer
-      stays on it while the prep runs.
+- [x] **Phase 1 — the enemy has a plan.** Assaults composed, not scripted, and
+      a read of each wave before it comes.
 
-      *Measured* on `--siege` at the contested levels, with a target of no
-      single wave doing 80% of the loss in most rows and well over half the
-      waves live. The ladder's holds at each level stay within a few points of
-      today's, so no war in progress gets harder overnight. Two compositions
-      fought on the same seeds against the same town read as different battles
-      on the heat map.
+      **The plan, from the survey.** *(Written against v1.73.0.)* Six config
+      builders call `buildAssault`: the skirmish, the counterattack, the
+      live-defence offer, the last stand, the offline probe (its first two
+      waves) and the ghost battle (for its economy only). Each already has a
+      battle seed in hand, and none passes it on, so every siege at a level is
+      one list of entries. A wave is nothing but entries, and an entry already
+      carries everything a plan needs except its modifiers: a column on the
+      entry line, a doctrine (the engine sends `hunt` at the guns and `raze` at
+      the economy, and falls back on the post), a rank (`vet`) and an arrival
+      tick. Replay codes carry all four for every entry, so probes, which are
+      filed as codes, need no new format for any of it. The campaign builds its
+      sieges elsewhere (`missionSiege`).
 
-      *Forks to settle*: how much the commander sees (all of it, a partial read
-      the Signals Station sharpens, or intel paid for); whether campaign
-      missions keep their written waves; which modifiers.
+      Measured first, on today's six waves with nothing but their lanes and
+      doctrines changed (three armies, the three reference bases, levels 6, 8
+      and 10, six seeds, 162 sieges a row):
+
+      | today's waves, changed | held | integrity | buildings lost |
+      |---|---|---|---|
+      | not at all | 46% | 0.34 | 3.4 |
+      | every wave down one flank | 44% | 0.33 | 3.4 |
+      | every wave after the first hunting guns | 44% | 0.32 | 5.7 |
+      | lanes and doctrines drawn per wave | 45% | 0.33 | 4.2 |
+
+      So a wave's lane and purpose barely move whether a town holds with nobody
+      acting, and that is what lets composed sieges keep the ladder's
+      difficulty; what they change is what a siege costs and what answers it.
+      The reference bases carry no economy, so a raze wave shows nothing on
+      them; on a town it wrecks depots, and a held siege's wrecks stay in the
+      town to be repaired.
+
+      Settled with the commander:
+
+      - **The full read if a Signals Station stands.** Every commander sees what
+        is coming and down which lane. With a working Signals Station they also
+        see when each group arrives and what it is going for, so a wave that
+        burns the station blinds the rest of the siege.
+
+      - **All four modifiers**: night (the defence's guns see less far), a
+        jammed net (no powers while the wave fights), a fast column (quicker and
+        lighter) and veterans (fewer and tougher), each priced so the wave
+        weighs what it did.
+
+      - **Ladder sieges and probes**: skirmishes, counterattacks, live-defence
+        offers, the last stand and offline probes. Campaign missions keep their
+        written waves, which teach in order.
+
+      - **Different shape, same weight.** A composition fields today's units for
+        its level, wave for wave; what changes is what each wave threatens,
+        where and when. No war in progress gets harder.
+
+      The build:
+
+      - **The composer** (`content/assaults.ts`). `buildAssault` takes the
+        battle's seed, and with it plans each wave of today's script: an axis
+        (one of three lanes, both flanks, or the script's broad front) that
+        each group follows or now and then leaves for a lane of its own, one
+        purpose for the whole wave after the first wave's probe (the post, the
+        guns or the economy), a start for each group a little either side of
+        the script's, and from level 3 at most one modifier. The same units
+        arrive in the same waves, so the teaching order M23 kept is kept.
+        Without a seed it builds today's script, which the tests and the
+        balance tool keep as the baseline.
+
+      - **Modifiers in the sim.** A wave may carry `mods`: a range for the
+        defence's guns (night), `jammed` (the engine refuses a cast, from the
+        commander or from standing orders, while the wave fights), and a speed
+        and health for its units (a fast column). Veterans need nothing new: an
+        entry's `vet` already scales its health and damage. Each modified wave
+        is thinned by a measured amount so it holds as the plain wave does
+        (none of the four needed thickening).
+
+      - **Codes.** Wave modifiers ride in the rules block behind its eighth bit,
+        which a build from before refuses as a newer code; a code without them
+        is byte for byte what it was.
+
+      - **The read.** The engine's wave preview becomes a read of the next wave:
+        its groups, their lane, their arrival, their purpose and the wave's
+        modifier. The INTEL tab shows it through setup and every prep, and opens
+        when a prep begins; timings and purposes need a Signals Station standing
+        on the board. The lane is marked on the board's edge while the prep
+        runs.
+
+      - **Measured.** A new `--compose` table: today's script against composed
+        sieges at every level, for held (the parity: rows within a few points,
+        and no row's first level under half moved by more than one), buildings
+        lost, waves that cost the town anything, each modifier's price, and what
+        reading is worth. For the last, the instruments' commander deploys
+        either on the post's approach, as today, or where the wave is headed (a
+        standing-order target the balance tool uses, the guns or the economy the
+        wave is going for), and the second should hold more.
+
+      - **Tests**: the composer is a pure function of level, roster and seed,
+        keeps every wave's units, and draws different plans on different seeds;
+        no modifier before level 3 and never two on one wave; the sim's night,
+        jam and fast column; codes carrying wave modifiers and old codes
+        unchanged; the read with and without a Signals Station. The defence
+        harness reads a wave's lane and purpose in the INTEL tab of a siege on a
+        pinned clock.
+
+      **Shipped in v1.74.0**, as planned but for three things the measuring
+      found.
+
+      - **The modifiers were the whole difference, and their first prices were
+        wrong.** Each part of a plan alone against the script, nobody acting
+        (eight seeds, every army, the three bases, levels 4 to 12): lanes +0,
+        purposes +1, timing +2, modifiers −5. At the first guess, night on
+        every wave after the first cost a town 24 points of held and veterans 8.
+
+      - **A share of two is one or two.** Thinned kind by kind, veterans kept
+        at 75% held three points harder than the script, and at 70% thirteen
+        points easier, because at 70% a wave's pair of tanks or rotors rounds
+        to one. So a modifier's price is paid by the kinds a wave fields three
+        or more of, and the one or two heavies that decide a wave come as the
+        script sends them. Priced on every wave after the first of the script
+        (ten seeds, levels 6 to 11), each lands within a point of the plain
+        wave: night reaches 90% for 80% kept, the jammed net keeps 90% (under
+        orders that cast as well), a fast column is +40% speed and −5% health,
+        and veterans are ×1.3 for 65% kept.
+
+      - **Reading does not tell the harness where to deploy.** The spender
+        deploying where the read says the wave is headed held 56% against 61%
+        on the post's approach (ten seeds, levels 4, 8, 12 and 16). Sieges are
+        decided at the post, and a commander who reacts to the fight has seen
+        by then what the read says. What the read is for is the prep, which no
+        harness commander plays. `headed` stays in the tool as the measure.
+
+      Parity, at ten seeds over every level to 16, the plan against the script:
+
+      | level | held, script | held, plan | buildings lost, script | plan |
+      |---|---|---|---|---|
+      | 3 | 81% | 89% | 1.8 | 1.7 |
+      | 6 | 67% | 63% | 2.9 | 3.9 |
+      | 8 | 49% | 39% | 3.3 | 4.2 |
+      | 10 | 31% | 32% | 3.8 | 4.7 |
+      | 12 | 11% | 17% | 4.0 | 4.6 |
+
+      Every row's first level under half is within one of the script's (mean
+      −0.07 levels; five rows move by one, as many up as down). What a plan
+      changes is what a siege costs: about one building more from level 6 on,
+      the guns a hunting wave takes. The share of waves that cost the town
+      anything barely moves (47% either way at level 8).
+
+      The download grew 8 kB (3 kB gzipped), and a frame of play costs what it
+      did (`scripts/perf.mjs`, v1.73 against v1.74).
+
+      The balance snapshot is v1.62's and was not regenerated. Every defence
+      table in the tool fights the composition now, as the game does, and
+      `--classic` fights the script; the parity table above is the measure of
+      what that moved.
+
+      Not in Phase 1: field defences that move and powers that aim (Phase 2), a
+      siege kept as a replay (Phase 3), composed campaign missions, and anything
+      for a probe to take (M36).
 
 - [ ] **Phase 2 — field command.** The verbs M23 promised. A field defence can
       be picked up and moved, for CP and a moment out of action; sold back for

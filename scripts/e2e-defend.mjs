@@ -259,10 +259,19 @@ try {
       // the post, either side of its column. A save on any other board would
       // put these somewhere else entirely, so say so rather than drift.
       if (town.gridVersion !== 2) throw new Error(`a grid-version-2 save, not ${town.gridVersion}`);
+      // On ground whose yard is dry (the unit tests' CLEAR_YARD_SEED: x 1..7,
+      // y 1..13), so nothing below lands in a river on some runs and not others.
+      town.terrainSeed = 2;
       for (const cell of [10 * 10 + 3, 10 * 10 + 5]) {
         if (!town.structures.some((st) => st.cell === cell)) {
           town.structures.push({ id: town.nextId++, kind: 'm2nest', cell, level: 1, wrecked: false });
         }
+      }
+      // And a Signals Station beside the post (M35), whose read of a wave says
+      // when each group arrives and what it is going for.
+      town.unlocked = [...new Set([...town.unlocked, 'radar'])];
+      if (!town.structures.some((st) => st.kind === 'radar')) {
+        town.structures.push({ id: town.nextId++, kind: 'radar', cell: 11 * 10 + 6, level: 1, wrecked: false });
       }
       const now = Date.now();
       town.lastSeen = now;
@@ -368,15 +377,38 @@ try {
   check('and there is CP to fight it with', /CP\s+[1-9]/.test(cpLine), cpLine.slice(0, 40));
   await page.screenshot({ path: `screenshots/e2e-defend-battle${isMobile ? '-phone' : ''}.png` });
 
+  // The read of the wave (M35 Phase 1). The offer's seed is the enemy's plan,
+  // so the read is the same on every run: what is coming and down which lane,
+  // and with the station standing, when each group arrives and what for. The
+  // first wave always goes for the post.
+  await tap('INTEL', 700);
+  const read = (await copy()).filter((t) => t.includes('×'));
+  check(
+    'INTEL reads the first wave: what is coming, and down which lane',
+    (await copyHas('INBOUND — WAVE 1/6')) && read.some((t) => /^(WEST|CENTRE|EAST)\s+\d+× /.test(t)),
+    read.slice(0, 3).join(' | '),
+  );
+  check(
+    'and with a Signals Station standing, when and for what',
+    read.some((t) => /\+\d+s → THE POST/.test(t)),
+    read.slice(0, 3).join(' | '),
+  );
+  await page.screenshot({ path: `screenshots/e2e-defend-intel${isMobile ? '-phone' : ''}.png` });
+
   // Run the clock up rather than sitting through nine levels of waves in real
   // time, then drive the phase button WHENEVER it appears. A rung has a prep
   // phase between every wave, so "tap it a few times and then wait" waits in
   // the wrong place — the lever comes back.
   for (let i = 0; i < 3; i++) await page.keyboard.press('S'); // speed x8
+  // A prep opens on the read of the wave it is getting ready for.
+  let prepRead = null;
   const finished = await until(async () => {
     const now = await labels();
     if (now.some((l) => /RETURN TO BASE/i.test(l))) return true;
     const phase = now.find((l) => /^(START ASSAULT|SKIP PREP)$/i.test(l));
+    if (phase && /SKIP PREP/i.test(phase) && prepRead === null) {
+      prepRead = (await copy()).find((t) => /INBOUND — WAVE [2-6]\//.test(t)) ?? '';
+    }
     if (phase) {
       // Between waves the board is clear of the result card and shows what
       // the battle has left on it so far (M31 Phase 2).
@@ -386,6 +418,8 @@ try {
     return false;
   }, 300000);
   check('the battle runs to a finish', finished, (await labels()).slice(0, 4).join(' | '));
+  // A breach in wave one would end it before any prep; this town holds that long.
+  check('and each prep opened on the read of the next wave', !!prepRead, prepRead ?? 'no prep seen');
   // The impact vocabulary (M31): the battle played its hits and its kills
   // through the one table, and every impact it played made its sound.
   const impacts = await page.evaluate(() => window.lastline.impacts());

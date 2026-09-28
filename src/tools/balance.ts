@@ -12,7 +12,17 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import { buildAssault, LADDER, probeAssault, type Ladder } from '../content/assaults';
+import {
+  buildAssault,
+  LADDER,
+  modifyWave,
+  probeAssault,
+  MODIFIERS,
+  type ComposeParts,
+  type Ladder,
+  type ModifierDef,
+  type WaveModifier,
+} from '../content/assaults';
 import { missionSiege, type Difficulty, type MissionDef } from '../content/campaign';
 import { GARRISON_GUN_TRADE } from '../content/garrison';
 import { DAMAGE_MULT } from '../content/damage';
@@ -135,6 +145,7 @@ import type {
   Catalog,
   DamageType,
   Doctrine,
+  WaveDef,
 } from '../sim/types';
 
 const SEEDS = 20;
@@ -649,6 +660,13 @@ type SiegePolicy = StandingOrders | null;
  */
 let FIGHT: 'ladder' | 'probe' = 'ladder';
 
+/**
+ * Every ladder siege is composed from its seed since M35 Phase 1, as the game
+ * composes it, and every table here fights the composition. `--classic` fights
+ * the script instead: any table, measured on the waves it was tuned on.
+ */
+const CLASSIC = process.argv.includes('--classic');
+
 function siegeTrace(
   faction: FactionId,
   base: ReferenceBase,
@@ -680,7 +698,7 @@ function siegeTraceOn(
   const config = defenseConfigFor(faction, base, level, seed, {
     orders: policy ?? undefined,
     chainVersion,
-    ...(FIGHT === 'probe' ? { siege: probeAssault(level, enemyRosterFor(faction)) } : {}),
+    ...(FIGHT === 'probe' ? { siege: probeAssault(level, enemyRosterFor(faction), CLASSIC ? undefined : seed) } : {}),
     ...(extra
       ? {
           rules: {
@@ -1687,6 +1705,338 @@ function siegeTable(levels = [2, 3, 4], seeds = 8): string {
   return lines.join('\n');
 }
 
+/** One siege for `--compose`: how it ended, and what each wave cost the town. */
+interface ComposedRun {
+  held: boolean;
+  integrity: number;
+  /** The town's own buildings lost, the post aside. */
+  lost: number;
+  waves: number;
+  /** Waves that took anything: the post's health or one of the town's buildings. */
+  costly: number;
+}
+
+function composedRun(
+  faction: FactionId,
+  base: ReferenceBase,
+  level: number,
+  seed: number,
+  siege: SiegeDef,
+  orders?: StandingOrders,
+): ComposedRun {
+  const config = defenseConfigFor(faction, base, level, seed, { siege, ...(orders ? { orders } : {}) });
+  const engine = layDefense(config, defenseCatalogFor(faction));
+  engine.enqueue({ tick: 0, type: 'startAssault' });
+  const standing = ownStructures(engine);
+  let hp = engine.cc.hp;
+  let alive = standing;
+  let seen = 0;
+  let waves = 0;
+  let costly = 0;
+  const close = (): void => {
+    const nowAlive = ownStructures(engine);
+    waves++;
+    if (engine.cc.hp < hp - 0.5 || nowAlive < alive) costly++;
+    hp = engine.cc.hp;
+    alive = nowAlive;
+  };
+  while (engine.phase !== 'victory' && engine.phase !== 'defeat' && engine.tick < 40_000) {
+    engine.step();
+    if (engine.phase === 'prep' && engine.waveIndex >= seen) {
+      seen = engine.waveIndex + 1;
+      close();
+    }
+  }
+  if (engine.phase === 'victory' || engine.phase === 'defeat') close();
+  return {
+    held: engine.phase === 'victory',
+    integrity: Math.max(0, engine.cc.hp / engine.cc.profile.maxHp),
+    lost: standing - ownStructures(engine),
+    waves,
+    costly,
+  };
+}
+
+/**
+ * Composed sieges against the script (M35 Phase 1), on the three reference
+ * bases with nobody acting, for every army.
+ *
+ * PARITY is the promise the commander was made: a composition fields the
+ * script's units, wave for wave, so it should hold about as often. Each row
+ * (army and base) is read for the first level it holds under half, as the
+ * ladder was tuned on; a composition that moved that by more than a level
+ * has changed the ladder, not the siege. What it should change is what a
+ * siege costs, and whether a wave costs anything at all.
+ *
+ * MODIFIERS prices each one on the script's own waves: every wave after the
+ * first carries it, which a composed siege never does, so a mispriced
+ * modifier cannot hide in the one wave in three that draws one.
+ *
+ * READING is what the read is worth to a commander who acts on it: the
+ * harness's spender deploying on the post's approach, as every table here
+ * does, against the same spender deploying where the wave is headed.
+ */
+/**
+ * The modifiers `--compose` prices: the shipped ones, or candidates named by
+ * `--price`, as `night:range=0.85,count=0.8;veterans:vet=1.2,count=0.8` — a
+ * modifier, then the numbers its candidate carries in place of the shipped.
+ */
+function pricedModifiers(): [string, WaveModifier, ModifierDef][] {
+  const at = process.argv.indexOf('--price');
+  const shipped = (Object.keys(MODIFIERS) as WaveModifier[]).map(
+    (m): [string, WaveModifier, ModifierDef] => [m, m, MODIFIERS[m]],
+  );
+  if (at < 0) return shipped;
+  return (process.argv[at + 1] ?? '').split(';').map((spec): [string, WaveModifier, ModifierDef] => {
+    const [modifier, fields = ''] = spec.split(':') as [WaveModifier, string?];
+    if (!(modifier in MODIFIERS)) throw new Error(`--price: no modifier ${modifier}`);
+    const def: ModifierDef = { ...MODIFIERS[modifier], ...(MODIFIERS[modifier].mods ? { mods: { ...MODIFIERS[modifier].mods } } : {}) };
+    for (const pair of fields.split(',').filter(Boolean)) {
+      const [field, raw] = pair.split('=') as [string, string];
+      const value = Number(raw);
+      if (field === 'count') def.count = value;
+      else if (field === 'vet') def.vet = value;
+      else if (field === 'range' || field === 'speed' || field === 'hp') def.mods = { ...def.mods, [field]: value };
+      else throw new Error(`--price: no field ${field}`);
+    }
+    return [spec.length > 24 ? spec.slice(0, 24) : spec, modifier, def];
+  });
+}
+
+function composeTable(seeds: number, levels: number[], parts: ReadonlySet<string>): string {
+  const priced = pricedModifiers();
+  const bases = referenceBases();
+  const lines: string[] = [];
+  type Cell = { classic: ComposedRun[]; composed: ComposedRun[] };
+  const cells = new Map<string, Cell>();
+  const key = (f: FactionId, b: number, l: number): string => `${f}|${b}|${l}`;
+  const top = Math.max(...levels);
+  // Parity sweeps every level to the top one; the rest need the script only
+  // at the levels they read.
+  const sweep = parts.has('parity') ? Array.from({ length: top }, (_, i) => i + 1) : levels;
+  for (const faction of FACTION_IDS) {
+    const roster = enemyRosterFor(faction);
+    bases.forEach((base, b) => {
+      for (const level of sweep) {
+        const cell: Cell = { classic: [], composed: [] };
+        for (let i = 0; i < seeds; i++) {
+          const seed = seedOf(level, base.ccLevel, i);
+          cell.classic.push(composedRun(faction, base, level, seed, buildAssault(level, roster)));
+          if (parts.has('parity')) {
+            cell.composed.push(composedRun(faction, base, level, seed, buildAssault(level, roster, LADDER, seed)));
+          }
+        }
+        cells.set(key(faction, b, level), cell);
+      }
+    });
+  }
+  const share = (runs: ComposedRun[], f: (r: ComposedRun) => boolean): number =>
+    runs.length === 0 ? 0 : runs.filter(f).length / runs.length;
+  const mean = (runs: ComposedRun[], f: (r: ComposedRun) => number): number =>
+    runs.length === 0 ? 0 : runs.reduce((sum, r) => sum + f(r), 0) / runs.length;
+  const costlyShare = (runs: ComposedRun[]): number => {
+    const waves = runs.reduce((sum, r) => sum + r.waves, 0);
+    return waves === 0 ? 0 : runs.reduce((sum, r) => sum + r.costly, 0) / waves;
+  };
+  const pct = (x: number): string => `${Math.round(x * 100)}%`;
+
+  if (parts.has('parity')) parityOf();
+  if (parts.has('parts')) partsOf();
+  if (parts.has('modifiers')) modifiersOf();
+  if (parts.has('reading')) readingOf();
+  return lines.join('\n');
+
+  function partsOf(): void {
+  lines.push(`PARTS — each part of the plan alone against the script: held at each level, then over them all`);
+  lines.push(`PART      | ${levels.map((l) => pad(`L${l}`, 4)).join(' ')} | HELD  Δ   | INTEGRITY | LOST`);
+  lines.push(`----------+-${levels.map(() => '----').join('-')}-+-----------+-----------+-----`);
+  const none: ComposeParts = { lanes: false, doctrines: false, timing: false, modifiers: false };
+  const scriptAt = (level: number): ComposedRun[] =>
+    FACTION_IDS.flatMap((faction) => bases.flatMap((_, b) => cells.get(key(faction, b, level))!.classic));
+  const row = (name: string, runsAt: (level: number) => ComposedRun[], against?: number): number => {
+    const all = levels.flatMap(runsAt);
+    const held = share(all, (r) => r.held);
+    lines.push(
+      `${name.padEnd(9)} | ${levels.map((l) => pad(pct(share(runsAt(l), (r) => r.held)), 4)).join(' ')} | ` +
+        `${pad(pct(held), 4)} ${pad(against === undefined ? '' : `${held >= against ? '+' : ''}${Math.round((held - against) * 100)}`, 4)} | ` +
+        `${pad(mean(all, (r) => r.integrity).toFixed(2), 9)} | ${pad(mean(all, (r) => r.lost).toFixed(1), 4)}`,
+    );
+    return held;
+  };
+  const scriptHeld = row('script', scriptAt);
+  const variants: [string, ComposeParts][] = [
+    ['lanes', { ...none, lanes: true }],
+    ['doctrines', { ...none, doctrines: true }],
+    ['timing', { ...none, timing: true }],
+    ['modifiers', { ...none, modifiers: true }],
+    ['all', { lanes: true, doctrines: true, timing: true, modifiers: true }],
+  ];
+  for (const [name, only] of variants) {
+    const byLevel = new Map<number, ComposedRun[]>();
+    for (const level of levels) {
+      const runs: ComposedRun[] = [];
+      for (const faction of FACTION_IDS) {
+        const roster = enemyRosterFor(faction);
+        for (const base of bases) {
+          for (let i = 0; i < seeds; i++) {
+            const seed = seedOf(level, base.ccLevel, i);
+            runs.push(composedRun(faction, base, level, seed, buildAssault(level, roster, LADDER, seed, only)));
+          }
+        }
+      }
+      byLevel.set(level, runs);
+    }
+    row(name, (level) => byLevel.get(level)!, scriptHeld);
+  }
+  lines.push('');
+  }
+
+  function parityOf(): void {
+  lines.push(`PARITY — the script against the enemy's plan of it, nobody acting (${seeds} seeds, every army, the three reference bases)`);
+  lines.push('LVL | HELD script  plan   Δ   | INTEGRITY script plan | BUILDINGS LOST script plan | COSTLY WAVES script plan');
+  lines.push('----+--------------------------+-----------------------+----------------------------+--------------------------');
+  for (const level of sweep) {
+    const classic: ComposedRun[] = [];
+    const composed: ComposedRun[] = [];
+    for (const faction of FACTION_IDS) {
+      bases.forEach((_, b) => {
+        const cell = cells.get(key(faction, b, level))!;
+        classic.push(...cell.classic);
+        composed.push(...cell.composed);
+      });
+    }
+    const a = share(classic, (r) => r.held);
+    const c = share(composed, (r) => r.held);
+    lines.push(
+      `${pad(level, 3)} | ${pad(pct(a), 11)} ${pad(pct(c), 5)} ${pad(`${c >= a ? '+' : ''}${Math.round((c - a) * 100)}`, 4)} | ` +
+        `${pad(mean(classic, (r) => r.integrity).toFixed(2), 16)} ${pad(mean(composed, (r) => r.integrity).toFixed(2), 4)} | ` +
+        `${pad(mean(classic, (r) => r.lost).toFixed(1), 21)} ${pad(mean(composed, (r) => r.lost).toFixed(1), 4)} | ` +
+        `${pad(pct(costlyShare(classic)), 19)} ${pad(pct(costlyShare(composed)), 4)}`,
+    );
+  }
+
+  lines.push('');
+  lines.push('FIRST LEVEL UNDER HALF — each row, the script and the plan (— held past the last level measured)');
+  lines.push('ARMY     | BASE        | SCRIPT | PLAN | MOVED');
+  lines.push('---------+-------------+--------+------+------');
+  let moved = 0;
+  let worst = 0;
+  let rows = 0;
+  for (const faction of FACTION_IDS) {
+    bases.forEach((base, b) => {
+      const first = (side: keyof Cell): number | null => {
+        for (const level of sweep) if (share(cells.get(key(faction, b, level))![side], (r) => r.held) < 0.5) return level;
+        return null;
+      };
+      const script = first('classic');
+      const plan = first('composed');
+      const shift = script !== null && plan !== null ? plan - script : null;
+      rows++;
+      if (shift !== null) {
+        moved += shift;
+        worst = Math.max(worst, Math.abs(shift));
+      }
+      lines.push(
+        `${pad(faction.toUpperCase(), 8)} | ${pad(base.name, 11)} | ${pad(script ?? '—', 6)} | ${pad(plan ?? '—', 4)} | ` +
+          `${pad(shift === null ? '?' : `${shift > 0 ? '+' : ''}${shift}`, 5)}`,
+      );
+    });
+  }
+  lines.push(`MEAN SHIFT ${(moved / rows).toFixed(2)} levels, WORST ${worst}.`);
+  lines.push('');
+  }
+
+  function modifiersOf(): void {
+  const width = Math.max(8, ...priced.map(([name]) => name.length));
+  lines.push(`MODIFIERS — each on every wave after the first of the script: held at each level, then over them all`);
+  lines.push(`${'MODIFIER'.padEnd(width)} | ${levels.map((l) => pad(`L${l}`, 4)).join(' ')} | HELD  Δ   | INTEGRITY`);
+  lines.push(`${'-'.repeat(width)}-+-${levels.map(() => '----').join('-')}-+-----------+----------`);
+  const row = (name: string, runsAt: (level: number) => ComposedRun[], against?: number): number => {
+    const all = levels.flatMap(runsAt);
+    const held = share(all, (r) => r.held);
+    lines.push(
+      `${name.padEnd(width)} | ${levels.map((l) => pad(pct(share(runsAt(l), (r) => r.held)), 4)).join(' ')} | ` +
+        `${pad(pct(held), 4)} ${pad(against === undefined ? '' : `${held >= against ? '+' : ''}${Math.round((held - against) * 100)}`, 4)} | ` +
+        `${pad(mean(all, (r) => r.integrity).toFixed(2), 9)}`,
+    );
+    return held;
+  };
+  const scriptAt = (level: number): ComposedRun[] =>
+    FACTION_IDS.flatMap((faction) => bases.flatMap((_, b) => cells.get(key(faction, b, level))!.classic));
+  const scriptHeld = row('none', scriptAt);
+  for (const [name, modifier, def] of priced) {
+    const byLevel = new Map<number, ComposedRun[]>();
+    for (const level of levels) {
+      const runs: ComposedRun[] = [];
+      for (const faction of FACTION_IDS) {
+        const classic = buildAssault(level, enemyRosterFor(faction));
+        const siege = { ...classic, waves: classic.waves.map((w, i) => (i === 0 ? w : modifyWave(w, modifier, def))) };
+        for (const base of bases) {
+          for (let i = 0; i < seeds; i++) runs.push(composedRun(faction, base, level, seedOf(level, base.ccLevel, i), siege));
+        }
+      }
+      byLevel.set(level, runs);
+    }
+    row(name, (level) => byLevel.get(level)!, scriptHeld);
+  }
+  // A jammed net takes the powers, and nobody above casts one. So it is
+  // priced again under the orders that do: COUNTERBATTERY, with the magazine
+  // every orders row in this file fights with.
+  const jams = priced.filter(([, modifier]) => modifier === 'jammed');
+  if (jams.length > 0) {
+    const orders = standingOrdersFor('counterbattery')!;
+    const fought = (wave: (w: WaveDef, i: number) => WaveDef): Map<number, ComposedRun[]> => {
+      const byLevel = new Map<number, ComposedRun[]>();
+      for (const level of levels) {
+        const runs: ComposedRun[] = [];
+        for (const faction of FACTION_IDS) {
+          const classic = buildAssault(level, enemyRosterFor(faction));
+          const siege = { ...classic, waves: classic.waves.map(wave) };
+          for (const base of bases) {
+            for (let i = 0; i < seeds; i++) {
+              runs.push(composedRun(faction, base, level, seedOf(level, base.ccLevel, i), siege, orders));
+            }
+          }
+        }
+        byLevel.set(level, runs);
+      }
+      return byLevel;
+    };
+    const plain = fought((w) => w);
+    const against = row('none, CB', (level) => plain.get(level)!);
+    for (const [name, modifier, def] of jams) {
+      const jammed = fought((w, i) => (i === 0 ? w : modifyWave(w, modifier, def)));
+      row(`${name}, CB`, (level) => jammed.get(level)!, against);
+    }
+  }
+  lines.push('');
+  }
+
+  function readingOf(): void {
+  lines.push(`READING — the plan fought by the spender, on the post's approach or where the wave is headed (levels ${levels.join(', ')})`);
+  lines.push('DEPLOYS  | HELD   | INTEGRITY | BUILDINGS LOST');
+  lines.push('---------+--------+-----------+---------------');
+  for (const target of ['ccApproach', 'headed'] as const) {
+    const runs: ComposedRun[] = [];
+    for (const faction of FACTION_IDS) {
+      const roster = enemyRosterFor(faction);
+      bases.forEach((base) => {
+        for (const level of levels) {
+          for (let i = 0; i < seeds; i++) {
+            const seed = seedOf(level, base.ccLevel, i);
+            runs.push(composedRun(faction, base, level, seed, buildAssault(level, roster, LADDER, seed), spender(target)));
+          }
+        }
+      });
+    }
+    lines.push(
+      `${pad(target === 'headed' ? 'HEADED' : 'APPROACH', 8)} | ${pad(pct(share(runs, (r) => r.held)), 6)} | ` +
+        `${pad(mean(runs, (r) => r.integrity).toFixed(2), 9)} | ${pad(mean(runs, (r) => r.lost).toFixed(1), 14)}`,
+    );
+  }
+  }
+}
+
 interface DefenseRow {
   stage: string;
   holdPct: number[];
@@ -1744,7 +2094,9 @@ function defenseConfigFor(
         ? { defender: mods }
         : {};
   const { board } = base;
-  const authored = opts.siege ?? buildAssault(level, enemyRosterFor(faction), ladder);
+  // The enemy's plan of the rung from the battle's seed, as `siegeConfig`
+  // draws it (M35 Phase 1), or the script under `--classic`.
+  const authored = opts.siege ?? buildAssault(level, enemyRosterFor(faction), ladder, CLASSIC ? undefined : seed);
   const reserved = (opts.tunnels ?? []).map(
     (t) => onBoard(t.row, board.cellSize) * board.width + onBoard(t.col, board.cellSize),
   );
@@ -6526,6 +6878,20 @@ function main(): void {
   if (process.argv.includes('--chain')) {
     const arg = process.argv[process.argv.indexOf('--chain') + 1];
     console.log(chainTable(/^\d+$/.test(arg ?? '') ? Number(arg) : CHAIN_NONE));
+    console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
+    return;
+  }
+  if (process.argv.includes('--compose')) {
+    // `--compose [seeds] [--levels 4,6,8,10]`: parity is swept from level 1 to
+    // the highest level named; the modifiers and reading are read at each.
+    const arg = process.argv[process.argv.indexOf('--compose') + 1];
+    const seeds = /^\d+$/.test(arg ?? '') ? Number(arg) : 6;
+    const at = process.argv.indexOf('--levels');
+    const levels = at > 0 ? (process.argv[at + 1] ?? '').split(',').map(Number).filter((n) => n > 0) : [4, 6, 8, 10];
+    // `--only modifiers,reading` for a tuning loop that does not need parity.
+    const only = process.argv.indexOf('--only');
+    const parts = new Set(only > 0 ? (process.argv[only + 1] ?? '').split(',') : ['parity', 'modifiers', 'reading']);
+    console.log(composeTable(seeds, levels, parts));
     console.log(`\n${((Date.now() - started) / 1000).toFixed(1)}s`);
     return;
   }
